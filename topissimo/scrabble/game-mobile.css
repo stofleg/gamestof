@@ -219,10 +219,10 @@
   body.theme-duplijeu .board td.tw::after,
   body.theme-duplijeu .board td.center::after { display: none; }
 
-  /* ----- F : ⌫ ferré à gauche + pictos centrés + ✓ ferré à droite ----- */
+  /* ----- F : ⌫ ferré à gauche + ⋯ + ✓ ferré à droite (pictos masqués) ----- */
   #actionRowInGame, #actionRowInGame[hidden] {
     display: flex !important;
-    flex-wrap: nowrap !important;
+    flex-wrap: wrap !important;
     flex: 0 0 auto !important;
     height: auto !important;
     gap: 0;
@@ -232,17 +232,44 @@
     padding: 0 !important;
     width: 100vw;
   }
-  /* Picto-group : s'étale sur l'espace restant, 1 seule ligne */
+  /* Picto-group : MASQUÉ par défaut sur mobile (évite les appuis par erreur).
+     Réaffiché via le bouton « ⋯ » → s'affiche en pleine largeur AU-DESSUS de
+     la ligne ⌫ / ⋯ / ✓ (order:-1). */
   #actionRowInGame .picto-group {
-    flex: 1 1 auto;
+    display: none !important;
+  }
+  body.pictos-open #actionRowInGame .picto-group {
     display: flex !important;
+    order: -1;
+    flex: 1 1 100%;
+    width: 100%;
     flex-wrap: nowrap !important;
     gap: 1px;
     justify-content: center;
     align-items: stretch;
     min-width: 0;
     overflow: hidden;
+    margin-bottom: 5px;
   }
+  /* Bouton « ⋯ » : étroit, entre ⌫ et ✓ */
+  #actionRowInGame .btn-more {
+    display: flex !important;
+    flex: 0 0 auto;
+    width: 40px;
+    height: 36px;
+    margin: 0 4px;
+    border: none;
+    border-radius: 6px;
+    background: #e6e9eb;
+    color: #5a6a73;
+    font-size: 1.2rem;
+    line-height: 1;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  body.pictos-open #actionRowInGame .btn-more { background: var(--yellow,#ffdd00); color: var(--petrol-dark,#002e44); }
   /* Chaque bouton picto : prend une part égale, se réduit si écran petit */
   #actionRowInGame .btn, #actionRowInGame .btn[hidden] {
     display: inline-flex !important;
@@ -266,12 +293,12 @@
   #btnReview   { order: 6; }
   #btnSheet    { order: 7; }
   #btnRestart  { order: 8; }
-  /* ⌫ et ✓ : carrés colorés, conservent leur look */
+  /* ⌫ et ✓ : élargis (~moitié de la ligne chacun, pictos masqués) */
   #actionRowInGame .btn-backspace,
   #actionRowInGame .btn-validate {
-    flex: 0 0 auto;
-    width: 42px;
-    height: 36px;
+    flex: 1 1 auto;
+    min-width: 42px;
+    height: 40px;
     border: none;
     border-radius: 6px;
     font-size: 1.2rem;

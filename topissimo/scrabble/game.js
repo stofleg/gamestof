@@ -3120,6 +3120,12 @@ window.goBackToTournament = function(withWarning = false) {
     : "../index.html#tab=prepared";
 };
 
+// Bouton « ⋯ » (mobile) : afficher/cacher les pictos du milieu.
+const _btnMoreActions = $("#btnMoreActions");
+if (_btnMoreActions) {
+  _btnMoreActions.onclick = () => document.body.classList.toggle("pictos-open");
+}
+
 const _btnBackToTournament = $("#btnBackToTournament");
 if (_btnBackToTournament) {
   _btnBackToTournament.onclick = () => {
