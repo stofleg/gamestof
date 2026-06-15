@@ -1845,6 +1845,7 @@ window.restartGame = () => {
 // ============================================================
 // Sur mobile, on aplatit la hiérarchie DOM pour pouvoir contrôler l'ordre vertical
 // (display:contents ne fonctionne pas fiablement avec `order` sous Safari iOS).
+let _origParents = null;   // mémorise l'ordre DOM d'origine pour restaurer le desktop
 function applyMobileLayout() {
   if (!window.matchMedia("(max-width: 700px)").matches) return;
   if (document.body.dataset.mobileLayout === "1") return;
@@ -1864,13 +1865,34 @@ function applyMobileLayout() {
   const bag           = rightCol.querySelector(".bag-display");
   const board         = gameWrap.querySelector(".board");
   const rackRow       = gameWrap.querySelector(".rack-row");
+  const els = [titleRow, infoBar, timerChip, preStartRow, feedback, board, inGameRow, rackRow, review, bag].filter(Boolean);
+  // Mémoriser l'ordre d'origine des parents concernés (pour restauration desktop)
+  const parents = [...new Set(els.map(e => e.parentNode))];
+  _origParents = parents.map(p => ({ parent: p, children: [...p.children] }));
   // Ordre mobile : title → info → timer → preStart → feedback → board → pictos+⌫+✓ → rack
-  [titleRow, infoBar, timerChip, preStartRow, feedback, board, inGameRow, rackRow, review, bag]
-    .filter(Boolean)
-    .forEach(el => layout.appendChild(el));
+  els.forEach(el => layout.appendChild(el));
   document.body.dataset.mobileLayout = "1";
 }
+// Restaure la hiérarchie DOM desktop (réversibilité → test sur PC en rétrécissant).
+function restoreDesktopLayout() {
+  if (document.body.dataset.mobileLayout !== "1" || !_origParents) return;
+  for (const { parent, children } of _origParents) {
+    for (const ch of children) parent.appendChild(ch);   // ré-append dans l'ordre d'origine
+  }
+  _origParents = null;
+  document.body.dataset.mobileLayout = "";
+}
 applyMobileLayout();
+// Bascule mobile ⇄ desktop au redimensionnement (permet de simuler le mobile sur
+// PC en rétrécissant la fenêtre, et c'est aussi du responsive correct).
+let _layoutResizeTimer = null;
+window.addEventListener("resize", () => {
+  clearTimeout(_layoutResizeTimer);
+  _layoutResizeTimer = setTimeout(() => {
+    if (window.matchMedia("(max-width: 700px)").matches) applyMobileLayout();
+    else restoreDesktopLayout();
+  }, 150);
+});
 
 // Détection plateforme : Mac (Cmd) vs Windows/Linux (Ctrl)
 const IS_MAC = /Mac|iPhone|iPad|iPod/i.test(navigator.platform || navigator.userAgent || "");
