@@ -269,9 +269,11 @@ function cellTile(r, c) {
 
 function renderRack() {
   const div = $("#rack");
-  // Met à jour la variable CSS --rack-size pour que le mobile sache combien
-  // de tuiles afficher en grid-template-columns (varie selon le mode : 7/8/9).
-  const rackSize = state.rack.length || currentMode().rackSize;
+  // Taille du chevalet pour le calibrage des jetons sur mobile : on prend la
+  // taille MAX du mode (7/8/9), constante toute la partie, et JAMAIS le nombre
+  // courant de lettres → les jetons gardent la même taille même s'il n'en reste
+  // que 2 ou 3 en fin de partie (sinon ils deviendraient énormes).
+  const rackSize = currentMode().rackSize;
   document.documentElement.style.setProperty("--rack-size", String(rackSize));
   if (state.rack.length === 0 && !state.started) {
     const size = currentMode().rackSize;
