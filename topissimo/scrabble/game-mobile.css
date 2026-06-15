@@ -232,9 +232,10 @@
     padding: 0 !important;
     width: 100vw;
   }
-  /* Header : on cache le titre (« Entraînement »/« Partie X ») pour gagner de
-     la place, et on affiche le bouton « ☰ Raccourcis ». */
-  .title-row .game-title { display: none !important; }
+  /* Header : on cache le CONTEXTE du titre (badge « Entraînement »/« Partie X »
+     + nom) pour gagner de la place, mais on GARDE les paramètres (Normal · 120s).
+     Et on affiche le bouton « ☰ Raccourcis ». */
+  .title-row .game-title .gt-context { display: none !important; }
   .title-row .shortcut-toggle {
     display: inline-flex !important;
     align-items: center;
@@ -272,7 +273,7 @@
     align-items: center;
     justify-content: center;
     padding: 4px 2px;
-    height: 36px;
+    height: 40px;   /* même hauteur que ⌫ / ✓ */
     touch-action: manipulation;
   }
   #actionRowInGame .btn .lbl { display: none; }

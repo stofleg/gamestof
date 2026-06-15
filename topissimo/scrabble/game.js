@@ -776,12 +776,15 @@ function renderGameTitle() {
   if (!el) return;
   const modeLabel = modeDisplayName(state.settings.gameMode, state.settings.withJoker);
   const timeLabel = state.settings.timePerMove > 0 ? ` · ${state.settings.timePerMove}s/coup` : "";
+  // .gt-context = badge + nom (masqué sur mobile) ; .gt-params = mode + temps
+  // (toujours affiché, y compris sur mobile).
+  const params = `<span class="gt-params">${modeLabel}${timeLabel}</span>`;
   if (review.active && review.game) {
-    el.innerHTML = `<span class="badge review">REVOIR</span> « ${escapeHtmlS(review.game.name)} » · ${modeLabel}${timeLabel}`;
+    el.innerHTML = `<span class="gt-context"><span class="badge review">REVOIR</span> « ${escapeHtmlS(review.game.name)} » · </span>${params}`;
   } else if (state.prepared) {
-    el.innerHTML = `<span class="badge">PARTIE</span> « ${escapeHtmlS(state.prepared.name)} » · ${modeLabel}${timeLabel}`;
+    el.innerHTML = `<span class="gt-context"><span class="badge">PARTIE</span> « ${escapeHtmlS(state.prepared.name)} » · </span>${params}`;
   } else {
-    el.innerHTML = `<span class="badge">ENTRAÎNEMENT</span> ${modeLabel}${timeLabel}`;
+    el.innerHTML = `<span class="gt-context"><span class="badge">ENTRAÎNEMENT</span> </span>${params}`;
   }
 }
 
