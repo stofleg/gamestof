@@ -144,8 +144,8 @@ body.show-coords .right-col {
 .right-col .review-panel { max-width: none; width: 100%; }
 .right-col .info-bar { flex-wrap: wrap; }
 .action-row { display: flex; gap: 8px; flex-wrap: wrap; }
-/* Bouton « ⋯ » (afficher/cacher les pictos) : mobile uniquement */
-.btn-more { display: none; }
+/* Bouton « ☰ Raccourcis » (afficher/cacher les pictos) : mobile uniquement */
+.shortcut-toggle { display: none; }
 
 
 .game-wrap {

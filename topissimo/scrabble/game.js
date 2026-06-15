@@ -3142,10 +3142,13 @@ window.goBackToTournament = function(withWarning = false) {
     : "../index.html#tab=prepared";
 };
 
-// Bouton « ⋯ » (mobile) : afficher/cacher les pictos du milieu.
-const _btnMoreActions = $("#btnMoreActions");
-if (_btnMoreActions) {
-  _btnMoreActions.onclick = () => document.body.classList.toggle("pictos-open");
+// Bouton « ☰ Raccourcis » (mobile) : afficher/cacher les pictos d'action.
+const _btnShortcuts = $("#btnShortcuts");
+if (_btnShortcuts) {
+  _btnShortcuts.onclick = () => {
+    const open = document.body.classList.toggle("pictos-open");
+    _btnShortcuts.classList.toggle("active", open);
+  };
 }
 
 const _btnBackToTournament = $("#btnBackToTournament");

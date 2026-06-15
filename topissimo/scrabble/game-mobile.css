@@ -232,15 +232,24 @@
     padding: 0 !important;
     width: 100vw;
   }
-  /* Picto-group : MASQUÉ par défaut sur mobile (évite les appuis par erreur).
-     Réaffiché via le bouton « ⋯ » → s'affiche en pleine largeur AU-DESSUS de
-     la ligne ⌫ / ⋯ / ✓ (order:-1). */
+  /* Header : on cache le titre (« Entraînement »/« Partie X ») pour gagner de
+     la place, et on affiche le bouton « ☰ Raccourcis ». */
+  .title-row .game-title { display: none !important; }
+  .title-row .shortcut-toggle {
+    display: inline-flex !important;
+    align-items: center;
+    gap: 4px;
+  }
+  .title-row .shortcut-toggle.active { background: var(--yellow,#ffdd00); color: var(--petrol-dark,#002e44); }
+
+  /* Picto-group : MASQUÉ par défaut → ⌫ et ✓ se partagent toute la largeur.
+     Affiché (au centre, MÊME ligne) quand le bouton Raccourcis est actif. */
   #actionRowInGame .picto-group {
     display: none !important;
   }
   body.pictos-open #actionRowInGame .picto-group {
     display: flex !important;
-    flex: 1 1 auto;          /* prend la place du centre, MÊME ligne que ⌫/✓ */
+    flex: 1 1 auto;
     flex-wrap: nowrap !important;
     gap: 1px;
     justify-content: center;
@@ -248,25 +257,6 @@
     min-width: 0;
     overflow: hidden;
   }
-  /* Bouton « ⋯ » : étroit, entre ⌫ et ✓ */
-  #actionRowInGame .btn-more {
-    display: flex !important;
-    flex: 0 0 auto;
-    width: 40px;
-    height: 36px;
-    margin: 0 4px;
-    border: none;
-    border-radius: 6px;
-    background: #e6e9eb;
-    color: #5a6a73;
-    font-size: 1.2rem;
-    line-height: 1;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    touch-action: manipulation;
-  }
-  body.pictos-open #actionRowInGame .btn-more { background: var(--yellow,#ffdd00); color: var(--petrol-dark,#002e44); }
   /* Pictos ouverts : ⌫ et ✓ rétrécissent pour laisser la place au centre */
   body.pictos-open #actionRowInGame .btn-backspace,
   body.pictos-open #actionRowInGame .btn-validate {
