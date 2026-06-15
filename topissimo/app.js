@@ -770,10 +770,48 @@ async function loadPreparedGames() {
 
 const MAX_ACTIVE_TOURNAMENTS = 10;
 
+// ===== Présence temps réel (qui est connecté / en jeu) =====
+let presenceChannel = null;
+function startPresence(playerId) {
+  if (presenceChannel || !playerId) return;
+  presenceChannel = sb.channel("online", { config: { presence: { key: String(playerId) } } });
+  presenceChannel.on("presence", { event: "sync" }, renderPresence);
+  presenceChannel.subscribe(async (status) => {
+    if (status === "SUBSCRIBED") {
+      await presenceChannel.track({ id: +playerId, context: "site", at: Date.now() });
+    }
+  });
+}
+function renderPresence() {
+  if (!isAdmin()) return;
+  const card = $("#presenceCard");
+  const body = $("#presenceBody");
+  if (!card || !body) return;
+  const pres = presenceChannel ? presenceChannel.presenceState() : {};
+  const me = +state.currentPlayerId || 0;
+  const rows = Object.entries(pres).map(([key, metas]) => {
+    const id = +key;
+    const name = (state.players || []).find(p => p.id === id)?.name || `#${id}`;
+    const inGame = metas.some(m => m.context === "jeu");
+    return { id, name, inGame };
+  }).sort((a, b) => (b.inGame - a.inGame) || a.name.localeCompare(b.name, "fr"));
+  card.hidden = false;
+  body.innerHTML = rows.length
+    ? `<div style="display:flex;flex-direction:column;gap:6px">${rows.map(r => `
+        <div style="display:flex;align-items:center;gap:8px">
+          <span style="width:9px;height:9px;border-radius:50%;background:${r.inGame ? '#e67e22' : '#2c7a3b'};flex:0 0 auto"></span>
+          <strong>${escapeHtml(r.name)}</strong>${r.id === me ? ' <span class="muted">(toi)</span>' : ''}
+          <span class="muted" style="margin-left:auto;font-size:.82rem">${r.inGame ? '🎮 en jeu' : 'sur le site'}</span>
+        </div>`).join("")}</div>
+       <p class="muted" style="margin-top:8px;font-size:.78rem">${rows.some(r => r.inGame) ? '⚠️ Des joueurs sont en partie — évite de déployer une mise à jour maintenant.' : 'Aucun joueur en partie.'}</p>`
+    : `<p class="muted">Personne d'autre connecté pour l'instant.</p>`;
+}
+
 async function loadTournaments() {
   $("#tournamentsView").hidden = false;
   $("#tournamentDetailView").hidden = true;
   $("#tournamentFormCard").hidden = !isAdmin();
+  if (isAdmin()) renderPresence(); else { const c = $("#presenceCard"); if (c) c.hidden = true; }
 
   const { data: tournaments, error } = await sb.from("tournaments")
     .select("*").is("archived_at", null)
@@ -1736,7 +1774,7 @@ async function onSignedIn() {
     swVerEl.hidden = true;
   }
   // Charger les données
-  loadPlayers().then(loadPreparedGames);
+  loadPlayers().then(() => { startPresence(player.id); loadPreparedGames(); });
 }
 
 function onSignedOut() {

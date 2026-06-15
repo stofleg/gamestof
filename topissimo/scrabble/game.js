@@ -3274,3 +3274,21 @@ if ("serviceWorker" in navigator) {
     });
   }).catch(() => {});
 }
+
+// ============================================================
+//  Présence temps réel : signaler « en jeu » à l'admin (même canal "online"
+//  que la page d'accueil) pour qu'il sache qui joue avant de déployer.
+// ============================================================
+(function joinGamePresence() {
+  const pid = +(localStorage.getItem("currentPlayerId") || 0);
+  if (!pid) return;
+  (async () => {
+    try {
+      if (!window._sb) await loadSupabaseClient();
+      const ch = window._sb.channel("online", { config: { presence: { key: String(pid) } } });
+      ch.subscribe(async (status) => {
+        if (status === "SUBSCRIBED") await ch.track({ id: pid, context: "jeu", at: Date.now() });
+      });
+    } catch (e) { /* silencieux */ }
+  })();
+})();
