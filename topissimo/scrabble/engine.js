@@ -206,13 +206,20 @@ export function scoreMove(board, move, dict, opts = {}) {
 
   // 5) Validation des mots dans le dictionnaire
   const wordStrings = wordsFormed.map(w => w.cells.map(c => c.letter).join(""));
+  // Cases des mots INVALIDES (pour les afficher en rouge : mot principal et/ou
+  // mot croisé « en raccord »).
+  const invalidCells = [];
   if (dict) {
-    for (const w of wordStrings) {
-      if (!dict.has(w)) errors.push(`"${w}" n'est pas dans le dictionnaire`);
+    for (const w of wordsFormed) {
+      const str = w.cells.map(c => c.letter).join("");
+      if (!dict.has(str)) {
+        errors.push(`"${str}" n'est pas dans le dictionnaire`);
+        for (const cell of w.cells) invalidCells.push({ r: cell.r, c: cell.c });
+      }
     }
   }
 
-  if (errors.length) return { score: 0, words: wordStrings, errors };
+  if (errors.length) return { score: 0, words: wordStrings, errors, invalidCells };
 
   // 6) Calcul du score
   const placedSet = new Set(placed.map(p => `${p.r},${p.c}`));

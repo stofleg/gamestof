@@ -207,12 +207,13 @@ function renderBoard() {
       if (isCursor) cls.push("cursor", state.cursor.dir === "H" ? "dir-h" : "dir-v");
       if (state.lastPlaced.some(p => p.row === r && p.col === c)) cls.push("last-placed");
       if (state.settings.highlightTop !== false && state.lastTopCells.some(p => p.row === r && p.col === c)) cls.push("top-word");
+      const isInvalidCell = state.invalidCells && state.invalidCells.some(p => p.r === r && p.c === c);
       let tileHtmlStr = "";
       if (tile) {
         const tcls = ["tile"];
         if (tile.isBlank) tcls.push("blank");
         if (tile.pending) tcls.push("pending");
-        if (tile.invalid) tcls.push("invalid");
+        if (tile.invalid || isInvalidCell) tcls.push("invalid");
         const tval = tile.isBlank ? "" : LETTER_VALUE[tile.letter];
         // Les tuiles "pending" sont draggables (pour les déplacer)
         const dragAttr = tile.pending ? `draggable="true" data-pending-r="${r}" data-pending-c="${c}"` : "";
@@ -1266,7 +1267,7 @@ function validate() {
   if (result.errors.length) {
     // Coup invalide : on flash le mot en rouge sur le plateau (1s), puis on
     // renvoie les tuiles au chevalet et on restaure le message précédent.
-    flashInvalidWord(result.errors.join("<br>"));
+    flashInvalidWord(result.errors.join("<br>"), result.invalidCells);
     return;
   }
   // Vérification mode 7sur8 / 7et8 / 789 : nb de tuiles posées
@@ -1366,16 +1367,20 @@ function bestJokerVariant(board, move, dict, opts) {
 // Coup invalide : fait clignoter les tuiles posées en rouge pendant 1s puis les
 // renvoie au chevalet. Affiche le meilleur essai en cours s'il existe,
 // sinon conserve le feedback précédent tel quel.
-function flashInvalidWord(detail) {
+function flashInvalidWord(detail, invalidCells) {
   state.moveInvalidCount++;  // compteur de mots hors dico
-  // 1) Marquer les pending tiles comme invalides → CSS les passe en rouge
-  state.pending.forEach(p => p.invalid = true);
+  // 1) Colorer en rouge le(s) MOT(S) réellement invalide(s) — mot principal
+  //    et/ou mot croisé « en raccord », lettres déjà posées comprises.
+  //    Repli (erreurs autres que hors-dico) : on marque les tuiles posées.
+  state.invalidCells = (invalidCells && invalidCells.length) ? invalidCells : [];
+  if (!state.invalidCells.length) state.pending.forEach(p => p.invalid = true);
   renderBoard();
   showFeedback("error", "Coup invalide", detail);
 
   // 2) Au bout d'1 seconde : retirer les pending et afficher le meilleur essai
   setTimeout(() => {
     state.pending.forEach(p => delete p.invalid);
+    state.invalidCells = [];
     clearPending();
     renderRack();
     renderBoard();
@@ -1942,6 +1947,7 @@ async function initGame() {
   state.chronoFinal = null;
   state.lastPlaced = [];
   state.lastTopCells = [];
+  state.invalidCells = [];
   state.history = [];
   state.moveStart = null;
   state.moveTimeLeft = 0;
@@ -1950,7 +1956,9 @@ async function initGame() {
   if (topWordTimer) { clearTimeout(topWordTimer); topWordTimer = null; }
   // Reset UI review s'il était activé
   review.active = false;
+  review.replayMode = false;
   document.body.classList.remove("in-review");
+  document.body.classList.remove("review-replay");
   review.game = null;
   review.result = null;
   review.historyByMove = {};
@@ -2165,6 +2173,9 @@ function renderReviewStep() {
   // Sync visuel du bouton replay
   const _rvReplayBtn = $("#rvReplay");
   if (_rvReplayBtn) _rvReplayBtn.classList.toggle("active", replay);
+  // En mode replay (« secret »), on ré-affiche le tirage sur mobile (masqué
+  // sinon en review faute de place) pour que le joueur cherche le top.
+  document.body.classList.toggle("review-replay", replay);
 
   if (replay) {
     // Mode replay : plateau AVANT le coup courant (sans le top)

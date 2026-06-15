@@ -68,7 +68,10 @@ export function findTopRanked(board, rack, dict, bag = null, opts = {}) {
   //  12. qualité du reliquat
   scored.sort((a, b) =>
     b._endsGame - a._endsGame ||
-    (preserveJoker ? b._noJoker - a._noJoker : 0) ||
+    // Toujours préférer conserver le joker dans le reliquat (ne pas le consommer),
+    // quel que soit le mode. Le départage entre isotops sans joker se fait ensuite
+    // selon les autres critères.
+    b._noJoker - a._noJoker ||
     b._playsQ - a._playsQ ||
     b._qPos - a._qPos ||
     b._extBoth - a._extBoth ||

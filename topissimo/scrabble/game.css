@@ -617,7 +617,9 @@ input:disabled, select:disabled {
   background: linear-gradient(135deg, #e0f5e0, var(--tile-pending) 50%, var(--tile-pending-2));
   border-color: #5a9a5a;
 }
-/* Coup invalide : tuiles posées passent en rouge avant d'être retirées */
+/* Coup invalide : le(s) mot(s) hors-dico passent en rouge (tuiles posées ET
+   lettres déjà sur la grille du mot en raccord) avant d'être retirées */
+.board td .tile.invalid,
 .board td .tile.pending.invalid {
   background: linear-gradient(135deg, #ffd0d0, #ff8888 50%, #d04040) !important;
   border-color: #a02525 !important;

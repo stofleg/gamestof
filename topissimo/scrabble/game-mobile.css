@@ -335,6 +335,9 @@
 @media (max-width: 700px) {
   body.in-review { overflow: hidden !important; }
   body.in-review .rack-row { display: none !important; }
+  /* Mode « secret » (replay) : on ré-affiche le tirage pour que le joueur
+     cherche le top sur mobile. */
+  body.in-review.review-replay .rack-row { display: flex !important; }
   /* La grille garde sa forme carrée 100vw² */
 
   /* Panel review : compact, fixe en haut, solutions scrollables */

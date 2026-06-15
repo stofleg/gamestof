@@ -1229,6 +1229,10 @@ async function loadTournamentStats(tournamentId, games) {
   for (const r of results) (byGame[r.prepared_game_id] ||= []).push(r);
   const soloList = [];   // solos individuels rejouables : { gid, moveNo, pid }
   for (const [gid, rs] of Object.entries(byGame)) {
+    // Un solo n'a de sens que si AU MOINS 2 joueurs ont joué la partie (sinon
+    // le seul joueur présent "trouve seul" chaque top trivialement).
+    const finishers = new Set(rs.filter(r => Array.isArray(r.details) && r.details.length).map(r => r.player_id));
+    if (finishers.size < 2) continue;
     // Construire map moveNo → liste de player_ids ayant top
     const topsByMove = {};
     for (const r of rs) {
