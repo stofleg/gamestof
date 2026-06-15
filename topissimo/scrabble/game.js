@@ -1,3 +1,8 @@
+// Version du code de jeu — DOIT être bumpée avec le CACHE de sw.js à chaque
+// déploiement. Sert à détecter un game.js périmé servi par le service worker
+// et à forcer un rechargement propre AVANT le début de partie (cf. bas de fichier).
+const GAME_VERSION = "garenna-v116";
+
 // Détection mode app (PWA standalone/fullscreen/minimal-ui)
 (function () {
   const isApp =
@@ -3293,4 +3298,23 @@ if ("serviceWorker" in navigator) {
       });
     } catch (e) { /* silencieux */ }
   })();
+})();
+
+// ============================================================
+//  Garde-fou « dernière version » : au chargement de la page de jeu, si le
+//  code exécuté (GAME_VERSION) ne correspond PAS à la version réellement
+//  déployée (nom du cache du service worker), c'est que game.js a été servi
+//  périmé → on recharge proprement UNE fois, avant tout démarrage de partie.
+//  Évite les « faux tirages » dus à un script en cache obsolète.
+// ============================================================
+(function ensureLatestVersion() {
+  if (!("caches" in window)) return;
+  caches.keys().then(keys => {
+    const cacheName = keys.find(k => k.startsWith("garenna-"));
+    if (!cacheName || cacheName === GAME_VERSION) return;   // à jour (ou cache inconnu)
+    // Code périmé par rapport au cache déployé → recharger une seule fois par version.
+    if (sessionStorage.getItem("vReload") === cacheName) return;
+    sessionStorage.setItem("vReload", cacheName);
+    location.reload();
+  }).catch(() => {});
 })();
