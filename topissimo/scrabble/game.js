@@ -1,7 +1,7 @@
 // Version du code de jeu — DOIT être bumpée avec le CACHE de sw.js à chaque
 // déploiement. Sert à détecter un game.js périmé servi par le service worker
 // et à forcer un rechargement propre AVANT le début de partie (cf. bas de fichier).
-const GAME_VERSION = "garenna-v118";
+const GAME_VERSION = "garenna-v119";
 
 // Détection mode app (PWA standalone/fullscreen/minimal-ui)
 (function () {
@@ -1520,8 +1520,13 @@ function placeTopAndAdvance(playerScore, playedWord = null, playedScore = null, 
   // Appliquer le top au plateau
   state.board = applyMove(state.board, tm.move);
 
-  // Mode joker : si le top utilise un joker, tenter le remplacement par la lettre du sac
-  if (state.settings.withJoker && jokerUsedAsLetter !== null && state.spareJokers > 0) {
+  // Mode joker : si le top utilise un joker, tenter le remplacement par la lettre du sac.
+  // UNIQUEMENT en entraînement (où state.bag est suivi). En pré-tiré (tournoi/puzzle),
+  // state.bag n'est PAS décrémenté → on ferait de faux remplacements ; les `blanks`
+  // stockés encodent déjà la décision réelle prise à la génération (un joker resté
+  // blanc le reste). On ne retouche donc pas le plateau dans ce cas.
+  if (!state.prepared && !state.isPuzzle &&
+      state.settings.withJoker && jokerUsedAsLetter !== null && state.spareJokers > 0) {
     if (state.bag[jokerUsedAsLetter] > 0) {
       state.bag[jokerUsedAsLetter]--;
       const cell = lastPlaced[jokerCellIdx];
