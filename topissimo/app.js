@@ -18,10 +18,12 @@ const sb = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANO
 // Service worker (PWA installable) + AUTO-MISE-À-JOUR.
 // À chaque chargement, on force la vérification d'une nouvelle version du SW.
 // Si on en trouve une, on la skipWaiting et on reload pour servir le neuf.
+let _swReg = null;   // référence globale pour ensureFreshAndNavigate()
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", async () => {
     try {
       const reg = await navigator.serviceWorker.register("./sw.js");
+      _swReg = reg;
       // 1) Check immédiat
       reg.update();
       // 2) Re-check toutes les 5 min si l'onglet reste ouvert
@@ -46,6 +48,48 @@ if ("serviceWorker" in navigator) {
       });
     } catch (e) { /* silencieux */ }
   });
+}
+
+// Vérifie qu'on a la dernière version du SW avant d'ouvrir une partie.
+// Si une mise à jour est disponible ou en cours, on l'applique (skipWaiting)
+// et on attend que le nouveau SW prenne le contrôle AVANT de naviguer.
+// Délai max : 3 s (évite de bloquer si le réseau est lent).
+async function ensureFreshAndNavigate(url) {
+  try {
+    const reg = _swReg || await navigator.serviceWorker.getRegistration();
+    if (!reg) { location.href = url; return; }
+
+    const applyAndGo = (sw) => new Promise(resolve => {
+      navigator.serviceWorker.addEventListener("controllerchange", () => {
+        resolve();
+      }, { once: true });
+      sw.postMessage({ type: "SKIP_WAITING" });
+    });
+
+    // Cas 1 : un nouveau SW est déjà en attente → l'activer puis naviguer
+    if (reg.waiting) {
+      await Promise.race([applyAndGo(reg.waiting), new Promise(r => setTimeout(r, 3000))]);
+      location.href = url;
+      return;
+    }
+
+    // Cas 2 : vérifier s'il y a une mise à jour disponible (max 3 s)
+    const updateReady = new Promise(resolve => {
+      reg.addEventListener("updatefound", () => {
+        const sw = reg.installing;
+        if (!sw) { resolve(null); return; }
+        sw.addEventListener("statechange", () => {
+          if (sw.state === "installed") resolve(sw);
+        });
+      }, { once: true });
+    });
+    await reg.update();
+    const newSw = await Promise.race([updateReady, new Promise(r => setTimeout(() => r(null), 3000))]);
+    if (newSw) {
+      await Promise.race([applyAndGo(newSw), new Promise(r => setTimeout(r, 2000))]);
+    }
+  } catch (e) { /* silencieux */ }
+  location.href = url;
 }
 
 // Détection mode app (Chrome standalone/fullscreen/minimal-ui, Safari home-screen)
@@ -959,7 +1003,7 @@ async function loadTournamentDetail(tournamentId) {
         const played = playedIds.has(g.id);
         const action = played
           ? `<a style="${btnStyle};background:var(--soft);color:var(--petrol)" href="scrabble/game.html?review=${g.id}&tid=${currentTournamentId}">👁 Revoir</a>`
-          : `<a style="${btnStyle};background:var(--yellow);color:var(--petrol-dark)" href="scrabble/game.html?prepared=${g.id}&tid=${currentTournamentId}">▶ Jouer</a>`;
+          : `<button style="${btnStyle};background:var(--yellow);color:var(--petrol-dark);border:none;cursor:pointer" onclick="ensureFreshAndNavigate('scrabble/game.html?prepared=${g.id}&tid=${currentTournamentId}')">▶ Jouer</button>`;
         const del = admin ? `<button class="danger" onclick="delPreparedGame(${g.id})" title="Supprimer">🗑</button>` : "";
         return `<div class="pg-mini">
           <div class="pg-name">${escapeHtml(g.name)}</div>
