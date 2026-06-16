@@ -143,9 +143,13 @@
         <div style="flex:0 0 auto"><label>&nbsp;</label><button class="primary" id="pgCreate">Générer</button></div>
       </div>
       <p class="muted" id="pgStatus" style="margin-top:8px"></p>
-      <div style="margin-top:10px;padding-top:10px;border-top:1px solid #e0e8ec">
-        <button class="btn ghost small" id="recomputeNeg" onclick="recomputeAllJokerNeg()">🔧 Recalculer les négatifs joker</button>
-        <span class="muted" id="recomputeStatus" style="margin-left:10px;font-size:.85rem"></span>
+    </div>
+
+    <div class="card" id="adminToolsCard" hidden>
+      <h2>🔧 Outils admin</h2>
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <button class="btn ghost small" onclick="recomputeAllJokerNeg()">🔧 Recalculer les négatifs joker</button>
+        <span class="muted" id="recomputeStatus" style="font-size:.85rem"></span>
       </div>
     </div>
 

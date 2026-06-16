@@ -908,6 +908,7 @@ async function loadTournamentDetail(tournamentId) {
   $("#tournamentsView").hidden = true;
   $("#tournamentDetailView").hidden = false;
   $("#pgFormCard").hidden = !isAdmin();
+  $("#adminToolsCard").hidden = !isAdmin();
   $("#tournamentDelete").hidden = !isAdmin();
   $("#tournamentPurge").hidden = !isAdmin();
 
