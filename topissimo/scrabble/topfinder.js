@@ -385,7 +385,7 @@ export function findTop(board, rack, dict, opts = {}) {
           blanksAt: [],
           tilesUsed: 0,
           maxTilesUsed,
-          bonuses,
+          bonuses, jokerValue: opts.jokerValue,
           anchorCovered: false,
           candidates, seenMoves,
         });
@@ -415,7 +415,7 @@ function findAnchors(board) {
 
 function extend(ctx) {
   const { board, dict, rack, dir, dr, dc, ar, ac, startR, startC,
-          r, c, currentWord, blanksAt, tilesUsed, maxTilesUsed, bonuses,
+          r, c, currentWord, blanksAt, tilesUsed, maxTilesUsed, bonuses, jokerValue,
           anchorCovered, candidates, seenMoves } = ctx;
 
   // 1) Si on a un mot valide qui couvre l'ancre, et que la prochaine case
@@ -427,7 +427,7 @@ function extend(ctx) {
     if (!seenMoves.has(key)) {
       seenMoves.add(key);
       const move = { word: currentWord, row: startR, col: startC, dir, blanks: [...blanksAt] };
-      const result = scoreMove(board, move, dict, { bonuses });
+      const result = scoreMove(board, move, dict, { bonuses, jokerValue });
       if (result.errors.length === 0) {
         candidates.push({ score: result.score, move, words: result.words, placedCount: result.placed.length });
       }
