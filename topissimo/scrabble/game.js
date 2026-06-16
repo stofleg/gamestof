@@ -1,7 +1,7 @@
 // Version du code de jeu — DOIT être bumpée avec le CACHE de sw.js à chaque
 // déploiement. Sert à détecter un game.js périmé servi par le service worker
 // et à forcer un rechargement propre AVANT le début de partie (cf. bas de fichier).
-const GAME_VERSION = "garenna-v117";
+const GAME_VERSION = "garenna-v116";
 
 // Détection mode app (PWA standalone/fullscreen/minimal-ui)
 (function () {
@@ -155,11 +155,6 @@ async function saveSettingsToSupabase() {
 
 function currentMode() {
   return GAME_MODES[state.settings.gameMode] || GAME_MODES.duplicate;
-}
-// "real" si un joker posé sera remplacé par sa vraie lettre (mode joker, jokers
-// dispo) → il compte alors pour sa valeur réelle dans le scoring. Sinon "zero".
-function jokerScoreOpt() {
-  return (state.settings.withJoker && state.spareJokers > 0) ? "real" : "zero";
 }
 function saveSettings() {
   localStorage.setItem("scrabbleSettings", JSON.stringify(state.settings));
@@ -586,7 +581,7 @@ function computePendingScore() {
   if (state.pending.length === 0) return null;
   const m = buildMoveFromPending();
   if (!m) return null;
-  const r = scoreMove(state.board, m, null, { bonuses: currentMode().bonuses, jokerValue: jokerScoreOpt() });
+  const r = scoreMove(state.board, m, null);
   if (r.errors.length) return null;
   return r.score;
 }
@@ -667,7 +662,7 @@ function timeoutAdvance() {
   if (state.pending.length) {
     const m = buildMoveFromPending();
     if (m) {
-      const r = scoreMove(state.board, m, state.dict, { bonuses: currentMode().bonuses, jokerValue: jokerScoreOpt() });
+      const r = scoreMove(state.board, m, state.dict);
       if (!r.errors.length) { playerScore = r.score; playedWord = m.word; }
     }
   }
@@ -1257,7 +1252,7 @@ function validate() {
     if (!isotopWords) {
       const rackLetters = state.rack.map(t => t.letter);
       const allMoves = findTop(state.board, rackLetters, state.dict, {
-        all: true, maxTilesUsed: mode.maxPlayed, bonuses: mode.bonuses, jokerValue: jokerScoreOpt(),
+        all: true, maxTilesUsed: mode.maxPlayed, bonuses: mode.bonuses,
       }) || [];
       isotopWords = [...new Set(allMoves.filter(c => c.score === topScore).map(c => c.move.word))];
       state.topMove.isotopWords = isotopWords;
@@ -1277,7 +1272,7 @@ function validate() {
   }
   // Règle FFSC : si le joker a un homonyme (même lettre) dans le mot, on permute
   // automatiquement vers la combinaison la plus avantageuse en points.
-  const result = bestJokerVariant(state.board, move, state.dict, { bonuses: mode.bonuses, jokerValue: jokerScoreOpt() });
+  const result = bestJokerVariant(state.board, move, state.dict, { bonuses: mode.bonuses });
   // bestJokerVariant peut avoir modifié move.blanks ; on relit ici.
   if (result.errors.length) {
     // Coup invalide : on flash le mot en rouge sur le plateau (1s), puis on
@@ -1583,7 +1578,7 @@ function revealTop() {
   if (state.pending.length) {
     const move = buildMoveFromPending();
     if (move) {
-      const r = scoreMove(state.board, move, state.dict, { bonuses: currentMode().bonuses, jokerValue: jokerScoreOpt() });
+      const r = scoreMove(state.board, move, state.dict);
       if (!r.errors.length) { pendingScore = r.score; pendingWord = move.word; }
     }
   }
@@ -1790,7 +1785,6 @@ function computeTop() {
     maxTilesUsed: mode.maxPlayed,
     bonuses: mode.bonuses,
     preserveJoker: state.settings.withJoker && state.spareJokers > 0,
-    jokerValue: jokerScoreOpt(),
   });
   const t1 = performance.now();
   // Pas de log du mot pour ne pas spoiler via la console
@@ -2477,7 +2471,6 @@ function renderReviewSolutions(idx) {
       all: true,
       bonuses: GAME_MODES[review.game.mode]?.bonuses || { 7: 50 },
       maxTilesUsed: GAME_MODES[review.game.mode]?.maxPlayed || 7,
-      jokerValue: review.game.with_joker ? "real" : "zero",
     }) || [];
     // Au 1er coup, on ne joue jamais verticalement en duplicate
     if (idx === 0) all = all.filter(s => s.move.dir === "H");
@@ -3229,7 +3222,7 @@ function abandonRest() {
   if (state.pending.length) {
     const m = buildMoveFromPending();
     if (m) {
-      const r = scoreMove(state.board, m, state.dict, { bonuses: currentMode().bonuses, jokerValue: jokerScoreOpt() });
+      const r = scoreMove(state.board, m, state.dict);
       if (!r.errors.length) { playerScore = r.score; playedWord = m.word; }
     }
   }

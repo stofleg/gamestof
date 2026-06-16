@@ -8,7 +8,7 @@
 // ============================================================
 
 import {
-  emptyBoard, LETTER_BAG, drawForDuplicate, applyMove, scoreMove,
+  emptyBoard, LETTER_BAG, drawForDuplicate, applyMove,
   bagTotalVowels, bagTotalConsonants, GAME_MODES,
 } from "./engine.js";
 import { findTopRanked } from "./topfinder.js";
@@ -81,8 +81,6 @@ export function generateGame(dict, options = {}, onProgress = null) {
       maxTilesUsed: mode.maxPlayed,
       bonuses: mode.bonuses,
       preserveJoker: withJoker && spareJokers > 0,
-      // Joker remplacé → compte pour sa vraie valeur (cf. règle « 7 sur 8 joker »).
-      jokerValue: (withJoker && spareJokers > 0) ? "real" : "zero",
     });
 
     if (!top) {
@@ -129,8 +127,6 @@ export function generateGame(dict, options = {}, onProgress = null) {
       }
     }
 
-    // Plateau AVANT ce coup (pour recalcul exact du score après remplacement joker)
-    const boardBefore = board;
     // Appliquer au plateau
     board = applyMove(board, top.move);
 
@@ -144,19 +140,6 @@ export function generateGame(dict, options = {}, onProgress = null) {
         stored.blanks = stored.blanks.filter(b => b !== jokerWordIdx);
       } else {
         spareJokers--;
-      }
-    }
-
-    // Recalcul EXACT du score du top : un joker remplacé (retiré des blanks)
-    // compte pour sa vraie valeur ; un joker NON remplacé (resté blanc, sac sans
-    // la lettre) compte 0. jokerValue "zero" + blanks finaux donne exactement le
-    // score que le jeu/la review calculeront sur ce même plateau.
-    if (withJoker) {
-      const st = moves[moves.length - 1].top;
-      const rs = scoreMove(boardBefore, { word, row, col, dir, blanks: st.blanks }, dict, { bonuses: mode.bonuses, jokerValue: "zero" });
-      if (!rs.errors.length && rs.score !== st.score) {
-        totalTopScore += (rs.score - st.score);
-        st.score = rs.score;
       }
     }
 

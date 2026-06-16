@@ -94,10 +94,6 @@ export function cellBonus(r, c) {
 
 export function scoreMove(board, move, dict, opts = {}) {
   const bonuses = opts.bonuses || { 7: 50 };
-  // En mode joker (« 7 sur 8 joker »), un joker posé est remplacé par sa vraie
-  // lettre sur le plateau → il compte pour sa valeur réelle. opts.jokerValue
-  // = "real" demande de scorer les blancs à leur valeur (et non 0).
-  const jokerReal = opts.jokerValue === "real";
   const { word, row, col, dir, blanks = [] } = move;
   const errors = [];
   const dr = dir === "V" ? 1 : 0;
@@ -236,7 +232,7 @@ export function scoreMove(board, move, dict, opts = {}) {
     for (const cell of cells) {
       const key = `${cell.r},${cell.c}`;
       const isNew = placedSet.has(key);
-      let letterScore = (cell.isBlank && !jokerReal) ? 0 : (LETTER_VALUE[cell.letter] || 0);
+      let letterScore = cell.isBlank ? 0 : LETTER_VALUE[cell.letter];
       if (isNew) {
         const b = BOARD_BONUSES[cell.r][cell.c];
         if (b === "d") letterScore *= 2;
