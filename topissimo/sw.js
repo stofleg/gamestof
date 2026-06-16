@@ -1,6 +1,6 @@
 // Service worker minimal — strategy "network first, fallback cache".
 // Le but est juste de rendre l'app installable (PWA) et un poil plus résiliente offline.
-const CACHE = "garenna-v139";
+const CACHE = "garenna-v140";
 const SHELL = [
   "./",
   "./index.html",
@@ -19,6 +19,7 @@ const SHELL = [
   "./scrabble/dictionary.js",
   "./scrabble/topfinder.js",
   "./scrabble/generator.js",
+  "./scrabble/recompute.js",
 ];
 
 self.addEventListener("install", e => {

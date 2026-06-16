@@ -1103,7 +1103,7 @@ async function loadTournamentLeaderboard(tournamentId, games) {
       let sheetBtn = "";
       if (r) {
         if (myGameIds.has(g.id)) {
-          sheetBtn = `<button class="btn ghost small" onclick="event.stopPropagation();openPlayerGameSheet(${p.id}, '${g.id}')">📋 Feuille de route</button>`;
+          sheetBtn = `<button class="btn ghost small" onclick="event.stopPropagation();openPlayerGameSheet('${p.id}', '${g.id}')">📋 Feuille de route</button>`;
         } else {
           sheetBtn = `<span class="muted" style="font-size:.78rem" title="Joue d'abord cette partie pour voir sa feuille de route">🔒</span>`;
         }
@@ -1567,6 +1567,92 @@ $("#pgCreate").onclick = async () => {
     console.error("pgCreate error:", e);
     $("#pgStatus").innerHTML = `<span style="color:#a02525">Erreur inattendue : ${escapeHtml(e.message || String(e))}</span> (voir console)`;
   }
+};
+
+// ============================================================
+//  Recalcul correctif des négatifs pour les parties joker (Bug 4)
+// ============================================================
+
+window.recomputeAllJokerNeg = async function() {
+  if (!isAdmin()) return alert("Réservé à l'admin.");
+  const statusEl = $("#recomputeStatus");
+  statusEl.textContent = "⏳ Chargement des modules…";
+
+  let recomputeResult;
+  try {
+    ({ recomputeResult } = await import("./scrabble/recompute.js"));
+  } catch (e) {
+    statusEl.textContent = "❌ Impossible de charger recompute.js : " + e.message;
+    return;
+  }
+
+  statusEl.textContent = "⏳ Récupération des parties joker…";
+  // 1. Récupérer toutes les parties joker du tournoi courant (ou tous les tournois)
+  const { data: jokerGames, error: gErr } = await sb
+    .from("prepared_games")
+    .select("id, mode, moves")
+    .eq("with_joker", true);
+  if (gErr) { statusEl.textContent = "❌ " + gErr.message; return; }
+  if (!jokerGames || jokerGames.length === 0) {
+    statusEl.textContent = "ℹ️ Aucune partie joker trouvée.";
+    return;
+  }
+  const jokerIds = jokerGames.map(g => g.id);
+
+  statusEl.textContent = "⏳ Récupération des résultats…";
+  // 2. Récupérer tous les résultats pour ces parties
+  const { data: allResults, error: rErr } = await sb
+    .from("prepared_game_results")
+    .select("player_id, prepared_game_id, details, sum_neg, total_score")
+    .in("prepared_game_id", jokerIds);
+  if (rErr) { statusEl.textContent = "❌ " + rErr.message; return; }
+  if (!allResults || allResults.length === 0) {
+    statusEl.textContent = "ℹ️ Aucun résultat joker à recalculer.";
+    return;
+  }
+
+  statusEl.textContent = `⏳ Recalcul de ${allResults.length} fiche(s)…`;
+
+  // 3. Recalculer chaque résultat et préparer les upserts
+  const gameMap = Object.fromEntries(jokerGames.map(g => [g.id, g]));
+  const upserts = [];
+  let changed = 0;
+  for (const r of allResults) {
+    const game = gameMap[r.prepared_game_id];
+    if (!game || !r.details) continue;
+    const { sumNeg, totalScore, details } = recomputeResult(game, r.details);
+    // Ne mettre à jour que si quelque chose a changé
+    if (sumNeg !== r.sum_neg || totalScore !== r.total_score) {
+      upserts.push({
+        player_id: r.player_id,
+        prepared_game_id: r.prepared_game_id,
+        sum_neg: sumNeg,
+        total_score: totalScore,
+        details,
+      });
+      changed++;
+    }
+  }
+
+  if (upserts.length === 0) {
+    statusEl.textContent = `✅ Tout est déjà correct (${allResults.length} fiches vérifiées).`;
+    return;
+  }
+
+  statusEl.textContent = `💾 Mise à jour de ${changed} fiche(s)…`;
+  // 4. Upsert par lots de 50
+  const BATCH = 50;
+  for (let i = 0; i < upserts.length; i += BATCH) {
+    const batch = upserts.slice(i, i + BATCH);
+    const { error: uErr } = await sb
+      .from("prepared_game_results")
+      .upsert(batch, { onConflict: "player_id,prepared_game_id", ignoreDuplicates: false });
+    if (uErr) { statusEl.textContent = "❌ Erreur upsert : " + uErr.message; return; }
+  }
+
+  statusEl.textContent = `✅ ${changed} fiche(s) recalculée(s) sur ${allResults.length}.`;
+  // Recharger le classement si visible
+  if ($("#sectionTournament")?.hidden === false) loadTournamentLeaderboard();
 };
 
 // ============================================================
