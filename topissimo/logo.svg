@@ -1,14 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 110" role="img" aria-label="TOPISSIMO">
-  <g font-family="Georgia, 'Times New Roman', serif" font-weight="700">
-    <g transform="translate(8,30)"><rect width="50" height="50" rx="8" fill="#16a34a" stroke="#0e7a37"/><text x="25" y="36" text-anchor="middle" font-size="30" fill="#fff">T</text><text x="44" y="46" text-anchor="middle" font-size="11" fill="#eaffea">1</text></g>
-    <g transform="translate(63,30)"><rect width="50" height="50" rx="8" fill="#54bf2e" stroke="#3d9620"/><text x="25" y="36" text-anchor="middle" font-size="30" fill="#fff">O</text><text x="44" y="46" text-anchor="middle" font-size="11" fill="#eaffea">1</text></g>
-    <g transform="translate(118,30)"><rect width="50" height="50" rx="8" fill="#9bd31a" stroke="#7aae12"/><text x="25" y="36" text-anchor="middle" font-size="30" fill="#002E44">P</text><text x="44" y="46" text-anchor="middle" font-size="11" fill="#1f3a00">3</text></g>
-    <g transform="translate(173,30)"><rect width="50" height="50" rx="8" fill="#d4dd0a" stroke="#aab300"/><text x="25" y="36" text-anchor="middle" font-size="30" fill="#002E44">I</text><text x="44" y="46" text-anchor="middle" font-size="11" fill="#3a3a00">1</text></g>
-    <g transform="translate(228,30)"><rect width="50" height="50" rx="8" fill="#FFDD00" stroke="#e3c200"/><text x="25" y="36" text-anchor="middle" font-size="30" fill="#002E44">S</text><text x="44" y="46" text-anchor="middle" font-size="11" fill="#3a3416">1</text></g>
-    <g transform="translate(283,30)"><rect width="50" height="50" rx="8" fill="#ffb000" stroke="#e09600"/><text x="25" y="36" text-anchor="middle" font-size="30" fill="#002E44">S</text><text x="44" y="46" text-anchor="middle" font-size="11" fill="#3a2a00">1</text></g>
-    <g transform="translate(338,30)"><rect width="50" height="50" rx="8" fill="#ff7a00" stroke="#db6500"/><text x="25" y="36" text-anchor="middle" font-size="30" fill="#fff">I</text><text x="44" y="46" text-anchor="middle" font-size="11" fill="#fff">1</text></g>
-    <g transform="translate(393,30)"><rect width="50" height="50" rx="8" fill="#f24a1a" stroke="#cf3c12"/><text x="25" y="36" text-anchor="middle" font-size="30" fill="#fff">M</text><text x="44" y="46" text-anchor="middle" font-size="11" fill="#fff">2</text></g>
-    <g transform="translate(448,30)"><rect width="50" height="50" rx="8" fill="#e5231b" stroke="#bf1812"/><text x="25" y="36" text-anchor="middle" font-size="30" fill="#fff">O</text><text x="44" y="46" text-anchor="middle" font-size="11" fill="#fff">1</text></g>
+  <g font-family="Georgia, 'Times New Roman', serif" font-weight="700" fill="#fff">
+    <g transform="translate(8,30)"><rect width="50" height="50" rx="8" fill="#16a34a" stroke="#0e7a37"/><text x="25" y="36" text-anchor="middle" font-size="30">T</text><text x="44" y="46" text-anchor="middle" font-size="11">1</text></g>
+    <g transform="translate(63,30)"><rect width="50" height="50" rx="8" fill="#54bf2e" stroke="#3d9620"/><text x="25" y="36" text-anchor="middle" font-size="30">O</text><text x="44" y="46" text-anchor="middle" font-size="11">1</text></g>
+    <g transform="translate(118,30)"><rect width="50" height="50" rx="8" fill="#9bd31a" stroke="#7aae12"/><text x="25" y="36" text-anchor="middle" font-size="30">P</text><text x="44" y="46" text-anchor="middle" font-size="11">3</text></g>
+    <g transform="translate(173,30)"><rect width="50" height="50" rx="8" fill="#d4dd0a" stroke="#aab300"/><text x="25" y="36" text-anchor="middle" font-size="30">I</text><text x="44" y="46" text-anchor="middle" font-size="11">1</text></g>
+    <g transform="translate(228,30)"><rect width="50" height="50" rx="8" fill="#FFDD00" stroke="#e3c200"/><text x="25" y="36" text-anchor="middle" font-size="30">S</text><text x="44" y="46" text-anchor="middle" font-size="11">1</text></g>
+    <g transform="translate(283,30)"><rect width="50" height="50" rx="8" fill="#ffb000" stroke="#e09600"/><text x="25" y="36" text-anchor="middle" font-size="30">S</text><text x="44" y="46" text-anchor="middle" font-size="11">1</text></g>
+    <g transform="translate(338,30)"><rect width="50" height="50" rx="8" fill="#ff7a00" stroke="#db6500"/><text x="25" y="36" text-anchor="middle" font-size="30">I</text><text x="44" y="46" text-anchor="middle" font-size="11">1</text></g>
+    <g transform="translate(393,30)"><rect width="50" height="50" rx="8" fill="#f24a1a" stroke="#cf3c12"/><text x="25" y="36" text-anchor="middle" font-size="30">M</text><text x="44" y="46" text-anchor="middle" font-size="11">2</text></g>
+    <g transform="translate(448,30)"><rect width="50" height="50" rx="8" fill="#e5231b" stroke="#bf1812"/><text x="25" y="36" text-anchor="middle" font-size="30">O</text><text x="44" y="46" text-anchor="middle" font-size="11">1</text></g>
   </g>
 </svg>
