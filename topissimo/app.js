@@ -973,8 +973,11 @@ async function loadTournamentDetail(tournamentId) {
 
 // ===== Classement complet par tournoi (Std / Blitz / Originales) =====
 function categorize(g) {
-  if (g.mode === "duplicate" && !g.with_joker) return "std";
-  if (g.mode === "blitz" && !g.with_joker) return "blitz";
+  if (g.with_joker) return "orig";
+  // Blitz : soit le mode explicite "blitz", soit une partie Normal générée à
+  // 60 s/coup (cas historique où le blitz n'était qu'un réglage de temps).
+  if (g.mode === "blitz") return "blitz";
+  if (g.mode === "duplicate") return Number(g.time_per_move) === 60 ? "blitz" : "std";
   return "orig";
 }
 const CAT_LABEL = { std: "Standard", blitz: "Blitz", orig: "Originales" };
