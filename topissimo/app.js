@@ -1641,14 +1641,17 @@ window.recomputeAllJokerNeg = async function() {
   }
 
   statusEl.textContent = `💾 Mise à jour de ${changed} fiche(s)…`;
-  // 4. Upsert par lots de 50
-  const BATCH = 50;
-  for (let i = 0; i < upserts.length; i += BATCH) {
-    const batch = upserts.slice(i, i + BATCH);
+  // 4. UPDATE ligne par ligne (pas d'upsert pour éviter le blocage RLS sur INSERT)
+  let done = 0;
+  for (const u of upserts) {
     const { error: uErr } = await sb
       .from("prepared_game_results")
-      .upsert(batch, { onConflict: "player_id,prepared_game_id", ignoreDuplicates: false });
-    if (uErr) { statusEl.textContent = "❌ Erreur upsert : " + uErr.message; return; }
+      .update({ sum_neg: u.sum_neg, total_score: u.total_score, details: u.details })
+      .eq("player_id", u.player_id)
+      .eq("prepared_game_id", u.prepared_game_id);
+    if (uErr) { statusEl.textContent = `❌ Erreur update (${done}/${changed}) : ${uErr.message}`; return; }
+    done++;
+    if (done % 5 === 0) statusEl.textContent = `💾 ${done}/${changed} fiches mises à jour…`;
   }
 
   statusEl.textContent = `✅ ${changed} fiche(s) recalculée(s) sur ${allResults.length}.`;
