@@ -1,7 +1,7 @@
 // Version du code de jeu — DOIT être bumpée avec le CACHE de sw.js à chaque
 // déploiement. Sert à détecter un game.js périmé servi par le service worker
 // et à forcer un rechargement propre AVANT le début de partie (cf. bas de fichier).
-const GAME_VERSION = "garenna-v137";
+const GAME_VERSION = "garenna-v138";
 
 // Détection mode app (PWA standalone/fullscreen/minimal-ui)
 (function () {
@@ -1601,6 +1601,10 @@ function placeTopAndAdvance(playerScore, playedWord = null, playedScore = null, 
   state.moveNo++;
   if (state.prepared) state.preparedIdx++;
   renderInfo();
+  // Redessiner la grille immédiatement : indispensable pour le DERNIER coup, où
+  // nextMove() enchaîne directement sur endGame() (modale) sans passer par le
+  // renderBoard() habituel — sinon le dernier coup ne s'affiche jamais.
+  renderBoard();
 }
 
 function revealTop() {

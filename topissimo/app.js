@@ -1869,7 +1869,7 @@ window.openPlayerGameSheet = function(playerId, gameId) {
   if (!p) return;
   const r = p.perGame[gameId];
   if (!r || !r.details) return;
-  const game = ctx.games.find(g => g.id === gameId);
+  const game = ctx.games.find(g => String(g.id) === String(gameId));
   const gameName = game ? game.name : gameId;
 
   const coord = pos => `<span style="font-size:.75em;color:#888;vertical-align:.1em">${pos}</span>`;
@@ -1931,6 +1931,9 @@ window.openPlayerGameSheet = function(playerId, gameId) {
       <tbody>${rows}</tbody>
     </table>
     </div>`;
+  // Afficher la modale (appel direct depuis la liste déroulée du classement —
+  // on ne passe plus par openPlayerGamesModal qui l'ouvrait auparavant).
+  $("#playerSheetModal").hidden = false;
 };
 
 window.closePlayerSheetModal = function() {
