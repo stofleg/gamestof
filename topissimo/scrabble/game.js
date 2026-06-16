@@ -1574,16 +1574,20 @@ function placeTopAndAdvance(playerScore, playedWord = null, playedScore = null, 
       state.spareJokers--;
     }
   }
-  // Retirer ces lettres du chevalet (priorité à la lettre exacte, sinon joker)
-  for (const nl of newLetters) {
-    let idx = -1;
-    if (nl.isBlank) {
-      idx = state.rack.findIndex(t => t.letter === "?");
-    } else {
-      idx = state.rack.findIndex(t => t.letter === nl.letter);
-      if (idx === -1) idx = state.rack.findIndex(t => t.letter === "?");
+  // En mode pré-tiré/puzzle, le chevalet est réinitialisé depuis les données
+  // stockées au début de chaque coup (nextMove) — pas besoin de le modifier ici.
+  // En entraînement, retirer les lettres posées par le top du chevalet.
+  if (!state.prepared && !state.isPuzzle) {
+    for (const nl of newLetters) {
+      let idx = -1;
+      if (nl.isBlank) {
+        idx = state.rack.findIndex(t => t.letter === "?");
+      } else {
+        idx = state.rack.findIndex(t => t.letter === nl.letter);
+        if (idx === -1) idx = state.rack.findIndex(t => t.letter === "?");
+      }
+      if (idx !== -1) state.rack.splice(idx, 1);
     }
-    if (idx !== -1) state.rack.splice(idx, 1);
   }
   // Mémoriser le top pour l'afficher en zone C au début du coup suivant
   state.lastTop = { word: tm.move.word, row: tm.move.row, col: tm.move.col, dir: tm.move.dir, score: tm.score, playedWord, playedScore, playedMove };
@@ -1707,7 +1711,13 @@ function showLastTopFeedback() {
 //  Boucle de jeu : tirage + calcul top
 // ============================================================
 function nextMove() {
-  // ===== Mode partie pré-tirée : on suit la séquence stockée =====
+  // ===== Mode partie pré-tirée : lecture de partition =====
+  // INVARIANT : en mode pré-tiré, l'état de la partie est 100 % déterminé
+  // par les données stockées. À chaque coup :
+  //   • state.rack   ← next.rack   (stocké à la génération)
+  //   • state.topMove← next.top    (stocké à la génération)
+  //   • state.board  ← accumulé uniquement via applyMove(tops) dans placeTopAndAdvance
+  // Le coup du joueur n'affecte que son score — jamais le plateau ni le chevalet.
   if (state.prepared) {
     if (state.preparedIdx >= state.prepared.moves.length) {
       endGame();
