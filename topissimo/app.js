@@ -1148,7 +1148,7 @@ async function loadTournamentLeaderboard(tournamentId, games) {
       let sheetBtn = "";
       if (r) {
         if (myGameIds.has(g.id)) {
-          sheetBtn = `<button class="btn ghost small" onclick="event.stopPropagation();openPlayerGameSheet('${p.id}', '${g.id}')">📋 Feuille de route</button>`;
+          sheetBtn = `<button class="btn ghost small" style="font-size:.75rem;padding:3px 8px;font-weight:500" onclick="event.stopPropagation();openPlayerGameSheet('${p.id}', '${g.id}')">📋 Feuille de route</button>`;
         } else {
           sheetBtn = `<span class="muted" style="font-size:.78rem" title="Joue d'abord cette partie pour voir sa feuille de route">🔒</span>`;
         }
