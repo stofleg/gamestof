@@ -1,7 +1,7 @@
 // Version du code de jeu — DOIT être bumpée avec le CACHE de sw.js à chaque
 // déploiement. Sert à détecter un game.js périmé servi par le service worker
 // et à forcer un rechargement propre AVANT le début de partie (cf. bas de fichier).
-const GAME_VERSION = "garenna-v132";
+const GAME_VERSION = "garenna-v133";
 
 // Détection mode app (PWA standalone/fullscreen/minimal-ui)
 (function () {
