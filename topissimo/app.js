@@ -1426,7 +1426,7 @@ async function loadTournamentStats(tournamentId, games) {
           Object.values(csByGame).map(g => `
             <li style="padding:6px 0;border-bottom:1px solid rgba(0,0,0,.06)">
               <div style="display:flex;align-items:baseline;gap:6px;margin-bottom:4px">
-                <strong style="flex:1">${escapeHtml(g.gameName)}</strong>
+                <strong style="flex:1">${escapeHtml(g.gameName.replace(/^(Partie\s+\d+).*$/i, '$1'))}</strong>
                 <span style="color:var(--ink-soft)">${g.moves.length} coup${g.moves.length > 1 ? 's' : ''}</span>
               </div>
               <div style="display:flex;flex-wrap:wrap;gap:6px;margin-left:16px">${
