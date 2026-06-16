@@ -7,6 +7,7 @@ const SHELL = [
   "./app.js",
   "./style.css",
   "./logo.svg",
+  "./logo-garenna.svg",
   "./icon-192.png",
   "./icon-512.png",
   "./scrabble/game.html",
