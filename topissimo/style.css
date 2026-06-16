@@ -42,8 +42,8 @@ header {
   padding: 18px 24px;
   display:flex;
   align-items:center;
-  gap:18px;
-  flex-wrap:wrap;
+  gap:14px;
+  flex-wrap:nowrap;
   overflow: hidden;
 }
 header::before {
@@ -68,24 +68,26 @@ header::after {
   background: linear-gradient(90deg, var(--yellow) 0%, var(--yellow-2) 50%, var(--yellow) 100%);
 }
 header .logo {
-  height: 84px;
+  height: 44px;
   width: auto;
   display: block;
-  filter: drop-shadow(0 4px 8px rgba(0,0,0,.2));
+  flex: 0 0 auto;
+  filter: drop-shadow(0 3px 6px rgba(0,0,0,.2));
 }
 /* TOPISSIMO centré dans l'en-tête, indépendamment des éléments gauche/droite */
 header .logo-center {
   position: absolute;
   left: 50%; top: 50%;
   transform: translate(-50%, -50%);
-  height: 54px;
+  height: 32px;
   width: auto;
   pointer-events: none;
-  filter: drop-shadow(0 3px 6px rgba(0,0,0,.25));
+  filter: drop-shadow(0 2px 5px rgba(0,0,0,.25));
   z-index: 1;
 }
 @media (max-width: 760px) {
-  header .logo-center { height: 34px; }
+  header .logo { height: 34px; }
+  header .logo-center { height: 24px; }
 }
 header .brand {
   display: flex;
