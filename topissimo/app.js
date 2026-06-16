@@ -1430,10 +1430,7 @@ async function loadTournamentStats(tournamentId, games) {
                 <span style="color:var(--ink-soft)">${g.moves.length} coup${g.moves.length > 1 ? 's' : ''}</span>
               </div>
               <div style="display:flex;flex-wrap:wrap;gap:6px;margin-left:16px">${
-                g.moves.map(moveNo => myPlayedGames.has(g.gid)
-                  ? `<a style="${_soloBtnStyle}" href="scrabble/game.html?puzzle=${g.gid}&move=${moveNo}&tid=${currentTournamentId}">↻ Rejouer</a>`
-                  : `<span style="${_soloBtnDisabled}" title="Joue d'abord cette partie">↻ Rejouer</span>`
-                ).join("")
+                g.moves.map(moveNo => soloReplayBtn(g.gid, moveNo)).join("")
               }</div>
             </li>`).join("")
         }</ul>`
