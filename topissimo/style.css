@@ -68,7 +68,7 @@ header::after {
   background: linear-gradient(90deg, var(--yellow) 0%, var(--yellow-2) 50%, var(--yellow) 100%);
 }
 header .logo {
-  height: 44px;
+  height: 68px;
   width: auto;
   display: block;
   flex: 0 0 auto;
@@ -79,15 +79,15 @@ header .logo-center {
   position: absolute;
   left: 50%; top: 50%;
   transform: translate(-50%, -50%);
-  height: 32px;
+  height: 50px;
   width: auto;
   pointer-events: none;
   filter: drop-shadow(0 2px 5px rgba(0,0,0,.25));
   z-index: 1;
 }
 @media (max-width: 760px) {
-  header .logo { height: 34px; }
-  header .logo-center { height: 24px; }
+  header .logo { height: 42px; }
+  header .logo-center { height: 30px; }
 }
 header .brand {
   display: flex;
