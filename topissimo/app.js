@@ -452,10 +452,11 @@ async function loadRanking() {
     return;
   }
 
-  const { data: results, error: rErr } = await sb.from("results")
+  const { data: resultsRaw, error: rErr } = await sb.from("results")
     .select("*, players(name)")
     .in("game_id", gameIds);
   if (rErr) return alert(rErr.message);
+  const results = excludeAdminRows(resultsRaw);
 
   const gameById = Object.fromEntries(games.map(g => [g.id, g]));
   const byGame = {};
@@ -688,9 +689,10 @@ async function loadClubStats() {
 }
 
 async function loadSolosAndStreaks() {
-  const { data: detailed } = await sb.from("prepared_game_results")
+  const { data: detailedRaw } = await sb.from("prepared_game_results")
     .select("player_id, prepared_game_id, total_time_seconds, finished_at, details, players(name), prepared_games(id,name,mode,with_joker,time_per_move,created_at)")
     .limit(5000);
+  const detailed = excludeAdminRows(detailedRaw);
   if (!detailed || detailed.length === 0) {
     $("#recordsGrid").innerHTML = `<p class="muted">Pas encore de parties tournoi.</p>`;
     return;
@@ -993,9 +995,10 @@ async function loadTournamentLeaderboard(tournamentId, games) {
   }
   const gameIds = games.map(g => g.id);
 
-  const { data: results } = await sb.from("prepared_game_results")
+  const { data: resultsRaw } = await sb.from("prepared_game_results")
     .select("player_id, prepared_game_id, total_score, sum_neg, total_time_seconds, details, players(name)")
     .in("prepared_game_id", gameIds);
+  const results = excludeAdminRows(resultsRaw);
   if (!results || results.length === 0) { body.innerHTML = `<p class="muted">Aucun résultat enregistré.</p>`; return; }
 
   // Index resultats : player_id -> game_id -> result
@@ -1228,8 +1231,9 @@ async function loadTournamentStats(tournamentId, games) {
   if (!games.length) { body.innerHTML = `<p class="muted">Pas encore de partie dans ce tournoi.</p>`; return; }
 
   const gameIds = games.map(g => g.id);
-  const { data: results } = await sb.from("prepared_game_results")
+  const { data: resultsRaw } = await sb.from("prepared_game_results")
     .select("*, players(name)").in("prepared_game_id", gameIds);
+  const results = excludeAdminRows(resultsRaw);
 
   if (!results || results.length === 0) {
     body.innerHTML = `<p class="muted">Aucun joueur n'a encore terminé une partie de ce tournoi.</p>`;
@@ -1557,6 +1561,17 @@ let session = null;
 let currentPlayer = null;     // { id, name, email, auth_user_id }
 const ADMIN_PSEUDO = "admin"; // marqueur du compte administrateur
 function isAdmin() { return currentPlayer?.name === ADMIN_PSEUDO; }
+
+// Les parties de l'admin sont enregistrées (utile pour débusquer des bugs)
+// mais ne doivent PAS apparaître dans les résultats publics (classements,
+// records, solos, leaderboards). On filtre par player_id de l'admin.
+function isAdminPlayerId(pid) {
+  const p = (state.players || []).find(pl => pl.id === pid);
+  return p?.name === ADMIN_PSEUDO;
+}
+function excludeAdminRows(rows) {
+  return (rows || []).filter(r => !isAdminPlayerId(r.player_id));
+}
 
 function setAuthMode(mode) {
   authMode = mode;
