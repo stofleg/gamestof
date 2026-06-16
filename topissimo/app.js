@@ -1327,26 +1327,28 @@ async function loadTournamentStats(tournamentId, games) {
     p.results.push(r);
   }
 
-  // === Calcul des solos : pour chaque coup d'une partie, si un seul joueur a status==="top" ===
-  // On groupe les résultats par game_id, puis on parcourt les moves par moveNo
+  // === Calcul des solos joueurs + solos ordinateur ===
   const byGame = {};
   for (const r of results) (byGame[r.prepared_game_id] ||= []).push(r);
-  const soloList = [];   // solos individuels rejouables : { gid, moveNo, pid }
+  const soloList = [];         // solos joueurs  : { gid, moveNo, pid }
+  const computerSoloList = []; // solos ordinateur : { gid, moveNo, gameName }
+  const gameMap = Object.fromEntries(games.map(g => [g.id, g]));
   for (const [gid, rs] of Object.entries(byGame)) {
-    // Un solo n'a de sens que si AU MOINS 2 joueurs ont joué la partie (sinon
-    // le seul joueur présent "trouve seul" chaque top trivialement).
     const finishers = new Set(rs.filter(r => Array.isArray(r.details) && r.details.length).map(r => r.player_id));
     if (finishers.size < 2) continue;
     // Construire map moveNo → liste de player_ids ayant top
     const topsByMove = {};
+    // Aussi collecter tous les moveNos joués (pour détecter absence de top)
+    const allMoveNos = new Set();
     for (const r of rs) {
       for (const h of (r.details || [])) {
+        allMoveNos.add(h.moveNo);
         if (h.status === "top") {
           (topsByMove[h.moveNo] ||= []).push(r.player_id);
         }
       }
     }
-    // Pour chaque coup avec un seul top, c'est un solo pour ce joueur
+    // Solos joueurs : un seul joueur a trouvé le top
     for (const [moveNo, list] of Object.entries(topsByMove)) {
       if (list.length === 1) {
         const pid = list[0];
@@ -1354,7 +1356,16 @@ async function loadTournamentStats(tournamentId, games) {
         soloList.push({ gid: +gid, moveNo: +moveNo, pid });
       }
     }
+    // Solos ordinateur : aucun joueur n'a trouvé le top
+    const gameName = gameMap[+gid]?.name || `#${gid}`;
+    for (const moveNo of allMoveNos) {
+      if (!topsByMove[moveNo]) {
+        computerSoloList.push({ gid: +gid, moveNo: +moveNo, gameName });
+      }
+    }
   }
+  // Trier par partie puis numéro de coup
+  computerSoloList.sort((a, b) => a.gid - b.gid || a.moveNo - b.moveNo);
 
   const players = Object.values(byPlayer);
   const me = +state.currentPlayerId || 0;
@@ -1403,6 +1414,30 @@ async function loadTournamentStats(tournamentId, games) {
           <div style="display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 0 16px">${(solosByPlayer[p.id] || []).map(s => soloReplayBtn(s.gid, s.moveNo)).join("")}</div>
         </li>`).join("") || '<li class="muted">Aucun solo pour l\'instant</li>'
     }</ul>`;
+  // Solos ordinateur : regroupés par partie pour l'affichage
+  const csByGame = {};
+  for (const s of computerSoloList) (csByGame[s.gid] ||= { gid: s.gid, gameName: s.gameName, moves: [] }).moves.push(s.moveNo);
+  const cardComputerSolos = `
+    <h3>🤖 Solos ordinateur</h3>
+    <p style="font-size:.8rem;color:var(--ink-soft);margin:0 0 8px">Coups non trouvés par aucun joueur (parties ≥ 2 joueurs)</p>${
+    computerSoloList.length === 0
+      ? `<p class="muted">Aucun pour l'instant</p>`
+      : `<ul style="list-style:none;padding:0;margin:0">${
+          Object.values(csByGame).map(g => `
+            <li style="padding:6px 0;border-bottom:1px solid rgba(0,0,0,.06)">
+              <div style="display:flex;align-items:baseline;gap:6px;margin-bottom:4px">
+                <strong style="flex:1">${escapeHtml(g.gameName)}</strong>
+                <span style="color:var(--ink-soft)">${g.moves.length} coup${g.moves.length > 1 ? 's' : ''}</span>
+              </div>
+              <div style="display:flex;flex-wrap:wrap;gap:6px;margin-left:16px">${
+                g.moves.map(moveNo => myPlayedGames.has(g.gid)
+                  ? `<a style="${_soloBtnStyle}" href="scrabble/game.html?puzzle=${g.gid}&move=${moveNo}&tid=${currentTournamentId}">↻ Coup ${moveNo}</a>`
+                  : `<span style="${_soloBtnDisabled}" title="Joue d'abord cette partie">↻ Coup ${moveNo}</span>`
+                ).join("")
+              }</div>
+            </li>`).join("")
+        }</ul>`
+    }`;
   const cardBestTime = `
     <h3>⏱ Meilleur temps sur une partie</h3>
     <ol>${topN(players.filter(p => isFinite(p.bestSingleTime)), 5, "bestSingleTime", true).map(p => renderRow(p, fmtT(p.bestSingleTime))).join("") || '<li class="muted">—</li>'}</ol>`;
@@ -1513,6 +1548,7 @@ async function loadTournamentStats(tournamentId, games) {
   body.innerHTML = `
     <div class="tournament-stats-grid">
       <div class="t-stat-card">${cardSolos}</div>
+      <div class="t-stat-card">${cardComputerSolos}</div>
       <div class="t-stat-card">${cardBestTime}</div>
       <div class="t-stat-card">${cardCumulTime}</div>
       <div class="t-stat-card">${cardCumulNeg}</div>
