@@ -259,10 +259,14 @@ nav {
   border-bottom: 1px solid var(--line);
   overflow-x: auto;
   padding: 0 12px;
+  position: static;
+  box-shadow: 0 1px 0 var(--line);
+}
+/* En-tête + onglets figés en haut au scroll */
+.topbar {
   position: sticky;
   top: 0;
-  z-index: 10;
-  box-shadow: 0 1px 0 var(--line);
+  z-index: 50;
 }
 nav button {
   background: none;
