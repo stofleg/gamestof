@@ -1431,8 +1431,8 @@ async function loadTournamentStats(tournamentId, games) {
               </div>
               <div style="display:flex;flex-wrap:wrap;gap:6px;margin-left:16px">${
                 g.moves.map(moveNo => myPlayedGames.has(g.gid)
-                  ? `<a style="${_soloBtnStyle}" href="scrabble/game.html?puzzle=${g.gid}&move=${moveNo}&tid=${currentTournamentId}">↻ Coup ${moveNo}</a>`
-                  : `<span style="${_soloBtnDisabled}" title="Joue d'abord cette partie">↻ Coup ${moveNo}</span>`
+                  ? `<a style="${_soloBtnStyle}" href="scrabble/game.html?puzzle=${g.gid}&move=${moveNo}&tid=${currentTournamentId}">↻ Rejouer</a>`
+                  : `<span style="${_soloBtnDisabled}" title="Joue d'abord cette partie">↻ Rejouer</span>`
                 ).join("")
               }</div>
             </li>`).join("")
