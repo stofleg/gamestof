@@ -116,9 +116,11 @@ export function recomputeResult(game, details) {
     const neg = playerScore - topScore;
     h.playerScore = playerScore;
     h.neg = neg;
-    // Si le joueur a retrouvé le top, le coup est un "top" (corrige aussi
-    // solos/streaks pour les coups jadis mal classés en abandon/temps).
-    if (topMove && playerScore === topScore && h.played) h.status = "top";
+    // Corriger le statut après recalcul : top ssi score == top, sinon on efface
+    // un éventuel "top" fantôme (ex : même mot mais position différente).
+    if (h.played) {
+      h.status = (topMove && playerScore === topScore) ? "top" : (h.status === "top" ? "" : (h.status || ""));
+    }
 
     sumNeg += neg;
     totalScore += playerScore;
