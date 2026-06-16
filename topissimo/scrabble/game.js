@@ -1,7 +1,7 @@
 // Version du code de jeu — DOIT être bumpée avec le CACHE de sw.js à chaque
 // déploiement. Sert à détecter un game.js périmé servi par le service worker
 // et à forcer un rechargement propre AVANT le début de partie (cf. bas de fichier).
-const GAME_VERSION = "garenna-v120";
+const GAME_VERSION = "garenna-v121";
 
 // Détection mode app (PWA standalone/fullscreen/minimal-ui)
 (function () {
@@ -547,16 +547,49 @@ function renderInfo() {
 }
 
 const VOYELLES_SET = ["A","E","I","O","U","Y"];
+// En partie pré-tirée/tournoi/puzzle, state.bag n'est pas suivi. On reconstitue
+// le contenu réel du sac à partir de l'invariant : chaque jeton est soit dans le
+// sac, soit sur le chevalet, soit sur le plateau.
+//   lettres restantes[L] = TOTAL[L] − posées sur le plateau − présentes en main
+//   jokers restants       = TOTAL["?"] − blancs posés − jokers en main
+// (un joker remplacé par une vraie lettre redevient disponible : il ne consomme
+//  un joker que s'il reste blanc sur le plateau.)
+function computeRemainingBagFromBoard() {
+  const counts = { ...LETTER_BAG };
+  const jokerTotal = LETTER_BAG["?"] || 0;
+  let boardBlanks = 0;
+  for (let r = 0; r < state.board.length; r++) {
+    for (let c = 0; c < state.board[r].length; c++) {
+      const cell = state.board[r][c];
+      if (!cell) continue;
+      if (cell.isBlank) boardBlanks++;
+      else counts[cell.letter] = (counts[cell.letter] || 0) - 1;
+    }
+  }
+  let rackJokers = 0;
+  for (const t of state.rack) {
+    if (t.letter === "?") rackJokers++;
+    else counts[t.letter] = (counts[t.letter] || 0) - 1;
+  }
+  counts["?"] = Math.max(0, jokerTotal - boardBlanks - rackJokers);
+  return counts;
+}
+
 function renderBag() {
   const el = $("#bagDisplay");
   if (!el) return;
-  // Pas de sac en review, ni en partie pré-tirée/tournoi/puzzle (tirages figés :
-  // state.bag n'y est pas décrémenté → affichage non pertinent).
-  if (!state.started || review.active || state.prepared || state.isPuzzle) { el.hidden = true; return; }
+  // Pas de sac en review (on revoit les coups, le sac n'a pas de sens).
+  if (!state.started || review.active) { el.hidden = true; return; }
   el.hidden = false;
-  const counts = { ...state.bag };
-  if (state.settings.withJoker && state.spareJokers > 0) {
-    counts["?"] = (counts["?"] || 0) + state.spareJokers;
+  let counts;
+  if (state.prepared || state.isPuzzle) {
+    // Partie pré-tirée : reconstitution exacte depuis le plateau + le chevalet.
+    counts = computeRemainingBagFromBoard();
+  } else {
+    counts = { ...state.bag };
+    if (state.settings.withJoker && state.spareJokers > 0) {
+      counts["?"] = (counts["?"] || 0) + state.spareJokers;
+    }
   }
   const allLetters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
   const consonnes = allLetters.filter(l => !VOYELLES_SET.includes(l));
@@ -1682,6 +1715,7 @@ function nextMove() {
     state.currentKept = next.freshRack ? "" : (next.kept || "");
     renderRack();
     renderBoard();
+    renderBag();           // sac affiché aussi en partie pré-tirée/tournoi
     computeTop();
     startMoveTimer();
     showLastTopFeedback();
