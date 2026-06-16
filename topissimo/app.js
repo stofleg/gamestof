@@ -1651,6 +1651,83 @@ $("#pgCreate").onclick = async () => {
 //  Recalcul correctif des négatifs pour les parties joker (Bug 4)
 // ============================================================
 
+window.recomputeAllNeg = async function() {
+  if (!isAdmin()) return alert("Réservé à l'admin.");
+  if (!currentTournamentId) return alert("Ouvre d'abord un tournoi.");
+  const statusEl = $("#recomputeStatus");
+  statusEl.textContent = "⏳ Chargement des modules…";
+
+  let recomputeResult;
+  try {
+    ({ recomputeResult } = await import("./scrabble/recompute.js"));
+  } catch (e) {
+    statusEl.textContent = "❌ Impossible de charger recompute.js : " + e.message;
+    return;
+  }
+
+  statusEl.textContent = "⏳ Récupération des parties du tournoi…";
+  const { data: games, error: gErr } = await sb
+    .from("prepared_games")
+    .select("id, mode, moves, with_joker")
+    .eq("tournament_id", currentTournamentId);
+  if (gErr) { statusEl.textContent = "❌ " + gErr.message; return; }
+  if (!games || games.length === 0) {
+    statusEl.textContent = "ℹ️ Aucune partie trouvée dans ce tournoi.";
+    return;
+  }
+  const gameIds = games.map(g => g.id);
+
+  statusEl.textContent = "⏳ Récupération des résultats…";
+  const { data: allResults, error: rErr } = await sb
+    .from("prepared_game_results")
+    .select("player_id, prepared_game_id, details, sum_neg, total_score")
+    .in("prepared_game_id", gameIds);
+  if (rErr) { statusEl.textContent = "❌ " + rErr.message; return; }
+  if (!allResults || allResults.length === 0) {
+    statusEl.textContent = "ℹ️ Aucun résultat à recalculer.";
+    return;
+  }
+
+  statusEl.textContent = `⏳ Recalcul de ${allResults.length} fiche(s)…`;
+
+  const gameMap = Object.fromEntries(games.map(g => [g.id, g]));
+  let changed = 0, done = 0;
+  const toUpdate = [];
+  for (const r of allResults) {
+    const game = gameMap[r.prepared_game_id];
+    if (!game || !r.details) continue;
+    try {
+      const { sumNeg, totalScore, details } = recomputeResult(game, r.details);
+      if (sumNeg !== r.sum_neg || totalScore !== r.total_score) {
+        toUpdate.push({ player_id: r.player_id, prepared_game_id: r.prepared_game_id, sum_neg: sumNeg, total_score: totalScore, details });
+        changed++;
+      }
+    } catch (e) { /* skip si données corrompues */ }
+  }
+
+  if (toUpdate.length === 0) {
+    statusEl.textContent = `✅ Tout est déjà correct (${allResults.length} fiches vérifiées).`;
+    return;
+  }
+
+  statusEl.textContent = `💾 Mise à jour de ${changed} fiche(s)…`;
+  for (const u of toUpdate) {
+    const { error: uErr } = await sb.rpc("admin_update_game_result", {
+      p_player_id:   u.player_id,
+      p_game_id:     u.prepared_game_id,
+      p_sum_neg:     u.sum_neg,
+      p_total_score: u.total_score,
+      p_details:     u.details,
+    });
+    if (uErr) { statusEl.textContent = `❌ Erreur (${done}/${changed}) : ${uErr.message}`; return; }
+    done++;
+    if (done % 5 === 0) statusEl.textContent = `💾 ${done}/${changed} fiches mises à jour…`;
+  }
+
+  statusEl.textContent = `✅ ${changed} fiche(s) recalculée(s) sur ${allResults.length}.`;
+  loadTournamentLeaderboard?.();
+};
+
 window.recomputeAllJokerNeg = async function() {
   if (!isAdmin()) return alert("Réservé à l'admin.");
   const statusEl = $("#recomputeStatus");
