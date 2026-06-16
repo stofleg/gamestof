@@ -1641,14 +1641,16 @@ window.recomputeAllJokerNeg = async function() {
   }
 
   statusEl.textContent = `💾 Mise à jour de ${changed} fiche(s)…`;
-  // 4. UPDATE ligne par ligne (pas d'upsert pour éviter le blocage RLS sur INSERT)
+  // 4. UPDATE via fonction SECURITY DEFINER (contourne RLS)
   let done = 0;
   for (const u of upserts) {
-    const { error: uErr } = await sb
-      .from("prepared_game_results")
-      .update({ sum_neg: u.sum_neg, total_score: u.total_score, details: u.details })
-      .eq("player_id", u.player_id)
-      .eq("prepared_game_id", u.prepared_game_id);
+    const { error: uErr } = await sb.rpc("admin_update_game_result", {
+      p_player_id:   u.player_id,
+      p_game_id:     u.prepared_game_id,
+      p_sum_neg:     u.sum_neg,
+      p_total_score: u.total_score,
+      p_details:     u.details,
+    });
     if (uErr) { statusEl.textContent = `❌ Erreur update (${done}/${changed}) : ${uErr.message}`; return; }
     done++;
     if (done % 5 === 0) statusEl.textContent = `💾 ${done}/${changed} fiches mises à jour…`;
