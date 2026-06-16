@@ -73,6 +73,20 @@ header .logo {
   display: block;
   filter: drop-shadow(0 4px 8px rgba(0,0,0,.2));
 }
+/* TOPISSIMO centré dans l'en-tête, indépendamment des éléments gauche/droite */
+header .logo-center {
+  position: absolute;
+  left: 50%; top: 50%;
+  transform: translate(-50%, -50%);
+  height: 54px;
+  width: auto;
+  pointer-events: none;
+  filter: drop-shadow(0 3px 6px rgba(0,0,0,.25));
+  z-index: 1;
+}
+@media (max-width: 760px) {
+  header .logo-center { height: 34px; }
+}
 header .brand {
   display: flex;
   flex-direction: column;
