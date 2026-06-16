@@ -1419,7 +1419,7 @@ async function loadTournamentStats(tournamentId, games) {
   for (const s of computerSoloList) (csByGame[s.gid] ||= { gid: s.gid, gameName: s.gameName, moves: [] }).moves.push(s.moveNo);
   const cardComputerSolos = `
     <h3>🤖 Solos ordinateur</h3>
-    <p style="font-size:.8rem;color:var(--ink-soft);margin:0 0 8px">Coups non trouvés par aucun joueur (parties ≥ 2 joueurs)</p>${
+    ${
     computerSoloList.length === 0
       ? `<p class="muted">✅ Aucun — tous les tops ont été trouvés !</p>`
       : `<ul style="list-style:none;padding:0;margin:0">${
@@ -1439,10 +1439,10 @@ async function loadTournamentStats(tournamentId, games) {
     <h3>⏱ Meilleur temps sur une partie</h3>
     <ol>${topN(players.filter(p => isFinite(p.bestSingleTime)), 5, "bestSingleTime", true).map(p => renderRow(p, fmtT(p.bestSingleTime))).join("") || '<li class="muted">—</li>'}</ol>`;
   const cardCumulTime = `
-    <h3>⌛ Meilleur temps cumulé (sur ${games.length} partie${games.length>1?'s':''})</h3>
+    <h3>⌛ Meilleur temps cumulé</h3>
     <ol>${topN(players.filter(p => p.sumTime > 0 && p.games === games.length), 5, "sumTime", true).map(p => renderRow(p, fmtT(p.sumTime))).join("") || '<li class="muted">Aucun joueur n\'a fait toutes les parties</li>'}</ol>`;
   const cardCumulNeg = `
-    <h3>📉 Meilleur cumul négatifs (sur ${games.length} partie${games.length>1?'s':''})</h3>
+    <h3>📉 Meilleur négatif cumulé</h3>
     <ol>${topN(players.filter(p => p.games === games.length), 5, "sumNeg").map(p => renderRow(p, p.sumNeg)).join("") || '<li class="muted">Aucun joueur n\'a fait toutes les parties</li>'}</ol>`;
 
   // ===== HALL OF SHAME =====
