@@ -1421,7 +1421,7 @@ async function loadTournamentStats(tournamentId, games) {
     <h3>🤖 Solos ordinateur</h3>
     <p style="font-size:.8rem;color:var(--ink-soft);margin:0 0 8px">Coups non trouvés par aucun joueur (parties ≥ 2 joueurs)</p>${
     computerSoloList.length === 0
-      ? `<p class="muted">Aucun pour l'instant</p>`
+      ? `<p class="muted">✅ Aucun — tous les tops ont été trouvés !</p>`
       : `<ul style="list-style:none;padding:0;margin:0">${
           Object.values(csByGame).map(g => `
             <li style="padding:6px 0;border-bottom:1px solid rgba(0,0,0,.06)">
