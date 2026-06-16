@@ -996,7 +996,7 @@ async function loadTournamentLeaderboard(tournamentId, games) {
   const gameIds = games.map(g => g.id);
 
   const { data: resultsRaw } = await sb.from("prepared_game_results")
-    .select("player_id, prepared_game_id, total_score, sum_neg, total_time_seconds, details, players(name)")
+    .select("player_id, prepared_game_id, total_score, sum_neg, total_time_seconds, details, played_on_mobile, players(name)")
     .in("prepared_game_id", gameIds);
   const results = excludeAdminRows(resultsRaw);
   if (!results || results.length === 0) { body.innerHTML = `<p class="muted">Aucun résultat enregistré.</p>`; return; }
@@ -1013,6 +1013,7 @@ async function loadTournamentLeaderboard(tournamentId, games) {
       neg: r.sum_neg, time: r.total_time_seconds || 0, missed,
       details: r.details || [],
       totalScore: r.total_score || 0,
+      mobile: !!r.played_on_mobile,
     };
   }
   const players = Object.values(byPlayer);
@@ -1088,10 +1089,23 @@ async function loadTournamentLeaderboard(tournamentId, games) {
 
   const expandHtml = (p) => {
     let html = `<div class="expand-inner"><table>
-      <thead><tr><th>Catégorie</th><th>Partie</th><th>Négatif</th><th>Temps</th><th>Loupés</th></tr></thead><tbody>`;
+      <thead><tr><th>Catégorie</th><th>Partie</th><th>Négatif</th><th>Temps</th><th>Loupés</th><th></th></tr></thead><tbody>`;
     for (const c of orderedCats) cats[c].forEach((g) => {
       const r = p.perGame[g.id];
-      html += `<tr><td>${CAT_LABEL[c]}</td><td>${escapeHtml(g.name)}</td><td class="neg">${r ? r.neg : "—"}</td><td>${r ? fmtT(r.time) : "—"}</td><td>${r ? r.missed : "—"}</td></tr>`;
+      // Picto 📱 si la partie a été jouée sur mobile.
+      const mobileIcon = r && r.mobile ? ` <span title="Jouée sur mobile" style="font-size:.9em">📱</span>` : "";
+      // Bouton feuille de route : seulement si CE joueur a joué la partie ET que
+      // l'utilisateur courant l'a aussi jouée (sinon on dévoilerait une partie
+      // non encore jouée par l'utilisateur).
+      let sheetBtn = "";
+      if (r) {
+        if (myGameIds.has(g.id)) {
+          sheetBtn = `<button class="btn ghost small" onclick="event.stopPropagation();openPlayerGameSheet(${p.id}, '${g.id}')">📋 Feuille de route</button>`;
+        } else {
+          sheetBtn = `<span class="muted" style="font-size:.78rem" title="Joue d'abord cette partie pour voir sa feuille de route">🔒</span>`;
+        }
+      }
+      html += `<tr><td>${CAT_LABEL[c]}</td><td>${escapeHtml(g.name)}</td><td class="neg">${r ? r.neg : "—"}</td><td>${r ? fmtT(r.time) + mobileIcon : "—"}</td><td>${r ? r.missed : "—"}</td><td style="text-align:right">${sheetBtn}</td></tr>`;
     });
     html += `</tbody></table></div>`;
     return html;
@@ -1102,7 +1116,7 @@ async function loadTournamentLeaderboard(tournamentId, games) {
     const gr = rankTotalNeg[p.id];
     let row = `<tr class="${p.id === me ? 'me' : ''}" onclick="toggleLbRow(this)" data-pid="${p.id}">
       <td class="rank ${rankClass(gr)}">${gr || "–"}</td>
-      <td class="player-name"><span class="player-name-link" onclick="event.stopPropagation();openPlayerGamesModal(${p.id})">${escapeHtml(p.name)}</span></td>`;
+      <td class="player-name"><span class="player-name-link">${escapeHtml(p.name)}</span></td>`;
     for (const c of orderedCats) {
       const cd = p.byCat[c];
       if (cd.count === 0) { row += `<td class="cat-cell muted">—</td>`; continue; }
@@ -1123,7 +1137,7 @@ async function loadTournamentLeaderboard(tournamentId, games) {
     const played = cd.count > 0;
     return `<tr class="${p.id === me ? 'me' : ''}" onclick="toggleLbRow(this)" data-pid="${p.id}">
       <td class="rank ${rankClass(cr)}">${cr || "–"}</td>
-      <td class="player-name"><span class="player-name-link" onclick="event.stopPropagation();openPlayerGamesModal(${p.id})">${escapeHtml(p.name)}</span></td>
+      <td class="player-name"><span class="player-name-link">${escapeHtml(p.name)}</span></td>
       <td><strong>${played ? cd.neg : "—"}</strong></td>
       <td>${played ? fmtT(cd.time) : "—"}</td></tr>
       <tr class="expand-row" hidden><td colspan="4">${expandHtml(p)}</td></tr>`;
@@ -1897,7 +1911,7 @@ window.openPlayerGameSheet = function(playerId, gameId) {
   const body = $("#playerSheetModalBody");
   body.innerHTML = `
     <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px">
-      <button class="btn ghost small" onclick="openPlayerGamesModal(${playerId})">← Retour</button>
+      <button class="btn ghost small" onclick="closePlayerSheetModal()">← Fermer</button>
       <h3 style="margin:0">🎯 ${escapeHtml(p.name)} — ${escapeHtml(gameName)}</h3>
     </div>
     <div style="margin-bottom:10px;font-size:.9rem;color:#5a6a73">

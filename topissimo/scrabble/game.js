@@ -1,7 +1,7 @@
 // Version du code de jeu — DOIT être bumpée avec le CACHE de sw.js à chaque
 // déploiement. Sert à détecter un game.js périmé servi par le service worker
 // et à forcer un rechargement propre AVANT le début de partie (cf. bas de fichier).
-const GAME_VERSION = "garenna-v121";
+const GAME_VERSION = "garenna-v122";
 
 // Détection mode app (PWA standalone/fullscreen/minimal-ui)
 (function () {
@@ -2955,6 +2955,17 @@ window.enterLocalReview = function() {
   renderReviewStep();
 };
 
+// Détecte si la partie est jouée sur un appareil mobile/tactile (pour marquer
+// le résultat d'un picto 📱 dans le classement). Critère : pointeur grossier
+// (tactile) ou user-agent mobile.
+function wasPlayedOnMobile() {
+  try {
+    return (window.matchMedia && window.matchMedia("(pointer: coarse)").matches) ||
+           (navigator.maxTouchPoints && navigator.maxTouchPoints > 1) ||
+           /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent || "");
+  } catch { return false; }
+}
+
 async function saveResultIfPrepared() {
   const pid = +(localStorage.getItem("currentPlayerId") || 0);
   if (!pid) { console.log("Pas de joueur sélectionné — résultat non sauvegardé"); return; }
@@ -2974,6 +2985,7 @@ async function saveResultIfPrepared() {
     sum_neg: state.sumNeg,
     total_time_seconds: totalTime,
     details: detailsToSave,
+    played_on_mobile: wasPlayedOnMobile(),
   }, { onConflict: "prepared_game_id,player_id" });
   if (e1) { console.error("Erreur sauvegarde prepared_game_results:", e1.message); return; }
 
