@@ -113,11 +113,18 @@ export function recomputeResult(game, details) {
     // Sécurité : un score joueur ne peut pas dépasser le top.
     if (playerScore > topScore) playerScore = topScore;
 
+    // Règle spéciale premier coup : si le joueur a joué le même mot que le top
+    // (quelle que soit la position), il est crédité du top (négatif = 0).
+    const topWord = (topMove?.word || "").toUpperCase();
+    const playedWord = (h.played || "").toUpperCase();
+    const firstMoveTopWord = i === 0 && topWord && playedWord === topWord;
+    if (firstMoveTopWord) playerScore = topScore;
+
     const neg = playerScore - topScore;
     h.playerScore = playerScore;
     h.neg = neg;
     // Corriger le statut après recalcul : top ssi score == top, sinon on efface
-    // un éventuel "top" fantôme (ex : même mot mais position différente).
+    // un éventuel "top" fantôme (ex : même mot mais position différente, hors 1er coup).
     if (h.played) {
       h.status = (topMove && playerScore === topScore) ? "top" : (h.status === "top" ? "" : (h.status || ""));
     }
