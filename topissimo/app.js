@@ -1502,7 +1502,7 @@ async function loadTournamentStats(tournamentId, games) {
     }
   }
   const shRow = (p, val) => `<li class="${p.id === me ? 'me' : ''}"><strong>${escapeHtml(p.name)}</strong><span style="float:right">${val}</span></li>`;
-  const cardShame = `<h2>🧐 Mur de la taupe</h2>
+  const cardShame = `<h2>🧐 Les Taupissimes !</h2>
     <div class="shame-grid">
       <div><h4>💩 Mots faux</h4><ol>${[...players].sort((a,b)=>b.invalidCount-a.invalidCount).filter(p=>p.invalidCount>0).slice(0,5).map(p=>shRow(p,p.invalidCount+' mot'+(p.invalidCount>1?'s':''))).join('')||'<li class="muted">Pas encore de données</li>'}</ol></div>
       <div><h4>🫣 Anti-solos</h4><ol>${[...players].sort((a,b)=>b.antiSolos-a.antiSolos).filter(p=>p.antiSolos>0).slice(0,5).map(p=>shRow(p,p.antiSolos+' coup'+(p.antiSolos>1?'s':''))).join('')||'<li class="muted">—</li>'}</ol></div>
