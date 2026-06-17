@@ -1262,6 +1262,8 @@ function flashFeedback(kind, title, detail) {
 function validate() {
   if (!state.pending.length) {
     showFeedback("error", "Rien à valider", "Place d'abord des lettres sur la grille.");
+    clearTimeout(state._rienTimeout);
+    state._rienTimeout = setTimeout(() => hideFeedback(), 2000);
     return;
   }
   // Reconstituer le coup (mot principal dans la direction)
