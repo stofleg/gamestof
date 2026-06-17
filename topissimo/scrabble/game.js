@@ -1,7 +1,7 @@
 // Version du code de jeu — DOIT être bumpée avec le CACHE de sw.js à chaque
 // déploiement. Sert à détecter un game.js périmé servi par le service worker
 // et à forcer un rechargement propre AVANT le début de partie (cf. bas de fichier).
-const GAME_VERSION = "garenna-v156";
+const GAME_VERSION = "garenna-v157";
 
 // Détection mode app (PWA standalone/fullscreen/minimal-ui)
 (function () {
@@ -892,9 +892,6 @@ function moveCursorKey(key) {
   row = (row + BOARD_SIZE) % BOARD_SIZE;
   state.cursor.row = row;
   state.cursor.col = col;
-  // Le déplacement clavier fige le curseur en HORIZONTAL ; l'utilisateur change
-  // le sens avec la barre espace s'il le souhaite.
-  state.cursor.dir = "H";
   renderBoard();
 }
 
