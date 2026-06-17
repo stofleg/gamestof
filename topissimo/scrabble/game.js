@@ -789,6 +789,12 @@ function hideFeedback() {
   state.lastTopCells = [];
 }
 
+function showTransientError(title, detail = "", ms = 2000) {
+  showFeedback("error", title, detail);
+  clearTimeout(state._errorTimeout);
+  state._errorTimeout = setTimeout(() => hideFeedback(), ms);
+}
+
 function showTopFeedback(word, score, pos = "") {
   const div = $("#feedbackTop");
   if (!div) return;
@@ -1261,15 +1267,13 @@ function flashFeedback(kind, title, detail) {
 // ============================================================
 function validate() {
   if (!state.pending.length) {
-    showFeedback("error", "Rien à valider", "Place d'abord des lettres sur la grille.");
-    clearTimeout(state._rienTimeout);
-    state._rienTimeout = setTimeout(() => hideFeedback(), 2000);
+    showTransientError("Rien à valider", "Place d'abord des lettres sur la grille.");
     return;
   }
   // Reconstituer le coup (mot principal dans la direction)
   const move = buildMoveFromPending();
   if (!move) {
-    showFeedback("error", "Pose invalide", "Les lettres doivent être alignées et contiguës.");
+    showTransientError("Pose invalide", "Les lettres doivent être alignées et contiguës.");
     return;
   }
   const mode = currentMode();
@@ -1314,8 +1318,7 @@ function validate() {
   }
   // Vérification mode 7sur8 / 7et8 / 789 : nb de tuiles posées
   if (result.placed.length > mode.maxPlayed) {
-    showFeedback("error", `Trop de lettres posées (max ${mode.maxPlayed})`,
-      `Le mode ${mode.label} limite à ${mode.maxPlayed} lettres jouées par coup.`);
+    showTransientError(`Trop de lettres posées (max ${mode.maxPlayed})`, `Le mode ${mode.label} limite à ${mode.maxPlayed} lettres jouées par coup.`);
     return;
   }
   // Comparer au top
@@ -1417,7 +1420,7 @@ function flashInvalidWord(detail, invalidCells) {
   state.invalidCells = (invalidCells && invalidCells.length) ? invalidCells : [];
   if (!state.invalidCells.length) state.pending.forEach(p => p.invalid = true);
   renderBoard();
-  showFeedback("error", "Coup invalide", detail);
+  showTransientError("Coup invalide", detail, 1500);
 
   // 2) Au bout d'1 seconde : retirer les pending et afficher le meilleur essai
   setTimeout(() => {
