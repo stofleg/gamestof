@@ -1743,6 +1743,14 @@ function nextMove() {
     state.currentRackFresh = !!next.freshRack;
     state.currentKept = next.freshRack ? "" : (next.kept || "");
     renderRack();
+    // Garde-fou post-rendu : ce qui s'affiche (state.rack) doit correspondre
+    // exactement au tirage stocké (next.rack). Si divergence → on corrige.
+    const displayed = state.rack.map(t => t.letter).join("");
+    if (displayed !== rackStr) {
+      console.error(`[nextMove] divergence rack affiché "${displayed}" ≠ stocké "${rackStr}" — correction.`);
+      state.rack = rackStr.split("").map(L => ({ letter: L, used: false, id: nextTileId() }));
+      renderRack();
+    }
     renderBoard();
     renderBag();           // sac affiché aussi en partie pré-tirée/tournoi
     computeTop();
