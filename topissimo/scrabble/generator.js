@@ -162,5 +162,18 @@ export function generateGame(dict, options = {}, onProgress = null) {
   if (onProgress) onProgress(1);
   // On expose aussi l'état final du sac et du chevalet pour debug/vérification
   const finalRack = rack.map(t => t.letter);
+
+  // Validation post-génération : en mode joker, chaque coup doit avoir un "?"
+  // dans le rack. Si ce n'est pas le cas, c'est un bug de génération — on le
+  // signale explicitement pour ne pas stocker une partie corrompue.
+  if (withJoker) {
+    const badMoves = moves.filter(m => !m.rack.includes("?"));
+    if (badMoves.length > 0) {
+      const details = badMoves.map(m => `coup ${m.moveNo} : "${m.rack}"`).join(", ");
+      console.error(`[generator] partie joker : joker absent du rack — ${details}`);
+      return { moves, totalTopScore, finalBag: bag, finalRack, jokerError: details };
+    }
+  }
+
   return { moves, totalTopScore, finalBag: bag, finalRack };
 }

@@ -1637,6 +1637,12 @@ $("#pgCreate").onclick = async () => {
     await new Promise(r => setTimeout(r, 20));
     const game = generateGame(dict, { mode, withJoker }, onProgress);
 
+    // Bloquer la sauvegarde si la génération a produit des racks joker invalides
+    if (game.jokerError) {
+      $("#pgStatus").innerHTML = `<span style="color:#a02525">❌ Erreur de génération : joker absent dans certains coups (${escapeHtml(game.jokerError)}). Partie non sauvegardée — relance la génération.</span>`;
+      return;
+    }
+
     $("#pgStatus").textContent = "💾 Enregistrement…";
     const { data, error } = await sb.from("prepared_games").insert({
       name, mode, with_joker: withJoker, time_per_move: timePerMove,
