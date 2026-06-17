@@ -1711,7 +1711,7 @@ window.recomputeAllNeg = async function(force = false) {
   }
 
   if (toUpdate.length === 0) {
-    statusEl.textContent = `✅ Tout est déjà correct (${allResults.length} fiches, ${skipped} ignorées).`;
+    statusEl.textContent = `✅ Tout correct — ${games.length} parties, ${allResults.length} fiches, ${skipped} ignorées, force=${force}`;
     return;
   }
 
@@ -1730,7 +1730,7 @@ window.recomputeAllNeg = async function(force = false) {
   }
 
   statusEl.textContent = `✅ ${changed} fiche(s) recalculée(s) sur ${allResults.length}.`;
-  loadTournamentLeaderboard?.();
+  loadTournamentDetail(currentTournamentId);
 };
 
 window.recomputeAllJokerNeg = async function() {
@@ -1817,7 +1817,7 @@ window.recomputeAllJokerNeg = async function() {
 
   statusEl.textContent = `✅ ${changed} fiche(s) recalculée(s) sur ${allResults.length}.`;
   // Recharger le classement si visible
-  if ($("#sectionTournament")?.hidden === false) loadTournamentLeaderboard();
+  if (currentTournamentId) loadTournamentDetail(currentTournamentId);
 };
 
 // ============================================================
