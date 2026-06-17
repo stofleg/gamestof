@@ -1726,7 +1726,20 @@ function nextMove() {
       return;
     }
     const next = state.prepared.moves[state.preparedIdx];
-    state.rack = next.rack.split("").map(L => ({ letter: L, used: false, id: nextTileId() }));
+    // Garde-fou : vérifier que le chevalet stocké est cohérent avec le mode.
+    const rackStr = next.rack || "";
+    const mode = currentMode();
+    const expectedSize = mode.rackSize || 7;
+    const hasJoker = rackStr.includes("?");
+    if (!rackStr) {
+      console.error("[nextMove] rack manquant au coup", state.preparedIdx, next);
+    } else if (rackStr.length < expectedSize - 1) {
+      // Tolérance -1 pour fin de partie (sac presque vide)
+      console.warn("[nextMove] rack trop court:", rackStr, "attendu ≥", expectedSize - 1, "mode", state.prepared.mode);
+    } else if (state.prepared.with_joker && !hasJoker) {
+      console.warn("[nextMove] joker absent du chevalet en mode joker:", rackStr, "coup", state.preparedIdx + 1);
+    }
+    state.rack = rackStr.split("").map(L => ({ letter: L, used: false, id: nextTileId() }));
     state.currentRackFresh = !!next.freshRack;
     state.currentKept = next.freshRack ? "" : (next.kept || "");
     renderRack();
