@@ -2120,6 +2120,14 @@ async function initGame() {
       showFeedback("error", "Impossible de charger la partie", e.message);
       return;
     }
+    // Vérification préalable silencieuse : s'assurer que le premier coup est cohérent
+    // avant d'afficher quoi que ce soit au joueur.
+    const verifyErr = verifyPreparedGame(state.prepared);
+    if (verifyErr) {
+      showFeedback("error", "Données de partie invalides", verifyErr);
+      console.error("[verifyPreparedGame]", verifyErr, state.prepared);
+      return;
+    }
   }
   // Si aucune URL spéciale, et qu'on a un entraînement en pause sauvegardé → restaurer
   if (!PREPARED_ID && !TRAINING_ID && !PUZZLE_GAME_ID && !REVIEW_ID) {
@@ -2661,6 +2669,35 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "ArrowRight") { e.preventDefault(); $("#rvNext").click(); }
   if (e.key === "ArrowLeft")  { e.preventDefault(); $("#rvPrev").click(); }
 });
+
+// Vérifie la cohérence des données d'une partie pré-tirée avant de la lancer.
+// Retourne null si tout est bon, sinon un message d'erreur lisible.
+function verifyPreparedGame(prepared) {
+  if (!prepared) return "Partie non chargée.";
+  const moves = prepared.moves;
+  if (!Array.isArray(moves) || moves.length === 0) return "Aucun coup trouvé dans la partie.";
+  const mode = GAME_MODES[prepared.mode] || GAME_MODES.duplicate;
+  const expectedSize = mode.rackSize || 7;
+  for (let i = 0; i < moves.length; i++) {
+    const m = moves[i];
+    const rack = m?.rack || "";
+    // Rack vide ou manquant
+    if (!rack) return `Coup ${i + 1} : chevalet absent.`;
+    // Rack trop court (tolérance : dernier coup peut avoir moins de lettres)
+    if (rack.length < expectedSize - 1 && i < moves.length - 3) {
+      return `Coup ${i + 1} : chevalet trop court (${rack.length} lettres, attendu ≥ ${expectedSize - 1}).`;
+    }
+    // Joker absent en mode joker
+    if (prepared.withJoker && !rack.includes("?")) {
+      return `Coup ${i + 1} : joker absent du chevalet "${rack}" en mode joker.`;
+    }
+    // Top manquant
+    if (!m.top || !m.top.word) {
+      return `Coup ${i + 1} : top manquant.`;
+    }
+  }
+  return null;
+}
 
 async function loadPreparedGame(id) {
   // Charger Supabase si nécessaire
