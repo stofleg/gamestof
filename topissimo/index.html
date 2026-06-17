@@ -14,7 +14,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fraunces:wght@500;600;700;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=154">
+<link rel="stylesheet" href="style.css?v=155">
 </head>
 <body>
 
@@ -148,7 +148,8 @@
     <div class="card" id="adminToolsCard" hidden>
       <h2>🔧 Outils admin</h2>
       <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-        <button class="btn ghost small" onclick="recomputeAllNeg()">🔧 Recalculer tous les négatifs (tournoi)</button>
+        <button class="btn ghost small" onclick="recomputeAllNeg(false)">🔧 Recalculer tous les négatifs (tournoi)</button>
+        <button class="btn ghost small" onclick="recomputeAllNeg(true)">🔧 Forcer tout recalculer</button>
         <button class="btn ghost small" onclick="recomputeAllJokerNeg()">🔧 Joker uniquement</button>
         <span class="muted" id="recomputeStatus" style="font-size:.85rem"></span>
       </div>

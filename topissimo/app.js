@@ -1651,7 +1651,7 @@ $("#pgCreate").onclick = async () => {
 //  Recalcul correctif des négatifs pour les parties joker (Bug 4)
 // ============================================================
 
-window.recomputeAllNeg = async function() {
+window.recomputeAllNeg = async function(force = false) {
   if (!isAdmin()) return alert("Réservé à l'admin.");
   if (!currentTournamentId) return alert("Ouvre d'abord un tournoi.");
   const statusEl = $("#recomputeStatus");
@@ -1691,22 +1691,27 @@ window.recomputeAllNeg = async function() {
   statusEl.textContent = `⏳ Recalcul de ${allResults.length} fiche(s)…`;
 
   const gameMap = Object.fromEntries(games.map(g => [g.id, g]));
-  let changed = 0, done = 0;
+  let changed = 0, done = 0, skipped = 0;
   const toUpdate = [];
   for (const r of allResults) {
     const game = gameMap[r.prepared_game_id];
-    if (!game || !r.details) continue;
+    if (!game || !r.details) { skipped++; continue; }
     try {
       const { sumNeg, totalScore, details } = recomputeResult(game, r.details);
-      if (sumNeg !== r.sum_neg || totalScore !== r.total_score) {
+      // Forcer la mise à jour même si les valeurs semblent identiques
+      // (cast explicite pour éviter les faux "égaux" string vs number)
+      if (force || Number(sumNeg) !== Number(r.sum_neg) || Number(totalScore) !== Number(r.total_score)) {
         toUpdate.push({ player_id: r.player_id, prepared_game_id: r.prepared_game_id, sum_neg: sumNeg, total_score: totalScore, details });
         changed++;
       }
-    } catch (e) { /* skip si données corrompues */ }
+    } catch (e) {
+      console.error("recomputeResult error", r.prepared_game_id, r.player_id, e);
+      skipped++;
+    }
   }
 
   if (toUpdate.length === 0) {
-    statusEl.textContent = `✅ Tout est déjà correct (${allResults.length} fiches vérifiées).`;
+    statusEl.textContent = `✅ Tout est déjà correct (${allResults.length} fiches, ${skipped} ignorées).`;
     return;
   }
 
