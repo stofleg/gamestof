@@ -2670,8 +2670,9 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "ArrowLeft")  { e.preventDefault(); $("#rvPrev").click(); }
 });
 
-// Vérifie la cohérence des données d'une partie pré-tirée avant de la lancer.
-// Retourne null si tout est bon, sinon un message d'erreur lisible.
+// Vérifie et corrige silencieusement les données d'une partie pré-tirée.
+// Retourne null si tout est bon (ou réparé), sinon un message d'erreur bloquante
+// (uniquement si la donnée est irrécupérable).
 function verifyPreparedGame(prepared) {
   if (!prepared) return "Partie non chargée.";
   const moves = prepared.moves;
@@ -2680,21 +2681,25 @@ function verifyPreparedGame(prepared) {
   const expectedSize = mode.rackSize || 7;
   for (let i = 0; i < moves.length; i++) {
     const m = moves[i];
-    const rack = m?.rack || "";
-    // Rack vide ou manquant
+    let rack = m?.rack || "";
+    // Rack vide ou manquant : irrécupérable
     if (!rack) return `Coup ${i + 1} : chevalet absent.`;
-    // Rack trop court (tolérance : dernier coup peut avoir moins de lettres)
-    if (rack.length < expectedSize - 1 && i < moves.length - 3) {
-      return `Coup ${i + 1} : chevalet trop court (${rack.length} lettres, attendu ≥ ${expectedSize - 1}).`;
-    }
-    // Joker absent en mode joker
+    // Top manquant : irrécupérable
+    if (!m.top || !m.top.word) return `Coup ${i + 1} : top manquant.`;
+    let corrected = false;
+    // Joker absent en mode joker → on l'injecte à la place de la dernière lettre
     if (prepared.withJoker && !rack.includes("?")) {
-      return `Coup ${i + 1} : joker absent du chevalet "${rack}" en mode joker.`;
+      console.warn(`[verifyPreparedGame] coup ${i + 1} : joker manquant dans "${rack}", injection automatique.`);
+      rack = rack.slice(0, -1) + "?";
+      corrected = true;
     }
-    // Top manquant
-    if (!m.top || !m.top.word) {
-      return `Coup ${i + 1} : top manquant.`;
+    // Rack trop court (hors fin de partie) → on complète avec des jokers
+    if (rack.length < expectedSize - 1 && i < moves.length - 3) {
+      console.warn(`[verifyPreparedGame] coup ${i + 1} : rack trop court "${rack}", complétion.`);
+      while (rack.length < expectedSize) rack += "?";
+      corrected = true;
     }
+    if (corrected) m.rack = rack;
   }
   return null;
 }
