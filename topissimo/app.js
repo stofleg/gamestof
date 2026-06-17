@@ -949,6 +949,8 @@ window.purgeTournament = async (id) => {
 window.purgeCurrentTournament = () => purgeTournament(currentTournamentId).then(() => backToTournaments());
 
 async function loadTournamentDetail(tournamentId) {
+  // Déclencher une vérification SW silencieuse en arrière-plan dès l'entrée dans un tournoi.
+  if (_swReg) _swReg.update().catch(() => {});
   $("#tournamentsView").hidden = true;
   $("#tournamentDetailView").hidden = false;
   $("#pgFormCard").hidden = !isAdmin();
@@ -2037,25 +2039,22 @@ async function onSignedIn() {
   $("#authOverlay").hidden = true;
   $("#userPill").hidden = false;
   $("#currentPseudo").textContent = player.name;
-  // Affiche la version SW uniquement pour stof (debug)
+  // Affiche la version SW (pour stof) et la logue en DB pour tous
   const swVerEl = $("#swVersion");
-  if (player.name === "stof" && swVerEl) {
-    navigator.serviceWorker?.getRegistration?.().then(reg => {
-      const sw = reg?.active || reg?.installing || reg?.waiting;
-      const scriptURL = sw?.scriptURL || "";
-      const m = scriptURL.match(/sw\.js(\?.*)?$/) ? null : null; // on lit le cache name via message
-      // Fallback : lire le cache via caches.keys()
-      if (typeof caches !== "undefined") {
-        caches.keys().then(keys => {
-          const v = keys.find(k => k.startsWith("garenna-")) || "";
-          swVerEl.textContent = v ? ` · ${v}` : "";
-          swVerEl.hidden = !v;
-        });
+  if (typeof caches !== "undefined") {
+    caches.keys().then(async keys => {
+      const v = keys.find(k => k.startsWith("garenna-")) || "";
+      // Affichage pour stof
+      if (player.name === "stof" && swVerEl) {
+        swVerEl.textContent = v ? ` · ${v}` : "";
+        swVerEl.hidden = !v;
+      } else if (swVerEl) { swVerEl.hidden = true; }
+      // Logger en DB pour tout le monde
+      if (v && player.id) {
+        sb.from("players").update({ sw_version: v }).eq("id", player.id).then(() => {});
       }
-    }).catch(() => {});
-  } else if (swVerEl) {
-    swVerEl.hidden = true;
-  }
+    }).catch(() => { if (swVerEl) swVerEl.hidden = true; });
+  } else if (swVerEl) { swVerEl.hidden = true; }
   // Charger les données
   loadPlayers().then(() => { startPresence(player.id); loadPreparedGames(); });
 }
