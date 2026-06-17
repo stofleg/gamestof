@@ -17,25 +17,35 @@ const sb = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANO
 
 // Service worker (PWA installable) + AUTO-MISE-À-JOUR.
 // À chaque chargement, on force la vérification d'une nouvelle version du SW.
-// Si on en trouve une, on la skipWaiting et on reload pour servir le neuf.
+// Version attendue du cache SW — doit correspondre à CACHE dans sw.js.
+// Si le cache actif du navigateur ne correspond pas, on force la mise à jour
+// immédiatement au chargement de la page.
+const EXPECTED_SW_CACHE = "garenna-v158";
+
 let _swReg = null;   // référence globale pour ensureFreshAndNavigate()
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", async () => {
     try {
       const reg = await navigator.serviceWorker.register("./sw.js");
       _swReg = reg;
-      // 1) Check immédiat
+      // 1) Vérifier si le cache actif est à jour ; sinon forcer la mise à jour
+      if (typeof caches !== "undefined") {
+        caches.keys().then(keys => {
+          if (!keys.includes(EXPECTED_SW_CACHE)) reg.update();
+        }).catch(() => {});
+      }
+      // 2) Check immédiat systématique
       reg.update();
-      // 2) Re-check toutes les 5 min si l'onglet reste ouvert
+      // 3) Re-check toutes les 5 min si l'onglet reste ouvert
       setInterval(() => reg.update(), 5 * 60 * 1000);
-      // 3) Quand un nouveau SW prend le contrôle → reload pour récupérer le neuf
+      // 4) Quand un nouveau SW prend le contrôle → reload pour récupérer le neuf
       let refreshing = false;
       navigator.serviceWorker.addEventListener("controllerchange", () => {
         if (refreshing) return;
         refreshing = true;
         window.location.reload();
       });
-      // 4) Si un nouveau SW est en attente (installé mais pas activé) → activate now
+      // 5) Si un nouveau SW est en attente (installé mais pas activé) → activate now
       if (reg.waiting) reg.waiting.postMessage({ type: "SKIP_WAITING" });
       reg.addEventListener("updatefound", () => {
         const sw = reg.installing;
