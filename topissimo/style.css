@@ -824,6 +824,15 @@ footer .tiles { letter-spacing: 2px; margin-bottom: 6px; }
 @media (max-width: 600px) {
   header { padding: 14px 16px; gap: 12px; }
   header .brand .name { font-size: 1.2rem; }
+  /* Sur mobile : logo Garenna masqué, TOPISSIMO aligné à gauche */
+  header .logo { display: none; }
+  header .logo-center {
+    position: static;
+    transform: none;
+    height: 34px;
+    pointer-events: auto;
+    flex: 0 0 auto;
+  }
   main { padding: 18px 12px; }
   .card { padding: 16px; }
   .podium { grid-template-columns: 1fr; }
