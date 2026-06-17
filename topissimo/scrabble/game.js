@@ -2671,35 +2671,30 @@ document.addEventListener("keydown", (e) => {
 });
 
 // Vérifie et corrige silencieusement les données d'une partie pré-tirée.
-// Retourne null si tout est bon (ou réparé), sinon un message d'erreur bloquante
+// Principe : chaque coup a un tirage stocké (m.rack). En mode joker, ce tirage
+// doit contenir un "?". S'il en est dépourvu, c'est un bug de stockage : on
+// remplace le tirage corrompu par sa version correcte (avec le joker restitué).
+// Retourne null si tout est bon, sinon un message d'erreur bloquante
 // (uniquement si la donnée est irrécupérable).
 function verifyPreparedGame(prepared) {
   if (!prepared) return "Partie non chargée.";
   const moves = prepared.moves;
   if (!Array.isArray(moves) || moves.length === 0) return "Aucun coup trouvé dans la partie.";
-  const mode = GAME_MODES[prepared.mode] || GAME_MODES.duplicate;
-  const expectedSize = mode.rackSize || 7;
   for (let i = 0; i < moves.length; i++) {
     const m = moves[i];
-    let rack = m?.rack || "";
+    const rack = m?.rack || "";
     // Rack vide ou manquant : irrécupérable
     if (!rack) return `Coup ${i + 1} : chevalet absent.`;
     // Top manquant : irrécupérable
     if (!m.top || !m.top.word) return `Coup ${i + 1} : top manquant.`;
-    let corrected = false;
-    // Joker absent en mode joker → on l'injecte à la place de la dernière lettre
+    // En mode joker, le tirage correct contient toujours un "?".
+    // S'il est absent, le tirage stocké est corrompu : on le remplace par
+    // la version correcte (le joker restitué à la fin du tirage).
     if (prepared.withJoker && !rack.includes("?")) {
-      console.warn(`[verifyPreparedGame] coup ${i + 1} : joker manquant dans "${rack}", injection automatique.`);
-      rack = rack.slice(0, -1) + "?";
-      corrected = true;
+      const rackCorrige = rack + "?";
+      console.warn(`[verifyPreparedGame] coup ${i + 1} : tirage corrompu "${rack}" → remplacé par "${rackCorrige}"`);
+      m.rack = rackCorrige;
     }
-    // Rack trop court (hors fin de partie) → on complète avec des jokers
-    if (rack.length < expectedSize - 1 && i < moves.length - 3) {
-      console.warn(`[verifyPreparedGame] coup ${i + 1} : rack trop court "${rack}", complétion.`);
-      while (rack.length < expectedSize) rack += "?";
-      corrected = true;
-    }
-    if (corrected) m.rack = rack;
   }
   return null;
 }
