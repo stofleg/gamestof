@@ -103,8 +103,48 @@ function captureSwVersion() {
         if (garenna.length && !garenna.includes(BUILD_VERSION)) {
           diagLog("SW_VERSION_MISMATCH", { expected: BUILD_VERSION, found: garenna });
           console.error(`[diag] CACHE PÉRIMÉ : SW=${garenna.join(",")} attendu=${BUILD_VERSION}`);
+          // AUTO-RÉPARATION : on force la mise à jour du service worker puis un
+          // reload propre, UNE SEULE FOIS (garde-fou anti-boucle via sessionStorage).
+          // Cela récupère le code frais sans action du joueur ni reconnexion.
+          selfHealStaleCache(garenna);
         }
       }).catch(() => {});
+    }
+  } catch { /* ignore */ }
+}
+
+// Force la mise à jour du SW + reload, une seule fois par session, pour sortir
+// d'un cache périmé sans intervention du joueur.
+function selfHealStaleCache(foundCaches) {
+  try {
+    const KEY = "swHealAttempt";
+    const already = sessionStorage.getItem(KEY);
+    // Si on a déjà tenté pour CETTE version attendue, on n'insiste pas
+    // (évite toute boucle de rechargement si le serveur sert vraiment l'ancien).
+    if (already === BUILD_VERSION) {
+      diagLog("SW_HEAL_SKIPPED", { reason: "already_attempted", expected: BUILD_VERSION });
+      return;
+    }
+    // Ne jamais recharger en pleine partie (on perdrait la progression).
+    if (state.started) {
+      diagLog("SW_HEAL_SKIPPED", { reason: "game_in_progress", expected: BUILD_VERSION });
+      return;
+    }
+    sessionStorage.setItem(KEY, BUILD_VERSION);
+    diagLog("SW_HEAL_START", { expected: BUILD_VERSION, found: foundCaches });
+    if (navigator.serviceWorker?.getRegistration) {
+      navigator.serviceWorker.getRegistration().then(reg => {
+        const done = () => { try { window.location.reload(); } catch {} };
+        if (reg) {
+          // Demander au SW en attente de s'activer immédiatement, puis recharger.
+          if (reg.waiting) reg.waiting.postMessage({ type: "SKIP_WAITING" });
+          reg.update().then(done).catch(done);
+        } else {
+          done();
+        }
+      }).catch(() => { try { window.location.reload(); } catch {} });
+    } else {
+      try { window.location.reload(); } catch {}
     }
   } catch { /* ignore */ }
 }
