@@ -3115,6 +3115,17 @@ function endGame() {
   stopMoveTimer();
   clearSavedTraining();
   hideFeedback();
+  // GARANTIE D'AFFICHAGE DU DERNIER COUP : quel que soit le chemin qui a mené
+  // ici (validation, timeout, abandon, fin de partition), on reconstruit le
+  // plateau à partir des TOPS de l'historique — source de vérité (la feuille de
+  // route les contient toujours). Cela évite tout cas où le dernier top n'aurait
+  // pas été peint sur la grille avant l'ouverture de la modale.
+  if (Array.isArray(state.history) && state.history.length) {
+    let board = emptyBoard();
+    for (const h of state.history) if (h?.top?.word) board = applyMove(board, h.top);
+    state.board = board;
+    renderBoard();
+  }
   const time = fmtChrono(state.chronoFinal);
   $("#endSummary").innerHTML = `
     <div>Score total : <strong>${state.totalScore}</strong> pts</div>
