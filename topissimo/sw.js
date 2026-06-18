@@ -1,6 +1,6 @@
 // Service worker minimal — strategy "network first, fallback cache".
 // Le but est juste de rendre l'app installable (PWA) et un poil plus résiliente offline.
-const CACHE = "garenna-v167";
+const CACHE = "garenna-v168";
 const SHELL = [
   "./",
   "./index.html",
@@ -23,7 +23,18 @@ const SHELL = [
 ];
 
 self.addEventListener("install", e => {
-  e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL).catch(() => {})));
+  // Mettre en cache le shell en CONTOURNANT le cache HTTP du navigateur
+  // (cache:"reload") : sinon addAll peut figer une vieille version servie par
+  // les en-têtes max-age, que le SW resservirait ensuite indéfiniment.
+  e.waitUntil(
+    caches.open(CACHE).then(c =>
+      Promise.all(SHELL.map(u =>
+        fetch(u, { cache: "reload" })
+          .then(r => { if (r && r.ok) return c.put(u, r); })
+          .catch(() => {})
+      ))
+    )
+  );
   self.skipWaiting();
 });
 
@@ -48,8 +59,11 @@ self.addEventListener("fetch", e => {
   if (req.url.includes("supabase.co") || req.url.includes("supabase.com")) return;
   // GET only
   if (req.method !== "GET") return;
+  // RÉSEAU D'ABORD en CONTOURNANT le cache HTTP (cache:"reload") → on ne reste
+  // jamais coincé sur un vieux fichier figé par max-age. Le cache du SW ne sert
+  // qu'en secours hors-ligne.
   e.respondWith(
-    fetch(req)
+    fetch(req, { cache: "reload" })
       .then(res => {
         const copy = res.clone();
         caches.open(CACHE).then(c => c.put(req, copy).catch(() => {}));
