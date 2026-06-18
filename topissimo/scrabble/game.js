@@ -62,7 +62,7 @@ const TOURNAMENT_ID = URL_PARAMS.get("tid");  // ID du tournoi pour le retour
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v166";
+const BUILD_VERSION = "garenna-v167";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -89,23 +89,29 @@ function diagLog(event, data = {}) {
     if (diag.events.length > 800) diag.events.shift();
   } catch { /* le diagnostic ne doit jamais casser le jeu */ }
 }
-// Détecter la version réellement servie par le service worker (asynchrone).
+// Y avait-il déjà un SW contrôleur au chargement de la page ? Sert à distinguer
+// une VRAIE mise à jour (recharger) d'une simple première prise de contrôle
+// (ne pas recharger, sinon reload parasite à la 1ʳᵉ visite).
+const _swHadControllerAtLoad =
+  typeof navigator !== "undefined" && !!navigator.serviceWorker?.controller;
+let _swRefreshing = false;          // empêche tout double rechargement
+let _swUpdatesRegistered = false;
+
+// Détecter la version servie par le SW (diagnostic) + brancher la mise à jour.
 function captureSwVersion() {
   try {
     if (typeof navigator !== "undefined" && navigator.serviceWorker) {
       diag.swScriptURL = navigator.serviceWorker.controller?.scriptURL || null;
     }
+    registerSwUpdates();
     if (typeof caches !== "undefined" && caches.keys) {
       caches.keys().then(keys => {
         const garenna = keys.filter(k => k.startsWith("garenna-"));
         diag.swCache = garenna.join(",") || keys.join(",") || "(aucun)";
-        // Alerte immédiate si la version servie ≠ version attendue.
+        // Le code EN COURS est-il plus ancien que le cache déjà présent ?
         if (garenna.length && !garenna.includes(BUILD_VERSION)) {
           diagLog("SW_VERSION_MISMATCH", { expected: BUILD_VERSION, found: garenna });
           console.error(`[diag] CACHE PÉRIMÉ : SW=${garenna.join(",")} attendu=${BUILD_VERSION}`);
-          // AUTO-RÉPARATION : on force la mise à jour du service worker puis un
-          // reload propre, UNE SEULE FOIS (garde-fou anti-boucle via sessionStorage).
-          // Cela récupère le code frais sans action du joueur ni reconnexion.
           selfHealStaleCache(garenna);
         }
       }).catch(() => {});
@@ -113,39 +119,70 @@ function captureSwVersion() {
   } catch { /* ignore */ }
 }
 
-// Force la mise à jour du SW + reload, une seule fois par session, pour sortir
-// d'un cache périmé sans intervention du joueur.
+// Mécanisme STANDARD de mise à jour du SW sur la page de jeu :
+//  • à l'ouverture, on demande au navigateur de vérifier une nouvelle version ;
+//  • si un SW est "waiting"/"installed", on lui demande de s'activer (skipWaiting) ;
+//  • quand le nouveau SW prend le contrôle (controllerchange), on recharge UNE
+//    fois — uniquement s'il y avait déjà un contrôleur (vraie MAJ) et jamais en
+//    pleine partie.
+function registerSwUpdates() {
+  if (_swUpdatesRegistered) return;
+  if (typeof navigator === "undefined" || !navigator.serviceWorker) return;
+  _swUpdatesRegistered = true;
+  try {
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      if (_swRefreshing) return;
+      if (!_swHadControllerAtLoad) return;     // 1ʳᵉ prise de contrôle → pas de reload
+      if (state.started) { diagLog("SW_RELOAD_DEFERRED", { reason: "game_in_progress" }); return; }
+      _swRefreshing = true;
+      diagLog("SW_CONTROLLER_CHANGE_RELOAD", {});
+      try { window.location.reload(); } catch {}
+    });
+    navigator.serviceWorker.getRegistration?.().then(reg => {
+      if (!reg) return;
+      if (reg.waiting) reg.waiting.postMessage({ type: "SKIP_WAITING" });
+      reg.addEventListener("updatefound", () => {
+        const sw = reg.installing;
+        if (!sw) return;
+        sw.addEventListener("statechange", () => {
+          if (sw.state === "installed" && navigator.serviceWorker.controller) {
+            sw.postMessage({ type: "SKIP_WAITING" });
+          }
+        });
+      });
+      reg.update().catch(() => {});
+    }).catch(() => {});
+  } catch { /* ignore */ }
+}
+
+// Filet de sécurité : le code EN COURS est plus ancien que le cache présent
+// (l'onglet tournait sur l'ancien JS au moment de la MAJ, aucun controllerchange
+// n'arrivera). On force un reload, UNE SEULE FOIS PAR VERSION CIBLE (clé = jeu de
+// caches trouvés) → pas de boucle même si le rechargement ne suffisait pas, et
+// nouvelle tentative dès qu'une version encore plus récente apparaît.
 function selfHealStaleCache(foundCaches) {
   try {
-    const KEY = "swHealAttempt";
-    const already = sessionStorage.getItem(KEY);
-    // Si on a déjà tenté pour CETTE version attendue, on n'insiste pas
-    // (évite toute boucle de rechargement si le serveur sert vraiment l'ancien).
-    if (already === BUILD_VERSION) {
-      diagLog("SW_HEAL_SKIPPED", { reason: "already_attempted", expected: BUILD_VERSION });
+    const target = (foundCaches || []).join(",");
+    const KEY = "swHealTarget";
+    if (sessionStorage.getItem(KEY) === target) {
+      diagLog("SW_HEAL_SKIPPED", { reason: "already_attempted", target });
       return;
     }
-    // Ne jamais recharger en pleine partie (on perdrait la progression).
     if (state.started) {
-      diagLog("SW_HEAL_SKIPPED", { reason: "game_in_progress", expected: BUILD_VERSION });
+      diagLog("SW_HEAL_SKIPPED", { reason: "game_in_progress", target });
       return;
     }
-    sessionStorage.setItem(KEY, BUILD_VERSION);
-    diagLog("SW_HEAL_START", { expected: BUILD_VERSION, found: foundCaches });
+    sessionStorage.setItem(KEY, target);
+    diagLog("SW_HEAL_START", { expected: BUILD_VERSION, target });
+    const reload = () => { if (_swRefreshing) return; _swRefreshing = true; try { window.location.reload(); } catch {} };
     if (navigator.serviceWorker?.getRegistration) {
       navigator.serviceWorker.getRegistration().then(reg => {
-        const done = () => { try { window.location.reload(); } catch {} };
         if (reg) {
-          // Demander au SW en attente de s'activer immédiatement, puis recharger.
           if (reg.waiting) reg.waiting.postMessage({ type: "SKIP_WAITING" });
-          reg.update().then(done).catch(done);
-        } else {
-          done();
-        }
-      }).catch(() => { try { window.location.reload(); } catch {} });
-    } else {
-      try { window.location.reload(); } catch {}
-    }
+          reg.update().then(reload).catch(reload);
+        } else { reload(); }
+      }).catch(reload);
+    } else { reload(); }
   } catch { /* ignore */ }
 }
 
