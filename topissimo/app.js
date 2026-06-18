@@ -20,7 +20,7 @@ const sb = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANO
 // Version attendue du cache SW — doit correspondre à CACHE dans sw.js.
 // Si le cache actif du navigateur ne correspond pas, on force la mise à jour
 // immédiatement au chargement de la page.
-const EXPECTED_SW_CACHE = "garenna-v165";
+const EXPECTED_SW_CACHE = "garenna-v166";
 
 let _swReg = null;   // référence globale pour ensureFreshAndNavigate()
 if ("serviceWorker" in navigator) {
@@ -1748,6 +1748,119 @@ window.recomputeAllNeg = async function(force = false) {
   }
 
   statusEl.textContent = `✅ ${changed} fiche(s) recalculée(s) sur ${allResults.length}.`;
+  loadTournamentDetail(currentTournamentId);
+};
+
+// ============================================================
+//  Correction admin : donner le top à un joueur sur des coups précis
+// ============================================================
+// Parse "16-19, 14,17" → [14,16,17,18,19] (trié, dédupliqué).
+function parseMoveList(str) {
+  const out = new Set();
+  for (const part of String(str || "").split(",")) {
+    const p = part.trim();
+    if (!p) continue;
+    const range = /^(\d+)\s*-\s*(\d+)$/.exec(p);
+    if (range) {
+      const a = +range[1], b = +range[2];
+      for (let i = Math.min(a, b); i <= Math.max(a, b); i++) out.add(i);
+    } else if (/^\d+$/.test(p)) {
+      out.add(+p);
+    }
+  }
+  return [...out].sort((a, b) => a - b);
+}
+
+window.adminGiveTop = async function() {
+  if (!isAdmin()) return alert("Réservé à l'admin.");
+  const statusEl = $("#fixStatus");
+  if (!currentTournamentId) { statusEl.textContent = "❌ Ouvre d'abord un tournoi."; return; }
+
+  const pseudo = $("#fixPseudo").value.trim();
+  const gameNo = +$("#fixGame").value;
+  const moveNos = parseMoveList($("#fixMoves").value);
+  if (!pseudo) { statusEl.textContent = "❌ Indique un pseudo."; return; }
+  if (!gameNo) { statusEl.textContent = "❌ Indique le n° de partie."; return; }
+  if (!moveNos.length) { statusEl.textContent = "❌ Indique au moins un coup (ex : 16-19)."; return; }
+
+  statusEl.textContent = "⏳ Recherche du joueur et de la partie…";
+
+  // 1) Joueur par pseudo (insensible à la casse)
+  const { data: players, error: pErr } = await sb
+    .from("players").select("id, name").ilike("name", pseudo);
+  if (pErr) { statusEl.textContent = "❌ " + pErr.message; return; }
+  if (!players || players.length === 0) { statusEl.textContent = `❌ Joueur « ${pseudo} » introuvable.`; return; }
+  if (players.length > 1) { statusEl.textContent = `❌ Plusieurs joueurs nommés « ${pseudo} » — ambigu.`; return; }
+  const player = players[0];
+
+  // 2) Parties du tournoi → trouver "Partie {gameNo}"
+  const { data: games, error: gErr } = await sb
+    .from("prepared_games").select("id, name, moves").eq("tournament_id", currentTournamentId);
+  if (gErr) { statusEl.textContent = "❌ " + gErr.message; return; }
+  const game = (games || []).find(g => {
+    const m = /(\d+)/.exec(g.name || "");
+    return m && +m[1] === gameNo;
+  });
+  if (!game) { statusEl.textContent = `❌ Partie ${gameNo} introuvable dans ce tournoi.`; return; }
+
+  // 3) Fiche résultat du joueur pour cette partie
+  const { data: rows, error: rErr } = await sb
+    .from("prepared_game_results")
+    .select("player_id, prepared_game_id, details, total_score, sum_neg")
+    .eq("prepared_game_id", game.id).eq("player_id", player.id);
+  if (rErr) { statusEl.textContent = "❌ " + rErr.message; return; }
+  if (!rows || rows.length === 0) {
+    statusEl.textContent = `❌ ${player.name} n'a pas de résultat enregistré sur la partie ${gameNo}.`; return;
+  }
+  const res = rows[0];
+  const details = Array.isArray(res.details) ? res.details.map(e => ({ ...e })) : [];
+  if (!details.length) { statusEl.textContent = "❌ Fiche sans détail de coups."; return; }
+
+  // 4) Appliquer le top sur les coups demandés
+  const changes = [];
+  const notFound = [];
+  for (const mv of moveNos) {
+    const e = details.find(d => d.moveNo === mv);
+    if (!e) { notFound.push(mv); continue; }
+    if (!e.top || typeof e.top.score !== "number") { notFound.push(mv); continue; }
+    const before = e.playerScore || 0;
+    e.playerScore = e.top.score;
+    e.neg = 0;
+    e.status = "top";
+    e.played = e.top.word;
+    e.playedPos = e.top.pos || e.playedPos || null;
+    e.gotBonus = !!e.top.hadBonus;
+    changes.push({ mv, before, after: e.top.score, word: e.top.word });
+  }
+  if (!changes.length) {
+    statusEl.textContent = `❌ Aucun coup applicable (introuvables : ${notFound.join(", ") || "—"}).`; return;
+  }
+
+  // 5) Recalcul des totaux
+  const newTotal = details.reduce((s, d) => s + (d.playerScore || 0), 0);
+  const newNeg = details.reduce((s, d) => s + (d.neg || 0), 0);
+
+  // 6) Confirmation avant écriture (données de production)
+  const lines = changes.map(c => `  • coup ${c.mv} : ${c.before} → ${c.after} pts (${c.word})`).join("\n");
+  const warn = notFound.length ? `\n\n⚠️ Coups ignorés (absents ou sans top) : ${notFound.join(", ")}` : "";
+  const ok = confirm(
+    `Donner le top à ${player.name} — Partie ${gameNo} :\n\n${lines}\n\n` +
+    `Score total : ${res.total_score} → ${newTotal}\n` +
+    `Négatif : ${res.sum_neg} → ${newNeg}${warn}\n\nConfirmer ?`);
+  if (!ok) { statusEl.textContent = "Annulé."; return; }
+
+  // 7) Écriture via la RPC admin (contourne RLS, contrôle admin côté serveur)
+  statusEl.textContent = "💾 Enregistrement…";
+  const { error: uErr } = await sb.rpc("admin_update_game_result", {
+    p_player_id:   res.player_id,
+    p_game_id:     res.prepared_game_id,
+    p_sum_neg:     newNeg,
+    p_total_score: newTotal,
+    p_details:     details,
+  });
+  if (uErr) { statusEl.textContent = "❌ Erreur d'enregistrement : " + uErr.message; return; }
+
+  statusEl.textContent = `✅ ${player.name} — Partie ${gameNo} : ${changes.length} coup(s) passé(s) au top. Total ${res.total_score} → ${newTotal}.`;
   loadTournamentDetail(currentTournamentId);
 };
 

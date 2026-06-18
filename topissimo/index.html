@@ -14,7 +14,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fraunces:wght@500;600;700;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=165">
+<link rel="stylesheet" href="style.css?v=166">
 </head>
 <body>
 
@@ -153,6 +153,21 @@
         <button class="btn ghost small" onclick="recomputeAllJokerNeg()">🔧 Joker uniquement</button>
         <span class="muted" id="recomputeStatus" style="font-size:.85rem"></span>
       </div>
+      <hr style="border:none;border-top:1px solid rgba(0,0,0,.08);margin:14px 0">
+      <h3 style="margin:0 0 8px;font-size:1rem">✏️ Donner le top à un joueur</h3>
+      <div style="display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap">
+        <label style="display:flex;flex-direction:column;font-size:.8rem;gap:2px">Pseudo
+          <input id="fixPseudo" type="text" placeholder="ex : Prez" style="padding:5px 8px">
+        </label>
+        <label style="display:flex;flex-direction:column;font-size:.8rem;gap:2px">Partie n°
+          <input id="fixGame" type="number" min="1" placeholder="8" style="width:70px;padding:5px 8px">
+        </label>
+        <label style="display:flex;flex-direction:column;font-size:.8rem;gap:2px">Coups (ex : 16-19, 14,17)
+          <input id="fixMoves" type="text" placeholder="16-19" style="width:140px;padding:5px 8px">
+        </label>
+        <button class="btn ghost small" onclick="adminGiveTop()">✅ Donner le top</button>
+      </div>
+      <div class="muted" id="fixStatus" style="font-size:.85rem;margin-top:8px"></div>
     </div>
 
     <div class="card tournament-games-band">
