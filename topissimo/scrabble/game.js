@@ -3117,15 +3117,51 @@ function endGame() {
   clearSavedTraining();
   hideFeedback();
   // GARANTIE D'AFFICHAGE DU DERNIER COUP : quel que soit le chemin qui a mené
-  // ici (validation, timeout, abandon, fin de partition), on reconstruit le
-  // plateau à partir des TOPS de l'historique — source de vérité (la feuille de
-  // route les contient toujours). Cela évite tout cas où le dernier top n'aurait
-  // pas été peint sur la grille avant l'ouverture de la modale.
+  // ici (validation, timeout, abandon, fin de partition), on reconstruit l'état
+  // final à partir des TOPS de l'historique — source de vérité (la feuille de
+  // route les contient toujours) :
+  //   • plateau   = tous les tops appliqués ;
+  //   • surbrillance = cases du DERNIER top (préférence highlightTop) ;
+  //   • rack      = reliquat du dernier coup (rack moins lettres consommées).
+  // On annule le minuteur de surbrillance pour qu'elle persiste sur l'écran final.
+  if (topWordTimer) { clearTimeout(topWordTimer); topWordTimer = null; }
   if (Array.isArray(state.history) && state.history.length) {
+    const playedTops = state.history.filter(h => h?.top?.word);
     let board = emptyBoard();
-    for (const h of state.history) if (h?.top?.word) board = applyMove(board, h.top);
+    let lastNewCells = [], lastAllCells = [], lastReliquat = null;
+    for (let k = 0; k < playedTops.length; k++) {
+      const top = playedTops[k].top;
+      if (k === playedTops.length - 1) {
+        // Dernier coup : repérer les cases nouvellement posées + le reliquat.
+        const { word, row, col, dir, blanks = [] } = top;
+        const dr = dir === "V" ? 1 : 0, dc = dir === "H" ? 1 : 0;
+        const used = [];
+        for (let i = 0; i < word.length; i++) {
+          const r = row + i * dr, c = col + i * dc;
+          lastAllCells.push({ row: r, col: c });
+          if (!board[r][c]) {
+            lastNewCells.push({ row: r, col: c });
+            used.push(blanks.includes(i) ? "?" : word[i]);
+          }
+        }
+        const rackArr = (playedTops[k].rack || "").split("");
+        for (const u of used) {
+          let idx = rackArr.indexOf(u);
+          if (idx === -1) idx = rackArr.indexOf("?"); // joker ayant servi de lettre
+          if (idx !== -1) rackArr.splice(idx, 1);
+        }
+        lastReliquat = rackArr;
+      }
+      board = applyMove(board, top);
+    }
     state.board = board;
+    state.lastPlaced = lastNewCells;
+    state.lastTopCells = lastAllCells;
+    if (lastReliquat) {
+      state.rack = lastReliquat.map(L => ({ letter: L, used: false, id: nextTileId() }));
+    }
     renderBoard();
+    renderRack();
   }
   const time = fmtChrono(state.chronoFinal);
   $("#endSummary").innerHTML = `
