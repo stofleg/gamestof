@@ -62,7 +62,7 @@ const TOURNAMENT_ID = URL_PARAMS.get("tid");  // ID du tournoi pour le retour
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v164";
+const BUILD_VERSION = "garenna-v165";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -2281,13 +2281,48 @@ async function initGame() {
 async function enterPuzzleMode(gameId, moveNo) {
   showFeedback("", "Chargement du puzzle…", "");
   if (!window._sb) await loadSupabaseClient();
-  const { data: g, error } = await window._sb.from("prepared_games").select("*").eq("id", gameId).single();
-  if (error) throw new Error(error.message);
+  // S'assurer que la session d'auth est restaurée AVANT la requête : sinon RLS
+  // peut renvoyer 0 ligne (rôle anonyme) et single() échoue avec un message vide.
+  try { await window._sb.auth.getSession(); } catch { /* non bloquant */ }
+
+  // On NE filtre PAS avec .single() (qui transforme "0 ligne" en erreur opaque
+  // sans message). On récupère la liste et on diagnostique nous-mêmes.
+  const { data: rows, error } = await window._sb
+    .from("prepared_games").select("*").eq("id", gameId);
+  if (error) {
+    console.error("[enterPuzzleMode] erreur Supabase:", error);
+    throw new Error(`Erreur base : ${error.message || error.code || "inconnue"}`);
+  }
+  if (!rows || rows.length === 0) {
+    console.error("[enterPuzzleMode] aucune partie pré-tirée id=", gameId,
+      "— probablement supprimée/régénérée alors que les résultats y réfèrent encore.");
+    throw new Error(`Cette partie (id ${gameId}) n'existe plus en base — elle a sans doute été régénérée. Le rejeu de ce solo n'est plus disponible.`);
+  }
+  const g = rows[0];
+
+  if (!Array.isArray(g.moves) || g.moves.length === 0) {
+    console.error("[enterPuzzleMode] g.moves invalide:", g.moves);
+    throw new Error("Données de partie corrompues (aucun coup).");
+  }
   const idx = moveNo - 1;
-  if (!g.moves[idx]) throw new Error("Coup introuvable dans cette partie.");
+  if (idx < 0 || idx >= g.moves.length || !g.moves[idx]) {
+    throw new Error(`Coup ${moveNo} introuvable (la partie ne compte que ${g.moves.length} coups).`);
+  }
   // Appliquer les coups 0..idx-1 au plateau
   let board = emptyBoard();
-  for (let i = 0; i < idx; i++) board = applyMove(board, g.moves[i].top);
+  for (let i = 0; i < idx; i++) {
+    const prevTop = g.moves[i]?.top;
+    if (!prevTop || !prevTop.word) {
+      console.error("[enterPuzzleMode] coup précédent sans top, i=", i, g.moves[i]);
+      throw new Error(`Données corrompues au coup ${i + 1} (top manquant).`);
+    }
+    try {
+      board = applyMove(board, prevTop);
+    } catch (e) {
+      console.error("[enterPuzzleMode] applyMove a échoué au coup", i + 1, prevTop, e);
+      throw new Error(`Impossible de reconstituer le plateau au coup ${i + 1}.`);
+    }
+  }
   state.board = board;
   // Préparer un faux "prepared" mono-coup pour réutiliser tout le moteur
   state.prepared = {
