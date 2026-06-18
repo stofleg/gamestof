@@ -20,7 +20,7 @@ const sb = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANO
 // Version attendue du cache SW — doit correspondre à CACHE dans sw.js.
 // Si le cache actif du navigateur ne correspond pas, on force la mise à jour
 // immédiatement au chargement de la page.
-const EXPECTED_SW_CACHE = "garenna-v169";
+const EXPECTED_SW_CACHE = "garenna-v170";
 
 let _swReg = null;   // référence globale pour ensureFreshAndNavigate()
 if ("serviceWorker" in navigator) {
@@ -1348,30 +1348,35 @@ async function loadTournamentStats(tournamentId, games) {
   for (const [gid, rs] of Object.entries(byGame)) {
     const finishers = new Set(rs.filter(r => Array.isArray(r.details) && r.details.length).map(r => r.player_id));
     if (finishers.size < 2) continue;
-    // Construire map moveNo → liste de player_ids ayant top
+    // Construire deux maps par numéro de coup :
+    //   topsByMove[mv]    → liste de player_ids ayant trouvé le top
+    //   playedByMove[mv]  → Set de player_ids ayant RÉELLEMENT joué ce coup
+    // Le 2e sert à exiger qu'un coup soit présent dans ≥2 feuilles de route pour
+    // être considéré : cela exclut les coups ORPHELINS d'une ancienne version de
+    // la partie (régénérée plus courte) qui ne subsistent que dans une fiche
+    // périmée — ex. un « coup 22 » alors que la partie n'a plus que 21 coups.
     const topsByMove = {};
-    // Aussi collecter tous les moveNos joués (pour détecter absence de top)
-    const allMoveNos = new Set();
+    const playedByMove = {};
     for (const r of rs) {
       for (const h of (r.details || [])) {
-        allMoveNos.add(h.moveNo);
+        (playedByMove[h.moveNo] ||= new Set()).add(r.player_id);
         if (h.status === "top") {
           (topsByMove[h.moveNo] ||= []).push(r.player_id);
         }
       }
     }
-    // Solos joueurs : un seul joueur a trouvé le top
+    // Solos joueurs : un seul joueur a topé un coup joué par au moins 2 joueurs.
     for (const [moveNo, list] of Object.entries(topsByMove)) {
-      if (list.length === 1) {
+      if (list.length === 1 && (playedByMove[moveNo]?.size || 0) >= 2) {
         const pid = list[0];
         if (byPlayer[pid]) byPlayer[pid].solos++;
         soloList.push({ gid: +gid, moveNo: +moveNo, pid });
       }
     }
-    // Solos ordinateur : aucun joueur n'a trouvé le top
+    // Solos ordinateur : coup joué par ≥2 joueurs, topé par AUCUN.
     const gameName = gameMap[+gid]?.name || `#${gid}`;
-    for (const moveNo of allMoveNos) {
-      if (!topsByMove[moveNo]) {
+    for (const [moveNo, players] of Object.entries(playedByMove)) {
+      if (players.size >= 2 && !topsByMove[moveNo]) {
         computerSoloList.push({ gid: +gid, moveNo: +moveNo, gameName });
       }
     }
