@@ -3111,6 +3111,7 @@ function resumeGame() {
 }
 
 function endGame() {
+  console.log(`[endGame] ${BUILD_VERSION} — reconstruction plateau depuis ${state.history?.length || 0} coups d'historique`);
   stopChrono();
   stopMoveTimer();
   clearSavedTraining();
