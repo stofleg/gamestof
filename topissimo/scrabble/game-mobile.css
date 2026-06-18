@@ -159,6 +159,26 @@
     overflow: hidden;
   }
   .feedback .detail, .feedback .top-reveal { display: none; }
+  /* Une erreur doit pouvoir afficher sa raison : on laisse le bandeau grandir. */
+  .feedback.error {
+    flex: 0 0 auto !important;
+    height: auto !important;
+    min-height: 42px !important;
+    max-height: none !important;
+    flex-wrap: wrap;
+    overflow: visible;
+    align-items: flex-start;
+    padding: 8px 10px !important;
+  }
+  .feedback.error .detail {
+    display: block;
+    flex-basis: 100%;
+    white-space: normal;
+    font-size: .78rem;
+    font-weight: 500;
+    line-height: 1.25;
+    margin-top: 3px;
+  }
   .feedback .title {
     font-family: 'Inter', system-ui, sans-serif !important;
     font-size: .82rem !important;

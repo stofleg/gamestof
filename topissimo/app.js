@@ -20,7 +20,7 @@ const sb = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANO
 // Version attendue du cache SW — doit correspondre à CACHE dans sw.js.
 // Si le cache actif du navigateur ne correspond pas, on force la mise à jour
 // immédiatement au chargement de la page.
-const EXPECTED_SW_CACHE = "garenna-v168";
+const EXPECTED_SW_CACHE = "garenna-v169";
 
 let _swReg = null;   // référence globale pour ensureFreshAndNavigate()
 if ("serviceWorker" in navigator) {

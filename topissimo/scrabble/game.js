@@ -1,8 +1,3 @@
-// Version du code de jeu — DOIT être bumpée avec le CACHE de sw.js à chaque
-// déploiement. Sert à détecter un game.js périmé servi par le service worker
-// et à forcer un rechargement propre AVANT le début de partie (cf. bas de fichier).
-const GAME_VERSION = "garenna-v162";
-
 // Détection mode app (PWA standalone/fullscreen/minimal-ui)
 (function () {
   const isApp =
@@ -62,7 +57,7 @@ const TOURNAMENT_ID = URL_PARAMS.get("tid");  // ID du tournoi pour le retour
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v168";
+const BUILD_VERSION = "garenna-v169";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -3741,21 +3736,7 @@ if ("serviceWorker" in navigator) {
   })();
 })();
 
-// ============================================================
-//  Garde-fou « dernière version » : au chargement de la page de jeu, si le
-//  code exécuté (GAME_VERSION) ne correspond PAS à la version réellement
-//  déployée (nom du cache du service worker), c'est que game.js a été servi
-//  périmé → on recharge proprement UNE fois, avant tout démarrage de partie.
-//  Évite les « faux tirages » dus à un script en cache obsolète.
-// ============================================================
-(function ensureLatestVersion() {
-  if (!("caches" in window)) return;
-  caches.keys().then(keys => {
-    const cacheName = keys.find(k => k.startsWith("garenna-"));
-    if (!cacheName || cacheName === GAME_VERSION) return;   // à jour (ou cache inconnu)
-    // Code périmé par rapport au cache déployé → recharger une seule fois par version.
-    if (sessionStorage.getItem("vReload") === cacheName) return;
-    sessionStorage.setItem("vReload", cacheName);
-    location.reload();
-  }).catch(() => {});
-})();
+// Note : l'ancien garde-fou « ensureLatestVersion » (basé sur la constante figée
+// GAME_VERSION) a été retiré — il provoquait un rechargement parasite à chaque
+// nouvelle version. La détection de version et l'auto-réparation sont désormais
+// gérées proprement par captureSwVersion()/registerSwUpdates() (BUILD_VERSION).
