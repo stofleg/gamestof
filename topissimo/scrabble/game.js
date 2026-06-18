@@ -1,7 +1,7 @@
 // Version du code de jeu — DOIT être bumpée avec le CACHE de sw.js à chaque
 // déploiement. Sert à détecter un game.js périmé servi par le service worker
 // et à forcer un rechargement propre AVANT le début de partie (cf. bas de fichier).
-const GAME_VERSION = "garenna-v159";
+const GAME_VERSION = "garenna-v162";
 
 // Détection mode app (PWA standalone/fullscreen/minimal-ui)
 (function () {
@@ -614,7 +614,7 @@ function computePendingScore() {
   if (state.pending.length === 0) return null;
   const m = buildMoveFromPending();
   if (!m) return null;
-  const r = scoreMove(state.board, m, null);
+  const r = scoreMove(state.board, m, null, { bonuses: currentMode().bonuses });
   if (r.errors.length) return null;
   return r.score;
 }
@@ -695,7 +695,7 @@ function timeoutAdvance() {
   if (state.pending.length) {
     const m = buildMoveFromPending();
     if (m) {
-      const r = scoreMove(state.board, m, state.dict);
+      const r = scoreMove(state.board, m, state.dict, { bonuses: currentMode().bonuses });
       if (!r.errors.length) { playerScore = r.score; playedWord = m.word; }
     }
   }
@@ -1555,11 +1555,13 @@ function placeTopAndAdvance(playerScore, playedWord = null, playedScore = null, 
   // Appliquer le top au plateau
   state.board = applyMove(state.board, tm.move);
 
-  // Mode joker : si le top utilise un joker, tenter le remplacement par la lettre du sac.
+  // Mode joker (règle FFSC 3.8.1) : si le top utilise le joker, tenter le
+  // remplacement par la lettre adéquate si elle est encore dans le sac.
   // UNIQUEMENT en entraînement (où state.bag est suivi). En pré-tiré (tournoi/puzzle),
   // state.bag n'est PAS décrémenté → on ferait de faux remplacements ; les `blanks`
-  // stockés encodent déjà la décision réelle prise à la génération (un joker resté
-  // blanc le reste). On ne retouche donc pas le plateau dans ce cas.
+  // stockés encodent déjà la décision réelle prise à la génération.
+  // Remplacement réussi → joker recyclé, state.spareJokers inchangé.
+  // Remplacement impossible → joker posé définitivement, state.spareJokers--.
   if (!state.prepared && !state.isPuzzle &&
       state.settings.withJoker && jokerUsedAsLetter !== null && state.spareJokers > 0) {
     if (state.bag[jokerUsedAsLetter] > 0) {
@@ -1572,8 +1574,9 @@ function placeTopAndAdvance(playerScore, playedWord = null, playedScore = null, 
       if (last?.top?.blanks) {
         last.top.blanks = last.top.blanks.filter(b => b !== jokerWordIdx);
       }
+      // joker recyclé → state.spareJokers inchangé
     } else {
-      state.spareJokers--;
+      state.spareJokers--;  // joker posé définitivement, lettre épuisée du sac
     }
   }
   // En mode pré-tiré/puzzle, le chevalet est réinitialisé depuis les données
@@ -1626,7 +1629,7 @@ function revealTop() {
   if (state.pending.length) {
     const move = buildMoveFromPending();
     if (move) {
-      const r = scoreMove(state.board, move, state.dict);
+      const r = scoreMove(state.board, move, state.dict, { bonuses: currentMode().bonuses });
       if (!r.errors.length) { pendingScore = r.score; pendingWord = move.word; }
     }
   }
@@ -1773,8 +1776,17 @@ function nextMove() {
     if (VOWELS.has(L)) vAvail++; else cAvail++;
   }
   if (vAvail === 0 || cAvail === 0) {
-    endGame();
-    return;
+    // §3.7 exception : tant qu'un joker ou le Y est dans le pool (≥2 lettres),
+    // la partie ne peut pas s'arrêter — joker/Y peuvent servir de voyelle ou consonne.
+    const jokersInPool = (state.bag["?"] || 0)
+      + remainingRackLetters.filter(l => l === "?").length;
+    const totalPool = vAvail + cAvail + jokersInPool;
+    const hasWildcard = jokersInPool > 0 || (state.bag["Y"] || 0) > 0
+      || remainingRackLetters.includes("Y");
+    if (!(hasWildcard && totalPool >= 2)) {
+      endGame();
+      return;
+    }
   }
 
   // Compléter le chevalet selon le mode de partie
@@ -2167,6 +2179,10 @@ async function enterPuzzleMode(gameId, moveNo) {
     moves: [g.moves[idx]],   // une seule "partie"
   };
   state.preparedIdx = 0;
+  // Synchroniser state.moveNo sur la position réelle dans la partie, pour que
+  // les règles dépendantes du numéro de coup (ex. : exception 1er coup) ne
+  // s'appliquent qu'au vrai premier coup (moveNo=1), pas à tous les puzzles.
+  state.moveNo = moveNo;
   state.settings.gameMode = g.mode;
   state.settings.withJoker = g.with_joker;
   state.settings.timePerMove = g.time_per_move;
@@ -2546,7 +2562,9 @@ function renderReviewSolutions(idx) {
   for (let i = 0; i < idx; i++) boardBefore = applyMove(boardBefore, moves[i].top);
   const rackLetters = moves[idx].rack.split("");
   const topMv = moves[idx].top;
-  const playedMv = review.historyByMove[moves[idx].moveNo]?.played;
+  const _ph = review.historyByMove[moves[idx].moveNo];
+  const playedMv = _ph?.played;
+  const playedPos = _ph?.playedPos;
   review._boardBefore = boardBefore;
 
   div.innerHTML = `<div style="padding:20px;text-align:center;color:#888">⏳ Calcul des solutions…</div>`;
@@ -2561,7 +2579,8 @@ function renderReviewSolutions(idx) {
     review._solutions = all.slice(0, 200);
     const rows = review._solutions.map((s, i) => {
       const isTop = s.move.word === topMv.word && s.move.row === topMv.row && s.move.col === topMv.col && s.move.dir === topMv.dir;
-      const isPlayed = playedMv && s.move.word === playedMv;
+      const isPlayed = playedMv && s.move.word === playedMv
+        && (!playedPos || posLabelMove(s.move) === playedPos);
       const cls = isTop ? "is-top" : (isPlayed ? "is-played" : "");
       return `<tr class="${cls}" data-i="${i}"><td>${wLink(s.move.word)}</td><td>${posLabelMove(s.move)}</td><td>${s.score}</td></tr>`;
     }).join("");
@@ -2688,20 +2707,36 @@ function verifyPreparedGame(prepared) {
   if (!prepared) return "Partie non chargée.";
   const moves = prepared.moves;
   if (!Array.isArray(moves) || moves.length === 0) return "Aucun coup trouvé dans la partie.";
+
+  // En mode joker : simuler l'état des jetons (règle FFSC 3.8.1) pour savoir
+  // à quel coup un joker est attendu dans le tirage.
+  //  • spareJokers décrémente UNIQUEMENT quand le top a un blank non remplacé
+  //    (top.blanks non vide) = joker posé définitivement sur la grille.
+  //  • Quand le joker est utilisé ET remplacé (top.blanks vide), il est recyclé
+  //    → spareJokers inchangé, joker disponible au coup suivant.
+  //  • Quand le top ne l'utilise pas, il reste dans le chevalet (carry-over).
+  // Cela évite d'ajouter un "?" à des tirages légitimement sans joker
+  // (les 2 jetons épuisés, lettre manquante dans le sac).
+  let spareJokers = prepared.withJoker ? 2 : 0;
+
   for (let i = 0; i < moves.length; i++) {
     const m = moves[i];
     const rack = m?.rack || "";
-    // Rack vide ou manquant : irrécupérable
     if (!rack) return `Coup ${i + 1} : chevalet absent.`;
-    // Top manquant : irrécupérable
     if (!m.top || !m.top.word) return `Coup ${i + 1} : top manquant.`;
-    // En mode joker, le tirage correct contient toujours un "?".
-    // S'il est absent, le tirage stocké est corrompu : on le remplace par
-    // la version correcte (le joker restitué à la fin du tirage).
-    if (prepared.withJoker && !rack.includes("?")) {
-      const rackCorrige = rack + "?";
-      console.warn(`[verifyPreparedGame] coup ${i + 1} : tirage corrompu "${rack}" → remplacé par "${rackCorrige}"`);
-      m.rack = rackCorrige;
+
+    if (prepared.withJoker) {
+      const jokerShouldBeInRack = spareJokers > 0;
+      if (jokerShouldBeInRack && !rack.includes("?")) {
+        // Le joker devrait être là mais il est absent : tirage corrompu → corriger.
+        m.rack = rack + "?";
+        console.warn(`[verifyPreparedGame] coup ${i + 1} : tirage corrompu "${rack}" → remplacé par "${m.rack}"`);
+      }
+      // top.blanks non vide = joker posé définitivement (remplacement impossible)
+      // → spareJokers--. top.blanks vide = joker recyclé ou non utilisé → inchangé.
+      if ((m.top.blanks || []).length > 0 && spareJokers > 0) {
+        spareJokers--;
+      }
     }
   }
   return null;
@@ -3347,7 +3382,7 @@ function abandonRest() {
   if (state.pending.length) {
     const m = buildMoveFromPending();
     if (m) {
-      const r = scoreMove(state.board, m, state.dict);
+      const r = scoreMove(state.board, m, state.dict, { bonuses: currentMode().bonuses });
       if (!r.errors.length) { playerScore = r.score; playedWord = m.word; }
     }
   }

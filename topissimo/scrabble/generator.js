@@ -47,6 +47,9 @@ export function generateGame(dict, options = {}, onProgress = null) {
   while (true) {
     // Fin de partie : voyelles OU consonnes épuisées DANS LE POOL TOTAL
     // (chevalet conservé + sac restant). Sinon la partie continue.
+    // §3.7 exception : si un joker ou le Y est dans le pool (≥2 lettres),
+    // la partie ne peut pas s'arrêter — joker/Y peuvent servir de voyelle
+    // ou de consonne selon le besoin.
     const VOWELS_SET = new Set(["A","E","I","O","U","Y"]);
     let v = bagTotalVowels(bag);
     let c = bagTotalConsonants(bag);
@@ -54,7 +57,18 @@ export function generateGame(dict, options = {}, onProgress = null) {
       if (t.letter === "?") continue;
       if (VOWELS_SET.has(t.letter)) v++; else c++;
     }
-    if (v === 0 || c === 0) break;
+    if (v === 0 || c === 0) {
+      // Compter les wildcards (joker + Y) dans le pool total
+      const jokersInPool = (bag["?"] || 0) + rack.filter(t => t.letter === "?").length;
+      const totalPool = v + c + jokersInPool;
+      const hasWildcard = jokersInPool > 0 || (bag["Y"] || 0) > 0
+        || rack.some(t => t.letter === "Y");
+      if (hasWildcard && totalPool >= 2) {
+        // wildcard peut combler le type manquant — on laisse drawForDuplicate décider
+      } else {
+        break;
+      }
+    }
 
     // Compléter le chevalet
     const target = mode.rackSize;
@@ -130,7 +144,10 @@ export function generateGame(dict, options = {}, onProgress = null) {
     // Appliquer au plateau
     board = applyMove(board, top.move);
 
-    // Mode joker : si joker utilisé, tenter remplacement par la lettre du sac
+    // Mode joker (règle FFSC 3.8.1) : si le top utilise le joker, tenter le
+    // remplacement par la lettre adéquate si elle est encore dans le sac.
+    // Remplacement réussi → joker recyclé, spareJokers inchangé.
+    // Remplacement impossible → joker posé définitivement sur la grille, spareJokers--.
     if (withJoker && jokerUsedAsLetter !== null && spareJokers > 0) {
       if (bag[jokerUsedAsLetter] > 0) {
         bag[jokerUsedAsLetter]--;
@@ -138,8 +155,9 @@ export function generateGame(dict, options = {}, onProgress = null) {
         // Retirer cet index de blanks dans le coup stocké → jeton normal en review
         const stored = moves[moves.length - 1].top;
         stored.blanks = stored.blanks.filter(b => b !== jokerWordIdx);
+        // joker recyclé → spareJokers inchangé
       } else {
-        spareJokers--;
+        spareJokers--;  // joker posé définitivement, lettre épuisée du sac
       }
     }
 
@@ -163,11 +181,16 @@ export function generateGame(dict, options = {}, onProgress = null) {
   // On expose aussi l'état final du sac et du chevalet pour debug/vérification
   const finalRack = rack.map(t => t.letter);
 
-  // Validation post-génération : en mode joker, chaque coup doit avoir un "?"
-  // dans le rack. Si ce n'est pas le cas, c'est un bug de génération — on le
-  // signale explicitement pour ne pas stocker une partie corrompue.
+  // Validation post-génération : en mode joker, les coups où spareJokers > 0
+  // doivent avoir un "?" dans le rack.
+  // spareJokers décrémente seulement quand top.blanks non vide (joker posé sans remplacement).
   if (withJoker) {
-    const badMoves = moves.filter(m => !m.rack.includes("?"));
+    let simSpare = 2;
+    const badMoves = [];
+    for (const m of moves) {
+      if (simSpare > 0 && !m.rack.includes("?")) badMoves.push(m);
+      if ((m.top.blanks || []).length > 0 && simSpare > 0) simSpare--;
+    }
     if (badMoves.length > 0) {
       const details = badMoves.map(m => `coup ${m.moveNo} : "${m.rack}"`).join(", ");
       console.error(`[generator] partie joker : joker absent du rack — ${details}`);
