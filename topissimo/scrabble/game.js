@@ -59,6 +59,56 @@ const PUZZLE_GAME_ID = URL_PARAMS.get("puzzle");
 const PUZZLE_MOVE_NO = +URL_PARAMS.get("move") || 1;
 const TOURNAMENT_ID = URL_PARAMS.get("tid");  // ID du tournoi pour le retour
 
+// Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
+// et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
+// service worker non mis à jour (cause probable des "tirages d'ailleurs").
+const BUILD_VERSION = "garenna-v164";
+
+// ============================================================
+//  Diagnostic — journal d'événements transmis en fin de partie
+// ============================================================
+// Objectif : savoir EXACTEMENT ce qui s'est passé côté joueur quand un bug
+// survient (tirage inattendu en tournoi, joker surnuméraire, etc.).
+// Le journal est poussé dans prepared_game_results.diagnostics à la sauvegarde.
+const diag = {
+  build: BUILD_VERSION,        // version attendue par ce JS
+  swCache: null,               // version réellement servie par le service worker
+  swScriptURL: null,           // URL du SW contrôleur
+  ua: (typeof navigator !== "undefined" && navigator.userAgent) || "",
+  startedAt: null,             // ISO timestamp du démarrage de partie
+  mode: null,
+  withJoker: null,
+  preparedId: null,
+  events: [],                  // [{seq, event, ...data}]
+};
+let _diagSeq = 0;
+function diagLog(event, data = {}) {
+  try {
+    diag.events.push({ seq: ++_diagSeq, event, ...data });
+    // Garde-fou mémoire : on ne garde que les 800 derniers événements.
+    if (diag.events.length > 800) diag.events.shift();
+  } catch { /* le diagnostic ne doit jamais casser le jeu */ }
+}
+// Détecter la version réellement servie par le service worker (asynchrone).
+function captureSwVersion() {
+  try {
+    if (typeof navigator !== "undefined" && navigator.serviceWorker) {
+      diag.swScriptURL = navigator.serviceWorker.controller?.scriptURL || null;
+    }
+    if (typeof caches !== "undefined" && caches.keys) {
+      caches.keys().then(keys => {
+        const garenna = keys.filter(k => k.startsWith("garenna-"));
+        diag.swCache = garenna.join(",") || keys.join(",") || "(aucun)";
+        // Alerte immédiate si la version servie ≠ version attendue.
+        if (garenna.length && !garenna.includes(BUILD_VERSION)) {
+          diagLog("SW_VERSION_MISMATCH", { expected: BUILD_VERSION, found: garenna });
+          console.error(`[diag] CACHE PÉRIMÉ : SW=${garenna.join(",")} attendu=${BUILD_VERSION}`);
+        }
+      }).catch(() => {});
+    }
+  } catch { /* ignore */ }
+}
+
 const state = {
   dict: null,
   bag: { ...LETTER_BAG },
@@ -1745,11 +1795,23 @@ function nextMove() {
     state.rack = rackStr.split("").map(L => ({ letter: L, used: false, id: nextTileId() }));
     state.currentRackFresh = !!next.freshRack;
     state.currentKept = next.freshRack ? "" : (next.kept || "");
+    // DIAGNOSTIC : tracer le tirage RÉELLEMENT affiché vs la donnée stockée.
+    // En tournoi, ces deux valeurs DOIVENT être identiques en permanence.
+    diagLog("prepared_move", {
+      idx: state.preparedIdx,
+      moveNo: next.moveNo ?? null,
+      storedRack: rackStr,
+      topWord: next.top?.word ?? null,
+      blanks: next.top?.blanks || [],
+      freshRack: !!next.freshRack,
+    });
     renderRack();
     // Garde-fou post-rendu : ce qui s'affiche (state.rack) doit correspondre
-    // exactement au tirage stocké (next.rack). Si divergence → on corrige.
+    // exactement au tirage stocké (next.rack). Une divergence ici est anormale
+    // (elle ne devrait jamais arriver) → on loggue ET on réaligne sur le stocké.
     const displayed = state.rack.map(t => t.letter).join("");
     if (displayed !== rackStr) {
+      diagLog("RACK_DIVERGENCE", { idx: state.preparedIdx, displayed, stored: rackStr });
       console.error(`[nextMove] divergence rack affiché "${displayed}" ≠ stocké "${rackStr}" — correction.`);
       state.rack = rackStr.split("").map(L => ({ letter: L, used: false, id: nextTileId() }));
       renderRack();
@@ -1760,6 +1822,23 @@ function nextMove() {
     startMoveTimer();
     showLastTopFeedback();
     ensureCursorOnFreeCell();
+    return;
+  }
+
+  // ===== GARDE-FOU CRITIQUE =====
+  // À ce point, state.prepared est forcément null (le bloc tournoi ci-dessus
+  // se termine par `return`). Si jamais on arrive ici avec state.prepared
+  // défini, c'est un bug GRAVE (code périmé, branche fusionnée) : le tirage
+  // aléatoire ne doit JAMAIS s'exécuter en mode tournoi. On loggue et on stoppe
+  // au lieu de polluer la partie avec un tirage inventé.
+  if (state.prepared) {
+    diagLog("ILLEGAL_DRAW_IN_PREPARED", {
+      preparedIdx: state.preparedIdx,
+      moveNo: state.moveNo,
+      build: BUILD_VERSION,
+    });
+    console.error("[CRITIQUE] tirage aléatoire tenté en mode tournoi — partie stoppée");
+    endGame();
     return;
   }
 
@@ -2041,6 +2120,7 @@ if (window.matchMedia("(max-width: 700px)").matches) {
 
 
 async function initGame() {
+  captureSwVersion();   // détecter un éventuel service worker périmé
   state.bag = { ...LETTER_BAG };
   state.prepared = null;
   state.isPuzzle = false;
@@ -2728,9 +2808,14 @@ function verifyPreparedGame(prepared) {
     if (prepared.withJoker) {
       const jokerShouldBeInRack = spareJokers > 0;
       if (jokerShouldBeInRack && !rack.includes("?")) {
-        // Le joker devrait être là mais il est absent : tirage corrompu → corriger.
-        m.rack = rack + "?";
-        console.warn(`[verifyPreparedGame] coup ${i + 1} : tirage corrompu "${rack}" → remplacé par "${m.rack}"`);
+        // PRINCIPE : une partie tournoi s'affiche À L'IDENTIQUE du stocké.
+        // On NE MUTE PLUS le tirage (l'ancienne ligne `m.rack = rack + "?"`
+        // inventait un jeton et corrompait l'affichage — cause du bug
+        // « tirage du 1er coup pas le bon »). On signale seulement dans le
+        // diagnostic : si la donnée stockée est réellement fautive, on veut
+        // le SAVOIR, pas le masquer.
+        diagLog("STORED_JOKER_MISSING", { move: i + 1, rack, spareJokers });
+        console.warn(`[verifyPreparedGame] coup ${i + 1} : joker attendu absent du tirage stocké "${rack}" (NON corrigé, voir diagnostic)`);
       }
       // top.blanks non vide = joker posé définitivement (remplacement impossible)
       // → spareJokers--. top.blanks vide = joker recyclé ou non utilisé → inchangé.
@@ -2757,6 +2842,18 @@ async function loadPreparedGame(id) {
     timePerMove: data.time_per_move,
     moves: data.moves,
   };
+  // Diagnostic : tracer la partie chargée et le nombre de coups stockés.
+  diag.preparedId = data.id;
+  diag.mode = data.mode;
+  diag.withJoker = !!data.with_joker;
+  diagLog("prepared_loaded", {
+    id: data.id,
+    name: data.name,
+    mode: data.mode,
+    withJoker: !!data.with_joker,
+    nbMoves: Array.isArray(data.moves) ? data.moves.length : 0,
+    firstRack: data.moves?.[0]?.rack ?? null,
+  });
   // Appliquer le mode/paramètres de la partie pré-tirée (override des settings)
   state.settings.gameMode = data.mode;
   state.settings.withJoker = data.with_joker;
@@ -2795,6 +2892,12 @@ async function loadSupabaseClient() {
 function startGame() {
   state.started = true;
   state.bestAttempt = null;
+  diagLog("game_started", {
+    prepared: !!state.prepared,
+    isPuzzle: !!state.isPuzzle,
+    mode: state.settings.gameMode,
+    withJoker: !!state.settings.withJoker,
+  });
   hideFeedback();
   $("#feedback").innerHTML = "";    // vide aussi le contenu (même si caché)
   $("#actionRowPreStart").hidden = true;
@@ -3087,6 +3190,23 @@ async function saveResultIfPrepared() {
   if (state.abandoned && detailsToSave?.length) {
     detailsToSave = [{ ...detailsToSave[0], abandonedGame: true }, ...detailsToSave.slice(1)];
   }
+  // Diagnostic : snapshot final du journal (résumé + événements anormaux).
+  diagLog("game_saved", { totalScore: state.totalScore, sumNeg: state.sumNeg, totalTime });
+  const anomalies = diag.events.filter(e =>
+    ["SW_VERSION_MISMATCH", "RACK_DIVERGENCE", "ILLEGAL_DRAW_IN_PREPARED", "STORED_JOKER_MISSING"].includes(e.event));
+  const diagnostics = {
+    build: diag.build,
+    swCache: diag.swCache,
+    swScriptURL: diag.swScriptURL,
+    ua: diag.ua,
+    mode: diag.mode,
+    withJoker: diag.withJoker,
+    preparedId: diag.preparedId,
+    hasAnomalies: anomalies.length > 0,
+    anomalies,
+    events: diag.events,
+  };
+
   const { error: e1 } = await window._sb.from("prepared_game_results").upsert({
     prepared_game_id: state.prepared.id,
     player_id: pid,
@@ -3095,6 +3215,7 @@ async function saveResultIfPrepared() {
     total_time_seconds: totalTime,
     details: detailsToSave,
     played_on_mobile: wasPlayedOnMobile(),
+    diagnostics,
   }, { onConflict: "prepared_game_id,player_id" });
   if (e1) { console.error("Erreur sauvegarde prepared_game_results:", e1.message); return; }
 
