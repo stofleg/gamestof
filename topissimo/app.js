@@ -15,92 +15,26 @@ if (!window.SUPABASE_URL || !window.SUPABASE_ANON_KEY ||
 
 const sb = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
 
-// Service worker (PWA installable) + AUTO-MISE-À-JOUR.
-// À chaque chargement, on force la vérification d'une nouvelle version du SW.
-// Version attendue du cache SW — doit correspondre à CACHE dans sw.js.
-// Si le cache actif du navigateur ne correspond pas, on force la mise à jour
-// immédiatement au chargement de la page.
-const EXPECTED_SW_CACHE = "garenna-v177";
-
-let _swReg = null;   // référence globale pour ensureFreshAndNavigate()
+// ============================================================
+//  Service worker : SUPPRIMÉ (cf. sw.js, devenu un kill-switch).
+//  Le SW provoquait l'exécution de code périmé (« 1er coup faux ») et
+//  n'apportait rien d'utile ici (app dépendante du réseau). La fraîcheur du
+//  code est assurée par le versioning des URL (game.js?v=NNN, style.css?v=NNN).
+//  Au chargement : on tire le kill-switch (via update) et on nettoie les caches
+//  résiduels chez les clients encore équipés. Sur un client neuf : aucun SW.
+// ============================================================
+let _swReg = null;   // conservé pour compat ; toujours null désormais
 if ("serviceWorker" in navigator) {
-  window.addEventListener("load", async () => {
-    try {
-      const reg = await navigator.serviceWorker.register("./sw.js");
-      _swReg = reg;
-      // 1) Vérifier si le cache actif est à jour ; sinon forcer la mise à jour
-      if (typeof caches !== "undefined") {
-        caches.keys().then(keys => {
-          if (!keys.includes(EXPECTED_SW_CACHE)) reg.update();
-        }).catch(() => {});
-      }
-      // 2) Check immédiat systématique
-      reg.update();
-      // 3) Re-check toutes les 5 min si l'onglet reste ouvert
-      setInterval(() => reg.update(), 5 * 60 * 1000);
-      // 4) Quand un nouveau SW prend le contrôle → reload pour récupérer le neuf
-      let refreshing = false;
-      navigator.serviceWorker.addEventListener("controllerchange", () => {
-        if (refreshing) return;
-        refreshing = true;
-        window.location.reload();
-      });
-      // 5) Si un nouveau SW est en attente (installé mais pas activé) → activate now
-      if (reg.waiting) reg.waiting.postMessage({ type: "SKIP_WAITING" });
-      reg.addEventListener("updatefound", () => {
-        const sw = reg.installing;
-        if (!sw) return;
-        sw.addEventListener("statechange", () => {
-          if (sw.state === "installed" && navigator.serviceWorker.controller) {
-            sw.postMessage({ type: "SKIP_WAITING" });
-          }
-        });
-      });
-    } catch (e) { /* silencieux */ }
-  });
+  navigator.serviceWorker.getRegistrations()
+    .then(regs => regs.forEach(r => r.update().catch(() => {})))  // récupère le kill-switch
+    .catch(() => {});
+}
+if (typeof caches !== "undefined" && caches.keys) {
+  caches.keys().then(keys => keys.forEach(k => caches.delete(k).catch(() => {}))).catch(() => {});
 }
 
-// Vérifie qu'on a la dernière version du SW avant d'ouvrir une partie.
-// Si une mise à jour est disponible ou en cours, on l'applique (skipWaiting)
-// et on attend que le nouveau SW prenne le contrôle AVANT de naviguer.
-// Délai max : 3 s (évite de bloquer si le réseau est lent).
-async function ensureFreshAndNavigate(url) {
-  try {
-    const reg = _swReg || await navigator.serviceWorker.getRegistration();
-    if (!reg) { location.href = url; return; }
-
-    const applyAndGo = (sw) => new Promise(resolve => {
-      navigator.serviceWorker.addEventListener("controllerchange", () => {
-        resolve();
-      }, { once: true });
-      sw.postMessage({ type: "SKIP_WAITING" });
-    });
-
-    // Cas 1 : un nouveau SW est déjà en attente → l'activer puis naviguer
-    if (reg.waiting) {
-      await Promise.race([applyAndGo(reg.waiting), new Promise(r => setTimeout(r, 3000))]);
-      location.href = url;
-      return;
-    }
-
-    // Cas 2 : vérifier s'il y a une mise à jour disponible (max 3 s)
-    const updateReady = new Promise(resolve => {
-      reg.addEventListener("updatefound", () => {
-        const sw = reg.installing;
-        if (!sw) { resolve(null); return; }
-        sw.addEventListener("statechange", () => {
-          if (sw.state === "installed") resolve(sw);
-        });
-      }, { once: true });
-    });
-    await reg.update();
-    const newSw = await Promise.race([updateReady, new Promise(r => setTimeout(() => r(null), 3000))]);
-    if (newSw) {
-      await Promise.race([applyAndGo(newSw), new Promise(r => setTimeout(r, 2000))]);
-    }
-  } catch (e) { /* silencieux */ }
-  location.href = url;
-}
+// Plus de SW à synchroniser → navigation directe vers la page de jeu.
+function ensureFreshAndNavigate(url) { location.href = url; }
 
 // Détection mode app (Chrome standalone/fullscreen/minimal-ui, Safari home-screen)
 function detectAppMode() {

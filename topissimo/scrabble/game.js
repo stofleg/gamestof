@@ -57,7 +57,7 @@ const TOURNAMENT_ID = URL_PARAMS.get("tid");  // ID du tournoi pour le retour
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v177";
+const BUILD_VERSION = "garenna-v178";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -92,23 +92,16 @@ const _swHadControllerAtLoad =
 let _swRefreshing = false;          // empêche tout double rechargement
 let _swUpdatesRegistered = false;
 
-// Détecter la version servie par le SW (diagnostic) + brancher la mise à jour.
+// Service worker SUPPRIMÉ (cf. sw.js kill-switch). On ne fait plus AUCUN
+// rechargement piloté par le SW ici : la page d'accueil tire le kill-switch qui
+// désinscrit le SW, vide les caches et recharge proprement. On se contente d'un
+// relevé de diagnostic (sans effet de bord).
 function captureSwVersion() {
   try {
-    if (typeof navigator !== "undefined" && navigator.serviceWorker) {
-      diag.swScriptURL = navigator.serviceWorker.controller?.scriptURL || null;
-    }
-    registerSwUpdates();
     if (typeof caches !== "undefined" && caches.keys) {
       caches.keys().then(keys => {
         const garenna = keys.filter(k => k.startsWith("garenna-"));
         diag.swCache = garenna.join(",") || keys.join(",") || "(aucun)";
-        // Le code EN COURS est-il plus ancien que le cache déjà présent ?
-        if (garenna.length && !garenna.includes(BUILD_VERSION)) {
-          diagLog("SW_VERSION_MISMATCH", { expected: BUILD_VERSION, found: garenna });
-          console.error(`[diag] CACHE PÉRIMÉ : SW=${garenna.join(",")} attendu=${BUILD_VERSION}`);
-          selfHealStaleCache(garenna);
-        }
       }).catch(() => {});
     }
   } catch { /* ignore */ }
