@@ -3,20 +3,20 @@
   <!-- Fond pétrole pleine page (couleur de thème de l'app) -->
   <rect width="512" height="512" rx="110" fill="#002E44"/>
   <!-- Grille 3×3 de tuiles : TOP / ISS / IMO. Mêmes couleurs que le logo header.
-       Tuiles 112px, gap 16 → grille 368px centrée (marge 72px). -->
+       Tuiles 103px (−8% vs 112), gap 16 → grille 341px centrée (marge 85px). -->
   <g font-family="'Helvetica Neue', Arial, 'Segoe UI', sans-serif" font-weight="800"
      fill="#ffffff" stroke="#002E44" stroke-width="4" paint-order="stroke">
     <!-- Ligne 1 : T O P -->
-    <g transform="translate(72,72)"><rect width="112" height="112" rx="16" fill="#16a34a" stroke="#0e7a37"/><text x="56" y="82" text-anchor="middle" font-size="89">T</text><text x="97" y="103" text-anchor="middle" font-size="23" stroke="none">1</text></g>
-    <g transform="translate(200,72)"><rect width="112" height="112" rx="16" fill="#54bf2e" stroke="#3d9620"/><text x="56" y="82" text-anchor="middle" font-size="89">O</text><text x="97" y="103" text-anchor="middle" font-size="23" stroke="none">1</text></g>
-    <g transform="translate(328,72)"><rect width="112" height="112" rx="16" fill="#9bd31a" stroke="#7aae12"/><text x="56" y="82" text-anchor="middle" font-size="89">P</text><text x="97" y="103" text-anchor="middle" font-size="23" stroke="none">3</text></g>
+    <g transform="translate(85,85)"><rect width="103" height="103" rx="15" fill="#16a34a" stroke="#0e7a37"/><text x="51.5" y="75" text-anchor="middle" font-size="82">T</text><text x="89" y="95" text-anchor="middle" font-size="21" stroke="none">1</text></g>
+    <g transform="translate(204,85)"><rect width="103" height="103" rx="15" fill="#54bf2e" stroke="#3d9620"/><text x="51.5" y="75" text-anchor="middle" font-size="82">O</text><text x="89" y="95" text-anchor="middle" font-size="21" stroke="none">1</text></g>
+    <g transform="translate(323,85)"><rect width="103" height="103" rx="15" fill="#9bd31a" stroke="#7aae12"/><text x="51.5" y="75" text-anchor="middle" font-size="82">P</text><text x="89" y="95" text-anchor="middle" font-size="21" stroke="none">3</text></g>
     <!-- Ligne 2 : I S S -->
-    <g transform="translate(72,200)"><rect width="112" height="112" rx="16" fill="#d4dd0a" stroke="#aab300"/><text x="56" y="82" text-anchor="middle" font-size="89">I</text><text x="97" y="103" text-anchor="middle" font-size="23" stroke="none">1</text></g>
-    <g transform="translate(200,200)"><rect width="112" height="112" rx="16" fill="#FFDD00" stroke="#e3c200"/><text x="56" y="82" text-anchor="middle" font-size="89">S</text><text x="97" y="103" text-anchor="middle" font-size="23" stroke="none">1</text></g>
-    <g transform="translate(328,200)"><rect width="112" height="112" rx="16" fill="#ffb000" stroke="#e09600"/><text x="56" y="82" text-anchor="middle" font-size="89">S</text><text x="97" y="103" text-anchor="middle" font-size="23" stroke="none">1</text></g>
+    <g transform="translate(85,204)"><rect width="103" height="103" rx="15" fill="#d4dd0a" stroke="#aab300"/><text x="51.5" y="75" text-anchor="middle" font-size="82">I</text><text x="89" y="95" text-anchor="middle" font-size="21" stroke="none">1</text></g>
+    <g transform="translate(204,204)"><rect width="103" height="103" rx="15" fill="#FFDD00" stroke="#e3c200"/><text x="51.5" y="75" text-anchor="middle" font-size="82">S</text><text x="89" y="95" text-anchor="middle" font-size="21" stroke="none">1</text></g>
+    <g transform="translate(323,204)"><rect width="103" height="103" rx="15" fill="#ffb000" stroke="#e09600"/><text x="51.5" y="75" text-anchor="middle" font-size="82">S</text><text x="89" y="95" text-anchor="middle" font-size="21" stroke="none">1</text></g>
     <!-- Ligne 3 : I M O -->
-    <g transform="translate(72,328)"><rect width="112" height="112" rx="16" fill="#ff7a00" stroke="#db6500"/><text x="56" y="82" text-anchor="middle" font-size="89">I</text><text x="97" y="103" text-anchor="middle" font-size="23" stroke="none">1</text></g>
-    <g transform="translate(200,328)"><rect width="112" height="112" rx="16" fill="#f24a1a" stroke="#cf3c12"/><text x="56" y="82" text-anchor="middle" font-size="89">M</text><text x="97" y="103" text-anchor="middle" font-size="23" stroke="none">2</text></g>
-    <g transform="translate(328,328)"><rect width="112" height="112" rx="16" fill="#e5231b" stroke="#bf1812"/><text x="56" y="82" text-anchor="middle" font-size="89">O</text><text x="97" y="103" text-anchor="middle" font-size="23" stroke="none">1</text></g>
+    <g transform="translate(85,323)"><rect width="103" height="103" rx="15" fill="#ff7a00" stroke="#db6500"/><text x="51.5" y="75" text-anchor="middle" font-size="82">I</text><text x="89" y="95" text-anchor="middle" font-size="21" stroke="none">1</text></g>
+    <g transform="translate(204,323)"><rect width="103" height="103" rx="15" fill="#f24a1a" stroke="#cf3c12"/><text x="51.5" y="75" text-anchor="middle" font-size="82">M</text><text x="89" y="95" text-anchor="middle" font-size="21" stroke="none">2</text></g>
+    <g transform="translate(323,323)"><rect width="103" height="103" rx="15" fill="#e5231b" stroke="#bf1812"/><text x="51.5" y="75" text-anchor="middle" font-size="82">O</text><text x="89" y="95" text-anchor="middle" font-size="21" stroke="none">1</text></g>
   </g>
 </svg>
