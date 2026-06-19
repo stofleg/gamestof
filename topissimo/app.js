@@ -20,7 +20,7 @@ const sb = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANO
 // Version attendue du cache SW — doit correspondre à CACHE dans sw.js.
 // Si le cache actif du navigateur ne correspond pas, on force la mise à jour
 // immédiatement au chargement de la page.
-const EXPECTED_SW_CACHE = "garenna-v176";
+const EXPECTED_SW_CACHE = "garenna-v177";
 
 let _swReg = null;   // référence globale pour ensureFreshAndNavigate()
 if ("serviceWorker" in navigator) {
@@ -420,9 +420,13 @@ async function loadMyStats() {
   );
 
   // ===== Streak inter-parties tournoi =====
+  // IMPORTANT : trier dans l'ORDRE OÙ LE JOUEUR A JOUÉ (finished_at d'abord),
+  // identique au calcul des Stats du club. Trier par created_at (date de
+  // génération de la partie) donnerait un ordre différent → une série plus
+  // courte (c'était la cause de l'écart 39 club vs 33 perso).
   const tourSorted = [...(tour || [])].sort((a, b) => {
-    const da = a.prepared_games?.created_at || a.finished_at || "";
-    const db = b.prepared_games?.created_at || b.finished_at || "";
+    const da = a.finished_at || a.prepared_games?.created_at || "";
+    const db = b.finished_at || b.prepared_games?.created_at || "";
     return da.localeCompare(db);
   });
   let cur = 0, maxStreak = 0;
