@@ -20,7 +20,7 @@ const sb = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANO
 // Version attendue du cache SW — doit correspondre à CACHE dans sw.js.
 // Si le cache actif du navigateur ne correspond pas, on force la mise à jour
 // immédiatement au chargement de la page.
-const EXPECTED_SW_CACHE = "garenna-v170";
+const EXPECTED_SW_CACHE = "garenna-v171";
 
 let _swReg = null;   // référence globale pour ensureFreshAndNavigate()
 if ("serviceWorker" in navigator) {
@@ -755,8 +755,33 @@ async function loadSolosAndStreaks() {
   const me = +state.currentPlayerId || 0;
   const fmtT = (s) => !s ? "—" : `${Math.floor(s/60)}:${String(s%60).padStart(2,"0")}`;
 
-  // (Les solos rejouables sont désormais dans les Records du tournoi concerné,
-  //  pas dans les Stats du club.)
+  // ===== TOP SOLOS (cumul sur TOUS les tournois) =====
+  // Solo joueur = un coup topé par UN SEUL joueur, parmi un coup réellement joué
+  // par ≥2 joueurs (le filtre ≥2 écarte les coups orphelins d'une partie
+  // régénérée plus courte, qui ne subsistent que dans une fiche périmée).
+  const byGameSolo = {};
+  for (const r of detailed) (byGameSolo[r.prepared_game_id] ||= []).push(r);
+  const soloCount = {};   // player_id → nb de solos
+  const soloName = {};
+  for (const r of detailed) soloName[r.player_id] = r.players?.name || "?";
+  for (const rs of Object.values(byGameSolo)) {
+    const topsByMove = {};
+    const playedByMove = {};
+    for (const r of rs) {
+      for (const h of (r.details || [])) {
+        (playedByMove[h.moveNo] ||= new Set()).add(r.player_id);
+        if (h.status === "top") (topsByMove[h.moveNo] ||= []).push(r.player_id);
+      }
+    }
+    for (const [moveNo, list] of Object.entries(topsByMove)) {
+      if (list.length === 1 && (playedByMove[moveNo]?.size || 0) >= 2) {
+        soloCount[list[0]] = (soloCount[list[0]] || 0) + 1;
+      }
+    }
+  }
+  const soloRecs = Object.entries(soloCount)
+    .map(([pid, n]) => ({ player_id: +pid, name: soloName[+pid] || "?", solos: n }))
+    .sort((a, b) => b.solos - a.solos);
 
   // ===== STREAK INTER-PARTIES =====
   // Pour chaque joueur : concaténer tous ses coups dans l'ordre chronologique (par created_at de la partie puis moveNo),
@@ -802,6 +827,10 @@ async function loadSolosAndStreaks() {
       <span style="float:right">${val}</span>
     </li>`;
   $("#recordsGrid").innerHTML = `
+    <div class="t-stat-card">
+      <h3>🎯 Top solos (tous tournois)</h3>
+      <ol>${soloRecs.slice(0, 5).map(r => renderRow(r, `${r.solos} solo${r.solos>1?'s':''}`)).join("") || '<li class="muted">—</li>'}</ol>
+    </div>
     <div class="t-stat-card">
       <h3>🔥 Plus longue série de coups au top</h3>
       <ol>${streaks.slice(0, 5).map(s => renderRow(s, `${s.length} coup${s.length>1?'s':''}`)).join("") || '<li class="muted">—</li>'}</ol>
