@@ -20,7 +20,7 @@ const sb = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANO
 // Version attendue du cache SW — doit correspondre à CACHE dans sw.js.
 // Si le cache actif du navigateur ne correspond pas, on force la mise à jour
 // immédiatement au chargement de la page.
-const EXPECTED_SW_CACHE = "garenna-v174";
+const EXPECTED_SW_CACHE = "garenna-v175";
 
 let _swReg = null;   // référence globale pour ensureFreshAndNavigate()
 if ("serviceWorker" in navigator) {
@@ -905,21 +905,41 @@ async function loadTournaments() {
     $("#tournamentsBody").innerHTML = `<tr><td colspan="4" class="muted">Erreur : ${error.message}<br>As-tu exécuté <code>schema-tournaments-archive.sql</code> ?</td></tr>`;
     return;
   }
-  // Compter les parties par tournoi
+  // Compter les parties par tournoi (total) ET celles jouées par le joueur
+  // courant → colonne "Parties" présentée en « joué / total » (progression).
   const ids = (tournaments || []).map(t => t.id);
-  let countsByT = {};
+  let countsByT = {}, playedByT = {};
   if (ids.length) {
     const { data: counts } = await sb.from("prepared_games").select("tournament_id").in("tournament_id", ids);
     (counts || []).forEach(p => countsByT[p.tournament_id] = (countsByT[p.tournament_id] || 0) + 1);
+    const me = +state.currentPlayerId || 0;
+    if (me) {
+      // Une fiche de résultat = une partie jouée par ce joueur. On remonte au
+      // tournoi via la relation prepared_games.tournament_id.
+      const { data: myRes } = await sb.from("prepared_game_results")
+        .select("prepared_game_id, prepared_games(tournament_id)")
+        .eq("player_id", me);
+      (myRes || []).forEach(r => {
+        const tid = r.prepared_games?.tournament_id;
+        if (tid) playedByT[tid] = (playedByT[tid] || 0) + 1;
+      });
+    }
   }
 
-  $("#tournamentsBody").innerHTML = (tournaments || []).map(t => `
+  $("#tournamentsBody").innerHTML = (tournaments || []).map(t => {
+    // Tournoi démo : afficher 10/10 pour tout le monde (référence complète).
+    const isDemo = /d[ée]mo/i.test(t.name || "");
+    const partiesCell = isDemo
+      ? "10/10"
+      : `${playedByT[t.id] || 0}/${countsByT[t.id] || 0}`;
+    return `
     <tr class="clickable" onclick="openTournament(${t.id})">
       <td>${(t.created_at || "").slice(0,10)}</td>
       <td><strong>${escapeHtml(t.name)}</strong></td>
-      <td>${countsByT[t.id] || 0}</td>
+      <td>${partiesCell}</td>
       <td>${isAdmin() ? `<button class="danger" onclick="event.stopPropagation();archiveTournament(${t.id})">archiver</button>` : ""}</td>
-    </tr>`).join("") || `<tr><td colspan="4" class="muted">${isAdmin() ? "Aucun tournoi actif. Crée-en un ci-dessus." : "Aucun tournoi disponible."}</td></tr>`;
+    </tr>`;
+  }).join("") || `<tr><td colspan="4" class="muted">${isAdmin() ? "Aucun tournoi actif. Crée-en un ci-dessus." : "Aucun tournoi disponible."}</td></tr>`;
 }
 
 // Archiver le plus ancien tournoi tant qu'on dépasse la limite
