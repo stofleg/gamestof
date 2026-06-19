@@ -24,11 +24,11 @@ self.addEventListener("activate", (e) => {
     } catch { /* ignore */ }
     // 2) Se désinscrire.
     try { await self.registration.unregister(); } catch { /* ignore */ }
-    // 3) Recharger les onglets ouverts → ils repartent SANS service worker.
-    try {
-      const clients = await self.clients.matchAll({ type: "window" });
-      for (const c of clients) { try { c.navigate(c.url); } catch {} }
-    } catch { /* ignore */ }
+    // NB : on NE recharge PAS les onglets ouverts — cela interromprait un
+    // joueur en pleine partie. Le nettoyage prend effet silencieusement ; c'est
+    // le PROCHAIN chargement (navigation/refresh naturel) qui repart sans SW,
+    // sur du code frais. De plus ce SW n'a pas de handler "fetch" : dès son
+    // activation, les requêtes vont déjà directement au réseau.
   })());
 });
 
