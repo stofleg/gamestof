@@ -1,6 +1,6 @@
 // Service worker minimal — strategy "network first, fallback cache".
 // Le but est juste de rendre l'app installable (PWA) et un poil plus résiliente offline.
-const CACHE = "garenna-v171";
+const CACHE = "garenna-v172";
 const SHELL = [
   "./",
   "./index.html",

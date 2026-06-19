@@ -57,7 +57,7 @@ const TOURNAMENT_ID = URL_PARAMS.get("tid");  // ID du tournoi pour le retour
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v171";
+const BUILD_VERSION = "garenna-v172";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -1536,16 +1536,25 @@ function bestJokerVariant(board, move, dict, opts) {
 // sinon conserve le feedback précédent tel quel.
 function flashInvalidWord(detail, invalidCells) {
   state.moveInvalidCount++;  // compteur de mots hors dico
+  // Mémoriser le feedback courant (barre verte du top précédent / consigne) pour
+  // le RESTAURER après le flash rouge, afin que le joueur retrouve son repère.
+  const fb = $("#feedback");
+  const prevHTML = fb.innerHTML, prevClass = fb.className, prevHidden = fb.hidden;
   // 1) Colorer en rouge le(s) MOT(S) réellement invalide(s) — mot principal
   //    et/ou mot croisé « en raccord », lettres déjà posées comprises.
   //    Repli (erreurs autres que hors-dico) : on marque les tuiles posées.
   state.invalidCells = (invalidCells && invalidCells.length) ? invalidCells : [];
   if (!state.invalidCells.length) state.pending.forEach(p => p.invalid = true);
   renderBoard();
-  showTransientError("Coup invalide", detail, 1500);
+  // Afficher l'erreur SANS auto-masquage (on gère la restauration nous-mêmes :
+  // l'ancien showTransientError programmait un hideFeedback qui effaçait ensuite
+  // le feedback restauré → la fenêtre jaune disparaissait définitivement).
+  clearTimeout(state._errorTimeout);
+  clearTimeout(state._flashTimer);
+  showFeedback("error", "Coup invalide", detail);
 
-  // 2) Au bout d'1 seconde : retirer les pending et afficher le meilleur essai
-  setTimeout(() => {
+  // 2) Au bout d'un court instant : retirer les pending et restaurer le repère.
+  state._flashTimer = setTimeout(() => {
     state.pending.forEach(p => delete p.invalid);
     state.invalidCells = [];
     clearPending();
@@ -1555,9 +1564,14 @@ function flashInvalidWord(detail, invalidCells) {
     if (best) {
       showFeedback("miss",
         `Meilleur essai : <strong>${wLink(best.word)}</strong> = <strong>${best.score}</strong> pts ✓`, "");
+    } else {
+      // Pas encore de meilleur essai → on remet EXACTEMENT le feedback d'avant
+      // (barre verte du top précédent, consigne du puzzle, etc.).
+      fb.innerHTML = prevHTML;
+      fb.className = prevClass;
+      fb.hidden = prevHidden;
     }
-    // Sinon : on laisse le feedback inchangé (pas de hideFeedback)
-  }, 1000);
+  }, 1200);
 }
 
 function buildMoveFromPending() {
@@ -3157,7 +3171,11 @@ function endGame() {
   //   • rack      = reliquat du dernier coup (rack moins lettres consommées).
   // On annule le minuteur de surbrillance pour qu'elle persiste sur l'écran final.
   if (topWordTimer) { clearTimeout(topWordTimer); topWordTimer = null; }
-  if (Array.isArray(state.history) && state.history.length) {
+  // EXCEPTION mode puzzle : l'historique ne contient QUE le coup du puzzle, alors
+  // que le plateau (state.board) contient déjà tout le contexte des coups
+  // précédents + le top posé. Reconstruire depuis l'historique effacerait ce
+  // contexte → on saute la reconstruction (le plateau est déjà correct).
+  if (!state.isPuzzle && Array.isArray(state.history) && state.history.length) {
     const playedTops = state.history.filter(h => h?.top?.word);
     let board = emptyBoard();
     let lastNewCells = [], lastAllCells = [], lastReliquat = null;
