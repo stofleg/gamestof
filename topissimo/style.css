@@ -822,17 +822,39 @@ footer .tiles { letter-spacing: 2px; margin-bottom: 6px; }
 .clickable:hover strong { color: var(--petrol); text-decoration: underline; }
 
 @media (max-width: 600px) {
-  header { padding: 14px 16px; gap: 12px; }
+  header { padding: 12px 14px; gap: 8px; }
   header .brand .name { font-size: 1.2rem; }
   /* Sur mobile : logo Garenna masqué, TOPISSIMO aligné à gauche */
   header .logo { display: none; }
   header .logo-center {
     position: static;
     transform: none;
-    height: 34px;
+    height: 30px;
     pointer-events: auto;
-    flex: 0 0 auto;
+    flex: 0 1 auto;
+    min-width: 0;
   }
+  /* Bouton "S'entraîner" compact pour libérer de la place */
+  header .play-btn { padding: 7px 11px; font-size: .8rem; flex: 0 0 auto; }
+  /* Le pill pseudo+déconnexion ne doit JAMAIS être rogné : on le rend
+     compressible et on tronque le pseudo si nécessaire. */
+  header .user-pill {
+    padding: 5px 8px;
+    gap: 6px;
+    min-width: 0;
+    flex: 0 1 auto;
+    overflow: hidden;
+  }
+  header .user-pill .pseudo {
+    font-size: .85rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+  }
+  /* Pastille de version masquée sur mobile (debug, place inutile ici) */
+  header .user-pill .sw-version { display: none; }
+  header .user-pill .logout-btn { width: 26px; height: 26px; flex: 0 0 auto; }
   main { padding: 18px 12px; }
   .card { padding: 16px; }
   .podium { grid-template-columns: 1fr; }
