@@ -860,3 +860,32 @@ footer .tiles { letter-spacing: 2px; margin-bottom: 6px; }
   .podium { grid-template-columns: 1fr; }
   .podium-spot.p1 { transform: none; }
 }
+
+/* ---------- Sous-onglets "Mes parties" (Tournoi / Entraînement) ---------- */
+.subtabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+  border-bottom: 2px solid var(--soft, #e6e9eb);
+}
+.subtab {
+  background: none;
+  border: none;
+  border-bottom: 3px solid transparent;
+  margin-bottom: -2px;
+  padding: 8px 14px;
+  font: inherit;
+  font-weight: 600;
+  font-size: .95rem;
+  color: var(--ink-soft, #5a6a73);
+  cursor: pointer;
+  border-radius: 8px 8px 0 0;
+}
+.subtab:hover { background: rgba(0,0,0,.04); }
+.subtab.active {
+  color: var(--petrol, #002E44);
+  border-bottom-color: var(--yellow, #FFDD00);
+}
+th.sortable { cursor: pointer; user-select: none; white-space: nowrap; }
+th.sortable:hover { color: var(--petrol, #002E44); }
+.sort-arrow { font-size: .8em; opacity: .8; }

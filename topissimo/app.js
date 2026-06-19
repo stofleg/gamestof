@@ -20,7 +20,7 @@ const sb = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANO
 // Version attendue du cache SW — doit correspondre à CACHE dans sw.js.
 // Si le cache actif du navigateur ne correspond pas, on force la mise à jour
 // immédiatement au chargement de la page.
-const EXPECTED_SW_CACHE = "garenna-v175";
+const EXPECTED_SW_CACHE = "garenna-v176";
 
 let _swReg = null;   // référence globale pour ensureFreshAndNavigate()
 if ("serviceWorker" in navigator) {
@@ -230,6 +230,13 @@ async function loadPlayers() {
 //  Parties
 // ============================================================
 // ===== Mes parties (tournoi + entraînement) =====
+// Données normalisées + état de tri par sous-onglet (réutilisés pour le tri).
+let myGames = { tournoi: [], entrainement: [] };
+let myGamesSort = {
+  tournoi: { key: "date", dir: "desc" },
+  entrainement: { key: "date", dir: "desc" },
+};
+
 async function loadMyGames() {
   if (!state.currentPlayerId) return;
   const pid = +state.currentPlayerId;
@@ -242,44 +249,103 @@ async function loadMyGames() {
     .order("finished_at", { ascending: false })
     .limit(30);
 
-  const btnRev = (id, type) => `<a style="text-decoration:none;padding:5px 10px;border-radius:6px;background:var(--soft);color:var(--petrol);font-weight:600;font-size:.82rem" href="scrabble/game.html?${type}=${id}">👁 Revoir</a>`;
-
-  $("#myTournoiBody").innerHTML = (tour || []).map(r => {
+  myGames.tournoi = (tour || []).filter(r => r.prepared_games).map(r => {
     const g = r.prepared_games;
-    if (!g) return "";
-    const md = modeDisplayName(g.mode, g.with_joker);
-    return `<tr>
-      <td>${(r.finished_at || "").slice(0,10)}</td>
-      <td><strong>${escapeHtml(g.name)}</strong></td>
-      <td>${md}</td>
-      <td>${r.total_score}</td>
-      <td class="neg">${r.sum_neg}</td>
-      <td>${fmtSec(r.total_time_seconds)}</td>
-      <td>${btnRev(g.id, "review")}
-        <button class="danger" onclick="delMyTournoi(${r.id})">supprimer</button>
-      </td>
-    </tr>`;
-  }).join("") || `<tr><td colspan="7" class="muted">Aucune partie tournoi jouée.</td></tr>`;
+    return {
+      date: r.finished_at || "", name: g.name || "",
+      mode: modeDisplayName(g.mode, g.with_joker),
+      score: r.total_score || 0, neg: r.sum_neg || 0, time: r.total_time_seconds || 0,
+      gameId: g.id, resultId: r.id,
+    };
+  });
 
   // Entraînement
   const { data: train } = await sb.from("training_games")
     .select("*").eq("player_id", pid)
     .order("created_at", { ascending: false }).limit(30);
 
-  $("#myTrainingBody").innerHTML = (train || []).map(t => {
-    const md = modeDisplayName(t.mode, t.with_joker);
-    return `<tr>
-      <td>${(t.created_at || "").slice(0,10)}</td>
-      <td>${md}</td>
-      <td>${t.total_score}</td>
-      <td class="neg">${t.sum_neg}</td>
-      <td>${fmtSec(t.total_time_seconds)}</td>
-      <td>${btnRev(t.id, "training")}
-        <button class="danger" onclick="delMyTraining(${t.id})">supprimer</button>
-      </td>
-    </tr>`;
-  }).join("") || `<tr><td colspan="6" class="muted">Aucun entraînement.</td></tr>`;
+  myGames.entrainement = (train || []).map(t => ({
+    date: t.created_at || "", mode: modeDisplayName(t.mode, t.with_joker),
+    score: t.total_score || 0, neg: t.sum_neg || 0, time: t.total_time_seconds || 0,
+    trainId: t.id,
+  }));
+
+  renderMyGames("tournoi");
+  renderMyGames("entrainement");
 }
+
+const _btnRev = (id, type) => `<a style="text-decoration:none;padding:5px 10px;border-radius:6px;background:var(--soft);color:var(--petrol);font-weight:600;font-size:.82rem" href="scrabble/game.html?${type}=${id}">👁 Revoir</a>`;
+
+function cmpMyGames(a, b, key, dir) {
+  let r;
+  if (key === "score" || key === "neg" || key === "time") r = (a[key] || 0) - (b[key] || 0);
+  else r = String(a[key] || "").localeCompare(String(b[key] || ""), "fr", { numeric: true });
+  return dir === "asc" ? r : -r;
+}
+
+function renderMyGames(which) {
+  const { key, dir } = myGamesSort[which];
+  const rows = [...myGames[which]].sort((a, b) => cmpMyGames(a, b, key, dir));
+
+  if (which === "tournoi") {
+    $("#myTournoiBody").innerHTML = rows.map(r => `<tr>
+      <td>${(r.date || "").slice(0,10)}</td>
+      <td><strong>${escapeHtml(r.name)}</strong></td>
+      <td>${r.mode}</td>
+      <td>${r.score}</td>
+      <td class="neg">${r.neg}</td>
+      <td>${fmtSec(r.time)}</td>
+      <td>${_btnRev(r.gameId, "review")}
+        <button class="danger" onclick="delMyTournoi(${r.resultId})">supprimer</button>
+      </td>
+    </tr>`).join("") || `<tr><td colspan="7" class="muted">Aucune partie tournoi jouée.</td></tr>`;
+  } else {
+    $("#myTrainingBody").innerHTML = rows.map(t => `<tr>
+      <td>${(t.date || "").slice(0,10)}</td>
+      <td>${t.mode}</td>
+      <td>${t.score}</td>
+      <td class="neg">${t.neg}</td>
+      <td>${fmtSec(t.time)}</td>
+      <td>${_btnRev(t.trainId, "training")}
+        <button class="danger" onclick="delMyTraining(${t.trainId})">supprimer</button>
+      </td>
+    </tr>`).join("") || `<tr><td colspan="6" class="muted">Aucun entraînement.</td></tr>`;
+  }
+  updateMyGamesArrows(which);
+}
+
+// Flèches de tri sur les en-têtes du sous-onglet concerné.
+function updateMyGamesArrows(which) {
+  const panel = which === "tournoi" ? "#gamesTournoiPanel" : "#gamesEntrainementPanel";
+  const cols = which === "tournoi"
+    ? ["date", "name", "mode", "score", "neg", "time"]
+    : ["date", "mode", "score", "neg", "time"];
+  const ths = document.querySelectorAll(`${panel} th.sortable`);
+  const { key, dir } = myGamesSort[which];
+  ths.forEach((th, i) => {
+    const arrow = th.querySelector(".sort-arrow");
+    if (arrow) arrow.textContent = cols[i] === key ? (dir === "asc" ? " ▲" : " ▼") : "";
+  });
+}
+
+window.sortMyGames = function(which, key) {
+  const st = myGamesSort[which];
+  if (st.key === key) {
+    st.dir = st.dir === "asc" ? "desc" : "asc";
+  } else {
+    st.key = key;
+    // Défaut : texte croissant (A→Z), numérique/date décroissant (récent/haut d'abord)
+    st.dir = (key === "name" || key === "mode") ? "asc" : "desc";
+  }
+  renderMyGames(which);
+};
+
+window.switchGamesTab = function(which) {
+  $("#gamesTournoiPanel").hidden = which !== "tournoi";
+  $("#gamesEntrainementPanel").hidden = which !== "entrainement";
+  document.querySelectorAll("#gamesSubtabs .subtab")
+    .forEach(b => b.classList.toggle("active", b.dataset.gtab === which));
+};
 
 function fmtSec(s) {
   if (!s) return "—";
