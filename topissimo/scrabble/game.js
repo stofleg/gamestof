@@ -57,7 +57,7 @@ const TOURNAMENT_ID = URL_PARAMS.get("tid");  // ID du tournoi pour le retour
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v178";
+const BUILD_VERSION = "garenna-v179";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -713,7 +713,7 @@ function renderBag() {
   $("#bagCount").textContent = total;
   $("#bagTiles").innerHTML = ordered.map(l => {
     const n = counts[l] || 0;
-    if (n === 0) return "";
+    if (n <= 0) return "";   // jamais de compteur négatif (double-décompte transitoire)
     const cls = ["bag-chip"];
     if (l === "?") cls.push("joker");
     return `<span class="${cls.join(" ")}">${l}<span class="ct">${n}</span></span>`;
@@ -3205,6 +3205,7 @@ function endGame() {
     }
     renderBoard();
     renderRack();
+    renderBag();   // recalcul du sac avec le chevalet réduit au reliquat (évite le -1)
   }
   const time = fmtChrono(state.chronoFinal);
   $("#endSummary").innerHTML = `
