@@ -57,7 +57,7 @@ const TOURNAMENT_ID = URL_PARAMS.get("tid");  // ID du tournoi pour le retour
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v184";
+const BUILD_VERSION = "garenna-v185";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -309,10 +309,6 @@ function renderBoard() {
   const isMobile = window.matchMedia && window.matchMedia("(max-width: 700px)").matches;
   const showCoords = state.settings.showCoords && !isMobile;
   document.body.classList.toggle("show-coords", showCoords);
-  // Contour du mot top : on calcule la direction et les extrémités pour ne poser
-  // le cadre bleu nuit que sur le PÉRIMÈTRE du mot (pas autour de chaque jeton).
-  const _tw = (state.settings.highlightTop !== false) ? (state.lastTopCells || []) : [];
-  const _twDir = _tw.length <= 1 ? "S" : (_tw[0].row === _tw[1].row ? "H" : "V");
   let html = "<table>";
   if (showCoords) {
     html += `<tr><td class="coord corner"></td>`;
@@ -329,15 +325,6 @@ function renderBoard() {
       if (tile) cls.push("has-tile");
       const isCursor = state.cursor && state.cursor.row === r && state.cursor.col === c;
       if (isCursor) cls.push("cursor", state.cursor.dir === "H" ? "dir-h" : "dir-v");
-      // Cadre du mot top (sur le périmètre uniquement).
-      if (_tw.length) {
-        const idx = _tw.findIndex(p => p.row === r && p.col === c);
-        if (idx >= 0) {
-          if (_twDir === "H") { cls.push("tw-t", "tw-b"); if (idx === 0) cls.push("tw-l"); if (idx === _tw.length - 1) cls.push("tw-r"); }
-          else if (_twDir === "V") { cls.push("tw-l", "tw-r"); if (idx === 0) cls.push("tw-t"); if (idx === _tw.length - 1) cls.push("tw-b"); }
-          else { cls.push("tw-t", "tw-b", "tw-l", "tw-r"); }
-        }
-      }
       const isInvalidCell = state.invalidCells && state.invalidCells.some(p => p.r === r && p.c === c);
       let tileHtmlStr = "";
       if (tile) {
@@ -387,6 +374,34 @@ function renderBoard() {
     el.addEventListener("dragstart", onPendingTileDragStart);
     el.addEventListener("dragend", onDragEnd);
   });
+  renderTopFrame();
+}
+
+// Cadre de mise en évidence du mot top : un SEUL rectangle posé en superposition
+// par-dessus tout le plateau (z-index élevé) → il passe AU-DESSUS des flèches des
+// cases multiplicatrices, contrairement à des bordures de cellules. Recalculé à
+// chaque rendu à partir des cases du mot (persiste jusqu'au clic sur la grille).
+function renderTopFrame() {
+  const board = $("#board");
+  if (!board) return;
+  let frame = board.querySelector(".top-frame");
+  const tw = (state.settings.highlightTop !== false) ? (state.lastTopCells || []) : [];
+  if (!tw.length) { if (frame) frame.remove(); return; }
+  const first = board.querySelector(`td[data-r="${tw[0].row}"][data-c="${tw[0].col}"]`);
+  const last  = board.querySelector(`td[data-r="${tw[tw.length - 1].row}"][data-c="${tw[tw.length - 1].col}"]`);
+  if (!first || !last) { if (frame) frame.remove(); return; }
+  const br = board.getBoundingClientRect();
+  const a = first.getBoundingClientRect(), b = last.getBoundingClientRect();
+  const left   = Math.min(a.left, b.left)   - br.left;
+  const top    = Math.min(a.top, b.top)     - br.top;
+  const right  = Math.max(a.right, b.right) - br.left;
+  const bottom = Math.max(a.bottom, b.bottom) - br.top;
+  if (!frame) { frame = document.createElement("div"); frame.className = "top-frame"; board.appendChild(frame); }
+  // On déborde légèrement (2 px) pour que le cadre entoure bien les jetons.
+  frame.style.left   = (left - 2) + "px";
+  frame.style.top    = (top - 2) + "px";
+  frame.style.width  = (right - left + 4) + "px";
+  frame.style.height = (bottom - top + 4) + "px";
 }
 
 // Renvoie la tuile à afficher en (r,c) : prioritaire pending, sinon plateau

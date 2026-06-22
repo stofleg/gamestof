@@ -273,6 +273,7 @@ body.show-coords .right-col {
   border-radius: 12px;
   box-shadow: 0 10px 30px rgba(0,46,68,.25);
   display: inline-block;
+  position: relative;   /* repère pour le cadre .top-frame en superposition */
 }
 .board table {
   border-collapse: collapse;
@@ -480,14 +481,19 @@ body.theme-duplijeu .board tr:last-child td.coord { height: calc(var(--cell-size
   border-color: #8a3cb5;
 }
 
-/* ===== Mot top retenu : contour bleu nuit autour du MOT (pas par jeton) =====
-   Les lettres restent normales ; on dessine un cadre épais (2,5 px) seulement
-   sur le PÉRIMÈTRE du mot (les classes tw-t/b/l/r sont posées par renderBoard
-   sur les bonnes faces des cases de début/fin/bord). */
-.board td.tw-t { border-top:    2.5px solid var(--petrol) !important; }
-.board td.tw-b { border-bottom: 2.5px solid var(--petrol) !important; }
-.board td.tw-l { border-left:   2.5px solid var(--petrol) !important; }
-.board td.tw-r { border-right:  2.5px solid var(--petrol) !important; }
+/* ===== Mot top retenu : cadre bleu nuit autour du MOT, EN SUPERPOSITION =====
+   Un seul rectangle positionné par renderTopFrame(), au-dessus de tout le
+   plateau (z-index élevé) → il passe PAR-DESSUS les flèches des cases bonus,
+   contrairement à des bordures de cellules. Lettres laissées normales. */
+.board .top-frame {
+  position: absolute;
+  z-index: 60;
+  pointer-events: none;
+  border: 4px solid var(--petrol);
+  border-radius: 4px;
+  /* liseré clair extérieur pour rester visible même sur les cases foncées */
+  box-shadow: 0 0 0 1.5px rgba(255,255,255,.55), 0 2px 6px rgba(0,0,0,.3);
+}
 
 /* ===== Badge de score live (au-dessus de la dernière lettre du mot) ===== */
 /* Badge de score live : texte centré dans la case, sans fond propre
