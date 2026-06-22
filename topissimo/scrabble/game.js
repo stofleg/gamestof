@@ -57,7 +57,7 @@ const TOURNAMENT_ID = URL_PARAMS.get("tid");  // ID du tournoi pour le retour
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v191";
+const BUILD_VERSION = "garenna-v192";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -541,6 +541,7 @@ function reorderRack(dragId, targetId) {
 // Pose une lettre du chevalet (rackId) sur la case (r,c). Factorisé pour être
 // réutilisé par le drag HTML5 (desktop) ET le drag tactile (mobile).
 function placeRackTileOnCell(rackId, r, c) {
+  if (clearInvalidFlash()) renderRack();
   if (state.board[r][c] || state.pending.some(p => p.row === r && p.col === c)) return;
   const tile = state.rack.find(t => t.id === rackId);
   if (!tile || tile.used) return;
@@ -1067,6 +1068,9 @@ function clearTopHighlight() {
 function handleBoardClick(r, c) {
   if (review.active) return;
   if (state.annotTool) { annotateCell(r, c); return; }
+  // Flash "mot faux" en cours → on l'annule pour que le clic agisse tout de
+  // suite (les cases redeviennent libres, le curseur est déplaçable).
+  clearInvalidFlash();
   clearTopHighlight();   // tout clic sur la grille efface le contour du top
   if (state.board[r][c]) return;
   // Si on a des tuiles en cours de pose et qu'on clique en dehors, on les renvoie
@@ -1234,6 +1238,7 @@ function onCellTouchEnd(e, r, c) {
   if (adx > ady && dx > 0) {
     // Swipe → : curseur en horizontal, départ = case touchée au début
     e.preventDefault();
+    clearInvalidFlash();
     if (state.pending.length > 0) { clearPending(); renderRack(); }
     state.lastTopCells = []; state.lastPlaced = [];   // interaction grille → efface le cadre top
     state.cursor = { row: start.r, col: start.c, dir: "H" };
@@ -1241,6 +1246,7 @@ function onCellTouchEnd(e, r, c) {
   } else if (ady > adx && dy > 0) {
     // Swipe ↓ : curseur en vertical
     e.preventDefault();
+    clearInvalidFlash();
     if (state.pending.length > 0) { clearPending(); renderRack(); }
     state.lastTopCells = []; state.lastPlaced = [];   // interaction grille → efface le cadre top
     state.cursor = { row: start.r, col: start.c, dir: "V" };
@@ -1412,6 +1418,9 @@ function handleKey(e) {
 }
 
 function placeLetter(L, preferTileId = null) {
+  // Si un flash "mot faux" est en cours, on l'annule d'abord (libère les cases)
+  // pour pouvoir retaper immédiatement.
+  if (clearInvalidFlash()) renderRack();
   if (!state.cursor) {
     flashFeedback("error", "Pas de curseur", "Clique d'abord sur une case du plateau.");
     return;
@@ -1464,6 +1473,14 @@ function placeLetter(L, preferTileId = null) {
 }
 
 function backspace() {
+  // Flash "mot faux" en cours : on l'annule mais on GARDE les tuiles pour
+  // pouvoir corriger la dernière lettre (on retire juste le rouge + le minuteur).
+  if (state._invalidFlash) {
+    state._invalidFlash = false;
+    clearTimeout(state._flashTimer);
+    state.pending.forEach(p => delete p.invalid);
+    state.invalidCells = [];
+  }
   if (!state.pending.length) return;
   const last = state.pending.pop();
   const tile = state.rack.find(t => t.id === last.rackId);
@@ -1657,25 +1674,27 @@ function flashInvalidWord(detail, invalidCells) {
   // Mémoriser le feedback courant (barre verte du top / consigne) pour le restaurer.
   const fb = $("#feedback");
   const prevHTML = fb.innerHTML, prevClass = fb.className, prevHidden = fb.hidden;
+  // Mémoriser ce qu'il faudra restaurer si le flash arrive à son terme sans action.
+  state._invalidFlashRestore = { html: prevHTML, cls: prevClass, hidden: prevHidden };
 
-  // 1) SURBRILLANCE ROUGE du/des mot(s) fautif(s) : on colore les cases
-  //    réellement invalides (mot principal + raccords), repli sur les tuiles
-  //    posées si non fourni. Les tuiles restent visibles le temps du flash.
+  // 1) SURBRILLANCE ROUGE du/des mot(s) fautif(s).
   state.invalidCells = (invalidCells && invalidCells.length) ? invalidCells : [];
   if (!state.invalidCells.length) state.pending.forEach(p => p.invalid = true);
   clearTimeout(state._errorTimeout);
   clearTimeout(state._flashTimer);
+  state._invalidFlash = true;
+
+  // 2) Curseur repositionné AU DÉPART TOUT DE SUITE : il est actif et déplaçable
+  //    PENDANT le flash. Les tuiles rouges restent visibles tant que le joueur
+  //    n'agit pas ; la moindre action (clic, frappe, retour, swipe) annule le
+  //    flash immédiatement (cf. clearInvalidFlash) et s'exécute sans latence.
+  if (startCell) state.cursor = { row: startCell.row, col: startCell.col, dir };
   renderBoard();
   showFeedback("error", "Coup invalide", detail);
 
-  // 2) Après un court flash : on retire les tuiles, on replace le curseur au
-  //    DÉPART de la saisie (reprise immédiate), et on affiche le meilleur essai
-  //    ou on restaure le repère précédent.
+  // 3) Filet : si le joueur ne fait rien, on nettoie après un court délai.
   state._flashTimer = setTimeout(() => {
-    state.pending.forEach(p => delete p.invalid);
-    state.invalidCells = [];
-    clearPending();
-    if (startCell) state.cursor = { row: startCell.row, col: startCell.col, dir };
+    if (!clearInvalidFlash()) return;
     renderRack();
     renderBoard();
     const best = state.bestAttempt;
@@ -1687,7 +1706,20 @@ function flashInvalidWord(detail, invalidCells) {
       fb.className = prevClass;
       fb.hidden = prevHidden;
     }
-  }, 900);
+  }, 1400);
+}
+
+// Annule le flash "mot faux" en cours : retire les tuiles rouges et libère les
+// cases, SANS rendu (l'appelant rend). Retourne true si un flash était actif.
+// Appelé par toute interaction de saisie → le curseur reste actif pendant le flash.
+function clearInvalidFlash() {
+  if (!state._invalidFlash) return false;
+  state._invalidFlash = false;
+  clearTimeout(state._flashTimer);
+  state.pending.forEach(p => delete p.invalid);
+  state.invalidCells = [];
+  clearPending();
+  return true;
 }
 
 function buildMoveFromPending() {
