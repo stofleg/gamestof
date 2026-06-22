@@ -144,6 +144,8 @@ body.show-coords .right-col {
 .right-col .review-panel { max-width: none; width: 100%; }
 .right-col .info-bar { flex-wrap: wrap; }
 .action-row { display: flex; gap: 8px; flex-wrap: wrap; }
+/* Bouton ✕ d'annulation : mobile uniquement (sur desktop on annule au clic grille) */
+.btn-cancel { display: none; }
 /* Bouton « ☰ Raccourcis » (afficher/cacher les pictos) : mobile uniquement */
 .shortcut-toggle { display: none; }
 
@@ -659,6 +661,18 @@ input:disabled, select:disabled {
 .rack .tile[draggable="true"] { cursor: grab; }
 .rack .tile[draggable="true"]:active { cursor: grabbing; }
 .rack .tile.dragging { opacity: .4; }
+/* Tuile fantôme suivant le doigt pendant un glisser tactile */
+.tile.drag-ghost {
+  position: fixed;
+  width: 46px;
+  height: 50px;
+  font-size: 1.6rem;
+  transform: translate(-50%, -65%);
+  z-index: 9999;
+  pointer-events: none;
+  opacity: .92;
+  box-shadow: 0 8px 20px rgba(0,30,45,.45);
+}
 .board td.drop-target { background: rgba(255,221,0,.45) !important; }
 .rack .tile.empty {
   background: transparent;

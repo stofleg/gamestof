@@ -329,6 +329,26 @@
   #actionRowInGame .btn-backspace:active { background: #001E2D; }
   #actionRowInGame .btn-validate  { background: #2c7a3b; color: #fff; }
   #actionRowInGame .btn-validate:active { background: #1f5a2a; }
+  /* Bouton ✕ d'annulation : visible sur mobile, ~moitié de la largeur des autres. */
+  #actionRowInGame .btn-cancel {
+    display: flex !important;
+    flex: 0.5 1 auto;
+    min-width: 30px;
+    height: 40px;
+    border: none;
+    border-radius: 6px;
+    font-size: 1.1rem;
+    padding: 0;
+    cursor: pointer;
+    align-items: center;
+    justify-content: center;
+    background: #a02525;
+    color: #fff;
+    box-shadow: 0 2px 4px rgba(0,30,45,.2);
+    touch-action: manipulation;
+  }
+  #actionRowInGame .btn-cancel:active { background: #7a1c1c; }
+  body.pictos-open #actionRowInGame .btn-cancel { flex: 0 0 auto !important; width: 32px !important; min-width: 32px !important; }
 
   /* ----- G : rack = N tuiles carrées qui remplissent 100vw (gap 1px) ----- */
   .rack-row {

@@ -57,7 +57,7 @@ const TOURNAMENT_ID = URL_PARAMS.get("tid");  // ID du tournoi pour le retour
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v180";
+const BUILD_VERSION = "garenna-v181";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -420,6 +420,8 @@ function renderRack() {
       return a.letter.localeCompare(b.letter);
     });
   }
+  // Mémoriser l'ordre AFFICHÉ (ids) → sert au réordonnancement directionnel.
+  _rackOrder = tiles.map(t => t.id);
   // Génère les tuiles draggables
   div.innerHTML = tiles.map(t => {
     const blank = t.letter === "?";
@@ -438,6 +440,7 @@ function renderRack() {
     el.addEventListener("dragover", onRackTileDragOver);
     el.addEventListener("drop", onRackTileDrop);
     el.addEventListener("click", onRackTileTap);
+    el.addEventListener("touchstart", onRackTileTouchStart, { passive: false });
   });
 }
 
@@ -497,6 +500,101 @@ window.closeJokerPicker = () => {
 // ===== Drag & Drop : chevalet + tuiles posées =====
 let _dragRackId = null;
 let _dragPendingFrom = null;     // { row, col } pour déplacement d'une tuile pending
+let _rackOrder = [];             // ordre AFFICHÉ des tuiles (ids) — pour le réordonnancement
+let _touchDrag = null;           // état du glisser tactile (mobile)
+
+// Réordonne le chevalet en déplaçant la tuile `dragId` PAR RAPPORT à `targetId`,
+// sans remélanger le reste. Direction : si on déplace vers la DROITE, la tuile
+// se place à DROITE de la cible ; vers la GAUCHE, à GAUCHE. Pas besoin de viser
+// l'interstice exact : lâcher au-dessus d'une lettre suffit.
+function reorderRack(dragId, targetId) {
+  if (dragId === targetId) return;
+  const order = (_rackOrder && _rackOrder.length) ? _rackOrder.slice() : state.rack.map(t => t.id);
+  const fromI = order.indexOf(dragId);
+  const toI = order.indexOf(targetId);
+  if (fromI < 0 || toI < 0 || fromI === toI) return;
+  const movingRight = fromI < toI;
+  order.splice(fromI, 1);
+  let insertAt = order.indexOf(targetId);
+  if (movingRight) insertAt += 1;          // à droite de la cible ; sinon à gauche
+  order.splice(insertAt, 0, dragId);
+  state.rack = order.map(id => state.rack.find(t => t.id === id)).filter(Boolean);
+  state._tempUnsorted = true;              // fige cet ordre manuel (pas de re-tri)
+  renderRack();
+}
+
+// Pose une lettre du chevalet (rackId) sur la case (r,c). Factorisé pour être
+// réutilisé par le drag HTML5 (desktop) ET le drag tactile (mobile).
+function placeRackTileOnCell(rackId, r, c) {
+  if (state.board[r][c] || state.pending.some(p => p.row === r && p.col === c)) return;
+  const tile = state.rack.find(t => t.id === rackId);
+  if (!tile || tile.used) return;
+  let letter = tile.letter, isBlank = false;
+  if (tile.letter === "?") {
+    const L = (prompt("Lettre à associer au joker (A-Z) :", "") || "").trim().toUpperCase();
+    if (!/^[A-Z]$/.test(L)) return;
+    letter = L; isBlank = true;
+  }
+  tile.used = true;
+  state.pending.push({ row: r, col: c, letter, rackId: tile.id, isBlank });
+  updateCursorAfterDrop(r, c);
+  renderBoard();
+  renderRack();
+}
+
+// ===== Glisser TACTILE (mobile) : réordonner le chevalet OU poser sur la grille =====
+function onRackTileTouchStart(e) {
+  if (!e.touches || e.touches.length !== 1) return;
+  const el = e.currentTarget;
+  const t = e.touches[0];
+  _touchDrag = { id: +el.dataset.rackId, startX: t.clientX, startY: t.clientY, moved: false, ghost: null, srcEl: el };
+  document.addEventListener("touchmove", onRackTouchMove, { passive: false });
+  document.addEventListener("touchend", onRackTouchEnd, { passive: false });
+  document.addEventListener("touchcancel", onRackTouchEnd, { passive: false });
+}
+function onRackTouchMove(e) {
+  if (!_touchDrag) return;
+  const t = e.touches[0];
+  if (!_touchDrag.moved) {
+    if (Math.hypot(t.clientX - _touchDrag.startX, t.clientY - _touchDrag.startY) < 8) return;
+    _touchDrag.moved = true;
+    const tile = state.rack.find(x => x.id === _touchDrag.id);
+    const g = document.createElement("div");
+    g.className = "tile drag-ghost";
+    const v = tile && tile.letter !== "?" ? (LETTER_VALUE[tile.letter] ?? "") : "";
+    g.innerHTML = `${tile?.letter || ""}<span class="val">${v}</span>`;
+    if (tile?.letter === "?") g.classList.add("blank");
+    document.body.appendChild(g);
+    _touchDrag.ghost = g;
+    _touchDrag.srcEl.classList.add("dragging");
+  }
+  e.preventDefault();   // empêche le défilement pendant le glisser
+  if (_touchDrag.ghost) { _touchDrag.ghost.style.left = t.clientX + "px"; _touchDrag.ghost.style.top = t.clientY + "px"; }
+  $$(".board td.drop-target").forEach(td => td.classList.remove("drop-target"));
+  const under = document.elementFromPoint(t.clientX, t.clientY);
+  const td = under && under.closest && under.closest("td[data-r]");
+  if (td && !td.classList.contains("has-tile")) td.classList.add("drop-target");
+}
+function onRackTouchEnd(e) {
+  document.removeEventListener("touchmove", onRackTouchMove);
+  document.removeEventListener("touchend", onRackTouchEnd);
+  document.removeEventListener("touchcancel", onRackTouchEnd);
+  const drag = _touchDrag; _touchDrag = null;
+  if (!drag) return;
+  if (drag.ghost) drag.ghost.remove();
+  drag.srcEl && drag.srcEl.classList.remove("dragging");
+  $$(".board td.drop-target").forEach(td => td.classList.remove("drop-target"));
+  if (!drag.moved) return;   // simple tap → le clic natif pose la lettre au curseur
+  const t = e.changedTouches && e.changedTouches[0];
+  if (!t) return;
+  const under = document.elementFromPoint(t.clientX, t.clientY);
+  if (!under || !under.closest) return;
+  const td = under.closest("td[data-r]");
+  if (td) { placeRackTileOnCell(drag.id, +td.dataset.r, +td.dataset.c); return; }
+  const rt = under.closest(".tile[data-rack-id]");
+  if (rt) { reorderRack(drag.id, +rt.dataset.rackId); return; }
+  // lâché ailleurs → rien (la lettre reste au chevalet)
+}
 
 function onRackTileDragStart(e) {
   _dragRackId = +e.currentTarget.dataset.rackId;
@@ -528,19 +626,7 @@ function onRackTileDragOver(e) {
 function onRackTileDrop(e) {
   if (_dragRackId == null) return;
   e.preventDefault();
-  const targetId = +e.currentTarget.dataset.rackId;
-  if (targetId === _dragRackId) return;
-  // Réordonner state.rack : déplacer la tuile draguée avant la tuile cible
-  const srcIdx = state.rack.findIndex(t => t.id === _dragRackId);
-  const dstIdx = state.rack.findIndex(t => t.id === targetId);
-  if (srcIdx < 0 || dstIdx < 0) return;
-  const [moved] = state.rack.splice(srcIdx, 1);
-  const adjustedDst = dstIdx > srcIdx ? dstIdx : dstIdx;   // après suppression, dstIdx peut avoir bougé
-  // Insérer avant la cible (ou après si on dragge vers la droite)
-  const newIdx = state.rack.indexOf(state.rack.find(t => t.id === targetId));
-  state.rack.splice(newIdx, 0, moved);
-  state._tempUnsorted = true;
-  renderRack();
+  reorderRack(_dragRackId, +e.currentTarget.dataset.rackId);
 }
 
 // Drop sur une case de la grille = pose la lettre tirée du chevalet
@@ -583,21 +669,7 @@ function onCellDrop(e) {
     return;
   }
   // ===== Pose depuis le chevalet =====
-  if (state.board[r][c] || state.pending.some(p => p.row === r && p.col === c)) return;
-  const tile = state.rack.find(t => t.id === _dragRackId);
-  if (!tile || tile.used) return;
-  let letter = tile.letter, isBlank = false;
-  if (tile.letter === "?") {
-    const L = (prompt("Lettre à associer au joker (A-Z) :", "") || "").trim().toUpperCase();
-    if (!/^[A-Z]$/.test(L)) return;
-    letter = L; isBlank = true;
-  }
-  tile.used = true;
-  // feedback conservé jusqu'à la prochaine validation
-  state.pending.push({ row: r, col: c, letter, rackId: tile.id, isBlank });
-  updateCursorAfterDrop(r, c);
-  renderBoard();
-  renderRack();
+  placeRackTileOnCell(_dragRackId, r, c);
 }
 
 // Repositionne le curseur en déduisant le sens H/V d'après les tuiles posées.
@@ -986,6 +1058,11 @@ function handleBoardClick(r, c) {
   // sur le chevalet (annule la saisie) puis on repositionne le curseur.
   const clickedOnPending = state.pending.some(p => p.row === r && p.col === c);
   if (state.pending.length > 0 && !clickedOnPending) {
+    // Sur MOBILE : un clic sur la grille ne renvoie PLUS les lettres au chevalet
+    // (trop d'annulations accidentelles). On ne fait rien → le joueur voit que
+    // ce n'est pas validé, et annule volontairement via le bouton ✕ rouge.
+    const isMobile = window.matchMedia && window.matchMedia("(max-width: 700px)").matches;
+    if (isMobile) return;
     clearPending();
     state.cursor = { row: r, col: c, dir: "H" };
     renderRack();
@@ -1551,42 +1628,44 @@ function bestJokerVariant(board, move, dict, opts) {
 // sinon conserve le feedback précédent tel quel.
 function flashInvalidWord(detail, invalidCells) {
   state.moveInvalidCount++;  // compteur de mots hors dico
-  // Mémoriser le feedback courant (barre verte du top précédent / consigne) pour
-  // le RESTAURER après le flash rouge, afin que le joueur retrouve son repère.
+  // Point de départ de la saisie + direction → on y replace le curseur pour que
+  // le joueur puisse reprendre immédiatement (ex. AXAO raté en B2 → curseur B2).
+  const ps = [...state.pending];
+  let startCell = null, dir = state.cursor?.dir || "H";
+  if (ps.length) {
+    const sameRow = ps.every(p => p.row === ps[0].row);
+    dir = sameRow ? "H" : "V";
+    startCell = ps.slice().sort((a, b) => dir === "H" ? a.col - b.col : a.row - b.row)[0];
+  }
+  // Mémoriser le feedback courant (barre verte du top / consigne) pour le restaurer.
   const fb = $("#feedback");
   const prevHTML = fb.innerHTML, prevClass = fb.className, prevHidden = fb.hidden;
-  // 1) Colorer en rouge le(s) MOT(S) réellement invalide(s) — mot principal
-  //    et/ou mot croisé « en raccord », lettres déjà posées comprises.
-  //    Repli (erreurs autres que hors-dico) : on marque les tuiles posées.
-  state.invalidCells = (invalidCells && invalidCells.length) ? invalidCells : [];
-  if (!state.invalidCells.length) state.pending.forEach(p => p.invalid = true);
-  renderBoard();
-  // Afficher l'erreur SANS auto-masquage (on gère la restauration nous-mêmes :
-  // l'ancien showTransientError programmait un hideFeedback qui effaçait ensuite
-  // le feedback restauré → la fenêtre jaune disparaissait définitivement).
+
+  // Nettoyer IMMÉDIATEMENT les tuiles posées et replacer le curseur au départ :
+  // pas de latence, le curseur est tout de suite actif et déplaçable.
   clearTimeout(state._errorTimeout);
   clearTimeout(state._flashTimer);
+  state.invalidCells = [];
+  clearPending();
+  if (startCell) state.cursor = { row: startCell.row, col: startCell.col, dir };
+  renderRack();
+  renderBoard();
+
+  // Message d'erreur (n'empêche pas de bouger le curseur ni de retaper).
   showFeedback("error", "Coup invalide", detail);
 
-  // 2) Au bout d'un court instant : retirer les pending et restaurer le repère.
+  // Après un court instant : afficher le meilleur essai, sinon restaurer le repère.
   state._flashTimer = setTimeout(() => {
-    state.pending.forEach(p => delete p.invalid);
-    state.invalidCells = [];
-    clearPending();
-    renderRack();
-    renderBoard();
     const best = state.bestAttempt;
     if (best) {
       showFeedback("miss",
         `Meilleur essai : <strong>${wLink(best.word)}</strong> = <strong>${best.score}</strong> pts ✓`, "");
     } else {
-      // Pas encore de meilleur essai → on remet EXACTEMENT le feedback d'avant
-      // (barre verte du top précédent, consigne du puzzle, etc.).
       fb.innerHTML = prevHTML;
       fb.className = prevClass;
       fb.hidden = prevHidden;
     }
-  }, 1200);
+  }, 1500);
 }
 
 function buildMoveFromPending() {
@@ -3671,6 +3750,16 @@ const _btnVal = $("#btnValidate");
 if (_btnVal) _btnVal.onclick = () => {
   if (!state.started) startGame();
   else validate();
+};
+// Annulation tactile (bouton ✕ rouge, mobile) : renvoie les tuiles en cours au
+// chevalet. Sur mobile, le clic sur la grille ne le fait plus (évite les
+// annulations accidentelles) → ce bouton est le SEUL moyen d'annuler la saisie.
+const _btnCancel = $("#btnCancel");
+if (_btnCancel) _btnCancel.onclick = () => {
+  if (!state.started || !state.pending.length) return;
+  clearPending();
+  renderRack();
+  renderBoard();
 };
 $("#btnAbandon").onclick = () => {
   if (!state.started || state.chronoFinal != null) return;
