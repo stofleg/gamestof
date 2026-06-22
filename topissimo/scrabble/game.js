@@ -57,7 +57,7 @@ const TOURNAMENT_ID = URL_PARAMS.get("tid");  // ID du tournoi pour le retour
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v192";
+const BUILD_VERSION = "garenna-v193";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -1069,8 +1069,8 @@ function handleBoardClick(r, c) {
   if (review.active) return;
   if (state.annotTool) { annotateCell(r, c); return; }
   // Flash "mot faux" en cours → on l'annule pour que le clic agisse tout de
-  // suite (les cases redeviennent libres, le curseur est déplaçable).
-  clearInvalidFlash();
+  // suite (les cases redeviennent libres, les lettres reviennent au chevalet).
+  if (clearInvalidFlash()) renderRack();
   clearTopHighlight();   // tout clic sur la grille efface le contour du top
   if (state.board[r][c]) return;
   // Si on a des tuiles en cours de pose et qu'on clique en dehors, on les renvoie
@@ -1386,19 +1386,26 @@ function handleKey(e) {
   if (e.key === "2" || e.code === "Digit2" || e.code === "Numpad2") {
     e.preventDefault(); restoreRackSort(); return;
   }
-  // Flèches : déplacer le curseur (seulement s'il n'y a pas de pending tile)
-  if (state.cursor && state.pending.length === 0 &&
-      ["ArrowLeft","ArrowRight","ArrowUp","ArrowDown"].includes(e.key)) {
-    e.preventDefault();
-    moveCursorKey(e.key);
-    return;
+  // Flèches : déplacer le curseur. Pendant un flash "mot faux", on l'annule
+  // d'abord (les lettres reviennent au chevalet) pour que le curseur bouge tout
+  // de suite avec les flèches, sans attendre la fin du flash.
+  if (state.cursor && ["ArrowLeft","ArrowRight","ArrowUp","ArrowDown"].includes(e.key)) {
+    if (state._invalidFlash) { clearInvalidFlash(); renderRack(); renderBoard(); }
+    if (state.pending.length === 0) {
+      e.preventDefault();
+      moveCursorKey(e.key);
+      return;
+    }
   }
   // Barre espace : toggle sens du curseur (H ↔ V)
-  if (state.cursor && state.pending.length === 0 && e.key === " ") {
-    e.preventDefault();
-    state.cursor.dir = state.cursor.dir === "H" ? "V" : "H";
-    renderBoard();
-    return;
+  if (state.cursor && e.key === " ") {
+    if (state._invalidFlash) { clearInvalidFlash(); renderRack(); }
+    if (state.pending.length === 0) {
+      e.preventDefault();
+      state.cursor.dir = state.cursor.dir === "H" ? "V" : "H";
+      renderBoard();
+      return;
+    }
   }
 
   if (e.key === "?") {
