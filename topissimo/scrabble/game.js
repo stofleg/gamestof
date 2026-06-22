@@ -57,7 +57,7 @@ const TOURNAMENT_ID = URL_PARAMS.get("tid");  // ID du tournoi pour le retour
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v193";
+const BUILD_VERSION = "garenna-v194";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -904,6 +904,7 @@ function stopMoveTimer() {
 
 // Coup non trouvé dans le temps : on révèle le top sans pénalité supplémentaire
 function timeoutAdvance() {
+  ensureTopReady();
   if (!state.started || !state.topMove) return;
   let playerScore = 0, playedWord = null;
   if (state.pending.length) {
@@ -1520,7 +1521,14 @@ function flashFeedback(kind, title, detail) {
 // ============================================================
 //  Validation
 // ============================================================
+// Si le calcul du top a été différé (cf. nextMove), on le force maintenant :
+// garantit que state.topMove est prêt avant toute comparaison.
+function ensureTopReady() {
+  if (state._topPending) { computeTop(); state._topPending = false; }
+}
+
 function validate() {
+  ensureTopReady();
   if (!state.pending.length) {
     showTransientError("Rien à valider", "Place d'abord des lettres sur la grille.");
     return;
@@ -1806,6 +1814,7 @@ function buildMoveFromPending() {
 // met à jour score/négatif selon le score du joueur (0 si rien tenté).
 // Gère le mode joker (remplacement par la lettre du sac si possible).
 function placeTopAndAdvance(playerScore, playedWord = null, playedScore = null, playedMove = null) {
+  ensureTopReady();
   const tm = state.topMove;
   if (!tm) return;
   const { word, row, col, dir, blanks } = tm.move;
@@ -1908,6 +1917,7 @@ function revealTop() {
     flashFeedback("error", "Partie non démarrée", "Appuie sur ✓ ou « Démarrer » pour lancer la partie.");
     return;
   }
+  ensureTopReady();
   if (!state.topMove) return;
   state.chronoPenalty += 20;
   // Évaluer le pending courant
@@ -2142,10 +2152,15 @@ function nextMove() {
   renderRack();
   renderBoard();
   renderBag();           // afficher le sac dès le nouveau tirage (entraînement)
-  computeTop();
   startMoveTimer();
   showLastTopFeedback();
   ensureCursorOnFreeCell();
+  // Calcul du top DIFFÉRÉ : en entraînement findTopRanked est coûteux et bloquait
+  // le rendu → on laisse le navigateur peindre le nouveau coup AVANT de chercher
+  // (supprime la latence ressentie quand on enchaîne après avoir trouvé le top).
+  // validate() force le calcul si le joueur valide avant que ce minuteur ne tourne.
+  state._topPending = true;
+  setTimeout(() => { if (state._topPending) { computeTop(); state._topPending = false; } }, 0);
 }
 
 // Garde le curseur sur le plateau et sur une case libre après l'avancement
