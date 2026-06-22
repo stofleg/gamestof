@@ -57,7 +57,7 @@ const TOURNAMENT_ID = URL_PARAMS.get("tid");  // ID du tournoi pour le retour
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v190";
+const BUILD_VERSION = "garenna-v191";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -1658,21 +1658,26 @@ function flashInvalidWord(detail, invalidCells) {
   const fb = $("#feedback");
   const prevHTML = fb.innerHTML, prevClass = fb.className, prevHidden = fb.hidden;
 
-  // Nettoyer IMMÉDIATEMENT les tuiles posées et replacer le curseur au départ :
-  // pas de latence, le curseur est tout de suite actif et déplaçable.
+  // 1) SURBRILLANCE ROUGE du/des mot(s) fautif(s) : on colore les cases
+  //    réellement invalides (mot principal + raccords), repli sur les tuiles
+  //    posées si non fourni. Les tuiles restent visibles le temps du flash.
+  state.invalidCells = (invalidCells && invalidCells.length) ? invalidCells : [];
+  if (!state.invalidCells.length) state.pending.forEach(p => p.invalid = true);
   clearTimeout(state._errorTimeout);
   clearTimeout(state._flashTimer);
-  state.invalidCells = [];
-  clearPending();
-  if (startCell) state.cursor = { row: startCell.row, col: startCell.col, dir };
-  renderRack();
   renderBoard();
-
-  // Message d'erreur (n'empêche pas de bouger le curseur ni de retaper).
   showFeedback("error", "Coup invalide", detail);
 
-  // Après un court instant : afficher le meilleur essai, sinon restaurer le repère.
+  // 2) Après un court flash : on retire les tuiles, on replace le curseur au
+  //    DÉPART de la saisie (reprise immédiate), et on affiche le meilleur essai
+  //    ou on restaure le repère précédent.
   state._flashTimer = setTimeout(() => {
+    state.pending.forEach(p => delete p.invalid);
+    state.invalidCells = [];
+    clearPending();
+    if (startCell) state.cursor = { row: startCell.row, col: startCell.col, dir };
+    renderRack();
+    renderBoard();
     const best = state.bestAttempt;
     if (best) {
       showFeedback("miss",
@@ -1682,7 +1687,7 @@ function flashInvalidWord(detail, invalidCells) {
       fb.className = prevClass;
       fb.hidden = prevHidden;
     }
-  }, 1500);
+  }, 900);
 }
 
 function buildMoveFromPending() {
