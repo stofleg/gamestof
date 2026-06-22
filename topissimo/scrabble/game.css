@@ -491,8 +491,6 @@ body.theme-duplijeu .board tr:last-child td.coord { height: calc(var(--cell-size
   pointer-events: none;
   border: 4px solid var(--petrol);
   border-radius: 4px;
-  /* liseré clair extérieur pour rester visible même sur les cases foncées */
-  box-shadow: 0 0 0 1.5px rgba(255,255,255,.55), 0 2px 6px rgba(0,0,0,.3);
 }
 
 /* ===== Badge de score live (au-dessus de la dernière lettre du mot) ===== */
