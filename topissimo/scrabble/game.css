@@ -396,8 +396,9 @@ body.theme-duplijeu .board td .tile {
   z-index: 8;
 }
 body.theme-duplijeu .tile .val {
-  opacity: .85;
-  font-weight: 700;
+  opacity: .8;
+  font-family: 'Inter', system-ui, sans-serif;
+  font-weight: 300;
 }
 body.theme-duplijeu .board td .tile.pending {
   background: linear-gradient(135deg, #e0f5e0, var(--tile-pending) 50%, var(--tile-pending-2));
@@ -582,8 +583,10 @@ body.theme-duplijeu .board tr:last-child td.coord { height: calc(var(--cell-size
   bottom: 1px;
   right: 3px;
   font-size: .42em;
-  font-weight: 300;   /* chiffre en maigre */
-  opacity: .8;
+  /* Chiffre en typo fine (sans-serif léger) pour faire ressortir la lettre. */
+  font-family: 'Inter', system-ui, sans-serif;
+  font-weight: 300;
+  opacity: .75;
 }
 /* Joker posé : la lettre s'affiche EN ROUGE pour rappeler que c'est un joker.
    !important pour battre les overrides de thème (ex. DupliJeu fixe color: #111). */
@@ -701,7 +704,15 @@ input:disabled, select:disabled {
   overflow: hidden;
 }
 .feedback.success { background: #e6f5d8; color: #2c7a3b; border-left-color: #2c7a3b; }
-.feedback.miss    { background: #fff4d6; color: #8a6a1f; border-left-color: var(--tile-bg-2); }
+/* Mot joué : orange vif "pêche" qui saute aux yeux (on repère son top d'un coup). */
+.feedback.miss    {
+  background: linear-gradient(135deg, #ff9a4d 0%, #ff7a1a 55%, #f5600a 100%);
+  color: #fff;
+  border-left-color: #c24800;
+  box-shadow: 0 3px 16px rgba(255,106,0,.5);
+}
+.feedback.miss .title { color: #fff; }
+.feedback.miss a { color: #fff; text-decoration: underline; }
 .feedback.error   { background: #ffe7e7; color: #a02525; border-left-color: #a02525; }
 
 .feedback .title {
