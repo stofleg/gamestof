@@ -57,7 +57,7 @@ const TOURNAMENT_ID = URL_PARAMS.get("tid");  // ID du tournoi pour le retour
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v179";
+const BUILD_VERSION = "garenna-v180";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -309,6 +309,10 @@ function renderBoard() {
   const isMobile = window.matchMedia && window.matchMedia("(max-width: 700px)").matches;
   const showCoords = state.settings.showCoords && !isMobile;
   document.body.classList.toggle("show-coords", showCoords);
+  // Contour du mot top : on calcule la direction et les extrémités pour ne poser
+  // le cadre bleu nuit que sur le PÉRIMÈTRE du mot (pas autour de chaque jeton).
+  const _tw = (state.settings.highlightTop !== false) ? (state.lastTopCells || []) : [];
+  const _twDir = _tw.length <= 1 ? "S" : (_tw[0].row === _tw[1].row ? "H" : "V");
   let html = "<table>";
   if (showCoords) {
     html += `<tr><td class="coord corner"></td>`;
@@ -325,8 +329,15 @@ function renderBoard() {
       if (tile) cls.push("has-tile");
       const isCursor = state.cursor && state.cursor.row === r && state.cursor.col === c;
       if (isCursor) cls.push("cursor", state.cursor.dir === "H" ? "dir-h" : "dir-v");
-      if (state.lastPlaced.some(p => p.row === r && p.col === c)) cls.push("last-placed");
-      if (state.settings.highlightTop !== false && state.lastTopCells.some(p => p.row === r && p.col === c)) cls.push("top-word");
+      // Cadre du mot top (sur le périmètre uniquement).
+      if (_tw.length) {
+        const idx = _tw.findIndex(p => p.row === r && p.col === c);
+        if (idx >= 0) {
+          if (_twDir === "H") { cls.push("tw-t", "tw-b"); if (idx === 0) cls.push("tw-l"); if (idx === _tw.length - 1) cls.push("tw-r"); }
+          else if (_twDir === "V") { cls.push("tw-l", "tw-r"); if (idx === 0) cls.push("tw-t"); if (idx === _tw.length - 1) cls.push("tw-b"); }
+          else { cls.push("tw-t", "tw-b", "tw-l", "tw-r"); }
+        }
+      }
       const isInvalidCell = state.invalidCells && state.invalidCells.some(p => p.r === r && p.c === c);
       let tileHtmlStr = "";
       if (tile) {
@@ -956,9 +967,20 @@ function escapeHtmlS(s) {
 // ============================================================
 //  Curseur & frappe
 // ============================================================
+// Efface le contour du mot top (persistant). Appelé dès que le joueur clique
+// sur la grille → le contour reste affiché tant qu'il n'a pas cliqué.
+function clearTopHighlight() {
+  if (state.lastTopCells && state.lastTopCells.length) {
+    state.lastTopCells = [];
+    state.lastPlaced = [];
+    renderBoard();
+  }
+}
+
 function handleBoardClick(r, c) {
   if (review.active) return;
   if (state.annotTool) { annotateCell(r, c); return; }
+  clearTopHighlight();   // tout clic sur la grille efface le contour du top
   if (state.board[r][c]) return;
   // Si on a des tuiles en cours de pose et qu'on clique en dehors, on les renvoie
   // sur le chevalet (annule la saisie) puis on repositionne le curseur.
@@ -1669,17 +1691,13 @@ function placeTopAndAdvance(playerScore, playedWord = null, playedScore = null, 
     }
   }
   state.lastPlaced = lastPlaced;
-  // Toutes les cases du mot (nouvelles + préexistantes) pour la surbrillance dorée
+  // Toutes les cases du mot top, pour dessiner le contour bleu nuit.
   state.lastTopCells = Array.from({ length: word.length }, (_, i) => ({
     row: row + i * dr, col: col + i * dc,
   }));
-  // Effacer la surbrillance après 3 secondes
-  if (topWordTimer) clearTimeout(topWordTimer);
-  topWordTimer = setTimeout(() => {
-    topWordTimer = null;
-    state.lastTopCells = [];
-    renderBoard();
-  }, 1500);
+  // Le contour du top PERSISTE jusqu'à ce que le joueur clique sur la grille
+  // (cf. clearTopHighlight()). Plus d'effacement automatique au bout de 1,5 s.
+  if (topWordTimer) { clearTimeout(topWordTimer); topWordTimer = null; }
 
   // Appliquer le top au plateau
   state.board = applyMove(state.board, tm.move);

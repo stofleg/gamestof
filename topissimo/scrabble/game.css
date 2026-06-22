@@ -477,13 +477,14 @@ body.theme-duplijeu .board tr:last-child td.coord { height: calc(var(--cell-size
   border-color: #8a3cb5;
 }
 
-/* ===== Mot top retenu : surbrillance dorée de toutes les cases du mot ===== */
-.board td.top-word .tile {
-  background: var(--petrol);
-  color: #fff;
-}
-.board td.top-word .tile .val { color: rgba(255,255,255,.6); }
-.board td.top-word .tile.blank { background: var(--petrol-2); }
+/* ===== Mot top retenu : contour bleu nuit autour du MOT (pas par jeton) =====
+   Les lettres restent normales ; on dessine un cadre épais (2,5 px) seulement
+   sur le PÉRIMÈTRE du mot (les classes tw-t/b/l/r sont posées par renderBoard
+   sur les bonnes faces des cases de début/fin/bord). */
+.board td.tw-t { border-top:    2.5px solid var(--petrol) !important; }
+.board td.tw-b { border-bottom: 2.5px solid var(--petrol) !important; }
+.board td.tw-l { border-left:   2.5px solid var(--petrol) !important; }
+.board td.tw-r { border-right:  2.5px solid var(--petrol) !important; }
 
 /* ===== Badge de score live (au-dessus de la dernière lettre du mot) ===== */
 /* Badge de score live : texte centré dans la case, sans fond propre
@@ -579,7 +580,7 @@ body.theme-duplijeu .board tr:last-child td.coord { height: calc(var(--cell-size
   bottom: 1px;
   right: 3px;
   font-size: .42em;
-  font-weight: 600;
+  font-weight: 300;   /* chiffre en maigre */
   opacity: .8;
 }
 /* Joker posé : la lettre s'affiche EN ROUGE pour rappeler que c'est un joker.
@@ -611,7 +612,7 @@ input:disabled, select:disabled {
 .board td .tile {
   width: 100%;
   height: 100%;
-  font-size: calc(var(--cell-size) * 0.55);
+  font-size: calc(var(--cell-size) * 0.633);   /* lettre +15% */
   border-radius: 0;
   border: none;
 }
@@ -648,7 +649,7 @@ input:disabled, select:disabled {
 .rack .tile {
   width: var(--cell-size);
   height: calc(var(--cell-size) * 1.1);
-  font-size: calc(var(--cell-size) * 0.62);
+  font-size: calc(var(--cell-size) * 0.713);   /* lettre +15% */
   transition: transform .15s ease, opacity .15s ease;
 }
 .rack .tile.used {
