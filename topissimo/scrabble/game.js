@@ -57,7 +57,7 @@ const TOURNAMENT_ID = URL_PARAMS.get("tid");  // ID du tournoi pour le retour
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v181";
+const BUILD_VERSION = "garenna-v182";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -1942,6 +1942,11 @@ function showLastTopFeedback() {
 //  Boucle de jeu : tirage + calcul top
 // ============================================================
 function nextMove() {
+  // Nouveau tirage → on lève l'override manuel d'ordre : si le réglage
+  // « Trier le chevalet (A→Z) » est actif, le nouveau chevalet se range à
+  // nouveau automatiquement (sinon un seul déplacement manuel désactivait le
+  // tri alpha pour tout le reste de la partie).
+  state._tempUnsorted = false;
   // ===== Mode partie pré-tirée : lecture de partition =====
   // INVARIANT : en mode pré-tiré, l'état de la partie est 100 % déterminé
   // par les données stockées. À chaque coup :
