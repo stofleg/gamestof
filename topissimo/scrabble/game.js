@@ -57,7 +57,7 @@ const TOURNAMENT_ID = URL_PARAMS.get("tid");  // ID du tournoi pour le retour
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v185";
+const BUILD_VERSION = "garenna-v186";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -1235,12 +1235,14 @@ function onCellTouchEnd(e, r, c) {
     // Swipe → : curseur en horizontal, départ = case touchée au début
     e.preventDefault();
     if (state.pending.length > 0) { clearPending(); renderRack(); }
+    state.lastTopCells = []; state.lastPlaced = [];   // interaction grille → efface le cadre top
     state.cursor = { row: start.r, col: start.c, dir: "H" };
     renderBoard();
   } else if (ady > adx && dy > 0) {
     // Swipe ↓ : curseur en vertical
     e.preventDefault();
     if (state.pending.length > 0) { clearPending(); renderRack(); }
+    state.lastTopCells = []; state.lastPlaced = [];   // interaction grille → efface le cadre top
     state.cursor = { row: start.r, col: start.c, dir: "V" };
     renderBoard();
   }
