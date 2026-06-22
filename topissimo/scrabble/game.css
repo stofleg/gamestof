@@ -586,7 +586,8 @@ body.theme-duplijeu .board tr:last-child td.coord { height: calc(var(--cell-size
   position: absolute;
   bottom: 1px;
   right: 3px;
-  font-size: .42em;
+  /* Ratio chiffre/lettre commun au chevalet ET au plateau (chevalet = référence). */
+  font-size: .294em;
   /* Chiffre en typo fine (sans-serif léger) pour faire ressortir la lettre. */
   font-family: 'Inter', system-ui, sans-serif;
   font-weight: 300;
@@ -621,7 +622,7 @@ input:disabled, select:disabled {
 .board td .tile {
   width: 100%;
   height: 100%;
-  font-size: calc(var(--cell-size) * 0.728);   /* lettre grossie (+15%) */
+  font-size: calc(var(--cell-size) * 0.784);   /* IDENTIQUE au chevalet (référence) */
   border-radius: 0;
   border: none;
 }
@@ -658,11 +659,9 @@ input:disabled, select:disabled {
 .rack .tile {
   width: var(--cell-size);
   height: calc(var(--cell-size) * 1.1);
-  font-size: calc(var(--cell-size) * 0.713);   /* lettre +15% */
+  font-size: calc(var(--cell-size) * 0.784);   /* lettre +10% (chevalet = référence) */
   transition: transform .15s ease, opacity .15s ease;
 }
-/* Chiffres (valeur) des jetons du CHEVALET uniquement : réduits de 30%. */
-.rack .tile .val { font-size: .294em; }
 .rack .tile.used {
   opacity: .25;
   transform: translateY(4px);
