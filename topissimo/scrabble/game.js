@@ -57,7 +57,7 @@ const TOURNAMENT_ID = URL_PARAMS.get("tid");  // ID du tournoi pour le retour
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v182";
+const BUILD_VERSION = "garenna-v183";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -3756,15 +3756,29 @@ if (_btnVal) _btnVal.onclick = () => {
   if (!state.started) startGame();
   else validate();
 };
-// Annulation tactile (bouton ✕ rouge, mobile) : renvoie les tuiles en cours au
-// chevalet. Sur mobile, le clic sur la grille ne le fait plus (évite les
-// annulations accidentelles) → ce bouton est le SEUL moyen d'annuler la saisie.
+// Annulation tactile (bouton ✕ rouge, mobile) :
+//  • 1 appui  → renvoie les tuiles en cours au chevalet ;
+//  • 2 appuis (double-tap ≤ 350 ms) → range le chevalet dans l'ordre alpha.
+// Sur mobile, le clic sur la grille ne renvoie plus les lettres (évite les
+// annulations accidentelles) → ce bouton est le moyen d'annuler / ranger.
+let _cancelLastTap = 0;
 const _btnCancel = $("#btnCancel");
 if (_btnCancel) _btnCancel.onclick = () => {
-  if (!state.started || !state.pending.length) return;
-  clearPending();
-  renderRack();
-  renderBoard();
+  if (!state.started) return;
+  // Toujours : renvoyer les tuiles en cours (s'il y en a).
+  if (state.pending.length) {
+    clearPending();
+    renderRack();
+    renderBoard();
+  }
+  // Double-tap → tri alpha du chevalet.
+  const now = performance.now();
+  if (now - _cancelLastTap < 350) {
+    _cancelLastTap = 0;
+    restoreRackSort();
+  } else {
+    _cancelLastTap = now;
+  }
 };
 $("#btnAbandon").onclick = () => {
   if (!state.started || state.chronoFinal != null) return;
