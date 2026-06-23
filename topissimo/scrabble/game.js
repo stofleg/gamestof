@@ -57,7 +57,7 @@ const TOURNAMENT_ID = URL_PARAMS.get("tid");  // ID du tournoi pour le retour
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v195";
+const BUILD_VERSION = "garenna-v196";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -309,26 +309,17 @@ function renderBoard() {
   const isMobile = window.matchMedia && window.matchMedia("(max-width: 700px)").matches;
   const showCoords = state.settings.showCoords && !isMobile;
   document.body.classList.toggle("show-coords", showCoords);
-  // Badge de score PROGRESSIF : placé à la SUITE du mot en cours (case juste
-  // après la dernière lettre, dans le sens du mot). Compté au fur et à mesure,
-  // même si le mot n'est pas encore valide (on ignore les erreurs de dico).
-  let badgeCell = null, badgeScore = null, badgeEdge = false;
+  // Étiquette de score PROGRESSIF : petite pastille au coin supérieur droit de la
+  // DERNIÈRE lettre du mot en cours. Comptée au fur et à mesure, même si le mot
+  // n'est pas encore valide (on ignore les erreurs de dico). Ne masque pas le curseur.
+  let badgeCell = null, badgeScore = null;
   if (state.pending.length > 0) {
     const mv = buildMoveFromPending();
     if (mv) {
       const r0 = scoreMove(state.board, mv, null, { bonuses: currentMode().bonuses });
       badgeScore = r0.score;
       const dr = mv.dir === "V" ? 1 : 0, dc = mv.dir === "H" ? 1 : 0;
-      const afterR = mv.row + mv.word.length * dr;
-      const afterC = mv.col + mv.word.length * dc;
-      if (afterR >= 0 && afterR < BOARD_SIZE && afterC >= 0 && afterC < BOARD_SIZE) {
-        badgeCell = { r: afterR, c: afterC };
-      } else {
-        // Bord de grille : pas de case après → on pose le badge sur la dernière
-        // lettre, décalé vers l'extérieur (classe .badge-edge) pour rester lisible.
-        badgeCell = { r: mv.row + (mv.word.length - 1) * dr, c: mv.col + (mv.word.length - 1) * dc };
-        badgeEdge = true;
-      }
+      badgeCell = { r: mv.row + (mv.word.length - 1) * dr, c: mv.col + (mv.word.length - 1) * dc };
     }
   }
   let html = "<table>";
@@ -362,7 +353,7 @@ function renderBoard() {
       // Badge de score progressif : dans la case calculée (après le mot).
       let badge = "";
       if (badgeCell && badgeCell.r === r && badgeCell.c === c && badgeScore != null) {
-        badge = `<span class="score-badge${badgeEdge ? " badge-edge" : ""}">${badgeScore}</span>`;
+        badge = `<span class="score-badge">${badgeScore}</span>`;
       }
       const annot = renderAnnotations(r, c);
       html += `<td class="${cls.join(" ")}" data-r="${r}" data-c="${c}">${tileHtmlStr}${badge}${annot}</td>`;
