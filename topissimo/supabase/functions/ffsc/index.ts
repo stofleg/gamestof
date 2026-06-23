@@ -233,6 +233,45 @@ function parseRouteSheet(html: string, numero: number) {
   return { player, table, serie, total, topTotal, tablesByPartie, coups };
 }
 
+// ---------- FISF : palmarès d'un joueur (fiche details) ----------
+// Les lignes du tableau Fabrik rendu : <tr id="list_25_com_fabrik_25_row_NNN">
+// avec des <td class="tic_result_epreuve___CHAMP ...">valeur</td>.
+function parseFisfPalmares(html: string) {
+  const nm = /<h2>\s*([^<]+?)\s*<\/h2>/.exec(html);
+  const player = nm ? nm[1].replace(/\s+/g, " ").trim() : "";
+
+  const tournois: any[] = [];
+  const seen = new Set<number>();
+  const rowRe = /<tr id="list_25_com_fabrik_25_row_\d+"[^>]*>([\s\S]*?)<\/tr>/g;
+  let r;
+  while ((r = rowRe.exec(html))) {
+    const row = r[1];
+    const ep = /\/duplicate-epreuves\/details\/21\/(\d+)\.html">([\s\S]*?)<\/a>/.exec(row);
+    if (!ep) continue;
+    const fisfId = +ep[1];
+    if (seen.has(fisfId)) continue;
+    seen.add(fisfId);
+    const date = (/dateEpreuve[^"]*"\s*>\s*([0-3]?\d-[01]?\d-\d{4})/.exec(row) || [])[1] || "";
+    const place = (/___iPlace[^"]*"\s*>\s*(\d+)/.exec(row) || [])[1];
+    const neg = (/___iScore0[^"]*"\s*>\s*(-?\d+)/.exec(row) || [])[1];
+    const serie = (/___Serie[^"]*"\s*>\s*([0-9][A-Z]?)/.exec(row) || [])[1] || "";
+    const y = date ? +date.slice(6) : null;
+    const mo = date ? +date.slice(3, 5) : 0;
+    const saisonStart = y ? (mo >= 9 ? y : y - 1) : null;
+    tournois.push({
+      fisfId,
+      name: htmlText(ep[2]).replace(/\s+/g, " ").trim(),
+      date,
+      year: saisonStart,
+      saison: saisonStart ? `${saisonStart}-${saisonStart + 1}` : "",
+      place: place != null ? +place : null,
+      neg: neg != null ? +neg : null,
+      serie,
+    });
+  }
+  return { player, tournois };
+}
+
 // ---------- Page des scores : table ↔ joueur ----------
 function normName(s: string): string {
   return s.normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase().replace(/\s+/g, " ").trim();
@@ -330,6 +369,27 @@ export default {
       return new Response(txt, { headers: { ...CORS, "Content-Type": "text/plain; charset=utf-8" } });
     }
 
+    // FISF : palmarès d'un joueur (par n° de licence) → JSON.
+    // ?action=fisf&licence=2231415  (pays=11 par défaut = France)
+    if (action === "fisf") {
+      const licence = url.searchParams.get("licence");
+      const pays = url.searchParams.get("pays") || "11";
+      if (!licence) return json({ error: "licence requise" }, 400);
+      const enc = encodeURIComponent;
+      const base = `joueurs/details/${enc(pays)}/${enc(licence)}.html`;
+      // Le tableau est paginé (50/page). On récupère les 2 premières pages
+      // (≈100 tournois, largement suffisant) et on fusionne.
+      const [h1, h2] = await Promise.all([
+        fetchFisf(base),
+        fetchFisf(`${base}?limitstart25=50`).catch(() => ""),
+      ]);
+      const p1 = parseFisfPalmares(h1);
+      const p2 = h2 ? parseFisfPalmares(h2) : { player: "", tournois: [] };
+      const seen = new Set(p1.tournois.map((t: any) => t.fisfId));
+      for (const t of p2.tournois) if (!seen.has(t.fisfId)) p1.tournois.push(t);
+      return json({ player: p1.player, licence, tournois: p1.tournois });
+    }
+
     // FISF : palmarès brut d'un joueur (DEBUG, le temps d'écrire le parseur).
     // ?action=fisf_raw&licence=2231415  → HTML de la fiche FISF
     // ?action=fisf_raw&path=...          → autre page fisf (restreint au domaine)
@@ -343,7 +403,7 @@ export default {
       return new Response(txt, { headers: { ...CORS, "Content-Type": "text/plain; charset=utf-8" } });
     }
 
-    return json({ error: "action inconnue", actions: ["tournois", "partie", "route", "import", "raw", "fisf_raw"] }, 400);
+    return json({ error: "action inconnue", actions: ["tournois", "partie", "route", "import", "raw", "fisf", "fisf_raw"] }, 400);
   } catch (e) {
     return json({ error: String((e as Error).message || e) }, 502);
   }
