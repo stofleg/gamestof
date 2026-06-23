@@ -165,6 +165,14 @@ function parseTournois(html: string) {
     seen.add(id);
     out.push({ id, name, year: currentYear });
   }
+  // Repli : pour les tournois sans année (section « à la une » non répétée),
+  // tenter de déduire l'année d'un « 20xx » présent dans l'id ou le nom.
+  for (const t of out) {
+    if (t.year == null) {
+      const g = /20\d{2}/.exec(t.id) || /20\d{2}/.exec(t.name);
+      if (g) t.year = +g[0];
+    }
+  }
   return out;
 }
 
