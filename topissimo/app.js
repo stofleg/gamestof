@@ -290,7 +290,9 @@ function fmtSec(s) {
 // ============================================================
 //  Tournois personnels — import FFSC (en direct) via Edge Function
 // ============================================================
-const FFSC_FN = `${window.SUPABASE_URL}/functions/v1/ffsc`;
+// NB : le slug d'URL d'une Edge Function est figé à la création ; renommer
+// l'affichage en « ffsc » ne change pas l'URL, qui reste « smart-worker ».
+const FFSC_FN = `${window.SUPABASE_URL}/functions/v1/smart-worker`;
 let _ffscTournois = [];   // cache de la liste { id, name, year }
 
 async function ffscCall(action, params = {}) {
