@@ -219,7 +219,10 @@ export function scoreMove(board, move, dict, opts = {}) {
     }
   }
 
-  if (errors.length) return { score: 0, words: wordStrings, errors, invalidCells };
+  // En mode `raw` (badge de score progressif), on calcule quand même le total
+  // des points malgré une erreur de placement (1er coup pas encore sur le centre,
+  // mot pas encore raccordé…) → le score s'affiche au fur et à mesure.
+  if (errors.length && !opts.raw) return { score: 0, words: wordStrings, errors, invalidCells };
 
   // 6) Calcul du score
   const placedSet = new Set(placed.map(p => `${p.r},${p.c}`));
@@ -250,7 +253,7 @@ export function scoreMove(board, move, dict, opts = {}) {
   // Bonus scrabble (variable selon mode : 7→50, 8→75, 9→100, etc.)
   if (bonuses[placed.length]) totalScore += bonuses[placed.length];
 
-  return { score: totalScore, words: wordDetails, errors: [], placed };
+  return { score: totalScore, words: wordDetails, errors, placed };
 }
 
 // Applique un coup au plateau (renvoie un nouveau plateau)
