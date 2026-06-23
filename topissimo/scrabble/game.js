@@ -27,9 +27,9 @@ import {
   emptyBoard, BOARD_BONUSES, BOARD_SIZE, CENTER, LETTER_VALUE, LETTER_BAG,
   VOWELS, drawForDuplicate, scoreMove, applyMove,
   bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName,
-} from "./engine.js?v=211";
-import { Dictionary } from "./dictionary.js?v=211";
-import { findTop, findTopRanked } from "./topfinder.js?v=211";
+} from "./engine.js?v=212";
+import { Dictionary } from "./dictionary.js?v=212";
+import { findTop, findTopRanked } from "./topfinder.js?v=212";
 
 // État du mode review (parcours coup par coup)
 const review = {
@@ -59,7 +59,7 @@ const FFSC_REVIEW = URL_PARAMS.get("ffscreview");  // revoir une partie FFSC imp
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v211";
+const BUILD_VERSION = "garenna-v212";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -2665,8 +2665,10 @@ async function enterTrainingReviewMode(id) {
 function enterFfscReviewMode() {
   const raw = sessionStorage.getItem("ffscReview");
   if (!raw) throw new Error("Aucune partie à afficher (relance l'import).");
-  const { player, serie, tournoi, partie } = JSON.parse(raw);
+  const { player, serie, tournoi, tournoiId, partie } = JSON.parse(raw);
   if (!partie || !partie.moves) throw new Error("Données de partie incomplètes.");
+  // Clé stable de persistance des saisies (id tournoi + n° partie).
+  review._ffscKey = `${tournoiId || tournoi || "x"}:${partie.numero}`;
 
   const fakeGame = {
     id: null,
@@ -2686,7 +2688,8 @@ function enterFfscReviewMode() {
   // Feuille de route → "ce que tu as joué" par coup.
   review.historyByMove = {};
   review.game = fakeGame;           // requis pour la clé de sauvegarde des picks
-  loadReviewPicks();                // restaure les sélections « mon coup » de la session
+  loadReviewPicks();                // restaure les sélections de la session (rapide)
+  loadPicksRemote();                // puis écrase avec la sauvegarde permanente (profil)
   const hist = [];
   for (const c of (partie.coups || [])) {
     const h = {
@@ -2888,14 +2891,46 @@ function renderReviewPlayed(m) {
 }
 
 function reviewPickKey() {
-  return "ffscReviewPicks:" + (review.game?.id || review.game?.name || "x");
+  return "ffscReviewPicks:" + (review._ffscKey || review.game?.id || review.game?.name || "x");
 }
 function persistReviewPicks() {
   try { sessionStorage.setItem(reviewPickKey(), JSON.stringify(review.userPicks || {})); } catch (e) {}
+  if (review._ffscKey) scheduleSavePicksRemote();   // sauvegarde permanente (profil)
 }
 function loadReviewPicks() {
   try { review.userPicks = JSON.parse(sessionStorage.getItem(reviewPickKey()) || "{}") || {}; }
   catch (e) { review.userPicks = {}; }
+}
+
+// Persistance permanente des saisies dans players.settings.ffscPicks[clé].
+let _savePicksTimer = null;
+function scheduleSavePicksRemote() {
+  clearTimeout(_savePicksTimer);
+  _savePicksTimer = setTimeout(() => { savePicksRemote().catch(() => {}); }, 800);
+}
+async function savePicksRemote() {
+  const pid = +(localStorage.getItem("currentPlayerId") || 0);
+  if (!pid || !review._ffscKey) return;
+  if (!window._sb) await loadSupabaseClient();
+  const { data } = await window._sb.from("players").select("settings").eq("id", pid).maybeSingle();
+  const settings = (data && data.settings) || {};
+  settings.ffscPicks = settings.ffscPicks || {};
+  settings.ffscPicks[review._ffscKey] = review.userPicks || {};
+  await window._sb.from("players").update({ settings }).eq("id", pid);
+}
+async function loadPicksRemote() {
+  const pid = +(localStorage.getItem("currentPlayerId") || 0);
+  if (!pid || !review._ffscKey) return;
+  try {
+    if (!window._sb) await loadSupabaseClient();
+    const { data } = await window._sb.from("players").select("settings").eq("id", pid).maybeSingle();
+    const stored = data && data.settings && data.settings.ffscPicks && data.settings.ffscPicks[review._ffscKey];
+    if (stored && Object.keys(stored).length) {
+      review.userPicks = stored;
+      sessionStorage.setItem(reviewPickKey(), JSON.stringify(stored));
+      if (review.active) renderReviewStep();
+    }
+  } catch (e) { /* silencieux */ }
 }
 
 window.setReviewMyMove = function(i) {

@@ -174,7 +174,7 @@ let myGamesSort = {
 async function loadMyGames() {
   if (!state.currentPlayerId) return;
   const pid = +state.currentPlayerId;
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=211");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=212");
 
   // Tournoi : prepared_game_results jointes avec prepared_games
   const { data: tour } = await sb.from("prepared_game_results")
@@ -469,6 +469,7 @@ window.importFfscTournoi = async function(tournoiId, btn, displayName) {
     } else if (displayName && !data.tournoi) {
       data.tournoi = displayName;
     }
+    data._id = String(tournoiId);   // id stable du tournoi (clé de persistance)
     renderFfscParties(data);
   } catch (e) {
     status.textContent = `❌ ${e.message}`;
@@ -537,7 +538,8 @@ window.reviewFfscPartie = function(idx) {
   if (!data || !data.parties || !data.parties[idx]) return;
   const partie = data.parties[idx];
   sessionStorage.setItem("ffscReview", JSON.stringify({
-    player: data.player, serie: data.serie, tournoi: data.tournoi, partie,
+    player: data.player, serie: data.serie, tournoi: data.tournoi,
+    tournoiId: data._id || null, partie,
   }));
   location.href = `scrabble/game.html?ffscreview=1`;
 };
@@ -735,7 +737,7 @@ async function loadMyStats() {
   const pid = +state.currentPlayerId;
 
   body.innerHTML = `<p class="muted">⏳ Calcul…</p>`;
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=211");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=212");
 
   // 1) Toutes mes parties tournoi (avec détails)
   const { data: tour } = await sb.from("prepared_game_results")
@@ -1487,7 +1489,7 @@ async function loadTournamentDetail(tournamentId) {
     });
   }
 
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=211");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=212");
   const btnStyle = "text-decoration:none;padding:5px 10px;border-radius:6px;font-weight:600;font-size:.85rem";
   const admin = isAdmin();
   $("#pgBody").innerHTML = (games || []).length === 0
@@ -1977,7 +1979,7 @@ async function loadTournamentStats(tournamentId, games) {
   // On détermine « le top est un scrabble » en REjouant le plateau coup par coup
   // (nombre de NOUVELLES tuiles posées par le top == clé de prime du mode), ce qui
   // est fiable même sur d'anciennes parties (le hadBonus stocké est non fiable).
-  const { emptyBoard, applyMove, GAME_MODES } = await import("./scrabble/engine.js?v=211");
+  const { emptyBoard, applyMove, GAME_MODES } = await import("./scrabble/engine.js?v=212");
   const gameById = {};
   for (const g of games) gameById[g.id] = g;
   const bonusesOf = (gid) => (GAME_MODES[gameById[gid]?.mode] || GAME_MODES.duplicate).bonuses || { 7: 50 };
@@ -2071,7 +2073,7 @@ $("#tCreate").onclick = async () => {
 
 // Quand on change de mode, mettre à jour le temps/coup par défaut
 $("#pgMode").addEventListener("change", async () => {
-  const { GAME_MODES } = await import("./scrabble/engine.js?v=211");
+  const { GAME_MODES } = await import("./scrabble/engine.js?v=212");
   const m = GAME_MODES[$("#pgMode").value];
   if (m) $("#pgTime").value = m.defaultTime;
 });
@@ -2098,8 +2100,8 @@ $("#pgCreate").onclick = async () => {
     let mods;
     try {
       mods = await Promise.all([
-        import("./scrabble/dictionary.js?v=211"),
-        import("./scrabble/generator.js?v=211"),
+        import("./scrabble/dictionary.js?v=212"),
+        import("./scrabble/generator.js?v=212"),
       ]);
     } catch (e) {
       $("#pgStatus").innerHTML = `<span style="color:#a02525">Échec de chargement des modules : ${escapeHtml(e.message)}</span>`;
@@ -2163,7 +2165,7 @@ window.recomputeAllNeg = async function(force = false) {
 
   let recomputeResult;
   try {
-    ({ recomputeResult } = await import("./scrabble/recompute.js?v=211"));
+    ({ recomputeResult } = await import("./scrabble/recompute.js?v=212"));
   } catch (e) {
     statusEl.textContent = "❌ Impossible de charger recompute.js : " + e.message;
     return;
@@ -2357,7 +2359,7 @@ window.recomputeAllJokerNeg = async function() {
 
   let recomputeResult;
   try {
-    ({ recomputeResult } = await import("./scrabble/recompute.js?v=211"));
+    ({ recomputeResult } = await import("./scrabble/recompute.js?v=212"));
   } catch (e) {
     statusEl.textContent = "❌ Impossible de charger recompute.js : " + e.message;
     return;
