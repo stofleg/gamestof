@@ -1427,6 +1427,8 @@ body.in-review .review-solutions {
 .review-solutions tr.is-played td { color: #d6740b; font-weight: 700; }
 .review-solutions tr:hover td { background: var(--cream); }
 .review-solutions tr.selected td { background: #e0eaff; box-shadow: inset 3px 0 0 #4a6bff; }
+.review-solutions tr.is-mine td { background: #fff3d6; box-shadow: inset 3px 0 0 #e0a52e; }
+.review-solutions .rv-pick-btn { padding: 2px 6px; font-size: .72rem; white-space: nowrap; }
 .review-solutions h4 { margin: 12px 14px 6px; font-size: .85rem; color: #5a6a73; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; }
 
 /* (Plus de tailles fixes : --cell-size gère le responsive sur tous les modes,

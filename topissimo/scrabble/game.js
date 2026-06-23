@@ -27,9 +27,9 @@ import {
   emptyBoard, BOARD_BONUSES, BOARD_SIZE, CENTER, LETTER_VALUE, LETTER_BAG,
   VOWELS, drawForDuplicate, scoreMove, applyMove,
   bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName,
-} from "./engine.js?v=209";
-import { Dictionary } from "./dictionary.js?v=209";
-import { findTop, findTopRanked } from "./topfinder.js?v=209";
+} from "./engine.js?v=210";
+import { Dictionary } from "./dictionary.js?v=210";
+import { findTop, findTopRanked } from "./topfinder.js?v=210";
 
 // État du mode review (parcours coup par coup)
 const review = {
@@ -37,6 +37,7 @@ const review = {
   game: null,           // prepared_games row
   result: null,         // prepared_game_results row (peut être null)
   historyByMove: {},    // moveNo → entrée du joueur
+  userPicks: {},        // moveNo → { word,pos,score } | { zero:true } saisis en Revoir
   step: 1,              // coup courant affiché (1..N)
 };
 
@@ -58,7 +59,7 @@ const FFSC_REVIEW = URL_PARAMS.get("ffscreview");  // revoir une partie FFSC imp
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v209";
+const BUILD_VERSION = "garenna-v210";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -2684,6 +2685,8 @@ function enterFfscReviewMode() {
   };
   // Feuille de route → "ce que tu as joué" par coup.
   review.historyByMove = {};
+  review.game = fakeGame;           // requis pour la clé de sauvegarde des picks
+  loadReviewPicks();                // restaure les sélections « mon coup » de la session
   const hist = [];
   for (const c of (partie.coups || [])) {
     const h = {
@@ -2830,25 +2833,98 @@ function renderReviewStep() {
   if (!replay) {
     // Top joué
     $("#rvTop").innerHTML = `${wLink(m.top.word)} — ${m.top.score} pts en ${posLabelMove(m.top)}`;
-
-    // Mot du joueur
-    const ph = review.historyByMove[m.moveNo];
-    if (ph) {
-      if (ph.played) {
-        $("#rvPlayed").innerHTML = `${wLink(ph.played)} — ${ph.playerScore} pts ${ph.status === "top" ? "🏆" : ph.status === "timeout" ? "⏱" : "🏳️"}`;
-      } else {
-        $("#rvPlayed").textContent = `— (rien joué, ${ph.status})`;
-      }
-      $("#rvNeg").textContent = ph.neg;
-    } else {
-      $("#rvPlayed").textContent = "—";
-      $("#rvNeg").textContent = "—";
-    }
-
+    renderReviewPlayed(m);
     // Autres solutions valides (calcul à la volée)
     renderReviewSolutions(idx);
   }
 }
+
+// ---- Saisie « mon coup » + négatif (sélection dans les solutions / zéro) ----
+// Négatif effectif d'un coup (≤ 0). Priorité à la saisie du joueur, sinon au
+// négatif connu (endirect). null si on ne sait rien.
+function reviewMoveNeg(m) {
+  const pick = review.userPicks?.[m.moveNo];
+  if (pick) {
+    const ps = pick.zero ? 0 : (pick.score || 0);
+    return -Math.max(0, (m.top.score || 0) - ps);
+  }
+  const k = review.historyByMove?.[m.moveNo];
+  if (k && k.neg != null) return k.neg <= 0 ? k.neg : -k.neg;
+  return null;
+}
+
+function renderReviewPlayed(m) {
+  const known = review.historyByMove?.[m.moveNo];
+  const pick = review.userPicks?.[m.moveNo];
+  const playedEl = $("#rvPlayed"), negEl = $("#rvNeg");
+
+  // Ligne « Toi »
+  if (pick) {
+    if (pick.zero) playedEl.innerHTML = `🚫 Zéro (mot refusé) — 0 pt`;
+    else playedEl.innerHTML = `${wLink(pick.word)} — ${pick.score} pts en ${pick.pos} ${pick.score >= (m.top.score || 0) ? "🏆" : ""} <span class="muted">(ma saisie)</span>`;
+  } else if (known && known.played) {
+    playedEl.innerHTML = `${wLink(known.played)} — ${known.playerScore} pts ${known.status === "top" ? "🏆" : known.status === "timeout" ? "⏱" : ""}`;
+  } else if (known && known.status) {
+    playedEl.textContent = `— (rien joué, ${known.status})`;
+  } else {
+    playedEl.innerHTML = `<span class="muted">à compléter (choisis ton coup ci-dessous)</span>`;
+  }
+
+  // Négatif effectif + écart éventuel avec le négatif connu
+  const eff = reviewMoveNeg(m);
+  negEl.textContent = eff != null ? String(eff) : "—";
+  const knownNeg = (known && known.neg != null) ? (known.neg <= 0 ? known.neg : -known.neg) : null;
+  if (pick && knownNeg != null && eff !== knownNeg) {
+    negEl.innerHTML = `${eff} <span style="color:#a02525;font-weight:600">⚠️ écart (connu : ${knownNeg})</span>`;
+  }
+
+  // Cumul (somme des négatifs effectifs connus/saisis)
+  const moves = review.game.moves;
+  let cum = 0, n = 0;
+  for (const mv of moves) { const e = reviewMoveNeg(mv); if (e != null) { cum += e; n++; } }
+  const cumEl = $("#rvCumul");
+  if (cumEl) cumEl.textContent = n ? `Négatif cumulé : ${cum} (${n}/${moves.length} coups)` : "";
+}
+
+function reviewPickKey() {
+  return "ffscReviewPicks:" + (review.game?.id || review.game?.name || "x");
+}
+function persistReviewPicks() {
+  try { sessionStorage.setItem(reviewPickKey(), JSON.stringify(review.userPicks || {})); } catch (e) {}
+}
+function loadReviewPicks() {
+  try { review.userPicks = JSON.parse(sessionStorage.getItem(reviewPickKey()) || "{}") || {}; }
+  catch (e) { review.userPicks = {}; }
+}
+
+window.setReviewMyMove = function(i) {
+  const sol = review._solutions?.[i];
+  const m = review.game.moves[review.step - 1];
+  if (!sol || !m) return;
+  review.userPicks = review.userPicks || {};
+  review.userPicks[m.moveNo] = { word: sol.move.word, pos: posLabelMove(sol.move), score: sol.score, zero: false };
+  persistReviewPicks();
+  previewSolution(i);
+  renderReviewPlayed(m);
+  renderReviewSolutions(review.step - 1);
+};
+window.setReviewZero = function() {
+  const m = review.game.moves[review.step - 1];
+  if (!m) return;
+  review.userPicks = review.userPicks || {};
+  review.userPicks[m.moveNo] = { zero: true, score: 0 };
+  persistReviewPicks();
+  renderReviewPlayed(m);
+  renderReviewSolutions(review.step - 1);
+};
+window.clearReviewPick = function() {
+  const m = review.game.moves[review.step - 1];
+  if (!m || !review.userPicks) return;
+  delete review.userPicks[m.moveNo];
+  persistReviewPicks();
+  renderReviewPlayed(m);
+  renderReviewSolutions(review.step - 1);
+};
 
 function posLabelMove(mv) {
   const letter = "ABCDEFGHIJKLMNO"[mv.row];
@@ -3054,15 +3130,18 @@ function renderReviewSolutions(idx) {
     // Au 1er coup, on ne joue jamais verticalement en duplicate
     if (idx === 0) all = all.filter(s => s.move.dir === "H");
     review._solutions = all.slice(0, 200);
+    const pick = review.userPicks?.[moves[idx].moveNo];
     const rows = review._solutions.map((s, i) => {
       const isTop = s.move.word === topMv.word && s.move.row === topMv.row && s.move.col === topMv.col && s.move.dir === topMv.dir;
       const isPlayed = playedMv && s.move.word === playedMv
         && (!playedPos || posLabelMove(s.move) === playedPos);
-      const cls = isTop ? "is-top" : (isPlayed ? "is-played" : "");
-      return `<tr class="${cls}" data-i="${i}"><td>${wLink(s.move.word)}</td><td>${posLabelMove(s.move)}</td><td>${s.score}</td></tr>`;
+      const isMine = pick && !pick.zero && s.move.word === pick.word && posLabelMove(s.move) === pick.pos;
+      const cls = [isTop ? "is-top" : "", isPlayed ? "is-played" : "", isMine ? "is-mine" : ""].join(" ").trim();
+      return `<tr class="${cls}" data-i="${i}"><td>${wLink(s.move.word)}</td><td>${posLabelMove(s.move)}</td><td>${s.score}</td>` +
+        `<td><button class="btn small rv-pick-btn" title="C'est le mot que j'ai joué" onclick="event.stopPropagation();setReviewMyMove(${i})">${isMine ? "✅" : "C'est mon coup"}</button></td></tr>`;
     }).join("");
     div.innerHTML = `<table>
-      <thead><tr><th>Mot</th><th>Place</th><th>Score</th></tr></thead>
+      <thead><tr><th>Mot</th><th>Place</th><th>Score</th><th></th></tr></thead>
       <tbody>${rows}</tbody>
     </table>`;
     div.querySelectorAll("tr[data-i]").forEach(tr => {
@@ -3089,6 +3168,10 @@ $("#rvFirst").onclick  = () => { review.step = 1; renderReviewStep(); };
 $("#rvPrev").onclick   = () => { review.step--;    renderReviewStep(); };
 $("#rvNext").onclick   = () => { review.step++;    renderReviewStep(); };
 $("#rvLast").onclick   = () => { review.step = review.game?.moves.length || 1; renderReviewStep(); };
+const _rvZero = $("#rvZero");
+if (_rvZero) _rvZero.onclick = () => setReviewZero();
+const _rvClearPick = $("#rvClearPick");
+if (_rvClearPick) _rvClearPick.onclick = () => clearReviewPick();
 const _btnReplay = $("#rvReplay");
 if (_btnReplay) _btnReplay.onclick = () => {
   review.replayMode = !review.replayMode;
