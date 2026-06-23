@@ -40,11 +40,17 @@ async function fetchFfsc(pathAndQuery: string): Promise<string> {
   // UTF-8 (meta charset), l'export TXT (exporter.php) est en Latin-1/Windows-1252.
   // On détecte via l'en-tête, sinon via le meta charset, défaut Windows-1252.
   const buf = await res.arrayBuffer();
-  const ct = (res.headers.get("content-type") || "").toLowerCase();
-  let enc = (/charset=([\w-]+)/.exec(ct) || [])[1] || "";
-  if (!enc) {
-    const head = new TextDecoder("latin1").decode(buf.slice(0, 2048)).toLowerCase();
-    enc = head.includes("charset=utf-8") ? "utf-8" : "windows-1252";
+  let enc: string;
+  if (/exporter\.php/i.test(pathAndQuery)) {
+    // L'export TXT est en Latin-1 (mais parfois déclaré utf-8 à tort) → on force.
+    enc = "windows-1252";
+  } else {
+    const ct = (res.headers.get("content-type") || "").toLowerCase();
+    enc = (/charset=([\w-]+)/.exec(ct) || [])[1] || "";
+    if (!enc) {
+      const head = new TextDecoder("latin1").decode(buf.slice(0, 2048)).toLowerCase();
+      enc = head.includes("charset=utf-8") ? "utf-8" : "windows-1252";
+    }
   }
   try { return new TextDecoder(enc).decode(buf); }
   catch { return new TextDecoder("windows-1252").decode(buf); }
