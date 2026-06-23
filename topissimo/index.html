@@ -14,7 +14,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fraunces:wght@500;600;700;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=201">
+<link rel="stylesheet" href="style.css?v=202">
 </head>
 <body>
 
@@ -216,6 +216,11 @@
       <p class="muted" id="ffscNameStatus" style="margin-top:6px"></p>
     </div>
 
+    <div class="card" id="ffscFavCard" hidden>
+      <h2>⭐ Mes tournois</h2>
+      <div id="ffscFavList" style="display:flex;flex-direction:column;gap:4px;margin-top:8px"></div>
+    </div>
+
     <div class="card">
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
         <h2 style="margin:0;flex:1">📅 Tournois disponibles</h2>
@@ -342,6 +347,6 @@
 
 <script src="config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script src="app.js?v=201"></script>
+<script src="app.js?v=202"></script>
 </body>
 </html>

@@ -174,7 +174,7 @@ let myGamesSort = {
 async function loadMyGames() {
   if (!state.currentPlayerId) return;
   const pid = +state.currentPlayerId;
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=201");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=202");
 
   // Tournoi : prepared_game_results jointes avec prepared_games
   const { data: tour } = await sb.from("prepared_game_results")
@@ -308,23 +308,74 @@ async function ffscCall(action, params = {}) {
 
 function ffscNameKey() { return `ffscName:${state.currentPlayerId || "anon"}`; }
 
+// Préférences joueur stockées dans players.settings (jsonb). On lit/merge pour
+// ne jamais écraser les réglages de jeu (rackPos, colorTheme, etc.).
+function playerSettings() { return (currentPlayer && currentPlayer.settings) || {}; }
+async function patchPlayerSettings(patch) {
+  const merged = { ...playerSettings(), ...patch };
+  if (currentPlayer) currentPlayer.settings = merged;
+  if (state.currentPlayerId) {
+    await sb.from("players").update({ settings: merged }).eq("id", +state.currentPlayerId);
+  }
+}
+function ffscSavedName() {
+  return playerSettings().ffscName || localStorage.getItem(ffscNameKey()) || "";
+}
+function ffscFavs() {
+  const f = playerSettings().ffscTournois;
+  return Array.isArray(f) ? f : [];
+}
+
 window.switchPreparedTab = function(which) {
   $("#ggChallengesPanel").hidden = which !== "garenna";
   $("#ggPersoPanel").hidden = which !== "perso";
   document.querySelectorAll("#preparedSubtabs .subtab")
     .forEach(b => b.classList.toggle("active", b.dataset.ptab === which));
   if (which === "perso") {
-    const saved = localStorage.getItem(ffscNameKey()) || "";
+    const saved = ffscSavedName();
     if (saved && !$("#ffscName").value) $("#ffscName").value = saved;
+    renderFfscFavs();
   }
 };
 
-window.saveFfscName = function() {
+window.saveFfscName = async function() {
   const v = $("#ffscName").value.trim();
   if (!v) { $("#ffscNameStatus").textContent = "Saisis ton nom d'abord."; return; }
   localStorage.setItem(ffscNameKey(), v);
   $("#ffscNameStatus").textContent = `✅ Nom enregistré : ${v}`;
+  try { await patchPlayerSettings({ ffscName: v }); } catch (e) { /* miroir local suffit */ }
 };
+
+// ---- Tournois favoris -------------------------------------------------------
+function isFav(id) { return ffscFavs().some(t => t.id === id); }
+
+window.toggleFfscFav = async function(id, ev) {
+  if (ev) ev.stopPropagation();
+  let favs = ffscFavs();
+  if (favs.some(t => t.id === id)) {
+    favs = favs.filter(t => t.id !== id);
+  } else {
+    const src = _ffscTournois.find(t => t.id === id);
+    favs = [...favs, { id, name: src ? src.name : id, year: src ? src.year : null }];
+  }
+  await patchPlayerSettings({ ffscTournois: favs });
+  renderFfscFavs();
+  renderFfscTournois();
+};
+
+function renderFfscFavs() {
+  const favs = ffscFavs();
+  const card = $("#ffscFavCard"), list = $("#ffscFavList");
+  if (!card) return;
+  card.hidden = favs.length === 0;
+  list.innerHTML = favs.map(t => `
+    <div style="display:flex;align-items:center;gap:6px">
+      <button class="btn ghost small" style="flex:1;text-align:left"
+        onclick="importFfscTournoi('${t.id}', this)">${escapeHtml(t.name)}${t.year ? ` <span class="muted">(${t.year})</span>` : ""}</button>
+      <button class="btn ghost small" title="Retirer des favoris"
+        onclick="toggleFfscFav('${t.id}', event)">✖</button>
+    </div>`).join("");
+}
 
 window.loadFfscTournois = async function() {
   const status = $("#ffscTournoisStatus");
@@ -363,14 +414,18 @@ window.renderFfscTournois = function() {
       <summary style="cursor:pointer;font-weight:700;padding:6px 0">${y} <span class="muted" style="font-weight:400">(${byYear[y].length})</span></summary>
       <div style="display:flex;flex-direction:column;gap:4px;padding:4px 0 4px 12px">
         ${byYear[y].map(t => `
-          <button class="btn ghost small" style="text-align:left"
-            onclick="importFfscTournoi('${t.id}', this)">${escapeHtml(t.name)}</button>`).join("")}
+          <div style="display:flex;align-items:center;gap:6px">
+            <button class="btn ghost small" title="${isFav(t.id) ? "Retirer des favoris" : "Ajouter à mes tournois"}"
+              onclick="toggleFfscFav('${t.id}', event)">${isFav(t.id) ? "⭐" : "☆"}</button>
+            <button class="btn ghost small" style="flex:1;text-align:left"
+              onclick="importFfscTournoi('${t.id}', this)">${escapeHtml(t.name)}</button>
+          </div>`).join("")}
       </div>
     </details>`).join("");
 };
 
 window.importFfscTournoi = async function(tournoiId, btn) {
-  const name = (localStorage.getItem(ffscNameKey()) || $("#ffscName").value || "").trim();
+  const name = (ffscSavedName() || $("#ffscName").value || "").trim();
   if (!name) { alert("Enregistre d'abord ton nom FFSC."); switchPreparedTab("perso"); return; }
   const card = $("#ffscPartiesCard"), status = $("#ffscPartiesStatus");
   card.hidden = false;
@@ -453,7 +508,7 @@ async function loadMyStats() {
   const pid = +state.currentPlayerId;
 
   body.innerHTML = `<p class="muted">⏳ Calcul…</p>`;
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=201");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=202");
 
   // 1) Toutes mes parties tournoi (avec détails)
   const { data: tour } = await sb.from("prepared_game_results")
@@ -1205,7 +1260,7 @@ async function loadTournamentDetail(tournamentId) {
     });
   }
 
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=201");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=202");
   const btnStyle = "text-decoration:none;padding:5px 10px;border-radius:6px;font-weight:600;font-size:.85rem";
   const admin = isAdmin();
   $("#pgBody").innerHTML = (games || []).length === 0
@@ -1695,7 +1750,7 @@ async function loadTournamentStats(tournamentId, games) {
   // On détermine « le top est un scrabble » en REjouant le plateau coup par coup
   // (nombre de NOUVELLES tuiles posées par le top == clé de prime du mode), ce qui
   // est fiable même sur d'anciennes parties (le hadBonus stocké est non fiable).
-  const { emptyBoard, applyMove, GAME_MODES } = await import("./scrabble/engine.js?v=201");
+  const { emptyBoard, applyMove, GAME_MODES } = await import("./scrabble/engine.js?v=202");
   const gameById = {};
   for (const g of games) gameById[g.id] = g;
   const bonusesOf = (gid) => (GAME_MODES[gameById[gid]?.mode] || GAME_MODES.duplicate).bonuses || { 7: 50 };
@@ -1789,7 +1844,7 @@ $("#tCreate").onclick = async () => {
 
 // Quand on change de mode, mettre à jour le temps/coup par défaut
 $("#pgMode").addEventListener("change", async () => {
-  const { GAME_MODES } = await import("./scrabble/engine.js?v=201");
+  const { GAME_MODES } = await import("./scrabble/engine.js?v=202");
   const m = GAME_MODES[$("#pgMode").value];
   if (m) $("#pgTime").value = m.defaultTime;
 });
@@ -1816,8 +1871,8 @@ $("#pgCreate").onclick = async () => {
     let mods;
     try {
       mods = await Promise.all([
-        import("./scrabble/dictionary.js?v=201"),
-        import("./scrabble/generator.js?v=201"),
+        import("./scrabble/dictionary.js?v=202"),
+        import("./scrabble/generator.js?v=202"),
       ]);
     } catch (e) {
       $("#pgStatus").innerHTML = `<span style="color:#a02525">Échec de chargement des modules : ${escapeHtml(e.message)}</span>`;
@@ -1881,7 +1936,7 @@ window.recomputeAllNeg = async function(force = false) {
 
   let recomputeResult;
   try {
-    ({ recomputeResult } = await import("./scrabble/recompute.js?v=201"));
+    ({ recomputeResult } = await import("./scrabble/recompute.js?v=202"));
   } catch (e) {
     statusEl.textContent = "❌ Impossible de charger recompute.js : " + e.message;
     return;
@@ -2075,7 +2130,7 @@ window.recomputeAllJokerNeg = async function() {
 
   let recomputeResult;
   try {
-    ({ recomputeResult } = await import("./scrabble/recompute.js?v=201"));
+    ({ recomputeResult } = await import("./scrabble/recompute.js?v=202"));
   } catch (e) {
     statusEl.textContent = "❌ Impossible de charger recompute.js : " + e.message;
     return;
