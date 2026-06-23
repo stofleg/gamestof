@@ -36,10 +36,18 @@ async function fetchFfsc(pathAndQuery: string): Promise<string> {
   const url = BASE + pathAndQuery.replace(/^\/+/, "");
   const res = await fetch(url, { headers: { "User-Agent": UA } });
   if (!res.ok) throw new Error(`FFSC ${res.status} sur ${url}`);
-  // La FFSC sert en ISO-8859-1 / Windows-1252 → on décode explicitement
-  // (sinon les accents des noms/labels sont cassés).
+  // Encodage VARIABLE selon l'endpoint : les pages HTML (endirect.php) sont en
+  // UTF-8 (meta charset), l'export TXT (exporter.php) est en Latin-1/Windows-1252.
+  // On détecte via l'en-tête, sinon via le meta charset, défaut Windows-1252.
   const buf = await res.arrayBuffer();
-  return new TextDecoder("windows-1252").decode(buf);
+  const ct = (res.headers.get("content-type") || "").toLowerCase();
+  let enc = (/charset=([\w-]+)/.exec(ct) || [])[1] || "";
+  if (!enc) {
+    const head = new TextDecoder("latin1").decode(buf.slice(0, 2048)).toLowerCase();
+    enc = head.includes("charset=utf-8") ? "utf-8" : "windows-1252";
+  }
+  try { return new TextDecoder(enc).decode(buf); }
+  catch { return new TextDecoder("windows-1252").decode(buf); }
 }
 
 // ---------- Parsing de l'export TXT d'une partie ----------
@@ -149,10 +157,12 @@ function htmlText(s: string): string {
 
 function parseRouteSheet(html: string, numero: number) {
   // En-tête : « Feuille de route de NOM Prénom (table 52, série 1B) »
-  const h = /Feuille de route de\s*([^(]+?)\s*\(table\s*(\d+),\s*série\s*([^)]+)\)/i.exec(html);
+  // Tolérant à l'accent (série) et à l'encodage : on capture nom + table, puis
+  // la série (forme « 1B », « 5D ») dans le reste, où qu'elle soit.
+  const h = /Feuille de route de\s*([^(]+?)\s*\(table\s*(\d+)([^)]*)\)/i.exec(html);
   const player = h ? h[1].trim() : "";
   const table = h ? +h[2] : null;
-  const serie = h ? h[3].trim() : "";
+  const serie = h ? ((/(\d[A-Z])/.exec(h[3]) || [])[1] || "") : "";
 
   // Tables par partie (liens de navigation en haut) + la partie courante.
   const tablesByPartie: Record<number, number> = {};
