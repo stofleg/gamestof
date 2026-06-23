@@ -16,6 +16,9 @@
 //     https://<projet>.supabase.co/functions/v1/ffsc?action=tournois
 // ============================================================
 
+// Extraction de texte PDF (simultanés : tournois.exporter.parties.pdf.php).
+import { extractText, getDocumentProxy } from "https://esm.sh/unpdf@0.12.3";
+
 const BASE = "https://www.ffsc.fr/endirect/";
 const UA = "Topissimo/2.0 (club La Garenna; analyse perso)";
 
@@ -272,6 +275,58 @@ function parseFisfPalmares(html: string) {
   return { player, tournois };
 }
 
+// ---------- Simultanés : PDF des parties (tournois.exporter.parties.pdf.php) ----------
+// Même structure que l'export endirect, mais en PDF et séparé par espaces :
+//   « N. TIRAGE  MOT  POS  SCORE  [remarque] » — le MOT est le top du coup N-1,
+//   le top du dernier coup est sur une ligne finale sans numéro, puis le total.
+function deburr(s: string): string {
+  return s.normalize("NFD").replace(/[̀-ͯ]/g, "");
+}
+
+async function fetchFfscPdfText(pathAndQuery: string): Promise<string[]> {
+  const url = "https://www.ffsc.fr/" + pathAndQuery.replace(/^\/+/, "");
+  const res = await fetch(url, { headers: { "User-Agent": UA } });
+  if (!res.ok) throw new Error(`FFSC PDF ${res.status} sur ${url}`);
+  const bytes = new Uint8Array(await res.arrayBuffer());
+  const pdf = await getDocumentProxy(bytes);
+  const { text } = await extractText(pdf, { mergePages: false });
+  return Array.isArray(text) ? text : [text];
+}
+
+const SPOS = "(?:[A-O]\\s?\\d{1,2}|\\d{1,2}\\s?[A-O])";
+function parseSimuPartie(text: string) {
+  const reNum = new RegExp("^\\s*(\\d+)\\.\\s+(\\S+)(?:\\s+(\\S+)\\s+(" + SPOS + ")\\s+(\\d+)(?:\\s+(.*))?)?\\s*$");
+  const reTail = new RegExp("^\\s*(\\S+)\\s+(" + SPOS + ")\\s+(\\d+)\\s*$");
+  const rack: Record<number, string> = {};
+  const top: Record<number, { w: string; pos: string; sc: number }> = {};
+  let maxm = 0, last = 0;
+  for (const line of text.split("\n")) {
+    if (!line.trim()) continue;
+    const m = reNum.exec(line);
+    if (m) {
+      const k = +m[1]; last = k; maxm = Math.max(maxm, k);
+      rack[k] = m[2];
+      if (m[3] && k - 1 >= 1) top[k - 1] = { w: m[3], pos: m[4], sc: +m[5] };
+      continue;
+    }
+    const t = reTail.exec(line);
+    if (t && last) top[last] = { w: t[1], pos: t[2], sc: +t[3] };
+  }
+  const moves = [];
+  for (let k = 1; k <= maxm; k++) {
+    if (!rack[k] || !top[k]) continue;
+    const { letters, freshRack, kept } = parseRack(rack[k]);
+    const { word, blanks } = parseWordWithJokers(deburr(top[k].w));
+    const p = parseFfscPos(top[k].pos);
+    if (!p) continue;
+    moves.push({
+      moveNo: k, rack: letters, freshRack, kept,
+      top: { word, blanks, row: p.row, col: p.col, dir: p.dir, pos: top[k].pos.replace(/\s+/g, ""), score: top[k].sc, words: [{ word, score: top[k].sc }] },
+    });
+  }
+  return { meta: { mode: "duplicate", withJoker: false }, moves };
+}
+
 // ---------- Page des scores : table ↔ joueur ----------
 function normName(s: string): string {
   return s.normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase().replace(/\s+/g, " ").trim();
@@ -359,6 +414,19 @@ export default {
       return json(parseRouteSheet(html, numero));
     }
 
+    // Simultanés : parties depuis le PDF officiel (id = id FFSC du tournoi).
+    // ?action=simu&id=20294   (&raw=1 → renvoie le texte PDF extrait, debug)
+    if (action === "simu") {
+      const id = url.searchParams.get("id");
+      if (!id) return json({ error: "id requis" }, 400);
+      const pages = await fetchFfscPdfText(`tournois.exporter.parties.pdf.php?id_tournoi=${encodeURIComponent(id)}`);
+      if (url.searchParams.get("raw")) return json({ id, pages });
+      const parties = pages
+        .map((t, i) => { const r = parseSimuPartie(t); return { numero: i + 1, meta: r.meta, moves: r.moves, topTotal: r.moves.reduce((s, m) => s + (m.top.score || 0), 0) }; })
+        .filter((p) => p.moves.length);
+      return json({ id, parties });
+    }
+
     // DEBUG : passe-plat brut, restreint à endirect (pour développer les
     // parseurs HTML des pages résultats/scores/feuille de route).
     if (action === "raw") {
@@ -403,7 +471,7 @@ export default {
       return new Response(txt, { headers: { ...CORS, "Content-Type": "text/plain; charset=utf-8" } });
     }
 
-    return json({ error: "action inconnue", actions: ["tournois", "partie", "route", "import", "raw", "fisf", "fisf_raw"] }, 400);
+    return json({ error: "action inconnue", actions: ["tournois", "partie", "route", "import", "fisf", "simu", "raw", "fisf_raw"] }, 400);
   } catch (e) {
     return json({ error: String((e as Error).message || e) }, 502);
   }
