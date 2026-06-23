@@ -126,7 +126,7 @@ function parseExport(txt: string) {
 // ---------- Liste des tournois (index endirect) ----------
 function parseTournois(html: string) {
   const out: { id: string; name: string }[] = [];
-  const re = /endirect\.php\?tournoi_id=([^"&]+)"[^>]*>([^<]+)</g;
+  const re = /endirect\.php\?tournoi_id=([^"'&]+)['"][^>]*>\s*([^<]+?)\s*</g;
   let m;
   const seen = new Set<string>();
   while ((m = re.exec(html))) {
@@ -148,7 +148,9 @@ export default {
     const action = url.searchParams.get("action") || "";
 
     if (action === "tournois") {
-      const html = await fetchFfsc("endirect.php");
+      // L'index (liste par année) est à la RACINE du dossier endirect/, pas
+      // sur endirect.php (qui exige un tournoi_id et renvoie une erreur sinon).
+      const html = await fetchFfsc("");
       return json({ tournois: parseTournois(html) });
     }
 
