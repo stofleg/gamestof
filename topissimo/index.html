@@ -14,7 +14,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fraunces:wght@500;600;700;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=207">
+<link rel="stylesheet" href="style.css?v=208">
 </head>
 <body>
 
@@ -279,16 +279,8 @@
       <button class="btn ghost small" onclick="closeFfscRelier()">✖</button>
     </div>
     <p class="muted" id="ffscRelierSub" style="margin-top:6px"></p>
-    <input type="text" id="ffscRelierSearch" placeholder="Filtrer les tournois en direct…" oninput="renderFfscRelierCandidates()" style="width:100%;margin-top:8px">
+    <input type="text" id="ffscRelierSearch" placeholder="Chercher un tournoi en direct (lieu, « monde », « championnat »…)" oninput="renderFfscRelierCandidates()" style="width:100%;margin-top:8px">
     <div id="ffscRelierList" style="margin-top:8px;display:flex;flex-direction:column;gap:4px"></div>
-    <details style="margin-top:12px">
-      <summary style="cursor:pointer;font-weight:600">Tu ne le trouves pas ? Coller l'id « en direct »</summary>
-      <p class="muted" style="margin-top:6px">Ouvre la page du tournoi sur ffsc.fr/endirect et copie la valeur de <code>tournoi_id=</code> dans l'URL (ex. <code>cdm2024elite</code> ou <code>26735</code>).</p>
-      <div style="display:flex;gap:6px;margin-top:6px">
-        <input type="text" id="ffscRelierManualId" placeholder="ex : cdm2024elite" style="flex:1">
-        <button class="btn ghost small" onclick="confirmFfscRelierManual()">Relier cet id</button>
-      </div>
-    </details>
   </div>
 </div>
 
@@ -395,6 +387,6 @@
 
 <script src="config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script src="app.js?v=207"></script>
+<script src="app.js?v=208"></script>
 </body>
 </html>

@@ -174,7 +174,7 @@ let myGamesSort = {
 async function loadMyGames() {
   if (!state.currentPlayerId) return;
   const pid = +state.currentPlayerId;
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=207");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=208");
 
   // Tournoi : prepared_game_results jointes avec prepared_games
   const { data: tour } = await sb.from("prepared_game_results")
@@ -612,16 +612,16 @@ window.openFfscRelier = async function(fisfId) {
   if (!t) return;
   window._ffscRelierTarget = t;
   $("#ffscRelierTitle").textContent = `🔗 Relier « ${t.name.slice(0, 60)}${t.name.length > 60 ? "…" : ""} »`;
-  $("#ffscRelierSub").textContent = `${t.saison} · ${t.date} — choisis le tournoi correspondant diffusé « en direct ».`;
+  $("#ffscRelierSub").textContent = `${t.saison} · ${t.date} — cherche par mot-clé dans tous les tournois « en direct » et choisis le bon (les tournois de ${t.year} sont proposés en tête ⭐).`;
   $("#ffscRelierModal").hidden = false;
   // Charger l'index endirect si besoin.
   if (!_ffscTournois.length) {
     $("#ffscRelierList").innerHTML = `<p class="muted">Chargement de l'index en direct…</p>`;
     try { const d = await ffscCall("tournois"); _ffscTournois = d.tournois || []; } catch (e) {}
   }
-  // Pré-remplir le filtre avec le 1er mot-clé significatif.
-  const kw = ffscKeywords(t.name);
-  $("#ffscRelierSearch").value = kw[0] || "";
+  // Pas de pré-filtre : on laisse l'utilisateur chercher librement (les noms
+  // FISF et endirect diffèrent souvent). Les tournois de l'année sont en tête.
+  $("#ffscRelierSearch").value = "";
   renderFfscRelierCandidates();
 };
 
@@ -629,27 +629,30 @@ window.renderFfscRelierCandidates = function() {
   const t = window._ffscRelierTarget;
   if (!t) return;
   const q = ($("#ffscRelierSearch").value || "").trim().toLowerCase();
-  let items = _ffscTournois;
-  // Priorité aux tournois de la même année civile ; sinon tous.
-  const sameYear = items.filter(x => x.year === t.year);
-  if (q) {
-    items = items.filter(x => (x.name || "").toLowerCase().includes(q));
-  } else if (sameYear.length) {
-    items = sameYear;
-  }
-  // Trie : même année d'abord, puis nom.
-  items = items.slice().sort((a, b) => {
+  // Recherche libre sur TOUT l'index (sans restriction d'année).
+  let items = q
+    ? _ffscTournois.filter(x => (x.name || "").toLowerCase().includes(q) || (x.id || "").toLowerCase().includes(q))
+    : _ffscTournois.slice();
+  const total = items.length;
+  // Trie : tournois de l'année cible d'abord, puis année décroissante, puis nom.
+  items.sort((a, b) => {
     const ay = a.year === t.year ? 0 : 1, by = b.year === t.year ? 0 : 1;
     if (ay !== by) return ay - by;
+    if ((b.year || 0) !== (a.year || 0)) return (b.year || 0) - (a.year || 0);
     return (a.name || "").localeCompare(b.name || "");
-  }).slice(0, 60);
+  });
+  const shown = items.slice(0, 80);
   const list = $("#ffscRelierList");
-  if (!items.length) { list.innerHTML = `<p class="muted">Aucun tournoi en direct ne correspond.</p>`; return; }
-  list.innerHTML = items.map(x => `
+  if (!shown.length) {
+    list.innerHTML = `<p class="muted">Aucun tournoi ne correspond à « ${escapeHtml(q)} ». Essaie un autre mot-clé (lieu, « monde », « championnat »…).</p>`;
+    return;
+  }
+  const more = total > shown.length ? `<p class="muted" style="margin-top:6px">${total - shown.length} autres… précise ta recherche.</p>` : "";
+  list.innerHTML = shown.map(x => `
     <button class="btn ghost small" style="text-align:left"
       onclick="confirmFfscRelier('${x.id}')">
       ${x.year === t.year ? "⭐ " : ""}${escapeHtml(x.name)} <span class="muted">${x.year || ""}</span>
-    </button>`).join("");
+    </button>`).join("") + more;
 };
 
 window.confirmFfscRelier = async function(endirectId) {
@@ -697,7 +700,7 @@ async function loadMyStats() {
   const pid = +state.currentPlayerId;
 
   body.innerHTML = `<p class="muted">⏳ Calcul…</p>`;
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=207");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=208");
 
   // 1) Toutes mes parties tournoi (avec détails)
   const { data: tour } = await sb.from("prepared_game_results")
@@ -1449,7 +1452,7 @@ async function loadTournamentDetail(tournamentId) {
     });
   }
 
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=207");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=208");
   const btnStyle = "text-decoration:none;padding:5px 10px;border-radius:6px;font-weight:600;font-size:.85rem";
   const admin = isAdmin();
   $("#pgBody").innerHTML = (games || []).length === 0
@@ -1939,7 +1942,7 @@ async function loadTournamentStats(tournamentId, games) {
   // On détermine « le top est un scrabble » en REjouant le plateau coup par coup
   // (nombre de NOUVELLES tuiles posées par le top == clé de prime du mode), ce qui
   // est fiable même sur d'anciennes parties (le hadBonus stocké est non fiable).
-  const { emptyBoard, applyMove, GAME_MODES } = await import("./scrabble/engine.js?v=207");
+  const { emptyBoard, applyMove, GAME_MODES } = await import("./scrabble/engine.js?v=208");
   const gameById = {};
   for (const g of games) gameById[g.id] = g;
   const bonusesOf = (gid) => (GAME_MODES[gameById[gid]?.mode] || GAME_MODES.duplicate).bonuses || { 7: 50 };
@@ -2033,7 +2036,7 @@ $("#tCreate").onclick = async () => {
 
 // Quand on change de mode, mettre à jour le temps/coup par défaut
 $("#pgMode").addEventListener("change", async () => {
-  const { GAME_MODES } = await import("./scrabble/engine.js?v=207");
+  const { GAME_MODES } = await import("./scrabble/engine.js?v=208");
   const m = GAME_MODES[$("#pgMode").value];
   if (m) $("#pgTime").value = m.defaultTime;
 });
@@ -2060,8 +2063,8 @@ $("#pgCreate").onclick = async () => {
     let mods;
     try {
       mods = await Promise.all([
-        import("./scrabble/dictionary.js?v=207"),
-        import("./scrabble/generator.js?v=207"),
+        import("./scrabble/dictionary.js?v=208"),
+        import("./scrabble/generator.js?v=208"),
       ]);
     } catch (e) {
       $("#pgStatus").innerHTML = `<span style="color:#a02525">Échec de chargement des modules : ${escapeHtml(e.message)}</span>`;
@@ -2125,7 +2128,7 @@ window.recomputeAllNeg = async function(force = false) {
 
   let recomputeResult;
   try {
-    ({ recomputeResult } = await import("./scrabble/recompute.js?v=207"));
+    ({ recomputeResult } = await import("./scrabble/recompute.js?v=208"));
   } catch (e) {
     statusEl.textContent = "❌ Impossible de charger recompute.js : " + e.message;
     return;
@@ -2319,7 +2322,7 @@ window.recomputeAllJokerNeg = async function() {
 
   let recomputeResult;
   try {
-    ({ recomputeResult } = await import("./scrabble/recompute.js?v=207"));
+    ({ recomputeResult } = await import("./scrabble/recompute.js?v=208"));
   } catch (e) {
     statusEl.textContent = "❌ Impossible de charger recompute.js : " + e.message;
     return;
