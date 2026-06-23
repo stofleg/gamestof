@@ -7,9 +7,9 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fraunces:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="game.css?v=210">
-<link rel="stylesheet" href="game-desktop.css?v=210">
-<link rel="stylesheet" href="game-mobile.css?v=210">
+<link rel="stylesheet" href="game.css?v=211">
+<link rel="stylesheet" href="game-desktop.css?v=211">
+<link rel="stylesheet" href="game-mobile.css?v=211">
 </head>
 <body>
 
@@ -128,6 +128,11 @@
       <button class="btn small" id="rvZero" title="J'ai pris un zéro (mot refusé)">🚫 Zéro</button>
       <button class="btn small" id="rvClearPick" title="Effacer ma saisie sur ce coup">↺</button>
       <span class="val" id="rvCumul" style="margin-left:auto;font-size:.8rem;color:#5a6a73"></span>
+      <div id="rvZeroForm" hidden style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;width:100%;margin-top:4px">
+        <input type="text" id="rvZeroWord" placeholder="Mot faux (optionnel)" style="flex:1;min-width:120px;text-transform:uppercase">
+        <input type="text" id="rvZeroPos" placeholder="Place (ex 6B)" style="width:90px">
+        <button class="btn small" id="rvZeroOk">Valider le zéro</button>
+      </div>
     </div>
     <div class="review-split">
       <div class="review-sol-wrap">
@@ -331,6 +336,6 @@
   </div>
 </div>
 
-<script type="module" src="game.js?v=210"></script>
+<script type="module" src="game.js?v=211"></script>
 </body>
 </html>

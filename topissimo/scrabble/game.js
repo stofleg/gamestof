@@ -27,9 +27,9 @@ import {
   emptyBoard, BOARD_BONUSES, BOARD_SIZE, CENTER, LETTER_VALUE, LETTER_BAG,
   VOWELS, drawForDuplicate, scoreMove, applyMove,
   bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName,
-} from "./engine.js?v=210";
-import { Dictionary } from "./dictionary.js?v=210";
-import { findTop, findTopRanked } from "./topfinder.js?v=210";
+} from "./engine.js?v=211";
+import { Dictionary } from "./dictionary.js?v=211";
+import { findTop, findTopRanked } from "./topfinder.js?v=211";
 
 // État du mode review (parcours coup par coup)
 const review = {
@@ -59,7 +59,7 @@ const FFSC_REVIEW = URL_PARAMS.get("ffscreview");  // revoir une partie FFSC imp
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v210";
+const BUILD_VERSION = "garenna-v211";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -2857,10 +2857,11 @@ function renderReviewPlayed(m) {
   const known = review.historyByMove?.[m.moveNo];
   const pick = review.userPicks?.[m.moveNo];
   const playedEl = $("#rvPlayed"), negEl = $("#rvNeg");
+  const zf = $("#rvZeroForm"); if (zf) zf.hidden = true;   // referme le champ « zéro » en changeant de coup
 
   // Ligne « Toi »
   if (pick) {
-    if (pick.zero) playedEl.innerHTML = `🚫 Zéro (mot refusé) — 0 pt`;
+    if (pick.zero) playedEl.innerHTML = `🚫 Zéro${pick.word ? " : " + wLink(pick.word) + (pick.pos ? " en " + pick.pos : "") : " (mot refusé)"} — 0 pt`;
     else playedEl.innerHTML = `${wLink(pick.word)} — ${pick.score} pts en ${pick.pos} ${pick.score >= (m.top.score || 0) ? "🏆" : ""} <span class="muted">(ma saisie)</span>`;
   } else if (known && known.played) {
     playedEl.innerHTML = `${wLink(known.played)} — ${known.playerScore} pts ${known.status === "top" ? "🏆" : known.status === "timeout" ? "⏱" : ""}`;
@@ -2909,11 +2910,26 @@ window.setReviewMyMove = function(i) {
   renderReviewSolutions(review.step - 1);
 };
 window.setReviewZero = function() {
+  // Ouvre le champ de saisie du mot faux (optionnel) ; l'enregistrement se fait
+  // à la validation (confirmReviewZero).
+  const form = $("#rvZeroForm");
+  if (!form) return;
+  const m = review.game.moves[review.step - 1];
+  const cur = review.userPicks?.[m?.moveNo];
+  $("#rvZeroWord").value = (cur && cur.zero && cur.word) ? cur.word : "";
+  $("#rvZeroPos").value = (cur && cur.zero && cur.pos) ? cur.pos : "";
+  form.hidden = !form.hidden;
+  if (!form.hidden) $("#rvZeroWord").focus();
+};
+window.confirmReviewZero = function() {
   const m = review.game.moves[review.step - 1];
   if (!m) return;
+  const word = ($("#rvZeroWord").value || "").trim().toUpperCase().replace(/[^A-ZÀ-Ÿ]/g, "");
+  const pos = ($("#rvZeroPos").value || "").trim().toUpperCase().replace(/\s+/g, "");
   review.userPicks = review.userPicks || {};
-  review.userPicks[m.moveNo] = { zero: true, score: 0 };
+  review.userPicks[m.moveNo] = { zero: true, score: 0, word: word || null, pos: pos || null };
   persistReviewPicks();
+  $("#rvZeroForm").hidden = true;
   renderReviewPlayed(m);
   renderReviewSolutions(review.step - 1);
 };
@@ -3170,6 +3186,10 @@ $("#rvNext").onclick   = () => { review.step++;    renderReviewStep(); };
 $("#rvLast").onclick   = () => { review.step = review.game?.moves.length || 1; renderReviewStep(); };
 const _rvZero = $("#rvZero");
 if (_rvZero) _rvZero.onclick = () => setReviewZero();
+const _rvZeroOk = $("#rvZeroOk");
+if (_rvZeroOk) _rvZeroOk.onclick = () => confirmReviewZero();
+const _rvZeroWordInp = $("#rvZeroWord");
+if (_rvZeroWordInp) _rvZeroWordInp.onkeydown = (e) => { if (e.key === "Enter") confirmReviewZero(); };
 const _rvClearPick = $("#rvClearPick");
 if (_rvClearPick) _rvClearPick.onclick = () => clearReviewPick();
 const _btnReplay = $("#rvReplay");
