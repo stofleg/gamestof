@@ -197,6 +197,33 @@ function parseRouteSheet(html: string, numero: number) {
   return { player, table, serie, total, topTotal, tablesByPartie, coups };
 }
 
+// ---------- Page des scores : table ↔ joueur ----------
+function normName(s: string): string {
+  return s.normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase().replace(/\s+/g, " ").trim();
+}
+
+function parseScores(html: string) {
+  const out: { table: number; idTournoi: number | null; name: string }[] = [];
+  // Liens « ...num_table=N&amp;id_tournoi=T">NOM Prénom</a> »
+  const re = /num_table=(\d+)&amp;id_tournoi=(\d+)"[^>]*>\s*([^<]+?)\s*<\/a>/g;
+  let m;
+  const seen = new Set<number>();
+  while ((m = re.exec(html))) {
+    const table = +m[1];
+    if (seen.has(table)) continue;
+    seen.add(table);
+    out.push({ table, idTournoi: +m[2], name: htmlText(m[3]) });
+  }
+  return out;
+}
+
+function findPlayer(scores: { table: number; idTournoi: number | null; name: string }[], query: string) {
+  const q = normName(query);
+  const matches = scores.filter((s) => normName(s.name).includes(q));
+  const exact = scores.find((s) => normName(s.name) === q);
+  return { hit: exact || matches[0] || null, matches };
+}
+
 // ---------- Handler ----------
 export default {
   async fetch(req: Request): Promise<Response> {
@@ -220,6 +247,33 @@ export default {
       return json(parseExport(txt));
     }
 
+    if (action === "import") {
+      const tournoi = url.searchParams.get("tournoi");
+      const nom = url.searchParams.get("nom");
+      if (!tournoi || !nom) return json({ error: "tournoi et nom requis" }, 400);
+      const enc = encodeURIComponent;
+      // 1) table du joueur en partie 1 (page des scores : table ↔ joueur).
+      const scoresHtml = await fetchFfsc(`endirect.php?tournoi_id=${enc(tournoi)}&page=parties&numero=1&coup=1&action=scores&tri=table`);
+      const { hit, matches } = findPlayer(parseScores(scoresHtml), nom);
+      if (!hit) return json({ error: "joueur introuvable", candidats: matches.slice(0, 12).map((s) => s.name) }, 404);
+      const idt = hit.idTournoi || +tournoi;
+      // 2) feuille de route partie 1 → tables de toutes les parties + coups.
+      const route1 = parseRouteSheet(
+        await fetchFfsc(`endirect.php?tournoi_id=${enc(tournoi)}&page=parties&numero=1&action=scores&num_table=${hit.table}&id_tournoi=${idt}`), 1);
+      const tables = route1.tablesByPartie;
+      // 3) chaque partie : export (tirages+tops) + feuille de route (négatifs).
+      const parties = [];
+      for (const numStr of Object.keys(tables).sort((a, b) => +a - +b)) {
+        const numero = +numStr;
+        const table = tables[numero];
+        const game = parseExport(await fetchFfsc(`endirect.parties.exporter.php?tournoi_id=${enc(tournoi)}&numero=${numero}`));
+        const route = numero === 1 ? route1
+          : parseRouteSheet(await fetchFfsc(`endirect.php?tournoi_id=${enc(tournoi)}&page=parties&numero=${numero}&action=scores&num_table=${table}&id_tournoi=${idt}`), numero);
+        parties.push({ numero, table, meta: game.meta, moves: game.moves, coups: route.coups, total: route.total, topTotal: route.topTotal });
+      }
+      return json({ player: route1.player, serie: route1.serie, tournoi, parties });
+    }
+
     if (action === "route") {
       const tournoi = url.searchParams.get("tournoi");
       const numero = +(url.searchParams.get("numero") || "0");
@@ -240,7 +294,7 @@ export default {
       return new Response(txt, { headers: { ...CORS, "Content-Type": "text/plain; charset=utf-8" } });
     }
 
-    return json({ error: "action inconnue", actions: ["tournois", "partie", "route", "raw"] }, 400);
+    return json({ error: "action inconnue", actions: ["tournois", "partie", "route", "import", "raw"] }, 400);
   } catch (e) {
     return json({ error: String((e as Error).message || e) }, 502);
   }
