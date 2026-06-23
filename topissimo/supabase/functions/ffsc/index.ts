@@ -142,6 +142,51 @@ function parseTournois(html: string) {
   return out;
 }
 
+// ---------- Feuille de route d'un joueur (page table) ----------
+function htmlText(s: string): string {
+  return s.replace(/<[^>]*>/g, "").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").trim();
+}
+
+function parseRouteSheet(html: string, numero: number) {
+  // En-tête : « Feuille de route de NOM Prénom (table 52, série 1B) »
+  const h = /Feuille de route de\s*([^(]+?)\s*\(table\s*(\d+),\s*série\s*([^)]+)\)/i.exec(html);
+  const player = h ? h[1].trim() : "";
+  const table = h ? +h[2] : null;
+  const serie = h ? h[3].trim() : "";
+
+  // Tables par partie (liens de navigation en haut) + la partie courante.
+  const tablesByPartie: Record<number, number> = {};
+  if (table) tablesByPartie[numero] = table;
+  const navRe = /numero=(\d+)[^'"]*?num_table=(\d+)/g;
+  let nm;
+  while ((nm = navRe.exec(html))) tablesByPartie[+nm[1]] = +nm[2];
+
+  // Total final : « 856 / 930 » puis « -74 ».
+  const tot = /<strong>\s*(\d+)\s*\/\s*(\d+)\s*<\/strong>/.exec(html);
+  const total = tot ? +tot[1] : null;
+  const topTotal = tot ? +tot[2] : null;
+
+  // Lignes de coups.
+  const coups: any[] = [];
+  const rowRe = /<td class='first'>(\d+)<\/td>\s*<td class='([^']*)'>([^<]*)<\/td>\s*<td>([^<]*)<\/td>\s*<td class='([^']*)'>([^<]*)<\/td>\s*<td class='last'>([^<]*)<\/td>/g;
+  let r;
+  while ((r = rowRe.exec(html))) {
+    const no = +r[1];
+    const status = r[2];                 // top | sous_top | zero
+    const { word, blanks } = parseWordWithJokers(htmlText(r[3]));
+    const scoreStr = r[4].trim();        // « 106 » ou « 36 / 39 » ou « 0 / 60 »
+    const parts = scoreStr.split("/").map(x => x.trim());
+    const playerScore = parts[0] ? +parts[0] : 0;
+    const topScore = parts[1] ? +parts[1] : playerScore;
+    const negStr = htmlText(r[6]);       // « Top » ou « -3 » ou « -60 »
+    const neg = /^-?\d+$/.test(negStr) ? +negStr : 0;
+    const remark = htmlText(r[7]);       // "" | « Zéro » | « Avertissement »
+    coups.push({ moveNo: no, status, word, blanks, playerScore, topScore, neg, remark });
+  }
+
+  return { player, table, serie, total, topTotal, tablesByPartie, coups };
+}
+
 // ---------- Handler ----------
 export default {
   async fetch(req: Request): Promise<Response> {
@@ -165,6 +210,16 @@ export default {
       return json(parseExport(txt));
     }
 
+    if (action === "route") {
+      const tournoi = url.searchParams.get("tournoi");
+      const numero = +(url.searchParams.get("numero") || "0");
+      const table = url.searchParams.get("table");
+      const idt = url.searchParams.get("id_tournoi") || tournoi;
+      if (!tournoi || !numero || !table) return json({ error: "tournoi, numero, table requis" }, 400);
+      const html = await fetchFfsc(`endirect.php?tournoi_id=${encodeURIComponent(tournoi)}&page=parties&numero=${numero}&action=scores&num_table=${encodeURIComponent(table)}&id_tournoi=${encodeURIComponent(idt)}`);
+      return json(parseRouteSheet(html, numero));
+    }
+
     // DEBUG : passe-plat brut, restreint à endirect (pour développer les
     // parseurs HTML des pages résultats/scores/feuille de route).
     if (action === "raw") {
@@ -175,7 +230,7 @@ export default {
       return new Response(txt, { headers: { ...CORS, "Content-Type": "text/plain; charset=utf-8" } });
     }
 
-    return json({ error: "action inconnue", actions: ["tournois", "partie", "raw"] }, 400);
+    return json({ error: "action inconnue", actions: ["tournois", "partie", "route", "raw"] }, 400);
   } catch (e) {
     return json({ error: String((e as Error).message || e) }, 502);
   }
