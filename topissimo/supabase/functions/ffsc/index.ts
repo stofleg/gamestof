@@ -56,6 +56,16 @@ async function fetchFfsc(pathAndQuery: string): Promise<string> {
   catch { return new TextDecoder("windows-1252").decode(buf); }
 }
 
+// ---------- FISF (classement.fisf.net) : palmarès joueur ----------
+// La fiche joueur est à /joueurs/details/11/<licence>.html (11 = fédération FR).
+const FISF_BASE = "https://classement.fisf.net/";
+async function fetchFisf(pathAndQuery: string): Promise<string> {
+  const url = FISF_BASE + pathAndQuery.replace(/^\/+/, "");
+  const res = await fetch(url, { headers: { "User-Agent": UA } });
+  if (!res.ok) throw new Error(`FISF ${res.status} sur ${url}`);
+  return new TextDecoder("utf-8").decode(await res.arrayBuffer());
+}
+
 // ---------- Parsing de l'export TXT d'une partie ----------
 // (cf. scrabble/ffsc-import.js — logique identique)
 const ROW_LETTERS = "ABCDEFGHIJKLMNO";
@@ -320,7 +330,20 @@ export default {
       return new Response(txt, { headers: { ...CORS, "Content-Type": "text/plain; charset=utf-8" } });
     }
 
-    return json({ error: "action inconnue", actions: ["tournois", "partie", "route", "import", "raw"] }, 400);
+    // FISF : palmarès brut d'un joueur (DEBUG, le temps d'écrire le parseur).
+    // ?action=fisf_raw&licence=2231415  → HTML de la fiche FISF
+    // ?action=fisf_raw&path=...          → autre page fisf (restreint au domaine)
+    if (action === "fisf_raw") {
+      const licence = url.searchParams.get("licence");
+      const pays = url.searchParams.get("pays") || "11";
+      let path = url.searchParams.get("path") || "";
+      if (licence) path = `joueurs/details/${encodeURIComponent(pays)}/${encodeURIComponent(licence)}.html`;
+      if (!/^[\w./?=&%+-]*$/.test(path)) return json({ error: "path non autorisé" }, 400);
+      const txt = await fetchFisf(path);
+      return new Response(txt, { headers: { ...CORS, "Content-Type": "text/plain; charset=utf-8" } });
+    }
+
+    return json({ error: "action inconnue", actions: ["tournois", "partie", "route", "import", "raw", "fisf_raw"] }, 400);
   } catch (e) {
     return json({ error: String((e as Error).message || e) }, 502);
   }
