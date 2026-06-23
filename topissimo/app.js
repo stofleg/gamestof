@@ -174,7 +174,7 @@ let myGamesSort = {
 async function loadMyGames() {
   if (!state.currentPlayerId) return;
   const pid = +state.currentPlayerId;
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=200");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=201");
 
   // Tournoi : prepared_game_results jointes avec prepared_games
   const { data: tour } = await sb.from("prepared_game_results")
@@ -287,6 +287,153 @@ function fmtSec(s) {
   return `${m}:${String(sec).padStart(2, "0")}`;
 }
 
+// ============================================================
+//  Tournois personnels — import FFSC (en direct) via Edge Function
+// ============================================================
+const FFSC_FN = `${window.SUPABASE_URL}/functions/v1/ffsc`;
+let _ffscTournois = [];   // cache de la liste { id, name, year }
+
+async function ffscCall(action, params = {}) {
+  const url = new URL(FFSC_FN);
+  url.searchParams.set("action", action);
+  for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
+  const res = await fetch(url, {
+    headers: {
+      apikey: window.SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${window.SUPABASE_ANON_KEY}`,
+    },
+  });
+  if (!res.ok) throw new Error(`FFSC ${action}: HTTP ${res.status}`);
+  return res.json();
+}
+
+function ffscNameKey() { return `ffscName:${state.currentPlayerId || "anon"}`; }
+
+window.switchPreparedTab = function(which) {
+  $("#ggChallengesPanel").hidden = which !== "garenna";
+  $("#ggPersoPanel").hidden = which !== "perso";
+  document.querySelectorAll("#preparedSubtabs .subtab")
+    .forEach(b => b.classList.toggle("active", b.dataset.ptab === which));
+  if (which === "perso") {
+    const saved = localStorage.getItem(ffscNameKey()) || "";
+    if (saved && !$("#ffscName").value) $("#ffscName").value = saved;
+  }
+};
+
+window.saveFfscName = function() {
+  const v = $("#ffscName").value.trim();
+  if (!v) { $("#ffscNameStatus").textContent = "Saisis ton nom d'abord."; return; }
+  localStorage.setItem(ffscNameKey(), v);
+  $("#ffscNameStatus").textContent = `✅ Nom enregistré : ${v}`;
+};
+
+window.loadFfscTournois = async function() {
+  const status = $("#ffscTournoisStatus");
+  status.textContent = "Chargement de la liste des tournois…";
+  $("#ffscLoadBtn").disabled = true;
+  try {
+    const data = await ffscCall("tournois");
+    _ffscTournois = data.tournois || [];
+    status.textContent = `${_ffscTournois.length} tournois trouvés.`;
+    renderFfscTournois();
+  } catch (e) {
+    status.textContent = `❌ ${e.message}`;
+  } finally {
+    $("#ffscLoadBtn").disabled = false;
+  }
+};
+
+window.renderFfscTournois = function() {
+  const q = ($("#ffscSearch").value || "").trim().toLowerCase();
+  const list = $("#ffscTournoisList");
+  let items = _ffscTournois;
+  if (q) items = items.filter(t => (t.name || "").toLowerCase().includes(q));
+  // Groupe par année (décroissant ; « Autres » en dernier).
+  const byYear = {};
+  for (const t of items) {
+    const y = t.year || "Autres";
+    (byYear[y] = byYear[y] || []).push(t);
+  }
+  const years = Object.keys(byYear).sort((a, b) => {
+    if (a === "Autres") return 1; if (b === "Autres") return -1;
+    return +b - +a;
+  });
+  if (!years.length) { list.innerHTML = `<p class="muted">Aucun tournoi.</p>`; return; }
+  list.innerHTML = years.map(y => `
+    <details ${q ? "open" : ""} style="margin-bottom:8px">
+      <summary style="cursor:pointer;font-weight:700;padding:6px 0">${y} <span class="muted" style="font-weight:400">(${byYear[y].length})</span></summary>
+      <div style="display:flex;flex-direction:column;gap:4px;padding:4px 0 4px 12px">
+        ${byYear[y].map(t => `
+          <button class="btn ghost small" style="text-align:left"
+            onclick="importFfscTournoi('${t.id}', this)">${escapeHtml(t.name)}</button>`).join("")}
+      </div>
+    </details>`).join("");
+};
+
+window.importFfscTournoi = async function(tournoiId, btn) {
+  const name = (localStorage.getItem(ffscNameKey()) || $("#ffscName").value || "").trim();
+  if (!name) { alert("Enregistre d'abord ton nom FFSC."); switchPreparedTab("perso"); return; }
+  const card = $("#ffscPartiesCard"), status = $("#ffscPartiesStatus");
+  card.hidden = false;
+  card.scrollIntoView({ behavior: "smooth", block: "start" });
+  $("#ffscPartiesBody").innerHTML = "";
+  status.textContent = `Recherche de « ${name} »…`;
+  if (btn) btn.disabled = true;
+  try {
+    const data = await ffscCall("import", { id: tournoiId, nom: name });
+    renderFfscParties(data);
+  } catch (e) {
+    status.textContent = `❌ ${e.message}`;
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+};
+
+function renderFfscParties(data) {
+  const status = $("#ffscPartiesStatus");
+  if (!data || !data.player) {
+    status.textContent = "Joueur introuvable dans ce tournoi (vérifie l'orthographe du nom).";
+    return;
+  }
+  $("#ffscPartiesTitle").textContent = `🎲 ${data.tournoi || ""} — ${data.player}`;
+  const parties = (data.parties || []).filter(Boolean);
+  status.textContent = `${data.serie ? "Série " + data.serie + " · " : ""}${parties.length} partie(s).`;
+  if (!parties.length) { $("#ffscPartiesBody").innerHTML = `<p class="muted">Aucune partie récupérée.</p>`; return; }
+  // Mémorise pour la fonction « Revoir » (handoff via sessionStorage).
+  window._ffscData = data;
+  $("#ffscPartiesBody").innerHTML = `
+    <div class="table-wrap"><table>
+      <thead><tr><th>Partie</th><th>Table</th><th>Score</th><th>Top</th><th>Négatif</th><th></th></tr></thead>
+      <tbody>
+        ${parties.map((p, i) => {
+          const total = p.total != null ? p.total : "—";
+          const topT = p.topTotal != null ? p.topTotal : "—";
+          const neg = (p.total != null && p.topTotal != null) ? (p.total - p.topTotal) : null;
+          return `<tr>
+            <td>Partie ${p.numero}</td>
+            <td>${p.table ?? "—"}</td>
+            <td><strong>${total}</strong></td>
+            <td>${topT}</td>
+            <td style="color:${neg < 0 ? "#a02525" : "inherit"}">${neg != null ? neg : "—"}</td>
+            <td><button class="btn ghost small" onclick="reviewFfscPartie(${i})">👁 Revoir</button></td>
+          </tr>`;
+        }).join("")}
+      </tbody>
+    </table></div>`;
+}
+
+window.reviewFfscPartie = function(idx) {
+  const data = window._ffscData;
+  if (!data || !data.parties || !data.parties[idx]) return;
+  const partie = data.parties[idx];
+  sessionStorage.setItem("ffscReview", JSON.stringify({
+    player: data.player, serie: data.serie, tournoi: data.tournoi, partie,
+  }));
+  location.href = `scrabble/game.html?ffscreview=1`;
+};
+
+window.closeFfscParties = function() { $("#ffscPartiesCard").hidden = true; };
+
 window.delMyTournoi = async function(resultId) {
   if (!confirm("Supprimer ce résultat de ton historique ? (Ne supprime PAS la partie elle-même ni ton score au classement)")) return;
   await sb.from("prepared_game_results").delete().eq("id", resultId);
@@ -307,7 +454,7 @@ async function loadMyStats() {
   const pid = +state.currentPlayerId;
 
   body.innerHTML = `<p class="muted">⏳ Calcul…</p>`;
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=200");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=201");
 
   // 1) Toutes mes parties tournoi (avec détails)
   const { data: tour } = await sb.from("prepared_game_results")
@@ -1059,7 +1206,7 @@ async function loadTournamentDetail(tournamentId) {
     });
   }
 
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=200");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=201");
   const btnStyle = "text-decoration:none;padding:5px 10px;border-radius:6px;font-weight:600;font-size:.85rem";
   const admin = isAdmin();
   $("#pgBody").innerHTML = (games || []).length === 0
@@ -1549,7 +1696,7 @@ async function loadTournamentStats(tournamentId, games) {
   // On détermine « le top est un scrabble » en REjouant le plateau coup par coup
   // (nombre de NOUVELLES tuiles posées par le top == clé de prime du mode), ce qui
   // est fiable même sur d'anciennes parties (le hadBonus stocké est non fiable).
-  const { emptyBoard, applyMove, GAME_MODES } = await import("./scrabble/engine.js?v=200");
+  const { emptyBoard, applyMove, GAME_MODES } = await import("./scrabble/engine.js?v=201");
   const gameById = {};
   for (const g of games) gameById[g.id] = g;
   const bonusesOf = (gid) => (GAME_MODES[gameById[gid]?.mode] || GAME_MODES.duplicate).bonuses || { 7: 50 };
@@ -1643,7 +1790,7 @@ $("#tCreate").onclick = async () => {
 
 // Quand on change de mode, mettre à jour le temps/coup par défaut
 $("#pgMode").addEventListener("change", async () => {
-  const { GAME_MODES } = await import("./scrabble/engine.js?v=200");
+  const { GAME_MODES } = await import("./scrabble/engine.js?v=201");
   const m = GAME_MODES[$("#pgMode").value];
   if (m) $("#pgTime").value = m.defaultTime;
 });
@@ -1670,8 +1817,8 @@ $("#pgCreate").onclick = async () => {
     let mods;
     try {
       mods = await Promise.all([
-        import("./scrabble/dictionary.js?v=200"),
-        import("./scrabble/generator.js?v=200"),
+        import("./scrabble/dictionary.js?v=201"),
+        import("./scrabble/generator.js?v=201"),
       ]);
     } catch (e) {
       $("#pgStatus").innerHTML = `<span style="color:#a02525">Échec de chargement des modules : ${escapeHtml(e.message)}</span>`;
@@ -1735,7 +1882,7 @@ window.recomputeAllNeg = async function(force = false) {
 
   let recomputeResult;
   try {
-    ({ recomputeResult } = await import("./scrabble/recompute.js?v=200"));
+    ({ recomputeResult } = await import("./scrabble/recompute.js?v=201"));
   } catch (e) {
     statusEl.textContent = "❌ Impossible de charger recompute.js : " + e.message;
     return;
@@ -1929,7 +2076,7 @@ window.recomputeAllJokerNeg = async function() {
 
   let recomputeResult;
   try {
-    ({ recomputeResult } = await import("./scrabble/recompute.js?v=200"));
+    ({ recomputeResult } = await import("./scrabble/recompute.js?v=201"));
   } catch (e) {
     statusEl.textContent = "❌ Impossible de charger recompute.js : " + e.message;
     return;

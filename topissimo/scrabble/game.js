@@ -27,9 +27,9 @@ import {
   emptyBoard, BOARD_BONUSES, BOARD_SIZE, CENTER, LETTER_VALUE, LETTER_BAG,
   VOWELS, drawForDuplicate, scoreMove, applyMove,
   bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName,
-} from "./engine.js?v=200";
-import { Dictionary } from "./dictionary.js?v=200";
-import { findTop, findTopRanked } from "./topfinder.js?v=200";
+} from "./engine.js?v=201";
+import { Dictionary } from "./dictionary.js?v=201";
+import { findTop, findTopRanked } from "./topfinder.js?v=201";
 
 // État du mode review (parcours coup par coup)
 const review = {
@@ -53,11 +53,12 @@ const TRAINING_ID = URL_PARAMS.get("training");
 const PUZZLE_GAME_ID = URL_PARAMS.get("puzzle");
 const PUZZLE_MOVE_NO = +URL_PARAMS.get("move") || 1;
 const TOURNAMENT_ID = URL_PARAMS.get("tid");  // ID du tournoi pour le retour
+const FFSC_REVIEW = URL_PARAMS.get("ffscreview");  // revoir une partie FFSC importée
 
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v200";
+const BUILD_VERSION = "garenna-v201";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -2484,6 +2485,15 @@ async function initGame() {
     }
     return;
   }
+  // Mode REVIEW d'une partie FFSC importée (handoff via sessionStorage)
+  if (FFSC_REVIEW) {
+    try {
+      enterFfscReviewMode();
+    } catch (e) {
+      showFeedback("error", "Impossible d'afficher la partie", e.message);
+    }
+    return;
+  }
   // Mode REVIEW d'un entraînement
   if (TRAINING_ID) {
     try {
@@ -2645,6 +2655,67 @@ async function enterTrainingReviewMode(id) {
   $("#reviewPanel").hidden = false;
   showFeedback("success", `📺 ${fakeGame.name}`,
     `Score : <strong>${t.total_score}</strong> · Négatif : <strong>${t.sum_neg}</strong> · Temps : <strong>${fmtChrono(t.total_time_seconds || 0)}</strong>`);
+  renderReviewStep();
+}
+
+// Revoir une partie FFSC importée (données passées via sessionStorage par app.js).
+// Aucun appel réseau : on reconstitue fakeGame/historyByMove à partir des
+// tirages + tops (export TXT) et de la feuille de route (coups joués / négatifs).
+function enterFfscReviewMode() {
+  const raw = sessionStorage.getItem("ffscReview");
+  if (!raw) throw new Error("Aucune partie à afficher (relance l'import).");
+  const { player, serie, tournoi, partie } = JSON.parse(raw);
+  if (!partie || !partie.moves) throw new Error("Données de partie incomplètes.");
+
+  const fakeGame = {
+    id: null,
+    name: `${tournoi || "Tournoi"} — Partie ${partie.numero}${partie.table != null ? " (table " + partie.table + ")" : ""}`,
+    mode: partie.meta?.mode || "duplicate",
+    with_joker: false,
+    time_per_move: 0,
+    moves: (partie.moves || []).filter(h => h.top).map(h => ({
+      moveNo: h.moveNo,
+      rack: h.rack,
+      top: {
+        word: h.top.word, row: h.top.row, col: h.top.col, dir: h.top.dir,
+        blanks: h.top.blanks || [], score: h.top.score, words: h.top.words || [],
+      },
+    })),
+  };
+  // Feuille de route → "ce que tu as joué" par coup.
+  review.historyByMove = {};
+  const hist = [];
+  for (const c of (partie.coups || [])) {
+    const h = {
+      moveNo: c.moveNo,
+      played: c.word || null,
+      playerScore: c.playerScore,
+      neg: c.neg,
+      status: c.status === "top" ? "top" : "submit",
+    };
+    review.historyByMove[c.moveNo] = h;
+    hist.push(h);
+  }
+
+  review.active = true;
+  document.body.classList.add("in-review");
+  $("#bagDisplay") && ($("#bagDisplay").hidden = true);
+  review.game = fakeGame;
+  review.result = { total_score: partie.total, sum_neg: partie.total != null && partie.topTotal != null ? partie.total - partie.topTotal : null, total_time_seconds: 0, details: hist };
+  state.history = hist;
+  review.step = 1;
+  review.replayMode = false;
+  state.started = false;
+  state.settings.gameMode = fakeGame.mode;
+  state.settings.withJoker = false;
+  renderGameTitle();
+  document.querySelector(".info-bar")?.style.setProperty("display", "none");
+  $("#btnStart") && ($("#btnStart").hidden = true);
+  $("#btnSheetReview") && ($("#btnSheetReview").hidden = true);
+  $("#reviewPanel").hidden = false;
+  const negTot = (partie.total != null && partie.topTotal != null) ? partie.total - partie.topTotal : null;
+  showFeedback("success", `📺 ${player || ""} — Partie ${partie.numero}`,
+    `Score : <strong>${partie.total ?? "—"}</strong> · Top : <strong>${partie.topTotal ?? "—"}</strong>${negTot != null ? ` · Négatif : <strong>${negTot}</strong>` : ""}${serie ? ` · Série ${serie}` : ""}`);
   renderReviewStep();
 }
 

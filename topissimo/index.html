@@ -14,7 +14,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fraunces:wght@500;600;700;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=200">
+<link rel="stylesheet" href="style.css?v=201">
 </head>
 <body>
 
@@ -89,6 +89,13 @@
 <div id="configError" class="error" hidden></div>
 
 <section data-tab="prepared" class="tab">
+  <div class="subtabs" id="preparedSubtabs" style="margin-bottom:14px">
+    <button class="subtab active" data-ptab="garenna" onclick="switchPreparedTab('garenna')">🏟 Challenges Garenna</button>
+    <button class="subtab" data-ptab="perso" onclick="switchPreparedTab('perso')">🎖 Tournois personnels</button>
+  </div>
+
+  <!-- ============ Sous-onglet CHALLENGES GARENNA ============ -->
+  <div id="ggChallengesPanel">
   <!-- Vue 1 : liste des tournois -->
   <div id="tournamentsView">
     <div class="card" id="presenceCard" hidden>
@@ -190,6 +197,44 @@
           <div id="tournamentStatsBody"></div>
         </div>
       </aside>
+    </div>
+  </div>
+  </div><!-- /ggChallengesPanel -->
+
+  <!-- ============ Sous-onglet TOURNOIS PERSONNELS (FFSC) ============ -->
+  <div id="ggPersoPanel" hidden>
+    <div class="card">
+      <h2>🎖 Mes tournois FFSC</h2>
+      <p class="muted">Relie ton compte à tes résultats officiels (en direct FFSC). Saisis ton nom tel qu'il apparaît au classement.</p>
+      <div class="row" style="align-items:flex-end">
+        <div style="flex:1 1 220px">
+          <label>Mon nom FFSC</label>
+          <input type="text" id="ffscName" placeholder="ex : LEGUAY Christophe">
+        </div>
+        <div><label>&nbsp;</label><button class="btn ghost small" onclick="saveFfscName()">💾 Enregistrer</button></div>
+      </div>
+      <p class="muted" id="ffscNameStatus" style="margin-top:6px"></p>
+    </div>
+
+    <div class="card">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <h2 style="margin:0;flex:1">📅 Tournois disponibles</h2>
+        <button class="btn ghost small" id="ffscLoadBtn" onclick="loadFfscTournois()">🔄 Charger la liste</button>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <input type="text" id="ffscSearch" placeholder="Filtrer (nom du tournoi)…" oninput="renderFfscTournois()" style="flex:1">
+      </div>
+      <p class="muted" id="ffscTournoisStatus" style="margin-top:8px"></p>
+      <div id="ffscTournoisList" style="margin-top:8px"></div>
+    </div>
+
+    <div class="card" id="ffscPartiesCard" hidden>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <h2 style="margin:0;flex:1" id="ffscPartiesTitle">🎲 Mes parties</h2>
+        <button class="btn ghost small" onclick="closeFfscParties()">← Retour</button>
+      </div>
+      <p class="muted" id="ffscPartiesStatus" style="margin-top:6px"></p>
+      <div id="ffscPartiesBody" style="margin-top:8px"></div>
     </div>
   </div>
 </section>
@@ -297,6 +342,6 @@
 
 <script src="config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script src="app.js?v=200"></script>
+<script src="app.js?v=201"></script>
 </body>
 </html>
