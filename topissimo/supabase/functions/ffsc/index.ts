@@ -17,7 +17,7 @@
 // ============================================================
 
 // Extraction de texte PDF (simultanés : tournois.exporter.parties.pdf.php).
-import { extractText, getDocumentProxy } from "https://esm.sh/unpdf@0.12.3";
+import { extractText, getDocumentProxy } from "npm:unpdf@1.6.2";
 
 const BASE = "https://www.ffsc.fr/endirect/";
 const UA = "Topissimo/2.0 (club La Garenna; analyse perso)";
