@@ -154,7 +154,14 @@ function parseTournois(html: string) {
     if (m[1]) { currentYear = +m[1]; continue; }
     const id = (m[2] || "").trim();
     const name = (m[3] || "").replace(/\s+/g, " ").trim();
-    if (!id || seen.has(id)) continue;
+    if (!id) continue;
+    if (seen.has(id)) {
+      // Déjà vu (section « à la une » sans année en haut) : si on le retrouve
+      // sous un en-tête d'année, on complète son année.
+      const ex = out.find((t) => t.id === id);
+      if (ex && ex.year == null && currentYear != null) ex.year = currentYear;
+      continue;
+    }
     seen.add(id);
     out.push({ id, name, year: currentYear });
   }
