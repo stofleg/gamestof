@@ -453,9 +453,12 @@ export default {
       if (!id) return json({ error: "id requis" }, 400);
       const pages = await fetchFfscPdfText(`tournois.exporter.parties.pdf.php?id_tournoi=${encodeURIComponent(id)}`);
       if (url.searchParams.get("raw")) return json({ id, pages });
+      // Les premières pages sont des consignes (0 coup) → filtrées ; on
+      // renumérote les parties restantes séquentiellement (1, 2, …).
       const parties = pages
-        .map((t, i) => { const r = parseSimuPartie(t); return { numero: i + 1, meta: r.meta, moves: r.moves, topTotal: r.moves.reduce((s, m) => s + (m.top.score || 0), 0) }; })
-        .filter((p) => p.moves.length);
+        .map((t) => parseSimuPartie(t))
+        .filter((r) => r.moves.length)
+        .map((r, i) => ({ numero: i + 1, meta: r.meta, moves: r.moves, topTotal: r.moves.reduce((s, m) => s + (m.top.score || 0), 0) }));
       return json({ id, parties });
     }
 
