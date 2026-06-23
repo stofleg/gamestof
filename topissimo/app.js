@@ -297,12 +297,9 @@ async function ffscCall(action, params = {}) {
   const url = new URL(FFSC_FN);
   url.searchParams.set("action", action);
   for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
-  const res = await fetch(url, {
-    headers: {
-      apikey: window.SUPABASE_ANON_KEY,
-      Authorization: `Bearer ${window.SUPABASE_ANON_KEY}`,
-    },
-  });
+  // GET « simple » sans en-tête custom → pas de préflight CORS.
+  // (La fonction a « Verify JWT » désactivé, donc aucune clé requise.)
+  const res = await fetch(url);
   if (!res.ok) throw new Error(`FFSC ${action}: HTTP ${res.status}`);
   return res.json();
 }
