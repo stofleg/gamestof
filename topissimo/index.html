@@ -14,7 +14,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fraunces:wght@500;600;700;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=202">
+<link rel="stylesheet" href="style.css?v=203">
 </head>
 <body>
 
@@ -221,6 +221,15 @@
       <div id="ffscFavList" style="display:flex;flex-direction:column;gap:4px;margin-top:8px"></div>
     </div>
 
+    <div class="card" id="ffscPartiesCard" hidden>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <h2 style="margin:0;flex:1" id="ffscPartiesTitle">🎲 Mes parties</h2>
+        <button class="btn ghost small" onclick="closeFfscParties()">✖ Fermer</button>
+      </div>
+      <p class="muted" id="ffscPartiesStatus" style="margin-top:6px"></p>
+      <div id="ffscPartiesBody" style="margin-top:8px"></div>
+    </div>
+
     <div class="card">
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
         <h2 style="margin:0;flex:1">📅 Tournois disponibles</h2>
@@ -232,17 +241,20 @@
       <p class="muted" id="ffscTournoisStatus" style="margin-top:8px"></p>
       <div id="ffscTournoisList" style="margin-top:8px"></div>
     </div>
-
-    <div class="card" id="ffscPartiesCard" hidden>
-      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-        <h2 style="margin:0;flex:1" id="ffscPartiesTitle">🎲 Mes parties</h2>
-        <button class="btn ghost small" onclick="closeFfscParties()">← Retour</button>
-      </div>
-      <p class="muted" id="ffscPartiesStatus" style="margin-top:6px"></p>
-      <div id="ffscPartiesBody" style="margin-top:8px"></div>
-    </div>
   </div>
 </section>
+
+<!-- Modal : feuille de route d'une partie FFSC -->
+<div id="ffscRouteModal" class="modal" hidden>
+  <div class="modal-backdrop" onclick="closeFfscRoute()"></div>
+  <div class="modal-content" style="max-width:560px;max-height:85vh;overflow:auto">
+    <div style="display:flex;align-items:center;gap:10px">
+      <h2 style="margin:0;flex:1" id="ffscRouteTitle">Feuille de route</h2>
+      <button class="btn ghost small" onclick="closeFfscRoute()">✖</button>
+    </div>
+    <div id="ffscRouteBody" style="margin-top:10px"></div>
+  </div>
+</div>
 
 <section data-tab="games" class="tab" hidden>
   <div class="card">
@@ -347,6 +359,6 @@
 
 <script src="config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script src="app.js?v=202"></script>
+<script src="app.js?v=203"></script>
 </body>
 </html>

@@ -174,7 +174,7 @@ let myGamesSort = {
 async function loadMyGames() {
   if (!state.currentPlayerId) return;
   const pid = +state.currentPlayerId;
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=202");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=203");
 
   // Tournoi : prepared_game_results jointes avec prepared_games
   const { data: tour } = await sb.from("prepared_game_results")
@@ -469,7 +469,10 @@ function renderFfscParties(data) {
             <td><strong>${total}</strong></td>
             <td>${topT}</td>
             <td style="color:${neg < 0 ? "#a02525" : "inherit"}">${neg != null ? neg : "—"}</td>
-            <td><button class="btn ghost small" onclick="reviewFfscPartie(${i})">👁 Revoir</button></td>
+            <td style="white-space:nowrap">
+              <button class="btn ghost small" onclick="reviewFfscPartie(${i})">👁 Revoir</button>
+              <button class="btn ghost small" onclick="showFfscRoute(${i})">📋 Feuille de route</button>
+            </td>
           </tr>`;
         }).join("")}
       </tbody>
@@ -487,6 +490,41 @@ window.reviewFfscPartie = function(idx) {
 };
 
 window.closeFfscParties = function() { $("#ffscPartiesCard").hidden = true; };
+
+// Feuille de route d'une partie (coup par coup : mot joué, score, top, négatif).
+window.showFfscRoute = function(idx) {
+  const data = window._ffscData;
+  const p = data && data.parties && data.parties[idx];
+  if (!p) return;
+  $("#ffscRouteTitle").textContent = `📋 Feuille de route — Partie ${p.numero}${p.table != null ? " (table " + p.table + ")" : ""}`;
+  const coups = p.coups || [];
+  const neg = (p.total != null && p.topTotal != null) ? p.total - p.topTotal : null;
+  $("#ffscRouteBody").innerHTML = `
+    <div class="table-wrap"><table>
+      <thead><tr><th>#</th><th>Mot joué</th><th>Score</th><th>Top</th><th>Négatif</th></tr></thead>
+      <tbody>
+        ${coups.map(c => {
+          const isTop = c.status === "top";
+          const word = c.word ? escapeHtml(c.word) : `<span class="muted">${c.remark || "—"}</span>`;
+          return `<tr>
+            <td>${c.moveNo}</td>
+            <td>${word} ${isTop ? "🏆" : ""}</td>
+            <td><strong>${c.playerScore ?? "—"}</strong></td>
+            <td>${c.topScore ?? "—"}</td>
+            <td style="color:${c.neg < 0 ? "#a02525" : "inherit"}">${c.neg || 0}</td>
+          </tr>`;
+        }).join("")}
+      </tbody>
+      <tfoot><tr style="font-weight:700;border-top:2px solid rgba(0,0,0,.15)">
+        <td colspan="2">Total</td>
+        <td>${p.total ?? "—"}</td>
+        <td>${p.topTotal ?? "—"}</td>
+        <td style="color:${neg < 0 ? "#a02525" : "inherit"}">${neg != null ? neg : "—"}</td>
+      </tr></tfoot>
+    </table></div>`;
+  $("#ffscRouteModal").hidden = false;
+};
+window.closeFfscRoute = function() { $("#ffscRouteModal").hidden = true; };
 
 window.delMyTournoi = async function(resultId) {
   if (!confirm("Supprimer ce résultat de ton historique ? (Ne supprime PAS la partie elle-même ni ton score au classement)")) return;
@@ -508,7 +546,7 @@ async function loadMyStats() {
   const pid = +state.currentPlayerId;
 
   body.innerHTML = `<p class="muted">⏳ Calcul…</p>`;
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=202");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=203");
 
   // 1) Toutes mes parties tournoi (avec détails)
   const { data: tour } = await sb.from("prepared_game_results")
@@ -1260,7 +1298,7 @@ async function loadTournamentDetail(tournamentId) {
     });
   }
 
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=202");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=203");
   const btnStyle = "text-decoration:none;padding:5px 10px;border-radius:6px;font-weight:600;font-size:.85rem";
   const admin = isAdmin();
   $("#pgBody").innerHTML = (games || []).length === 0
@@ -1750,7 +1788,7 @@ async function loadTournamentStats(tournamentId, games) {
   // On détermine « le top est un scrabble » en REjouant le plateau coup par coup
   // (nombre de NOUVELLES tuiles posées par le top == clé de prime du mode), ce qui
   // est fiable même sur d'anciennes parties (le hadBonus stocké est non fiable).
-  const { emptyBoard, applyMove, GAME_MODES } = await import("./scrabble/engine.js?v=202");
+  const { emptyBoard, applyMove, GAME_MODES } = await import("./scrabble/engine.js?v=203");
   const gameById = {};
   for (const g of games) gameById[g.id] = g;
   const bonusesOf = (gid) => (GAME_MODES[gameById[gid]?.mode] || GAME_MODES.duplicate).bonuses || { 7: 50 };
@@ -1844,7 +1882,7 @@ $("#tCreate").onclick = async () => {
 
 // Quand on change de mode, mettre à jour le temps/coup par défaut
 $("#pgMode").addEventListener("change", async () => {
-  const { GAME_MODES } = await import("./scrabble/engine.js?v=202");
+  const { GAME_MODES } = await import("./scrabble/engine.js?v=203");
   const m = GAME_MODES[$("#pgMode").value];
   if (m) $("#pgTime").value = m.defaultTime;
 });
@@ -1871,8 +1909,8 @@ $("#pgCreate").onclick = async () => {
     let mods;
     try {
       mods = await Promise.all([
-        import("./scrabble/dictionary.js?v=202"),
-        import("./scrabble/generator.js?v=202"),
+        import("./scrabble/dictionary.js?v=203"),
+        import("./scrabble/generator.js?v=203"),
       ]);
     } catch (e) {
       $("#pgStatus").innerHTML = `<span style="color:#a02525">Échec de chargement des modules : ${escapeHtml(e.message)}</span>`;
@@ -1936,7 +1974,7 @@ window.recomputeAllNeg = async function(force = false) {
 
   let recomputeResult;
   try {
-    ({ recomputeResult } = await import("./scrabble/recompute.js?v=202"));
+    ({ recomputeResult } = await import("./scrabble/recompute.js?v=203"));
   } catch (e) {
     statusEl.textContent = "❌ Impossible de charger recompute.js : " + e.message;
     return;
@@ -2130,7 +2168,7 @@ window.recomputeAllJokerNeg = async function() {
 
   let recomputeResult;
   try {
-    ({ recomputeResult } = await import("./scrabble/recompute.js?v=202"));
+    ({ recomputeResult } = await import("./scrabble/recompute.js?v=203"));
   } catch (e) {
     statusEl.textContent = "❌ Impossible de charger recompute.js : " + e.message;
     return;
