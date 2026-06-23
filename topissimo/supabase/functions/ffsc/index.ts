@@ -142,16 +142,21 @@ function parseExport(txt: string) {
 
 // ---------- Liste des tournois (index endirect) ----------
 function parseTournois(html: string) {
-  const out: { id: string; name: string }[] = [];
-  const re = /endirect\.php\?tournoi_id=([^"'&]+)['"][^>]*>\s*([^<]+?)\s*</g;
+  const out: { id: string; name: string; year: number | null }[] = [];
+  // Parcours séquentiel : un en-tête « Année 2026 » fixe l'année courante ; les
+  // liens de tournois qui suivent en héritent (l'index FFSC est un accordéon
+  // groupé par année, en ordre décroissant).
+  const re = /Ann.e\s*(\d{4})|endirect\.php\?tournoi_id=([^"'&]+)['"][^>]*>\s*([^<]+?)\s*</g;
   let m;
+  let currentYear: number | null = null;
   const seen = new Set<string>();
   while ((m = re.exec(html))) {
-    const id = m[1].trim();
-    const name = m[2].replace(/\s+/g, " ").trim();
+    if (m[1]) { currentYear = +m[1]; continue; }
+    const id = (m[2] || "").trim();
+    const name = (m[3] || "").replace(/\s+/g, " ").trim();
     if (!id || seen.has(id)) continue;
     seen.add(id);
-    out.push({ id, name });
+    out.push({ id, name, year: currentYear });
   }
   return out;
 }
