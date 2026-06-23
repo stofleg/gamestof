@@ -140,7 +140,8 @@ function parseTournois(html: string) {
 }
 
 // ---------- Handler ----------
-Deno.serve(async (req) => {
+export default {
+  async fetch(req: Request): Promise<Response> {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
   try {
     const url = new URL(req.url);
@@ -174,4 +175,5 @@ Deno.serve(async (req) => {
   } catch (e) {
     return json({ error: String((e as Error).message || e) }, 502);
   }
-});
+  },
+};
