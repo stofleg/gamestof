@@ -57,7 +57,7 @@ const TOURNAMENT_ID = URL_PARAMS.get("tid");  // ID du tournoi pour le retour
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v196";
+const BUILD_VERSION = "garenna-v197";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -931,8 +931,12 @@ function timeoutAdvance() {
     playedWord = state.bestAttempt.word;
   }
   const tm = state.topMove;
-  recordMove({ status: "timeout", playerScore, playedWord });
-  placeTopAndAdvance(playerScore, playedWord || null);
+  // Coordonnées du mot joué (pending courant, sinon meilleur essai) pour que la
+  // barre orange affiche "MOT — XX pts en POS" et la feuille de route la position.
+  let playedMoveObj = state.pending.length ? buildMoveFromPending() : null;
+  if (!playedMoveObj && state.bestAttempt?.move) playedMoveObj = state.bestAttempt.move;
+  recordMove({ status: "timeout", playerScore, playedWord, playedMove: playedMoveObj });
+  placeTopAndAdvance(playerScore, playedWord || null, playedWord ? playerScore : null, playedMoveObj);
   showFeedback("miss", `⏱ Temps écoulé — tu marques ${playerScore} pts`, "");
   setTimeout(nextMove, 1000);
 }
@@ -1971,7 +1975,7 @@ function revealTop() {
   // Priorité : pending courant, sinon move stocké dans bestAttempt
   let playedMoveObj = state.pending.length ? buildMoveFromPending() : null;
   if (!playedMoveObj && state.bestAttempt?.move) playedMoveObj = state.bestAttempt.move;
-  recordMove({ status: "giveup", playerScore, playedWord });
+  recordMove({ status: "giveup", playerScore, playedWord, playedMove: playedMoveObj });
   placeTopAndAdvance(playerScore, playedWord || null, playerScore || null, playedMoveObj);
   renderBoard();   // afficher immédiatement la surbrillance du mot top
   // Pas de showFeedback ici : showLastTopFeedback (appelé par nextMove) affichera
