@@ -57,7 +57,7 @@ const TOURNAMENT_ID = URL_PARAMS.get("tid");  // ID du tournoi pour le retour
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v194";
+const BUILD_VERSION = "garenna-v195";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -309,6 +309,28 @@ function renderBoard() {
   const isMobile = window.matchMedia && window.matchMedia("(max-width: 700px)").matches;
   const showCoords = state.settings.showCoords && !isMobile;
   document.body.classList.toggle("show-coords", showCoords);
+  // Badge de score PROGRESSIF : placé à la SUITE du mot en cours (case juste
+  // après la dernière lettre, dans le sens du mot). Compté au fur et à mesure,
+  // même si le mot n'est pas encore valide (on ignore les erreurs de dico).
+  let badgeCell = null, badgeScore = null, badgeEdge = false;
+  if (state.pending.length > 0) {
+    const mv = buildMoveFromPending();
+    if (mv) {
+      const r0 = scoreMove(state.board, mv, null, { bonuses: currentMode().bonuses });
+      badgeScore = r0.score;
+      const dr = mv.dir === "V" ? 1 : 0, dc = mv.dir === "H" ? 1 : 0;
+      const afterR = mv.row + mv.word.length * dr;
+      const afterC = mv.col + mv.word.length * dc;
+      if (afterR >= 0 && afterR < BOARD_SIZE && afterC >= 0 && afterC < BOARD_SIZE) {
+        badgeCell = { r: afterR, c: afterC };
+      } else {
+        // Bord de grille : pas de case après → on pose le badge sur la dernière
+        // lettre, décalé vers l'extérieur (classe .badge-edge) pour rester lisible.
+        badgeCell = { r: mv.row + (mv.word.length - 1) * dr, c: mv.col + (mv.word.length - 1) * dc };
+        badgeEdge = true;
+      }
+    }
+  }
   let html = "<table>";
   if (showCoords) {
     html += `<tr><td class="coord corner"></td>`;
@@ -337,11 +359,10 @@ function renderBoard() {
         const dragAttr = tile.pending ? `draggable="true" data-pending-r="${r}" data-pending-c="${c}"` : "";
         tileHtmlStr = `<div class="${tcls.join(" ")}" ${dragAttr}>${tile.letter}<span class="val">${tval ?? ""}</span></div>`;
       }
-      // Badge de score live : affiché dans la case curseur quand des tuiles sont posées
+      // Badge de score progressif : dans la case calculée (après le mot).
       let badge = "";
-      if (isCursor && state.pending.length > 0) {
-        const sc = computePendingScore();
-        if (sc !== null) badge = `<span class="score-badge">${sc}</span>`;
+      if (badgeCell && badgeCell.r === r && badgeCell.c === c && badgeScore != null) {
+        badge = `<span class="score-badge${badgeEdge ? " badge-edge" : ""}">${badgeScore}</span>`;
       }
       const annot = renderAnnotations(r, c);
       html += `<td class="${cls.join(" ")}" data-r="${r}" data-c="${c}">${tileHtmlStr}${badge}${annot}</td>`;
@@ -1004,10 +1025,29 @@ function hideFeedback() {
   state.lastTopCells = [];
 }
 
-function showTransientError(title, detail = "", ms = 2000) {
+function showTransientError(title, detail = "", ms = 1600) {
   showFeedback("error", title, detail);
   clearTimeout(state._errorTimeout);
-  state._errorTimeout = setTimeout(() => hideFeedback(), ms);
+  // À la fin du message d'erreur, on NE masque pas : on restaure l'info
+  // persistante (meilleur essai du coup, sinon repère du coup précédent) →
+  // aucun message « pose invalide / rien à valider… » ne fait perdre le score.
+  state._errorTimeout = setTimeout(() => restorePersistentFeedback(), ms);
+}
+
+// HTML du "meilleur essai" courant, avec sa position (ex. "NI — 9 pts en B12 — meilleur essai").
+function bestAttemptHTML() {
+  const b = state.bestAttempt;
+  if (!b) return null;
+  const pos = b.move ? ` en ${posLabel(b.move)}` : "";
+  return `<strong>${wLink(b.word)}</strong> — <strong>${b.score}</strong> pts${pos} — meilleur essai`;
+}
+
+// Réaffiche l'information persistante de la fenêtre orange : meilleur essai du
+// coup en cours s'il existe, sinon le repère du coup précédent (showLastTopFeedback).
+function restorePersistentFeedback() {
+  const html = bestAttemptHTML();
+  if (html) { showFeedback("miss", html, ""); return; }
+  showLastTopFeedback();
 }
 
 function showTopFeedback(word, score, pos = "") {
@@ -1122,14 +1162,20 @@ function clearPending() {
 }
 
 function moveCursorKey(key) {
-  let { row, col } = state.cursor;
-  if (key === "ArrowLeft")  col--;
-  if (key === "ArrowRight") col++;
-  if (key === "ArrowUp")    row--;
-  if (key === "ArrowDown")  row++;
-  // Passage d'un bord à l'autre (ex. O1 + flèche gauche → O15).
-  col = (col + BOARD_SIZE) % BOARD_SIZE;
-  row = (row + BOARD_SIZE) % BOARD_SIZE;
+  const delta = {
+    ArrowLeft: [0, -1], ArrowRight: [0, 1], ArrowUp: [-1, 0], ArrowDown: [1, 0],
+  }[key];
+  if (!delta) return;
+  let row = state.cursor.row, col = state.cursor.col;
+  // On avance dans la direction en ENJAMBANT les cases déjà occupées : le
+  // curseur se pose sur la 1ʳᵉ case LIBRE rencontrée (ex. mot en H4-H8 → de H3,
+  // flèche droite, le curseur saute directement en H9).
+  let guard = 0;
+  do {
+    row = (row + delta[0] + BOARD_SIZE) % BOARD_SIZE;
+    col = (col + delta[1] + BOARD_SIZE) % BOARD_SIZE;
+    guard++;
+  } while (isOccupied(row, col) && guard < BOARD_SIZE);
   state.cursor.row = row;
   state.cursor.col = col;
   renderBoard();
@@ -1626,13 +1672,13 @@ function validate() {
     renderBoard();
     renderRack();
     const best = state.bestAttempt;
+    const curPos = ` en ${posLabel(move)}`;
     const isNewBest = best.word === move.word && best.score === result.score;
-    const currentLine = `${move.word} = <strong>${result.score}</strong> pts`;
     const bestLine = isNewBest
-      ? `${currentLine} — meilleur essai ✓`
-      : `${currentLine}<br>Meilleur essai : <strong>${best.word}</strong> = ${best.score} pts`;
+      ? `<strong>${wLink(move.word)}</strong> — <strong>${result.score}</strong> pts${curPos} — meilleur essai`
+      : `<strong>${wLink(move.word)}</strong> — ${result.score} pts${curPos}<br>${bestAttemptHTML()}`;
     hideTopFeedback();  // efface le top du coup précédent dès validation
-    showFeedback("miss", bestLine, `Pas le top, cherche encore. <kbd>Voir le top</kbd> pour révéler.`);
+    showFeedback("miss", bestLine, "");
   }
 }
 
@@ -1712,15 +1758,7 @@ function flashInvalidWord(detail, invalidCells) {
     if (!clearInvalidFlash()) return;
     renderRack();
     renderBoard();
-    const best = state.bestAttempt;
-    if (best) {
-      showFeedback("miss",
-        `Meilleur essai : <strong>${wLink(best.word)}</strong> = <strong>${best.score}</strong> pts ✓`, "");
-    } else {
-      fb.innerHTML = prevHTML;
-      fb.className = prevClass;
-      fb.hidden = prevHidden;
-    }
+    restorePersistentFeedback();   // meilleur essai (avec position) ou repère
   }, 1400);
 }
 
@@ -2002,7 +2040,7 @@ function showLastTopFeedback() {
   if (playedWord) {
     const pos  = playedMove ? ` en ${posLabel(playedMove)}` : "";
     const pts  = playedScore != null ? ` — <strong>${playedScore}</strong> pts` : "";
-    showFeedback("miss", `Mot validé : <strong>${wLink(playedWord)}</strong>${pts}${pos}`, "");
+    showFeedback("miss", `<strong>${wLink(playedWord)}</strong>${pts}${pos}`, "");
   } else {
     const div = $("#feedback");
     div.hidden = true; div.innerHTML = ""; div.className = "feedback";
@@ -3660,7 +3698,7 @@ window.openSheet = () => {
       Score : <strong>${state.totalScore}</strong> · Négatif : <strong>${state.sumNeg}</strong>
       · Temps total : <strong>${fmtChrono(state.chronoFinal ?? elapsedSeconds())}</strong>
     </div>
-    <div style="max-height:60vh;overflow:auto">
+    <div class="sheet-scroll" style="overflow:auto">
     <table style="width:100%;border-collapse:collapse;font-size:.9rem;white-space:nowrap">
       <thead><tr style="background:var(--petrol);color:#fff;position:sticky;top:0">
         <th style="padding:6px 8px;text-align:left">#</th>

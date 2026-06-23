@@ -493,36 +493,30 @@ body.theme-duplijeu .board tr:last-child td.coord { height: calc(var(--cell-size
   border-radius: 4px;
 }
 
-/* ===== Badge de score live (au-dessus de la dernière lettre du mot) ===== */
-/* Badge de score live : texte centré dans la case, sans fond propre
-   (le fond violet vient du ::before en pentagone rempli ci-dessous) */
+/* ===== Badge de score PROGRESSIF (hexagone, posé après le mot) ===== */
+/* Hexagone blanc à liseré bleu nuit avec le score courant, mis à jour à chaque
+   lettre posée. Placé dans la case qui suit le mot ; en bord de grille, la
+   classe .badge-edge le décale vers l'extérieur pour ne pas masquer la lettre. */
 .score-badge {
   position: absolute;
   inset: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding-right: 8%;   /* compense visuellement la pointe du pentagone H */
-  background: transparent;
-  color: #fff;
+  color: var(--petrol);
   font-family: 'Inter', sans-serif;
   font-weight: 700;
-  font-size: .8rem;
-  z-index: 13;
+  font-size: calc(var(--cell-size) * 0.34);
+  z-index: 30;
   pointer-events: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><polygon points='27,6 73,6 96,50 73,94 27,94 4,50' fill='white' stroke='%23002E44' stroke-width='7' stroke-linejoin='round'/></svg>");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 100% 86%;
 }
-/* Quand le badge est présent : pentagone rempli en violet (H et V) */
-.board td.cursor.dir-h:has(.score-badge)::before {
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><polygon points='5,5 60,5 95,50 60,95 5,95' fill='%238a3cb5' stroke='%238a3cb5' stroke-width='2' stroke-linejoin='round'/></svg>");
-}
-.board td.cursor.dir-v:has(.score-badge)::before {
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><polygon points='5,5 95,5 95,60 50,95 5,60' fill='%238a3cb5' stroke='%238a3cb5' stroke-width='2' stroke-linejoin='round'/></svg>");
-}
-/* En V : décaler le texte vers le haut pour coller au centroïde du pentagone */
-.board td.cursor.dir-v .score-badge {
-  padding-right: 0;
-  padding-bottom: 12%;
-}
+/* Bord de grille : décaler l'hexagone à droite (mot horizontal) hors de la case. */
+.score-badge.badge-edge { transform: translateX(60%); }
+.board td.cursor.dir-v .score-badge.badge-edge { transform: translateY(60%); }
 
 /* ===== Compte à rebours par coup ===== */
 .move-timer-chip {
@@ -842,6 +836,8 @@ input:disabled, select:disabled {
   width: auto !important;
   max-width: min(900px, calc(100vw - 40px)) !important;
 }
+/* Zone défilante de la feuille de route : plafond sur desktop. */
+.sheet-scroll { max-height: 60vh; }
 .sheet-main {
   flex: 0 0 auto;
   width: min(660px, calc(100vw - 80px));

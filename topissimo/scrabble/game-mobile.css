@@ -461,7 +461,13 @@
     max-height: 100dvh !important;
     border-radius: 0;
     padding: 16px 10px;
+    display: flex;
+    flex-direction: column;
   }
+  /* La zone défilante occupe TOUTE la hauteur dispo → un maximum de lignes
+     visibles d'un coup, défilement seulement si la partie est très longue. */
+  #sheet #sheetBody { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; }
+  #sheet .sheet-scroll { flex: 1 1 auto; max-height: none !important; min-height: 0; }
   #sheetBody table { font-size: .78rem; }
   #sheetBody table th, #sheetBody table td { padding: 4px 4px !important; }
   /* Cacher les colonnes secondaires sur mobile (#, Score top, Statut, Temps) */
