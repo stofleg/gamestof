@@ -255,14 +255,14 @@ function parseFisfPalmares(html: string) {
     const place = (/___iPlace[^"]*"\s*>\s*(\d+)/.exec(row) || [])[1];
     const neg = (/___iScore0[^"]*"\s*>\s*(-?\d+)/.exec(row) || [])[1];
     const serie = (/___Serie[^"]*"\s*>\s*([0-9][A-Z]?)/.exec(row) || [])[1] || "";
-    const y = date ? +date.slice(6) : null;
+    const calYear = date ? +date.slice(6) : null;   // année civile (dd-mm-YYYY)
     const mo = date ? +date.slice(3, 5) : 0;
-    const saisonStart = y ? (mo >= 9 ? y : y - 1) : null;
+    const saisonStart = calYear ? (mo >= 9 ? calYear : calYear - 1) : null;
     tournois.push({
       fisfId,
       name: htmlText(ep[2]).replace(/\s+/g, " ").trim(),
       date,
-      year: saisonStart,
+      year: calYear,   // pour le recoupement avec l'index endirect (par année civile)
       saison: saisonStart ? `${saisonStart}-${saisonStart + 1}` : "",
       place: place != null ? +place : null,
       neg: neg != null ? +neg : null,

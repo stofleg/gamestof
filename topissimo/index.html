@@ -14,7 +14,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fraunces:wght@500;600;700;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=204">
+<link rel="stylesheet" href="style.css?v=205">
 </head>
 <body>
 
@@ -207,13 +207,27 @@
       <h2>🎖 Mes tournois FFSC</h2>
       <p class="muted">Relie ton compte à tes résultats officiels (en direct FFSC). Saisis ton nom tel qu'il apparaît au classement.</p>
       <div class="row" style="align-items:flex-end">
-        <div style="flex:1 1 220px">
+        <div style="flex:2 1 220px">
           <label>Mon nom FFSC</label>
           <input type="text" id="ffscName" placeholder="ex : LEGUAY Christophe">
+        </div>
+        <div style="flex:1 1 130px">
+          <label>N° de licence</label>
+          <input type="text" id="ffscLicence" placeholder="ex : 2231415">
         </div>
         <div><label>&nbsp;</label><button class="btn ghost small" onclick="saveFfscName()">💾 Enregistrer</button></div>
       </div>
       <p class="muted" id="ffscNameStatus" style="margin-top:6px"></p>
+    </div>
+
+    <div class="card">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <h2 style="margin:0;flex:1">🏅 Mon palmarès FISF</h2>
+        <button class="btn ghost small" id="ffscPalmaresBtn" onclick="loadFfscPalmares()">🔄 Charger mon palmarès</button>
+      </div>
+      <p class="muted" style="margin-top:6px">Tes tournois officiels depuis ta licence. Clique sur « Relier » pour rattacher un tournoi diffusé « en direct » et l'analyser.</p>
+      <p class="muted" id="ffscPalmaresStatus" style="margin-top:6px"></p>
+      <div id="ffscPalmaresList" style="margin-top:8px"></div>
     </div>
 
     <div class="card" id="ffscFavCard" hidden>
@@ -253,6 +267,20 @@
       <button class="btn ghost small" onclick="closeFfscRoute()">✖</button>
     </div>
     <div id="ffscRouteBody" style="margin-top:10px"></div>
+  </div>
+</div>
+
+<!-- Modal : relier un tournoi FISF à un tournoi endirect -->
+<div id="ffscRelierModal" class="modal" hidden>
+  <div class="modal-backdrop" onclick="closeFfscRelier()"></div>
+  <div class="modal-content" style="max-width:560px;max-height:85vh;overflow:auto">
+    <div style="display:flex;align-items:center;gap:10px">
+      <h2 style="margin:0;flex:1" id="ffscRelierTitle">Relier à « en direct »</h2>
+      <button class="btn ghost small" onclick="closeFfscRelier()">✖</button>
+    </div>
+    <p class="muted" id="ffscRelierSub" style="margin-top:6px"></p>
+    <input type="text" id="ffscRelierSearch" placeholder="Filtrer les tournois en direct…" oninput="renderFfscRelierCandidates()" style="width:100%;margin-top:8px">
+    <div id="ffscRelierList" style="margin-top:8px;display:flex;flex-direction:column;gap:4px"></div>
   </div>
 </div>
 
@@ -359,6 +387,6 @@
 
 <script src="config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script src="app.js?v=204"></script>
+<script src="app.js?v=205"></script>
 </body>
 </html>
