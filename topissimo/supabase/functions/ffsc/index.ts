@@ -36,7 +36,10 @@ async function fetchFfsc(pathAndQuery: string): Promise<string> {
   const url = BASE + pathAndQuery.replace(/^\/+/, "");
   const res = await fetch(url, { headers: { "User-Agent": UA } });
   if (!res.ok) throw new Error(`FFSC ${res.status} sur ${url}`);
-  return await res.text();
+  // La FFSC sert en ISO-8859-1 / Windows-1252 → on décode explicitement
+  // (sinon les accents des noms/labels sont cassés).
+  const buf = await res.arrayBuffer();
+  return new TextDecoder("windows-1252").decode(buf);
 }
 
 // ---------- Parsing de l'export TXT d'une partie ----------
