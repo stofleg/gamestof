@@ -27,9 +27,9 @@ import {
   emptyBoard, BOARD_BONUSES, BOARD_SIZE, CENTER, LETTER_VALUE, LETTER_BAG,
   VOWELS, drawForDuplicate, scoreMove, applyMove,
   bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName,
-} from "./engine.js?v=199";
-import { Dictionary } from "./dictionary.js?v=199";
-import { findTop, findTopRanked } from "./topfinder.js?v=199";
+} from "./engine.js?v=200";
+import { Dictionary } from "./dictionary.js?v=200";
+import { findTop, findTopRanked } from "./topfinder.js?v=200";
 
 // État du mode review (parcours coup par coup)
 const review = {
@@ -57,7 +57,7 @@ const TOURNAMENT_ID = URL_PARAMS.get("tid");  // ID du tournoi pour le retour
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v199";
+const BUILD_VERSION = "garenna-v200";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -312,12 +312,13 @@ function renderBoard() {
   // Étiquette de score PROGRESSIF : petite pastille au coin supérieur droit de la
   // DERNIÈRE lettre du mot en cours. Comptée au fur et à mesure, même si le mot
   // n'est pas encore valide (on ignore les erreurs de dico). Ne masque pas le curseur.
-  let badgeCell = null, badgeScore = null;
+  let badgeCell = null, badgeScore = null, badgeDir = "H";
   if (state.pending.length > 0) {
     const mv = buildMoveFromPending();
     if (mv) {
       const r0 = scoreMove(state.board, mv, null, { bonuses: currentMode().bonuses, raw: true });
       badgeScore = r0.score;
+      badgeDir = mv.dir;
       const dr = mv.dir === "V" ? 1 : 0, dc = mv.dir === "H" ? 1 : 0;
       badgeCell = { r: mv.row + (mv.word.length - 1) * dr, c: mv.col + (mv.word.length - 1) * dc };
     }
@@ -353,7 +354,7 @@ function renderBoard() {
       // Badge de score progressif : dans la case calculée (après le mot).
       let badge = "";
       if (badgeCell && badgeCell.r === r && badgeCell.c === c && badgeScore != null) {
-        badge = `<span class="score-badge">${badgeScore}</span>`;
+        badge = `<span class="score-badge${badgeDir === "V" ? " badge-v" : ""}">${badgeScore}</span>`;
       }
       const annot = renderAnnotations(r, c);
       html += `<td class="${cls.join(" ")}" data-r="${r}" data-c="${c}">${tileHtmlStr}${badge}${annot}</td>`;

@@ -519,6 +519,14 @@ body.theme-duplijeu .board tr:last-child td.coord { height: calc(var(--cell-size
   pointer-events: none;
   box-shadow: 0 1px 3px rgba(0,0,0,.3);
 }
+/* Mot VERTICAL : la continuité est vers le bas → badge sous la dernière lettre. */
+.score-badge.badge-v {
+  top: auto;
+  right: auto;
+  bottom: -6px;
+  left: 50%;
+  transform: translateX(-50%);
+}
 
 /* ===== Compte à rebours par coup ===== */
 .move-timer-chip {
