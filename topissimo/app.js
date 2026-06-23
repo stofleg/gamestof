@@ -379,7 +379,7 @@ window.importFfscTournoi = async function(tournoiId, btn) {
   status.textContent = `Recherche de « ${name} »…`;
   if (btn) btn.disabled = true;
   try {
-    const data = await ffscCall("import", { id: tournoiId, nom: name });
+    const data = await ffscCall("import", { tournoi: tournoiId, nom: name });
     renderFfscParties(data);
   } catch (e) {
     status.textContent = `❌ ${e.message}`;
