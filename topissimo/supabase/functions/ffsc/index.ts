@@ -283,6 +283,29 @@ function deburr(s: string): string {
   return s.normalize("NFD").replace(/[̀-ͯ]/g, "");
 }
 
+// Page HTML du site principal ffsc.fr (hors endirect), en UTF-8.
+async function fetchFfscPage(path: string): Promise<string> {
+  const res = await fetch("https://www.ffsc.fr/" + path.replace(/^\/+/, ""), { headers: { "User-Agent": UA } });
+  if (!res.ok) throw new Error(`FFSC ${res.status} sur ${path}`);
+  return new TextDecoder("utf-8").decode(await res.arrayBuffer());
+}
+
+// Liste des tournois d'une année (tournois.php?annee=YYYY) avec leur DATE.
+// Structure : <li class='date_tournoi'>Dim 04/01</li> puis
+//             <li class='nom_tournoi'>… <a href='tournois.php?id=N'>NOM</a> …</li>
+// L'id numérique de tournois.php est aussi l'id endirect du tournoi.
+function parseTournoisFfsc(html: string, annee: string) {
+  const out: { id: number; name: string; date: string | null }[] = [];
+  let cur: string | null = null;
+  const re = /<li class='date_tournoi'>\s*[A-Za-zÀ-ÿ.]+\s*(\d{2})\/(\d{2})|tournois\.php\?id=(\d+)'[^>]*>([^<]+)<\/a>/g;
+  let m;
+  while ((m = re.exec(html))) {
+    if (m[1]) cur = `${m[1]}-${m[2]}-${annee}`;
+    else if (m[3]) out.push({ id: +m[3], name: htmlText(m[4]), date: cur });
+  }
+  return out;
+}
+
 async function fetchFfscPdfText(pathAndQuery: string): Promise<string[]> {
   const url = "https://www.ffsc.fr/" + pathAndQuery.replace(/^\/+/, "");
   const res = await fetch(url, { headers: { "User-Agent": UA } });
@@ -414,6 +437,15 @@ export default {
       return json(parseRouteSheet(html, numero));
     }
 
+    // Liste datée des tournois d'une année (tournois.php) → matching par date.
+    // ?action=tournois_ffsc&annee=2026
+    if (action === "tournois_ffsc") {
+      const annee = url.searchParams.get("annee");
+      if (!annee || !/^\d{4}$/.test(annee)) return json({ error: "annee (YYYY) requise" }, 400);
+      const html = await fetchFfscPage(`tournois.php?annee=${annee}`);
+      return json({ annee: +annee, tournois: parseTournoisFfsc(html, annee) });
+    }
+
     // Simultanés : parties depuis le PDF officiel (id = id FFSC du tournoi).
     // ?action=simu&id=20294   (&raw=1 → renvoie le texte PDF extrait, debug)
     if (action === "simu") {
@@ -471,7 +503,7 @@ export default {
       return new Response(txt, { headers: { ...CORS, "Content-Type": "text/plain; charset=utf-8" } });
     }
 
-    return json({ error: "action inconnue", actions: ["tournois", "partie", "route", "import", "fisf", "simu", "raw", "fisf_raw"] }, 400);
+    return json({ error: "action inconnue", actions: ["tournois", "tournois_ffsc", "partie", "route", "import", "fisf", "simu", "raw", "fisf_raw"] }, 400);
   } catch (e) {
     return json({ error: String((e as Error).message || e) }, 502);
   }
