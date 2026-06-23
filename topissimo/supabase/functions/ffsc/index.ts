@@ -166,9 +166,8 @@ export default {
     // parseurs HTML des pages résultats/scores/feuille de route).
     if (action === "raw") {
       const path = url.searchParams.get("path") || "";
-      if (!/^endirect[.\w]*\.php(\?.*)?$/.test(path) && !/^endirect\.parties\.exporter\.php(\?.*)?$/.test(path)) {
-        return json({ error: "path non autorisé" }, 400);
-      }
+      const ok = path === "" || /^endirect[.\w]*\.php(\?.*)?$/.test(path) || /^endirect\.parties\.exporter\.php(\?.*)?$/.test(path);
+      if (!ok) return json({ error: "path non autorisé" }, 400);
       const txt = await fetchFfsc(path);
       return new Response(txt, { headers: { ...CORS, "Content-Type": "text/plain; charset=utf-8" } });
     }
