@@ -515,7 +515,7 @@ body.theme-duplijeu .board tr:last-child td.coord { height: calc(var(--cell-size
   font-weight: 700;
   font-size: calc(var(--cell-size) * 0.26);
   line-height: 1;
-  z-index: 40;
+  z-index: 70;   /* au-dessus du cadre du top (.top-frame : z-index 60) */
   pointer-events: none;
   box-shadow: 0 1px 3px rgba(0,0,0,.3);
 }
