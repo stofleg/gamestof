@@ -174,7 +174,7 @@ let myGamesSort = {
 async function loadMyGames() {
   if (!state.currentPlayerId) return;
   const pid = +state.currentPlayerId;
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=222");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=223");
 
   // Tournoi : prepared_game_results jointes avec prepared_games
   const { data: tour } = await sb.from("prepared_game_results")
@@ -458,13 +458,18 @@ async function fetchFfscData(tournoiId, displayName, onStatus) {
     catch (e) { data = null; }   // 404 joueur introuvable → repli PDF
   }
   if (!data || !data.player) {
-    if (onStatus) onStatus("Pas de feuille de route en direct — récupération des parties officielles (PDF)…");
-    const sd = await ffscCall("simu", { id });
-    if (sd && sd.parties && sd.parties.length) {
-      data = { simu: true, player: name || "", tournoi: displayName || "", parties: sd.parties };
-    } else {
-      return null;
+    // 2) À défaut du joueur : les parties seules via l'export endirect (tirages
+    //    + tops), utile pour les id « string » diffusés (ex. interclubs2024).
+    if (onStatus) onStatus("Joueur non trouvé — récupération des parties diffusées…");
+    let parties = [];
+    try { const pd = await ffscCall("parties", { tournoi: id }); parties = (pd && pd.parties) || []; } catch (e) {}
+    // 3) Sinon le PDF officiel (simultanés, qualifs…).
+    if (!parties.length) {
+      if (onStatus) onStatus("Récupération des parties officielles (PDF)…");
+      try { const sd = await ffscCall("simu", { id }); parties = (sd && sd.parties) || []; } catch (e) {}
     }
+    if (!parties.length) return null;
+    data = { simu: true, player: name || "", tournoi: displayName || "", parties };
   } else if (displayName && !data.tournoi) {
     data.tournoi = displayName;
   }
@@ -856,7 +861,7 @@ async function loadMyStats() {
   const pid = +state.currentPlayerId;
 
   body.innerHTML = `<p class="muted">⏳ Calcul…</p>`;
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=222");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=223");
 
   // 1) Toutes mes parties tournoi (avec détails)
   const { data: tour } = await sb.from("prepared_game_results")
@@ -1608,7 +1613,7 @@ async function loadTournamentDetail(tournamentId) {
     });
   }
 
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=222");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=223");
   const btnStyle = "text-decoration:none;padding:5px 10px;border-radius:6px;font-weight:600;font-size:.85rem";
   const admin = isAdmin();
   $("#pgBody").innerHTML = (games || []).length === 0
@@ -2098,7 +2103,7 @@ async function loadTournamentStats(tournamentId, games) {
   // On détermine « le top est un scrabble » en REjouant le plateau coup par coup
   // (nombre de NOUVELLES tuiles posées par le top == clé de prime du mode), ce qui
   // est fiable même sur d'anciennes parties (le hadBonus stocké est non fiable).
-  const { emptyBoard, applyMove, GAME_MODES } = await import("./scrabble/engine.js?v=222");
+  const { emptyBoard, applyMove, GAME_MODES } = await import("./scrabble/engine.js?v=223");
   const gameById = {};
   for (const g of games) gameById[g.id] = g;
   const bonusesOf = (gid) => (GAME_MODES[gameById[gid]?.mode] || GAME_MODES.duplicate).bonuses || { 7: 50 };
@@ -2192,7 +2197,7 @@ $("#tCreate").onclick = async () => {
 
 // Quand on change de mode, mettre à jour le temps/coup par défaut
 $("#pgMode").addEventListener("change", async () => {
-  const { GAME_MODES } = await import("./scrabble/engine.js?v=222");
+  const { GAME_MODES } = await import("./scrabble/engine.js?v=223");
   const m = GAME_MODES[$("#pgMode").value];
   if (m) $("#pgTime").value = m.defaultTime;
 });
@@ -2219,8 +2224,8 @@ $("#pgCreate").onclick = async () => {
     let mods;
     try {
       mods = await Promise.all([
-        import("./scrabble/dictionary.js?v=222"),
-        import("./scrabble/generator.js?v=222"),
+        import("./scrabble/dictionary.js?v=223"),
+        import("./scrabble/generator.js?v=223"),
       ]);
     } catch (e) {
       $("#pgStatus").innerHTML = `<span style="color:#a02525">Échec de chargement des modules : ${escapeHtml(e.message)}</span>`;
@@ -2284,7 +2289,7 @@ window.recomputeAllNeg = async function(force = false) {
 
   let recomputeResult;
   try {
-    ({ recomputeResult } = await import("./scrabble/recompute.js?v=222"));
+    ({ recomputeResult } = await import("./scrabble/recompute.js?v=223"));
   } catch (e) {
     statusEl.textContent = "❌ Impossible de charger recompute.js : " + e.message;
     return;
@@ -2478,7 +2483,7 @@ window.recomputeAllJokerNeg = async function() {
 
   let recomputeResult;
   try {
-    ({ recomputeResult } = await import("./scrabble/recompute.js?v=222"));
+    ({ recomputeResult } = await import("./scrabble/recompute.js?v=223"));
   } catch (e) {
     statusEl.textContent = "❌ Impossible de charger recompute.js : " + e.message;
     return;

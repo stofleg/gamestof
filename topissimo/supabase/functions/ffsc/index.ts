@@ -444,6 +444,26 @@ export default {
       return json(parseRouteSheet(html, numero));
     }
 
+    // Toutes les parties d'un tournoi via l'export endirect, SANS joueur
+    // (tirages + tops seulement). Repli quand le joueur n'est pas trouvé mais
+    // que les parties sont diffusées (ex. id string « interclubs2024 »).
+    // ?action=parties&tournoi=interclubs2024
+    if (action === "parties") {
+      const tournoi = url.searchParams.get("tournoi");
+      if (!tournoi) return json({ error: "tournoi requis" }, 400);
+      const enc = encodeURIComponent;
+      const out = [];
+      for (let n = 1; n <= 12; n++) {
+        let txt = "";
+        try { txt = await fetchFfsc(`endirect.parties.exporter.php?tournoi_id=${enc(tournoi)}&numero=${n}`); }
+        catch (e) { break; }
+        const g = parseExport(txt);
+        if (!g.moves.length) break;   // plus de partie disponible
+        out.push({ numero: n, meta: g.meta, moves: g.moves, topTotal: g.moves.reduce((s, m) => s + (m.top.score || 0), 0) });
+      }
+      return json({ tournoi, parties: out });
+    }
+
     // Liste datée des tournois d'une année (tournois.php) → matching par date.
     // ?action=tournois_ffsc&annee=2026
     if (action === "tournois_ffsc") {
@@ -520,7 +540,7 @@ export default {
       return new Response(txt, { headers: { ...CORS, "Content-Type": "text/plain; charset=utf-8" } });
     }
 
-    return json({ error: "action inconnue", actions: ["tournois", "tournois_ffsc", "partie", "route", "import", "fisf", "simu", "raw", "fisf_raw"] }, 400);
+    return json({ error: "action inconnue", actions: ["tournois", "tournois_ffsc", "partie", "parties", "route", "import", "fisf", "simu", "raw", "fisf_raw"] }, 400);
   } catch (e) {
     return json({ error: String((e as Error).message || e) }, 502);
   }
