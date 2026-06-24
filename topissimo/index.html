@@ -14,7 +14,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fraunces:wght@500;600;700;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=215">
+<link rel="stylesheet" href="style.css?v=216">
 </head>
 <body>
 
@@ -227,6 +227,12 @@
       </div>
       <p class="muted" style="margin-top:6px">Tes tournois officiels depuis ta licence. Clique sur « Relier » pour rattacher un tournoi diffusé « en direct » et l'analyser.</p>
       <p class="muted" id="ffscPalmaresStatus" style="margin-top:6px"></p>
+      <div id="ffscSelBar" hidden style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:8px 0;padding:8px;background:var(--soft);border-radius:8px">
+        <span id="ffscSelCount" style="font-weight:600"></span>
+        <span class="muted" style="font-size:.82rem">Coche plusieurs lignes (ex. P1/P2/P3) pour les relier à un même tournoi FFSC.</span>
+        <button class="btn ghost small" style="margin-left:auto" onclick="openFfscRelierSelection()">🔗 Relier la sélection</button>
+        <button class="btn ghost small" onclick="clearFfscSel()">Annuler</button>
+      </div>
       <div id="ffscPalmaresList" style="margin-top:8px"></div>
     </div>
 
@@ -387,6 +393,6 @@
 
 <script src="config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script src="app.js?v=215"></script>
+<script src="app.js?v=216"></script>
 </body>
 </html>
