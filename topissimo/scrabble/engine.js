@@ -290,15 +290,22 @@ export function applyMove(board, move) {
 // ============================================================
 export function drawForDuplicate(bag, kept, moveNo, target = 7) {
   const minVC = moveNo >= 15 ? 1 : 2;
-  // Validité d'un chevalet : il faut au moins `minVC` voyelles RÉELLES et
-  // `minVC` consonnes RÉELLES. Le joker ne compte ni comme voyelle ni comme
-  // consonne — sauf si le type manquant est épuisé dans le sac restant (alors
-  // le joker peut s'y substituer). Renvoie true si le rack est conforme.
+  // Règle FFSC du tirage, sensible au numéro de coup :
+  //  • jusqu'au coup 14 inclus (min 2/2) : le joker PEUT servir de voyelle ou de
+  //    consonne pour atteindre le quota (on l'affecte au type déficitaire) ;
+  //  • à partir du coup 15 (min 1/1) : le joker ne compte PLUS — il faut une
+  //    vraie voyelle ET une vraie consonne, SAUF si le type manquant est épuisé
+  //    dans le sac restant (alors le joker peut s'y substituer).
+  const jokerWildcard = moveNo <= 14;
   const rackValid = (rack, remBag, mvc) => {
     let v = 0, c = 0, j = 0;
     for (const l of rack) { if (l === "?") j++; else if (VOWELS.has(l)) v++; else c++; }
-    if (v < mvc && bagTotalVowels(remBag) === 0) { const u = Math.min(j, mvc - v); v += u; j -= u; }
-    if (c < mvc && bagTotalConsonants(remBag) === 0) { const u = Math.min(j, mvc - c); c += u; j -= u; }
+    if (jokerWildcard) {
+      while (j > 0 && (v < mvc || c < mvc)) { if (v <= c) v++; else c++; j--; }
+    } else {
+      if (v < mvc && bagTotalVowels(remBag) === 0) { const u = Math.min(j, mvc - v); v += u; j -= u; }
+      if (c < mvc && bagTotalConsonants(remBag) === 0) { const u = Math.min(j, mvc - c); c += u; j -= u; }
+    }
     return v >= mvc && c >= mvc;
   };
 
