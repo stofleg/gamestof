@@ -488,22 +488,31 @@ function renderFfscParties(data) {
   }
   window._ffscData = data;   // pour Revoir / feuille de route
   const simu = !!data.simu;
+  // Négatif total connu côté FISF (mémorisé au reliage), affiché sans rechargement.
+  const fav = ffscFavs().find(f => f.id === String(data._id || ""));
+  const fisfInfo = fav && fav.fisfNeg != null
+    ? ` · Négatif total FISF : <strong style="color:${fav.fisfNeg < 0 ? "#a02525" : "inherit"}">${fav.fisfNeg}</strong>${fav.fisfPlace ? ` (place ${fav.fisfPlace})` : ""}`
+    : "";
   $("#ffscPartiesTitle").textContent = `🎲 ${data.tournoi || (simu ? "Parties officielles" : "")}${data.player ? " — " + data.player : ""}`;
-  status.textContent = simu
-    ? `${parties.length} partie(s) — tirages & tops officiels (pas de feuille de route perso).`
-    : `${data.serie ? "Série " + data.serie + " · " : ""}${parties.length} partie(s).`;
+  status.innerHTML = (simu
+    ? `${parties.length} partie(s) — tirages & tops officiels (négatif perso à saisir en « Revoir »).`
+    : `${data.serie ? "Série " + data.serie + " · " : ""}${parties.length} partie(s).`) + fisfInfo;
 
   if (simu) {
     $("#ffscPartiesBody").innerHTML = `
       <div class="table-wrap"><table>
-        <thead><tr><th>Partie</th><th>Total top</th><th>Coups</th><th></th></tr></thead>
+        <thead><tr><th>Partie</th><th>Total top</th><th>Négatif (saisi)</th><th>Coups</th><th></th></tr></thead>
         <tbody>
-          ${parties.map((p, i) => `<tr>
+          ${parties.map((p, i) => {
+            const pn = ffscPicksNegForPartie(data._id, p);
+            return `<tr>
             <td>Partie ${p.numero}</td>
             <td><strong>${p.topTotal ?? "—"}</strong></td>
+            <td style="color:${pn && pn.neg < 0 ? "#a02525" : "inherit"}">${pn ? `${pn.neg} <span class="muted">(${pn.entered}/${pn.total})</span>` : "—"}</td>
             <td>${p.moves ? p.moves.length : "—"}</td>
             <td><button class="btn ghost small" onclick="reviewFfscPartie(${i})">👁 Revoir / chercher le top</button></td>
-          </tr>`).join("")}
+          </tr>`;
+          }).join("")}
         </tbody>
       </table></div>`;
     return;
@@ -592,6 +601,22 @@ window.closeFfscRoute = function() { $("#ffscRouteModal").hidden = true; };
 let _ffscPalmares = [];   // [{fisfId,name,date,year,saison,place,neg,serie}]
 
 function favHasFisf(fisfId) { return ffscFavs().some(f => f.fisfId === fisfId); }
+
+// Négatif d'une partie déduit des coups saisis par le joueur en « Revoir »
+// (players.settings.ffscPicks, clé « idTournoi:numéro »). null si rien saisi.
+function ffscPicksNegForPartie(tournoiId, partie) {
+  const picks = (playerSettings().ffscPicks || {})[`${tournoiId}:${partie.numero}`];
+  if (!picks) return null;
+  let neg = 0, entered = 0;
+  for (const m of (partie.moves || [])) {
+    const p = picks[m.moveNo];
+    if (!p) continue;
+    const ps = p.zero ? 0 : (p.score || 0);
+    neg += -Math.max(0, ((m.top && m.top.score) || 0) - ps);
+    entered++;
+  }
+  return entered ? { neg, entered, total: (partie.moves || []).length } : null;
+}
 
 window.loadFfscPalmares = async function() {
   const licence = (ffscSavedLicence() || $("#ffscLicence").value || "").trim();
@@ -707,7 +732,9 @@ window.confirmFfscRelier = async function(ffscId) {
   const src = (window._ffscRelierList || []).find(x => String(x.id) === id);
   const name = src ? src.name : t.name;
   let favs = ffscFavs().filter(f => f.id !== id);
-  favs.push({ id, name, year: t.year, date: t.date, fisfId: t.fisfId });
+  // On mémorise aussi le négatif TOTAL et la place connus côté FISF, pour les
+  // afficher plus tard sans recharger le palmarès.
+  favs.push({ id, name, year: t.year, date: t.date, fisfId: t.fisfId, fisfNeg: t.neg, fisfPlace: t.place });
   await patchPlayerSettings({ ffscTournois: favs });
   $("#ffscRelierModal").hidden = true;
   renderFfscFavs();
