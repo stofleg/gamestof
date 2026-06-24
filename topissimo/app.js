@@ -174,7 +174,7 @@ let myGamesSort = {
 async function loadMyGames() {
   if (!state.currentPlayerId) return;
   const pid = +state.currentPlayerId;
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=217");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=218");
 
   // Tournoi : prepared_game_results jointes avec prepared_games
   const { data: tour } = await sb.from("prepared_game_results")
@@ -445,36 +445,44 @@ window.renderFfscTournois = function() {
     </details>`).join("");
 };
 
-// Import hybride : on tente d'abord endirect (avec tes négatifs coup par coup) ;
-// si le joueur n'y est pas (tournoi non diffusé : simultané, qualif…), on
-// retombe sur le PDF officiel (tirages + tops seulement).
-window.importFfscTournoi = async function(tournoiId, btn, displayName) {
+// Récupération hybride des parties d'un tournoi (endirect → sinon PDF), mise en
+// cache pour éviter de recharger (reliage + import + sélection de partie).
+const _ffscDataCache = {};
+async function fetchFfscData(tournoiId, displayName, onStatus) {
+  const id = String(tournoiId);
+  if (_ffscDataCache[id]) return _ffscDataCache[id];
   const name = (ffscSavedName() || $("#ffscName").value || "").trim();
+  let data = null;
+  if (name) {
+    try { data = await ffscCall("import", { tournoi: id, nom: name }); }
+    catch (e) { data = null; }   // 404 joueur introuvable → repli PDF
+  }
+  if (!data || !data.player) {
+    if (onStatus) onStatus("Pas de feuille de route en direct — récupération des parties officielles (PDF)…");
+    const sd = await ffscCall("simu", { id });
+    if (sd && sd.parties && sd.parties.length) {
+      data = { simu: true, player: name || "", tournoi: displayName || "", parties: sd.parties };
+    } else {
+      return null;
+    }
+  } else if (displayName && !data.tournoi) {
+    data.tournoi = displayName;
+  }
+  data._id = id;
+  _ffscDataCache[id] = data;
+  return data;
+}
+
+window.importFfscTournoi = async function(tournoiId, btn, displayName) {
   const card = $("#ffscPartiesCard"), status = $("#ffscPartiesStatus");
   card.hidden = false;
   card.scrollIntoView({ behavior: "smooth", block: "start" });
   $("#ffscPartiesBody").innerHTML = "";
-  status.textContent = name ? `Recherche de « ${name} » en direct…` : "Récupération des parties…";
+  status.textContent = "Récupération des parties…";
   if (btn) btn.disabled = true;
   try {
-    let data = null;
-    if (name) {
-      try { data = await ffscCall("import", { tournoi: tournoiId, nom: name }); }
-      catch (e) { data = null; }   // 404 joueur introuvable → repli PDF
-    }
-    if (!data || !data.player) {
-      status.textContent = "Pas de feuille de route en direct — récupération des parties officielles (PDF)…";
-      const sd = await ffscCall("simu", { id: tournoiId });
-      if (sd && sd.parties && sd.parties.length) {
-        data = { simu: true, player: name || "", tournoi: displayName || "", parties: sd.parties };
-      } else {
-        status.textContent = "Aucune partie disponible pour ce tournoi.";
-        return;
-      }
-    } else if (displayName && !data.tournoi) {
-      data.tournoi = displayName;
-    }
-    data._id = String(tournoiId);   // id stable du tournoi (clé de persistance)
+    const data = await fetchFfscData(tournoiId, displayName, (m) => { status.textContent = m; });
+    if (!data) { status.textContent = "Aucune partie disponible pour ce tournoi."; return; }
     renderFfscParties(data);
   } catch (e) {
     status.textContent = `❌ ${e.message}`;
@@ -498,6 +506,13 @@ function renderFfscParties(data) {
   const fisfInfo = fav && fav.fisfNeg != null
     ? ` · Négatif total FISF : <strong style="color:${fav.fisfNeg < 0 ? "#a02525" : "inherit"}">${fav.fisfNeg}</strong>${fav.fisfPlace ? ` (place ${fav.fisfPlace})` : ""}`
     : "";
+  // Interclubs : ligne FISF associée à chaque partie (mapping fait au reliage).
+  const lineByPartie = {};
+  for (const l of ((fav && fav.lines) || [])) if (l.ffscPartie) lineByPartie[l.ffscPartie] = l;
+  const partieTag = (p) => {
+    const l = lineByPartie[p.numero];
+    return l ? ` <span class="muted">· ${escapeHtml(l.name)}${l.neg != null ? ` (FISF ${l.neg})` : ""}</span>` : "";
+  };
   $("#ffscPartiesTitle").textContent = `🎲 ${data.tournoi || (simu ? "Parties officielles" : "")}${data.player ? " — " + data.player : ""}`;
   status.innerHTML = (simu
     ? `${parties.length} partie(s) — tirages & tops officiels (négatif perso à saisir en « Revoir »).`
@@ -511,7 +526,7 @@ function renderFfscParties(data) {
           ${parties.map((p, i) => {
             const pn = ffscPicksNegForPartie(data._id, p);
             return `<tr>
-            <td>Partie ${p.numero}</td>
+            <td>Partie ${p.numero}${partieTag(p)}</td>
             <td><strong>${p.topTotal ?? "—"}</strong></td>
             <td style="color:${pn && pn.neg < 0 ? "#a02525" : "inherit"}">${pn ? `${pn.neg} <span class="muted">(${pn.entered}/${pn.total})</span>` : "—"}</td>
             <td>${p.moves ? p.moves.length : "—"}</td>
@@ -532,7 +547,7 @@ function renderFfscParties(data) {
           const topT = p.topTotal != null ? p.topTotal : "—";
           const neg = (p.total != null && p.topTotal != null) ? (p.total - p.topTotal) : null;
           return `<tr>
-            <td>Partie ${p.numero}</td>
+            <td>Partie ${p.numero}${partieTag(p)}</td>
             <td>${p.table ?? "—"}</td>
             <td><strong>${total}</strong></td>
             <td>${topT}</td>
@@ -742,10 +757,32 @@ window.confirmFfscRelier = async function(ffscId) {
   const id = String(ffscId);
   const src = (window._ffscRelierList || []).find(x => String(x.id) === id);
   const name = src ? src.name : t.name;
+  // Interclubs uniquement : un joueur ne joue pas forcément toutes les parties,
+  // donc on lui demande À QUELLE partie du tournoi FFSC correspond cette ligne.
+  const isInterclubs = /interclub/i.test(name) || /interclub/i.test(t.name || "");
+  if (!isInterclubs) { finalizeFfscRelier(id, name, null); return; }
+
+  const list = $("#ffscRelierList");
+  list.innerHTML = `<p class="muted">Chargement des parties du tournoi…</p>`;
+  let data = null;
+  try { data = await fetchFfscData(id, name, null); } catch (e) {}
+  const parties = (data && data.parties) || [];
+  if (parties.length <= 1) { finalizeFfscRelier(id, name, parties[0] ? parties[0].numero : null); return; }
+  // Étape 2 : choix de la partie correspondant à cette ligne FISF.
+  $("#ffscRelierSub").textContent = `À quelle partie de « ${name} » correspond « ${t.name} » ?`;
+  list.innerHTML = parties.map(p => `
+    <button class="btn ghost small" style="text-align:left"
+      onclick="finalizeFfscRelier('${id}', ${JSON.stringify(name).replace(/"/g, "&quot;")}, ${p.numero})">
+      Partie ${p.numero} <span class="muted">— top ${p.topTotal ?? "?"}, ${p.moves ? p.moves.length : "?"} coups</span>
+    </button>`).join("");
+};
+
+window.finalizeFfscRelier = async function(id, name, ffscPartie) {
+  const t = (window._ffscRelierTargets || [])[0];
+  if (!t) return;
   const favs = ffscFavs();
   // Regroupement automatique : si un favori existe déjà pour ce tournoi FFSC
-  // (cas interclubs — plusieurs lignes FISF P1/P2/P3 vers le même id), on AJOUTE
-  // cette ligne ; sinon on crée le favori.
+  // (interclubs — plusieurs lignes FISF vers le même id), on AJOUTE la ligne.
   let fav = favs.find(f => f.id === id);
   if (!fav) {
     fav = { id, name, year: t.year, date: t.date, fisfIds: [], fisfNeg: 0, lines: [] };
@@ -756,15 +793,18 @@ window.confirmFfscRelier = async function(ffscId) {
   if (!fav.fisfIds.includes(t.fisfId)) {
     fav.fisfIds.push(t.fisfId);
     fav.fisfNeg = (fav.fisfNeg || 0) + (t.neg || 0);
-    fav.lines.push({ fisfId: t.fisfId, name: t.name, neg: t.neg, place: t.place });
+    fav.lines.push({ fisfId: t.fisfId, name: t.name, neg: t.neg, place: t.place, ffscPartie: ffscPartie || null });
+  } else if (ffscPartie) {
+    const ln = fav.lines.find(l => l.fisfId === t.fisfId);
+    if (ln) ln.ffscPartie = ffscPartie;
   }
   fav.fisfPlace = fav.fisfIds.length === 1 ? t.place : null;
-  delete fav.fisfId;   // on passe au format fisfIds[]
+  delete fav.fisfId;
   await patchPlayerSettings({ ffscTournois: favs });
   $("#ffscRelierModal").hidden = true;
   renderFfscFavs();
   renderFfscPalmares();
-  importFfscTournoi(id, null, name);   // import hybride direct (toutes les parties)
+  importFfscTournoi(id, null, name);
 };
 
 window.closeFfscRelier = function() { $("#ffscRelierModal").hidden = true; };
@@ -789,7 +829,7 @@ async function loadMyStats() {
   const pid = +state.currentPlayerId;
 
   body.innerHTML = `<p class="muted">⏳ Calcul…</p>`;
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=217");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=218");
 
   // 1) Toutes mes parties tournoi (avec détails)
   const { data: tour } = await sb.from("prepared_game_results")
@@ -1541,7 +1581,7 @@ async function loadTournamentDetail(tournamentId) {
     });
   }
 
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=217");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=218");
   const btnStyle = "text-decoration:none;padding:5px 10px;border-radius:6px;font-weight:600;font-size:.85rem";
   const admin = isAdmin();
   $("#pgBody").innerHTML = (games || []).length === 0
@@ -2031,7 +2071,7 @@ async function loadTournamentStats(tournamentId, games) {
   // On détermine « le top est un scrabble » en REjouant le plateau coup par coup
   // (nombre de NOUVELLES tuiles posées par le top == clé de prime du mode), ce qui
   // est fiable même sur d'anciennes parties (le hadBonus stocké est non fiable).
-  const { emptyBoard, applyMove, GAME_MODES } = await import("./scrabble/engine.js?v=217");
+  const { emptyBoard, applyMove, GAME_MODES } = await import("./scrabble/engine.js?v=218");
   const gameById = {};
   for (const g of games) gameById[g.id] = g;
   const bonusesOf = (gid) => (GAME_MODES[gameById[gid]?.mode] || GAME_MODES.duplicate).bonuses || { 7: 50 };
@@ -2125,7 +2165,7 @@ $("#tCreate").onclick = async () => {
 
 // Quand on change de mode, mettre à jour le temps/coup par défaut
 $("#pgMode").addEventListener("change", async () => {
-  const { GAME_MODES } = await import("./scrabble/engine.js?v=217");
+  const { GAME_MODES } = await import("./scrabble/engine.js?v=218");
   const m = GAME_MODES[$("#pgMode").value];
   if (m) $("#pgTime").value = m.defaultTime;
 });
@@ -2152,8 +2192,8 @@ $("#pgCreate").onclick = async () => {
     let mods;
     try {
       mods = await Promise.all([
-        import("./scrabble/dictionary.js?v=217"),
-        import("./scrabble/generator.js?v=217"),
+        import("./scrabble/dictionary.js?v=218"),
+        import("./scrabble/generator.js?v=218"),
       ]);
     } catch (e) {
       $("#pgStatus").innerHTML = `<span style="color:#a02525">Échec de chargement des modules : ${escapeHtml(e.message)}</span>`;
@@ -2217,7 +2257,7 @@ window.recomputeAllNeg = async function(force = false) {
 
   let recomputeResult;
   try {
-    ({ recomputeResult } = await import("./scrabble/recompute.js?v=217"));
+    ({ recomputeResult } = await import("./scrabble/recompute.js?v=218"));
   } catch (e) {
     statusEl.textContent = "❌ Impossible de charger recompute.js : " + e.message;
     return;
@@ -2411,7 +2451,7 @@ window.recomputeAllJokerNeg = async function() {
 
   let recomputeResult;
   try {
-    ({ recomputeResult } = await import("./scrabble/recompute.js?v=217"));
+    ({ recomputeResult } = await import("./scrabble/recompute.js?v=218"));
   } catch (e) {
     statusEl.textContent = "❌ Impossible de charger recompute.js : " + e.message;
     return;
