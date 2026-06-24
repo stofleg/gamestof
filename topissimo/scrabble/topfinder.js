@@ -12,7 +12,7 @@
 //     aussi les mots croisés) et on garde le maximum.
 // ============================================================
 
-import { BOARD_SIZE, CENTER, scoreMove, applyMove, LETTER_VALUE, VOWELS } from "./engine.js?v=214";
+import { BOARD_SIZE, CENTER, scoreMove, applyMove, LETTER_VALUE, VOWELS } from "./engine.js?v=215";
 
 // ============================================================
 //  Top finder avec départage des isotops (mêmes scores)
@@ -117,7 +117,13 @@ function scoreEndsGame(rack, move, bag) {
     if (L === "?" || !n) continue;
     if (VOWELS.has(L)) v += n; else c += n;
   }
-  return (v === 0 || c === 0) ? 1 : 0;
+  // Un joker encore disponible (reliquat ou sac) peut servir de voyelle OU de
+  // consonne : tant qu'il en reste un, la partie peut continuer même si un type
+  // réel est épuisé (cf. règle FFSC du joker en fin de partie). Le coup n'est
+  // donc « terminal » que s'il ne reste plus aucun joker pour combler.
+  const jokersLeft = rackRem.filter(L => L === "?").length + (bag["?"] || 0);
+  if (v === 0 || c === 0) return jokersLeft > 0 ? 0 : 1;
+  return 0;
 }
 
 function scoreQPosition(move) {
