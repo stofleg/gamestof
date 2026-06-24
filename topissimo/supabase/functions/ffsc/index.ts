@@ -458,8 +458,15 @@ export default {
     if (action === "simu") {
       const id = url.searchParams.get("id");
       if (!id) return json({ error: "id requis" }, 400);
+      // DEBUG : renvoie le contenu BRUT reçu (avant tout parsing PDF), pour voir
+      // ce que le serveur FFSC envoie réellement (PDF ? page d'erreur HTML ?).
+      if (url.searchParams.get("raw")) {
+        const r = await fetch(`https://www.ffsc.fr/tournois.exporter.parties.pdf.php?id_tournoi=${encodeURIComponent(id)}`, { headers: { "User-Agent": UA } });
+        const buf = new Uint8Array(await r.arrayBuffer());
+        const head = new TextDecoder("latin1").decode(buf.slice(0, 800));
+        return json({ id, status: r.status, contentType: r.headers.get("content-type"), length: buf.length, isPdf: head.startsWith("%PDF"), head });
+      }
       const pages = await fetchFfscPdfText(`tournois.exporter.parties.pdf.php?id_tournoi=${encodeURIComponent(id)}`);
-      if (url.searchParams.get("raw")) return json({ id, pages });
       // Les premières pages sont des consignes (0 coup) → filtrées ; on
       // renumérote les parties restantes séquentiellement (1, 2, …).
       const parties = pages
