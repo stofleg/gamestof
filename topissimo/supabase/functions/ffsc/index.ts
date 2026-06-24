@@ -311,6 +311,11 @@ async function fetchFfscPdfText(pathAndQuery: string): Promise<string[]> {
   const res = await fetch(url, { headers: { "User-Agent": UA } });
   if (!res.ok) throw new Error(`FFSC PDF ${res.status} sur ${url}`);
   const bytes = new Uint8Array(await res.arrayBuffer());
+  // Certains tournois (ex. Finales interclubs) ne publient PAS de PDF : le serveur
+  // renvoie alors une page HTML d'erreur. On le détecte (absence de l'en-tête
+  // « %PDF ») et on renvoie « aucune page » au lieu de planter unpdf.
+  const head = new TextDecoder("latin1").decode(bytes.slice(0, 5));
+  if (!head.startsWith("%PDF")) return [];
   const pdf = await getDocumentProxy(bytes);
   const { text } = await extractText(pdf, { mergePages: false });
   return Array.isArray(text) ? text : [text];
