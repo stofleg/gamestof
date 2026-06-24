@@ -12,7 +12,7 @@
 //     aussi les mots croisés) et on garde le maximum.
 // ============================================================
 
-import { BOARD_SIZE, CENTER, scoreMove, applyMove, LETTER_VALUE, VOWELS } from "./engine.js?v=220";
+import { BOARD_SIZE, CENTER, scoreMove, applyMove, LETTER_VALUE, VOWELS } from "./engine.js?v=221";
 
 // ============================================================
 //  Top finder avec départage des isotops (mêmes scores)
