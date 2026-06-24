@@ -290,9 +290,16 @@ export function applyMove(board, move) {
 // ============================================================
 export function drawForDuplicate(bag, kept, moveNo, target = 7) {
   const minVC = moveNo >= 15 ? 1 : 2;
-  const countTypes = (rack) => {
-    const v = rack.filter(l => VOWELS.has(l) || l === "?").length;
-    return { vowels: v, consonants: rack.length - v };
+  // Validité d'un chevalet : il faut au moins `minVC` voyelles RÉELLES et
+  // `minVC` consonnes RÉELLES. Le joker ne compte ni comme voyelle ni comme
+  // consonne — sauf si le type manquant est épuisé dans le sac restant (alors
+  // le joker peut s'y substituer). Renvoie true si le rack est conforme.
+  const rackValid = (rack, remBag, mvc) => {
+    let v = 0, c = 0, j = 0;
+    for (const l of rack) { if (l === "?") j++; else if (VOWELS.has(l)) v++; else c++; }
+    if (v < mvc && bagTotalVowels(remBag) === 0) { const u = Math.min(j, mvc - v); v += u; j -= u; }
+    if (c < mvc && bagTotalConsonants(remBag) === 0) { const u = Math.min(j, mvc - c); c += u; j -= u; }
+    return v >= mvc && c >= mvc;
   };
 
   const realKept = kept.filter(l => l !== "?");
@@ -307,8 +314,7 @@ export function drawForDuplicate(bag, kept, moveNo, target = 7) {
   // Sac vide : on retourne le chevalet tel quel s'il est jouable, sinon échec.
   const bagEmpty = Object.values(bag).every(c => !c);
   if (bagEmpty) {
-    const { vowels, consonants } = countTypes(kept);
-    if (vowels >= 1 && consonants >= 1) {
+    if (rackValid(kept, bag, 1)) {
       return { drawn: [], bag: { ...bag }, fresh: false, minApplied: 0 };
     }
     return { drawn: null, bag: { ...bag }, failed: true };
@@ -333,8 +339,7 @@ export function drawForDuplicate(bag, kept, moveNo, target = 7) {
   {
     const r = drawN(bag, need);
     if (r.drawn.length === need) {
-      const { vowels, consonants } = countTypes([...kept, ...r.drawn]);
-      if (vowels >= minVC && consonants >= minVC) {
+      if (rackValid([...kept, ...r.drawn], r.bag, minVC)) {
         // Complément valide : on garde le reliquat → ce n'est PAS un rejet.
         return { drawn: r.drawn, bag: r.bag, fresh: false, minApplied: minVC };
       }
@@ -355,15 +360,13 @@ export function drawForDuplicate(bag, kept, moveNo, target = 7) {
   if (jokerCount + bagBackCount < target) {
     for (let attempt = 0; attempt < 50; attempt++) {
       const r = drawN(bag, need);
-      const { vowels, consonants } = countTypes([...kept, ...r.drawn]);
-      if (vowels >= 1 && consonants >= 1) {
+      if (rackValid([...kept, ...r.drawn], r.bag, 1)) {
         return { drawn: r.drawn, bag: r.bag, fresh: false, minApplied: 0 };
       }
     }
     // Aucun complément jouable : on renvoie le chevalet restant tel quel s'il
     // est lui-même jouable, sinon fin de partie.
-    const { vowels, consonants } = countTypes(kept);
-    if (vowels >= 1 && consonants >= 1) {
+    if (rackValid(kept, bag, 1)) {
       return { drawn: [], bag: { ...bag }, fresh: false, minApplied: 0 };
     }
     return { drawn: null, bag: { ...bag }, failed: true };
@@ -374,8 +377,7 @@ export function drawForDuplicate(bag, kept, moveNo, target = 7) {
   for (let attempt = 0; attempt < 200; attempt++) {
     const r = drawN(bagBack, freshNeed);
     if (r.drawn.length < freshNeed) break;   // plus assez de lettres
-    const { vowels, consonants } = countTypes([...jokerFill, ...r.drawn]);
-    if (vowels >= minVC && consonants >= minVC) {
+    if (rackValid([...jokerFill, ...r.drawn], r.bag, minVC)) {
       return { drawn: r.drawn, bag: r.bag, fresh: true, minApplied: minVC };
     }
   }
@@ -385,8 +387,7 @@ export function drawForDuplicate(bag, kept, moveNo, target = 7) {
   for (let attempt = 0; attempt < 200; attempt++) {
     const r = drawN(bagBack, freshNeed);
     if (r.drawn.length < freshNeed) break;
-    const { vowels, consonants } = countTypes([...jokerFill, ...r.drawn]);
-    if (vowels >= 1 && consonants >= 1) {
+    if (rackValid([...jokerFill, ...r.drawn], r.bag, 1)) {
       return { drawn: r.drawn, bag: r.bag, fresh: true, minApplied: 0 };
     }
   }
