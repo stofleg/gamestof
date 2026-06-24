@@ -174,7 +174,7 @@ let myGamesSort = {
 async function loadMyGames() {
   if (!state.currentPlayerId) return;
   const pid = +state.currentPlayerId;
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=216");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=217");
 
   // Tournoi : prepared_game_results jointes avec prepared_games
   const { data: tour } = await sb.from("prepared_game_results")
@@ -604,7 +604,6 @@ window.closeFfscRoute = function() { $("#ffscRouteModal").hidden = true; };
 //  Palmarès FISF (par licence) + reliage à un tournoi endirect
 // ============================================================
 let _ffscPalmares = [];   // [{fisfId,name,date,year,saison,place,neg,serie}]
-const _ffscSel = new Set();   // fisfId cochés pour un reliage multi-lignes
 
 // Liste des fisfId liés à un favori (gère l'ancien champ fisfId + le nouveau fisfIds[]).
 function favFisfIds(f) {
@@ -613,19 +612,6 @@ function favFisfIds(f) {
   return a;
 }
 function favHasFisf(fisfId) { return ffscFavs().some(f => favFisfIds(f).includes(fisfId)); }
-
-window.toggleFfscSel = function(fisfId, checked) {
-  if (checked) _ffscSel.add(fisfId); else _ffscSel.delete(fisfId);
-  updateFfscSelBar();
-};
-window.clearFfscSel = function() { _ffscSel.clear(); renderFfscPalmares(); };
-function updateFfscSelBar() {
-  const bar = $("#ffscSelBar");
-  if (!bar) return;
-  bar.hidden = _ffscSel.size === 0;
-  const cnt = $("#ffscSelCount");
-  if (cnt) cnt.textContent = `${_ffscSel.size} ligne(s) sélectionnée(s)`;
-}
 
 // Négatif d'une partie déduit des coups saisis par le joueur en « Revoir »
 // (players.settings.ffscPicks, clé « idTournoi:numéro »). null si rien saisi.
@@ -675,12 +661,11 @@ function renderFfscPalmares() {
     <details ${i === 0 ? "open" : ""} style="margin-bottom:8px">
       <summary style="cursor:pointer;font-weight:700;padding:6px 0">${s} <span class="muted" style="font-weight:400">(${bySaison[s].length})</span></summary>
       <div class="table-wrap"><table>
-        <thead><tr><th></th><th>Date</th><th>Tournoi</th><th>Place</th><th>Négatif</th><th></th></tr></thead>
+        <thead><tr><th>Date</th><th>Tournoi</th><th>Place</th><th>Négatif</th><th></th></tr></thead>
         <tbody>
           ${bySaison[s].map(t => {
             const linked = favHasFisf(t.fisfId);
             return `<tr>
-              <td>${linked ? "" : `<input type="checkbox" ${_ffscSel.has(t.fisfId) ? "checked" : ""} onchange="toggleFfscSel(${t.fisfId}, this.checked)">`}</td>
               <td style="white-space:nowrap">${t.date}</td>
               <td>${escapeHtml(t.name)}</td>
               <td>${t.place || "—"}</td>
@@ -693,9 +678,6 @@ function renderFfscPalmares() {
         </tbody>
       </table></div>
     </details>`).join("");
-  // Nettoie la sélection des lignes désormais reliées, puis maj la barre.
-  for (const id of [..._ffscSel]) if (favHasFisf(id)) _ffscSel.delete(id);
-  updateFfscSelBar();
 }
 
 // Index daté des tournois ffsc.fr, mis en cache par année (tournois_ffsc).
@@ -708,38 +690,24 @@ async function ffscYearList(year) {
   return _ffscByYear[year];
 }
 
-window.openFfscRelier = function(fisfId) {
+window.openFfscRelier = async function(fisfId) {
   const t = _ffscPalmares.find(x => x.fisfId === fisfId);
-  if (t) openRelierWithTargets([t]);
-};
-window.openFfscRelierSelection = function() {
-  const targets = _ffscPalmares.filter(x => _ffscSel.has(x.fisfId));
-  if (!targets.length) return;
-  openRelierWithTargets(targets);
-};
-
-async function openRelierWithTargets(targets) {
-  window._ffscRelierTargets = targets;
-  const ref = targets[0];
-  const multi = targets.length > 1;
+  if (!t) return;
+  window._ffscRelierTargets = [t];
   window._ffscRelierList = [];
-  $("#ffscRelierTitle").textContent = multi
-    ? `🔗 Relier ${targets.length} lignes FISF à un tournoi`
-    : `🔗 Relier « ${ref.name.slice(0, 60)}${ref.name.length > 60 ? "…" : ""} »`;
-  $("#ffscRelierSub").textContent = multi
-    ? `${targets.map(t => t.name).join(" · ")} — choisis LE tournoi FFSC correspondant (ses parties couvrent ces lignes).`
-    : `${ref.saison} · joué le ${ref.date} — les tournois FFSC du même jour sont proposés en tête ⭐.`;
+  $("#ffscRelierTitle").textContent = `🔗 Relier « ${t.name.slice(0, 60)}${t.name.length > 60 ? "…" : ""} »`;
+  $("#ffscRelierSub").textContent = `${t.saison} · joué le ${t.date} — les tournois FFSC du même jour sont proposés en tête ⭐. Pour les interclubs, relie chaque ligne (P1, P2…) au même tournoi : elles seront regroupées.`;
   $("#ffscRelierModal").hidden = false;
   $("#ffscRelierSearch").value = "";
-  $("#ffscRelierList").innerHTML = `<p class="muted">Chargement des tournois de ${ref.year}…</p>`;
+  $("#ffscRelierList").innerHTML = `<p class="muted">Chargement des tournois de ${t.year}…</p>`;
   try {
-    window._ffscRelierList = await ffscYearList(ref.year);
+    window._ffscRelierList = await ffscYearList(t.year);
   } catch (e) {
     $("#ffscRelierList").innerHTML = `<p class="muted">❌ ${e.message}</p>`;
     return;
   }
   renderFfscRelierCandidates();
-}
+};
 
 window.renderFfscRelierCandidates = function() {
   const t = (window._ffscRelierTargets || [])[0];
@@ -769,24 +737,34 @@ window.renderFfscRelierCandidates = function() {
 };
 
 window.confirmFfscRelier = async function(ffscId) {
-  const targets = window._ffscRelierTargets || [];
-  if (!targets.length) return;
+  const t = (window._ffscRelierTargets || [])[0];
+  if (!t) return;
   const id = String(ffscId);
   const src = (window._ffscRelierList || []).find(x => String(x.id) === id);
-  const ref = targets[0];
-  const name = src ? src.name : ref.name;
-  const fisfIds = targets.map(t => t.fisfId);
-  // Négatif total FISF = somme des négatifs des lignes reliées (utile pour les
-  // tournois découpés en segments P1/P2/P3). Place seulement si une seule ligne.
-  const fisfNeg = targets.reduce((s, t) => s + (t.neg || 0), 0);
-  let favs = ffscFavs().filter(f => f.id !== id);
-  favs.push({ id, name, year: ref.year, date: ref.date, fisfIds, fisfNeg, fisfPlace: targets.length === 1 ? ref.place : null });
+  const name = src ? src.name : t.name;
+  const favs = ffscFavs();
+  // Regroupement automatique : si un favori existe déjà pour ce tournoi FFSC
+  // (cas interclubs — plusieurs lignes FISF P1/P2/P3 vers le même id), on AJOUTE
+  // cette ligne ; sinon on crée le favori.
+  let fav = favs.find(f => f.id === id);
+  if (!fav) {
+    fav = { id, name, year: t.year, date: t.date, fisfIds: [], fisfNeg: 0, lines: [] };
+    favs.push(fav);
+  }
+  fav.fisfIds = favFisfIds(fav);
+  fav.lines = fav.lines || [];
+  if (!fav.fisfIds.includes(t.fisfId)) {
+    fav.fisfIds.push(t.fisfId);
+    fav.fisfNeg = (fav.fisfNeg || 0) + (t.neg || 0);
+    fav.lines.push({ fisfId: t.fisfId, name: t.name, neg: t.neg, place: t.place });
+  }
+  fav.fisfPlace = fav.fisfIds.length === 1 ? t.place : null;
+  delete fav.fisfId;   // on passe au format fisfIds[]
   await patchPlayerSettings({ ffscTournois: favs });
-  _ffscSel.clear();
   $("#ffscRelierModal").hidden = true;
   renderFfscFavs();
   renderFfscPalmares();
-  importFfscTournoi(id, null, name);   // import hybride direct
+  importFfscTournoi(id, null, name);   // import hybride direct (toutes les parties)
 };
 
 window.closeFfscRelier = function() { $("#ffscRelierModal").hidden = true; };
@@ -811,7 +789,7 @@ async function loadMyStats() {
   const pid = +state.currentPlayerId;
 
   body.innerHTML = `<p class="muted">⏳ Calcul…</p>`;
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=216");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=217");
 
   // 1) Toutes mes parties tournoi (avec détails)
   const { data: tour } = await sb.from("prepared_game_results")
@@ -1563,7 +1541,7 @@ async function loadTournamentDetail(tournamentId) {
     });
   }
 
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=216");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=217");
   const btnStyle = "text-decoration:none;padding:5px 10px;border-radius:6px;font-weight:600;font-size:.85rem";
   const admin = isAdmin();
   $("#pgBody").innerHTML = (games || []).length === 0
@@ -2053,7 +2031,7 @@ async function loadTournamentStats(tournamentId, games) {
   // On détermine « le top est un scrabble » en REjouant le plateau coup par coup
   // (nombre de NOUVELLES tuiles posées par le top == clé de prime du mode), ce qui
   // est fiable même sur d'anciennes parties (le hadBonus stocké est non fiable).
-  const { emptyBoard, applyMove, GAME_MODES } = await import("./scrabble/engine.js?v=216");
+  const { emptyBoard, applyMove, GAME_MODES } = await import("./scrabble/engine.js?v=217");
   const gameById = {};
   for (const g of games) gameById[g.id] = g;
   const bonusesOf = (gid) => (GAME_MODES[gameById[gid]?.mode] || GAME_MODES.duplicate).bonuses || { 7: 50 };
@@ -2147,7 +2125,7 @@ $("#tCreate").onclick = async () => {
 
 // Quand on change de mode, mettre à jour le temps/coup par défaut
 $("#pgMode").addEventListener("change", async () => {
-  const { GAME_MODES } = await import("./scrabble/engine.js?v=216");
+  const { GAME_MODES } = await import("./scrabble/engine.js?v=217");
   const m = GAME_MODES[$("#pgMode").value];
   if (m) $("#pgTime").value = m.defaultTime;
 });
@@ -2174,8 +2152,8 @@ $("#pgCreate").onclick = async () => {
     let mods;
     try {
       mods = await Promise.all([
-        import("./scrabble/dictionary.js?v=216"),
-        import("./scrabble/generator.js?v=216"),
+        import("./scrabble/dictionary.js?v=217"),
+        import("./scrabble/generator.js?v=217"),
       ]);
     } catch (e) {
       $("#pgStatus").innerHTML = `<span style="color:#a02525">Échec de chargement des modules : ${escapeHtml(e.message)}</span>`;
@@ -2239,7 +2217,7 @@ window.recomputeAllNeg = async function(force = false) {
 
   let recomputeResult;
   try {
-    ({ recomputeResult } = await import("./scrabble/recompute.js?v=216"));
+    ({ recomputeResult } = await import("./scrabble/recompute.js?v=217"));
   } catch (e) {
     statusEl.textContent = "❌ Impossible de charger recompute.js : " + e.message;
     return;
@@ -2433,7 +2411,7 @@ window.recomputeAllJokerNeg = async function() {
 
   let recomputeResult;
   try {
-    ({ recomputeResult } = await import("./scrabble/recompute.js?v=216"));
+    ({ recomputeResult } = await import("./scrabble/recompute.js?v=217"));
   } catch (e) {
     statusEl.textContent = "❌ Impossible de charger recompute.js : " + e.message;
     return;
