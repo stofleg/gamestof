@@ -318,7 +318,9 @@ async function fetchFfscPdfText(pathAndQuery: string): Promise<string[]> {
 
 const SPOS = "(?:[A-O]\\s?\\d{1,2}|\\d{1,2}\\s?[A-O])";
 function parseSimuPartie(text: string) {
-  const reNum = new RegExp("^\\s*(\\d+)\\.\\s+(\\S+)(?:\\s+(\\S+)\\s+(" + SPOS + ")\\s+(\\d+)(?:\\s+(.*))?)?\\s*$");
+  // Le point après le numéro est optionnel : « 12. RACK… » (simultanés) ou
+  // « 12 RACK… » (interclubs).
+  const reNum = new RegExp("^\\s*(\\d+)\\.?\\s+(\\S+)(?:\\s+(\\S+)\\s+(" + SPOS + ")\\s+(\\d+)(?:\\s+(.*))?)?\\s*$");
   const reTail = new RegExp("^\\s*(\\S+)\\s+(" + SPOS + ")\\s+(\\d+)\\s*$");
   const rack: Record<number, string> = {};
   const top: Record<number, { w: string; pos: string; sc: number }> = {};
