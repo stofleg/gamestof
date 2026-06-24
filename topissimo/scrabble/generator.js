@@ -10,8 +10,8 @@
 import {
   emptyBoard, LETTER_BAG, drawForDuplicate, applyMove,
   bagTotalVowels, bagTotalConsonants, GAME_MODES,
-} from "./engine.js?v=212";
-import { findTopRanked } from "./topfinder.js?v=212";
+} from "./engine.js?v=213";
+import { findTopRanked } from "./topfinder.js?v=213";
 
 /**
  * Génère une partie complète.
@@ -91,10 +91,15 @@ export function generateGame(dict, options = {}, onProgress = null) {
 
     // Calcul du top
     const rackLetters = rack.map(t => t.letter);
+    // Règle FFSC : on préserve le joker pendant la partie, MAIS en fin de partie
+    // on termine — on joue le vrai top même s'il pose le joker. « Fin de partie »
+    // = il reste moins d'un chevalet à piocher dans le sac.
+    const bagRemaining = Object.values(bag).reduce((a, b) => a + b, 0);
+    const endPhase = bagRemaining < target;
     const top = findTopRanked(board, rackLetters, dict, bag, {
       maxTilesUsed: mode.maxPlayed,
       bonuses: mode.bonuses,
-      preserveJoker: withJoker && spareJokers > 0,
+      preserveJoker: withJoker && spareJokers > 0 && !endPhase,
     });
 
     if (!top) {
