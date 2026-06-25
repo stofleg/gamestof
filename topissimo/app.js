@@ -174,7 +174,7 @@ let myGamesSort = {
 async function loadMyGames() {
   if (!state.currentPlayerId) return;
   const pid = +state.currentPlayerId;
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=228");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=229");
 
   // Tournoi : prepared_game_results jointes avec prepared_games
   const { data: tour } = await sb.from("prepared_game_results")
@@ -433,7 +433,12 @@ window.onFavToggle = async function(d) {
   cont.innerHTML = `<p class="muted">Chargement des parties…</p>`;
   try {
     const data = await fetchFfscData(id, name, (m) => { cont.innerHTML = `<p class="muted">${m}</p>`; });
-    if (!data) { cont.innerHTML = `<p class="muted">Aucune partie disponible pour ce tournoi.</p>`; return; }
+    if (!data) {
+      // Pas de texte (endirect/PDF) : peut-être un PDF « image » → proposer l'OCR.
+      cont.innerHTML = `<p class="muted">Aucune partie en texte pour ce tournoi.</p>
+        <button class="btn ghost small" onclick="ocrFfscPdf('${id}', ${JSON.stringify(name).replace(/"/g, "&quot;")}, this.parentElement)">🔍 Tenter l'OCR du PDF (bêta)</button>`;
+      return;
+    }
     const statusEl = document.createElement("p");
     statusEl.className = "muted"; statusEl.style.margin = "2px 0 6px";
     const bodyEl = document.createElement("div");
@@ -527,6 +532,139 @@ async function fetchFfscData(tournoiId, displayName, onStatus) {
   _ffscDataCache[id] = data;
   return data;
 }
+
+// ============================================================
+//  OCR (bêta) des PDF « image » (qualifs séries…) via tesseract.js
+// ============================================================
+const _OCR_POS = "(?:[A-O]\\s?\\d{1,2}|\\d{1,2}\\s?[A-O])";
+function _ocrDeburr(s) { return s.normalize("NFD").replace(/[̀-ͯ]/g, ""); }
+function _ocrPos(label) {
+  const s = (label || "").replace(/\s+/g, "").toUpperCase();
+  let m = /^([A-O])(\d{1,2})$/.exec(s);
+  if (m) return { row: "ABCDEFGHIJKLMNO".indexOf(m[1]), col: +m[2] - 1, dir: "H" };
+  m = /^(\d{1,2})([A-O])$/.exec(s);
+  if (m) return { row: "ABCDEFGHIJKLMNO".indexOf(m[2]), col: +m[1] - 1, dir: "V" };
+  return null;
+}
+function _ocrWord(raw) {
+  const word = [], blanks = []; let i = 0;
+  while (i < raw.length) {
+    const ch = raw[i];
+    if (ch === "(") { i++; while (i < raw.length && raw[i] !== ")") { blanks.push(word.length); word.push(raw[i].toUpperCase()); i++; } i++; }
+    else if (/[A-Za-zÀ-ÿ]/.test(ch)) { word.push(ch.toUpperCase()); i++; }
+    else i++;
+  }
+  return { word: word.join(""), blanks };
+}
+function _ocrRack(field) {
+  let s = (field || "").trim().toUpperCase();
+  const freshRack = s.startsWith("-"); if (freshRack) s = s.slice(1);
+  let kept = "";
+  if (s.includes("+")) { const [k, d] = s.split("+"); kept = (k || ""); s = (k || "") + (d || ""); }
+  return { letters: s, freshRack, kept };
+}
+// Parse le texte OCR d'une partie (même logique que l'export, point optionnel).
+function parseSimuText(text) {
+  const reNum = new RegExp("^\\s*(\\d+)\\.?\\s+(\\S+)(?:\\s+(\\S+)\\s+(" + _OCR_POS + ")\\s+(\\d+)(?:\\s+(.*))?)?\\s*$");
+  const reTail = new RegExp("^\\s*(\\S+)\\s+(" + _OCR_POS + ")\\s+(\\d+)\\s*$");
+  const rack = {}, top = {}; let maxm = 0, last = 0;
+  for (const line of String(text).split("\n")) {
+    if (!line.trim()) continue;
+    const m = reNum.exec(line);
+    if (m) { const k = +m[1]; last = k; maxm = Math.max(maxm, k); rack[k] = m[2]; if (m[3] && k - 1 >= 1) top[k - 1] = { w: m[3], pos: m[4], sc: +m[5] }; continue; }
+    const t = reTail.exec(line);
+    if (t && last) top[last] = { w: t[1], pos: t[2], sc: +t[3] };
+  }
+  const moves = [];
+  for (let k = 1; k <= maxm; k++) {
+    if (!rack[k] || !top[k]) continue;
+    const { letters, freshRack, kept } = _ocrRack(rack[k]);
+    const { word, blanks } = _ocrWord(_ocrDeburr(top[k].w));
+    const p = _ocrPos(top[k].pos);
+    if (!p) continue;
+    moves.push({ moveNo: k, rack: letters, freshRack, kept, top: { word, blanks, row: p.row, col: p.col, dir: p.dir, pos: top[k].pos.replace(/\s+/g, ""), score: top[k].sc, words: [{ word, score: top[k].sc }] } });
+  }
+  return { meta: { mode: "duplicate", withJoker: false }, moves };
+}
+
+let _pdfjs = null, _tessWorker = null;
+async function ensureOcrLibs(onStatus) {
+  if (!_pdfjs) {
+    onStatus && onStatus("Chargement du moteur PDF…");
+    _pdfjs = await import("https://cdn.jsdelivr.net/npm/pdfjs-dist@4.7.76/build/pdf.min.mjs");
+    _pdfjs.GlobalWorkerOptions.workerSrc = "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.7.76/build/pdf.worker.min.mjs";
+  }
+  if (!_tessWorker) {
+    onStatus && onStatus("Chargement de l'OCR (1ʳᵉ fois, ~10 s)…");
+    const T = await import("https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.esm.min.js");
+    _tessWorker = await T.createWorker("fra");
+  }
+}
+
+// OCR complet d'un PDF image → textes par page (éditables ensuite).
+window.ocrFfscPdf = async function(id, name, cont) {
+  cont.innerHTML = `<p class="muted">⏳ Préparation de l'OCR…</p>`;
+  const setStatus = (m) => { cont.innerHTML = `<p class="muted">⏳ ${m}</p>`; };
+  try {
+    await ensureOcrLibs(setStatus);
+    setStatus("Téléchargement du PDF…");
+    const res = await ffscCall("pdfraw", { id });
+    if (!res || !res.b64) { cont.innerHTML = `<p class="muted">PDF indisponible.</p>`; return; }
+    const bytes = Uint8Array.from(atob(res.b64), c => c.charCodeAt(0));
+    const pdf = await _pdfjs.getDocument({ data: bytes }).promise;
+    const pages = [];
+    for (let i = 1; i <= pdf.numPages; i++) {
+      setStatus(`OCR page ${i}/${pdf.numPages}…`);
+      const page = await pdf.getPage(i);
+      const viewport = page.getViewport({ scale: 2.4 });
+      const canvas = document.createElement("canvas");
+      canvas.width = viewport.width; canvas.height = viewport.height;
+      await page.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
+      const { data: { text } } = await _tessWorker.recognize(canvas);
+      // On ne garde que les pages contenant des coups (≥3 lignes numérotées).
+      if ((text.match(/^\s*\d+[.\s]/gm) || []).length >= 3) pages.push(text);
+    }
+    if (!pages.length) { cont.innerHTML = `<p class="muted">OCR : aucune partie détectée. Le PDF est peut-être trop dégradé.</p>`; return; }
+    window._ocrPages = window._ocrPages || {};
+    window._ocrPages[id] = pages;
+    renderOcrEditor(id, name, cont);
+  } catch (e) {
+    cont.innerHTML = `<p class="muted">❌ OCR : ${e.message}</p>`;
+  }
+};
+
+function renderOcrEditor(id, name, cont) {
+  const pages = window._ocrPages[id] || [];
+  cont.innerHTML = `
+    <p class="muted">🔍 OCR (bêta) — vérifie/corrige le texte de chaque partie (format « N TIRAGE MOT PLACE SCORE »), puis analyse.</p>
+    ${pages.map((t, i) => `
+      <details ${i === 0 ? "open" : ""} style="margin:6px 0">
+        <summary style="cursor:pointer;font-weight:600">Partie ${i + 1}</summary>
+        <textarea id="ocrTa-${id}-${i}" style="width:100%;min-height:200px;font-family:monospace;font-size:.8rem">${escapeHtml(t)}</textarea>
+      </details>`).join("")}
+    <button class="btn ghost small" onclick="analyzeOcr('${id}', ${JSON.stringify(name).replace(/"/g, "&quot;")})">✅ Analyser les parties</button>`;
+}
+
+window.analyzeOcr = function(id, name) {
+  const pages = window._ocrPages[id] || [];
+  const parties = [];
+  pages.forEach((_, i) => {
+    const ta = document.getElementById(`ocrTa-${id}-${i}`);
+    if (!ta) return;
+    const r = parseSimuText(ta.value);
+    if (r.moves.length) parties.push({ numero: parties.length + 1, meta: r.meta, moves: r.moves, topTotal: r.moves.reduce((s, m) => s + (m.top.score || 0), 0) });
+  });
+  const cont = document.querySelector(`#ffscFavList details[data-id="${CSS.escape(String(id))}"] .fav-parties`);
+  if (!parties.length) { if (cont) cont.insertAdjacentHTML("beforeend", `<p class="muted">Aucune partie analysable — vérifie le format des lignes.</p>`); return; }
+  const data = { simu: true, ocr: true, player: name || "", tournoi: name || "", parties, _id: String(id) };
+  _ffscDataCache[String(id)] = data;
+  if (cont) {
+    const statusEl = document.createElement("p"); statusEl.className = "muted"; statusEl.style.margin = "2px 0 6px";
+    const bodyEl = document.createElement("div");
+    cont.innerHTML = ""; cont.append(statusEl, bodyEl);
+    renderFfscParties(data, bodyEl, statusEl);
+  }
+};
 
 // Après reliage / retour : on s'assure que le favori est listé puis on le
 // déplie en place (les parties s'affichent sous sa ligne).
@@ -906,7 +1044,7 @@ async function loadMyStats() {
   const pid = +state.currentPlayerId;
 
   body.innerHTML = `<p class="muted">⏳ Calcul…</p>`;
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=228");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=229");
 
   // 1) Toutes mes parties tournoi (avec détails)
   const { data: tour } = await sb.from("prepared_game_results")
@@ -1658,7 +1796,7 @@ async function loadTournamentDetail(tournamentId) {
     });
   }
 
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=228");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=229");
   const btnStyle = "text-decoration:none;padding:5px 10px;border-radius:6px;font-weight:600;font-size:.85rem";
   const admin = isAdmin();
   $("#pgBody").innerHTML = (games || []).length === 0
@@ -2148,7 +2286,7 @@ async function loadTournamentStats(tournamentId, games) {
   // On détermine « le top est un scrabble » en REjouant le plateau coup par coup
   // (nombre de NOUVELLES tuiles posées par le top == clé de prime du mode), ce qui
   // est fiable même sur d'anciennes parties (le hadBonus stocké est non fiable).
-  const { emptyBoard, applyMove, GAME_MODES } = await import("./scrabble/engine.js?v=228");
+  const { emptyBoard, applyMove, GAME_MODES } = await import("./scrabble/engine.js?v=229");
   const gameById = {};
   for (const g of games) gameById[g.id] = g;
   const bonusesOf = (gid) => (GAME_MODES[gameById[gid]?.mode] || GAME_MODES.duplicate).bonuses || { 7: 50 };
@@ -2242,7 +2380,7 @@ $("#tCreate").onclick = async () => {
 
 // Quand on change de mode, mettre à jour le temps/coup par défaut
 $("#pgMode").addEventListener("change", async () => {
-  const { GAME_MODES } = await import("./scrabble/engine.js?v=228");
+  const { GAME_MODES } = await import("./scrabble/engine.js?v=229");
   const m = GAME_MODES[$("#pgMode").value];
   if (m) $("#pgTime").value = m.defaultTime;
 });
@@ -2269,8 +2407,8 @@ $("#pgCreate").onclick = async () => {
     let mods;
     try {
       mods = await Promise.all([
-        import("./scrabble/dictionary.js?v=228"),
-        import("./scrabble/generator.js?v=228"),
+        import("./scrabble/dictionary.js?v=229"),
+        import("./scrabble/generator.js?v=229"),
       ]);
     } catch (e) {
       $("#pgStatus").innerHTML = `<span style="color:#a02525">Échec de chargement des modules : ${escapeHtml(e.message)}</span>`;
@@ -2334,7 +2472,7 @@ window.recomputeAllNeg = async function(force = false) {
 
   let recomputeResult;
   try {
-    ({ recomputeResult } = await import("./scrabble/recompute.js?v=228"));
+    ({ recomputeResult } = await import("./scrabble/recompute.js?v=229"));
   } catch (e) {
     statusEl.textContent = "❌ Impossible de charger recompute.js : " + e.message;
     return;
@@ -2528,7 +2666,7 @@ window.recomputeAllJokerNeg = async function() {
 
   let recomputeResult;
   try {
-    ({ recomputeResult } = await import("./scrabble/recompute.js?v=228"));
+    ({ recomputeResult } = await import("./scrabble/recompute.js?v=229"));
   } catch (e) {
     statusEl.textContent = "❌ Impossible de charger recompute.js : " + e.message;
     return;

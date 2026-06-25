@@ -464,6 +464,19 @@ export default {
       return json({ tournoi, parties: out });
     }
 
+    // Proxy du PDF des parties en base64 (pour OCR côté navigateur, CORS).
+    // ?action=pdfraw&id=24784
+    if (action === "pdfraw") {
+      const id = url.searchParams.get("id");
+      if (!id) return json({ error: "id requis" }, 400);
+      const r = await fetch(`https://www.ffsc.fr/tournois.exporter.parties.pdf.php?id_tournoi=${encodeURIComponent(id)}`, { headers: { "User-Agent": UA } });
+      const buf = new Uint8Array(await r.arrayBuffer());
+      let bin = "";
+      for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode(...buf.subarray(i, i + 0x8000));
+      const b64 = btoa(bin);
+      return json({ id, isPdf: b64.startsWith("JVBER"), b64 });
+    }
+
     // Liste datée des tournois d'une année (tournois.php) → matching par date.
     // ?action=tournois_ffsc&annee=2026
     if (action === "tournois_ffsc") {
@@ -540,7 +553,7 @@ export default {
       return new Response(txt, { headers: { ...CORS, "Content-Type": "text/plain; charset=utf-8" } });
     }
 
-    return json({ error: "action inconnue", actions: ["tournois", "tournois_ffsc", "partie", "parties", "route", "import", "fisf", "simu", "raw", "fisf_raw"] }, 400);
+    return json({ error: "action inconnue", actions: ["tournois", "tournois_ffsc", "partie", "parties", "route", "import", "fisf", "simu", "pdfraw", "raw", "fisf_raw"] }, 400);
   } catch (e) {
     return json({ error: String((e as Error).message || e) }, 502);
   }
