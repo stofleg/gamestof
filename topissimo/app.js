@@ -174,7 +174,7 @@ let myGamesSort = {
 async function loadMyGames() {
   if (!state.currentPlayerId) return;
   const pid = +state.currentPlayerId;
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=226");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=227");
 
   // Tournoi : prepared_game_results jointes avec prepared_games
   const { data: tour } = await sb.from("prepared_game_results")
@@ -402,17 +402,42 @@ function renderFfscFavs() {
     if (a === "Autres") return 1; if (b === "Autres") return -1;
     return a < b ? 1 : -1;
   });
-  const row = (t) => `
-    <div style="display:flex;align-items:center;gap:6px">
-      <button class="btn ghost small" style="flex:1;text-align:left"
-        onclick="importFfscTournoi('${t.id}', this, ${JSON.stringify(t.name).replace(/"/g, "&quot;")})">${escapeHtml(t.name)}${t.date ? ` <span class="muted">(${t.date})</span>` : t.year ? ` <span class="muted">(${t.year})</span>` : ""}</button>
-      <button class="btn ghost small" title="Retirer des favoris"
-        onclick="toggleFfscFav('${t.id}', event)">✖</button>
-    </div>`;
+  // Chaque tournoi = un accordéon : on déplie ses parties juste sous la ligne.
+  const item = (t) => `
+    <details data-id="${t.id}" data-name="${escapeHtml(t.name)}" ontoggle="onFavToggle(this)" style="margin-bottom:4px;border:1px solid var(--soft);border-radius:8px">
+      <summary style="cursor:pointer;display:flex;align-items:center;gap:6px;padding:8px 10px;list-style:none">
+        <span style="flex:1">${escapeHtml(t.name)}${t.date ? ` <span class="muted">(${t.date})</span>` : t.year ? ` <span class="muted">(${t.year})</span>` : ""}</span>
+        <span class="btn ghost small" title="Retirer des favoris" onclick="event.preventDefault();event.stopPropagation();toggleFfscFav('${t.id}', event)">✖</span>
+      </summary>
+      <div class="fav-parties" style="padding:0 10px 8px"></div>
+    </details>`;
   list.innerHTML = saisons.map(s => `
     <div style="font-weight:700;color:#5a6a73;margin:8px 0 4px;font-size:.85rem">${s}</div>
-    <div style="display:flex;flex-direction:column;gap:4px">${bySaison[s].map(row).join("")}</div>
+    ${bySaison[s].map(item).join("")}
   `).join("");
+}
+
+// Déplie un favori : charge ses parties (à la 1ʳᵉ ouverture) sous la ligne.
+window.onFavToggle = async function(d) {
+  if (!d.open || d.dataset.loaded) return;
+  const cont = d.querySelector(".fav-parties");
+  const id = d.dataset.id, name = d.dataset.name;
+  cont.innerHTML = `<p class="muted">Chargement des parties…</p>`;
+  try {
+    const data = await fetchFfscData(id, name, (m) => { cont.innerHTML = `<p class="muted">${m}</p>`; });
+    if (!data) { cont.innerHTML = `<p class="muted">Aucune partie disponible pour ce tournoi.</p>`; return; }
+    const statusEl = document.createElement("p");
+    statusEl.className = "muted"; statusEl.style.margin = "2px 0 6px";
+    const bodyEl = document.createElement("div");
+    cont.innerHTML = ""; cont.append(statusEl, bodyEl);
+    renderFfscParties(data, bodyEl, statusEl);
+    d.dataset.loaded = "1";
+  } catch (e) { cont.innerHTML = `<p class="muted">❌ ${e.message}</p>`; }
+};
+
+function expandFav(id) {
+  const d = document.querySelector(`#ffscFavList details[data-id="${CSS.escape(String(id))}"]`);
+  if (d) { d.open = true; d.scrollIntoView({ behavior: "smooth", block: "center" }); }
 }
 
 window.loadFfscTournois = async function() {
@@ -495,64 +520,51 @@ async function fetchFfscData(tournoiId, displayName, onStatus) {
   return data;
 }
 
-window.importFfscTournoi = async function(tournoiId, btn, displayName) {
-  const card = $("#ffscPartiesCard"), status = $("#ffscPartiesStatus");
-  card.hidden = false;
-  card.scrollIntoView({ behavior: "smooth", block: "start" });
-  $("#ffscPartiesBody").innerHTML = "";
-  status.textContent = "Récupération des parties…";
-  if (btn) btn.disabled = true;
-  try {
-    const data = await fetchFfscData(tournoiId, displayName, (m) => { status.textContent = m; });
-    if (!data) { status.textContent = "Aucune partie disponible pour ce tournoi."; return; }
-    renderFfscParties(data);
-  } catch (e) {
-    status.textContent = `❌ ${e.message}`;
-  } finally {
-    if (btn) btn.disabled = false;
-  }
+// Après reliage / retour : on s'assure que le favori est listé puis on le
+// déplie en place (les parties s'affichent sous sa ligne).
+window.importFfscTournoi = function(tournoiId, _btn, _displayName) {
+  renderFfscFavs();
+  setTimeout(() => expandFav(String(tournoiId)), 30);
 };
 
-function renderFfscParties(data) {
-  const status = $("#ffscPartiesStatus");
+// Rend la liste des parties d'un tournoi dans les éléments fournis (statusEl,
+// bodyEl) — utilisé en accordéon sous chaque ligne de « Mes tournois ».
+function renderFfscParties(data, bodyEl, statusEl) {
   const parties = (data && data.parties || []).filter(Boolean);
+  const id = String(data._id || "");
   if (!parties.length) {
-    status.textContent = "Aucune partie récupérée pour ce tournoi.";
-    $("#ffscPartiesBody").innerHTML = "";
+    if (statusEl) statusEl.textContent = "Aucune partie récupérée pour ce tournoi.";
+    if (bodyEl) bodyEl.innerHTML = "";
     return;
   }
-  window._ffscData = data;   // pour Revoir / feuille de route
   const simu = !!data.simu;
-  // Négatif total connu côté FISF (mémorisé au reliage), affiché sans rechargement.
-  const fav = ffscFavs().find(f => f.id === String(data._id || ""));
+  const fav = ffscFavs().find(f => f.id === id);
   const fisfInfo = fav && fav.fisfNeg != null
     ? ` · Négatif total FISF : <strong style="color:${fav.fisfNeg < 0 ? "#a02525" : "inherit"}">${fav.fisfNeg}</strong>${fav.fisfPlace ? ` (place ${fav.fisfPlace})` : ""}`
     : "";
-  // Interclubs : ligne FISF associée à chaque partie (mapping fait au reliage).
   const lineByPartie = {};
   for (const l of ((fav && fav.lines) || [])) if (l.ffscPartie) lineByPartie[l.ffscPartie] = l;
   const partieTag = (p) => {
     const l = lineByPartie[p.numero];
     return l ? ` <span class="muted">· ${escapeHtml(l.name)}${l.neg != null ? ` (FISF ${l.neg})` : ""}</span>` : "";
   };
-  $("#ffscPartiesTitle").textContent = `🎲 ${data.tournoi || (simu ? "Parties officielles" : "")}${data.player ? " — " + data.player : ""}`;
-  status.innerHTML = (simu
+  if (statusEl) statusEl.innerHTML = (simu
     ? `${parties.length} partie(s) — tirages & tops officiels (négatif perso à saisir en « Revoir »).`
     : `${data.serie ? "Série " + data.serie + " · " : ""}${parties.length} partie(s).`) + fisfInfo;
 
   if (simu) {
-    $("#ffscPartiesBody").innerHTML = `
+    bodyEl.innerHTML = `
       <div class="table-wrap"><table>
         <thead><tr><th>Partie</th><th>Total top</th><th>Négatif (saisi)</th><th>Coups</th><th></th></tr></thead>
         <tbody>
           ${parties.map((p, i) => {
-            const pn = ffscPicksNegForPartie(data._id, p);
+            const pn = ffscPicksNegForPartie(id, p);
             return `<tr>
             <td>Partie ${p.numero}${partieTag(p)}</td>
             <td><strong>${p.topTotal ?? "—"}</strong></td>
             <td style="color:${pn && pn.neg < 0 ? "#a02525" : "inherit"}">${pn ? `${pn.neg} <span class="muted">(${pn.entered}/${pn.total})</span>` : "—"}</td>
             <td>${p.moves ? p.moves.length : "—"}</td>
-            <td><button class="btn ghost small" onclick="reviewFfscPartie(${i})">👁 Revoir / chercher le top</button></td>
+            <td><button class="btn ghost small" onclick="reviewFfscPartie('${id}', ${i})">👁 Revoir / chercher le top</button></td>
           </tr>`;
           }).join("")}
         </tbody>
@@ -560,7 +572,7 @@ function renderFfscParties(data) {
     return;
   }
 
-  $("#ffscPartiesBody").innerHTML = `
+  bodyEl.innerHTML = `
     <div class="table-wrap"><table>
       <thead><tr><th>Partie</th><th>Table</th><th>Score</th><th>Top</th><th>Négatif</th><th></th></tr></thead>
       <tbody>
@@ -575,8 +587,8 @@ function renderFfscParties(data) {
             <td>${topT}</td>
             <td style="color:${neg < 0 ? "#a02525" : "inherit"}">${neg != null ? neg : "—"}</td>
             <td style="white-space:nowrap">
-              <button class="btn ghost small" onclick="reviewFfscPartie(${i})">👁 Revoir</button>
-              <button class="btn ghost small" onclick="showFfscRoute(${i})">📋 Feuille de route</button>
+              <button class="btn ghost small" onclick="reviewFfscPartie('${id}', ${i})">👁 Revoir</button>
+              <button class="btn ghost small" onclick="showFfscRoute('${id}', ${i})">📋 Feuille de route</button>
             </td>
           </tr>`;
         }).join("")}
@@ -584,8 +596,8 @@ function renderFfscParties(data) {
     </table></div>`;
 }
 
-window.reviewFfscPartie = function(idx) {
-  const data = window._ffscData;
+window.reviewFfscPartie = function(tournoiId, idx) {
+  const data = _ffscDataCache[String(tournoiId)];
   if (!data || !data.parties || !data.parties[idx]) return;
   const partie = data.parties[idx];
   sessionStorage.setItem("ffscReview", JSON.stringify({
@@ -598,11 +610,9 @@ window.reviewFfscPartie = function(idx) {
   location.href = `scrabble/game.html?ffscreview=1`;
 };
 
-window.closeFfscParties = function() { $("#ffscPartiesCard").hidden = true; };
-
 // Feuille de route d'une partie (coup par coup : mot joué, score, top, négatif).
-window.showFfscRoute = function(idx) {
-  const data = window._ffscData;
+window.showFfscRoute = function(tournoiId, idx) {
+  const data = _ffscDataCache[String(tournoiId)];
   const p = data && data.parties && data.parties[idx];
   if (!p) return;
   $("#ffscRouteTitle").textContent = `📋 Feuille de route — Partie ${p.numero}${p.table != null ? " (table " + p.table + ")" : ""}`;
@@ -886,7 +896,7 @@ async function loadMyStats() {
   const pid = +state.currentPlayerId;
 
   body.innerHTML = `<p class="muted">⏳ Calcul…</p>`;
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=226");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=227");
 
   // 1) Toutes mes parties tournoi (avec détails)
   const { data: tour } = await sb.from("prepared_game_results")
@@ -1638,7 +1648,7 @@ async function loadTournamentDetail(tournamentId) {
     });
   }
 
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=226");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=227");
   const btnStyle = "text-decoration:none;padding:5px 10px;border-radius:6px;font-weight:600;font-size:.85rem";
   const admin = isAdmin();
   $("#pgBody").innerHTML = (games || []).length === 0
@@ -2128,7 +2138,7 @@ async function loadTournamentStats(tournamentId, games) {
   // On détermine « le top est un scrabble » en REjouant le plateau coup par coup
   // (nombre de NOUVELLES tuiles posées par le top == clé de prime du mode), ce qui
   // est fiable même sur d'anciennes parties (le hadBonus stocké est non fiable).
-  const { emptyBoard, applyMove, GAME_MODES } = await import("./scrabble/engine.js?v=226");
+  const { emptyBoard, applyMove, GAME_MODES } = await import("./scrabble/engine.js?v=227");
   const gameById = {};
   for (const g of games) gameById[g.id] = g;
   const bonusesOf = (gid) => (GAME_MODES[gameById[gid]?.mode] || GAME_MODES.duplicate).bonuses || { 7: 50 };
@@ -2222,7 +2232,7 @@ $("#tCreate").onclick = async () => {
 
 // Quand on change de mode, mettre à jour le temps/coup par défaut
 $("#pgMode").addEventListener("change", async () => {
-  const { GAME_MODES } = await import("./scrabble/engine.js?v=226");
+  const { GAME_MODES } = await import("./scrabble/engine.js?v=227");
   const m = GAME_MODES[$("#pgMode").value];
   if (m) $("#pgTime").value = m.defaultTime;
 });
@@ -2249,8 +2259,8 @@ $("#pgCreate").onclick = async () => {
     let mods;
     try {
       mods = await Promise.all([
-        import("./scrabble/dictionary.js?v=226"),
-        import("./scrabble/generator.js?v=226"),
+        import("./scrabble/dictionary.js?v=227"),
+        import("./scrabble/generator.js?v=227"),
       ]);
     } catch (e) {
       $("#pgStatus").innerHTML = `<span style="color:#a02525">Échec de chargement des modules : ${escapeHtml(e.message)}</span>`;
@@ -2314,7 +2324,7 @@ window.recomputeAllNeg = async function(force = false) {
 
   let recomputeResult;
   try {
-    ({ recomputeResult } = await import("./scrabble/recompute.js?v=226"));
+    ({ recomputeResult } = await import("./scrabble/recompute.js?v=227"));
   } catch (e) {
     statusEl.textContent = "❌ Impossible de charger recompute.js : " + e.message;
     return;
@@ -2508,7 +2518,7 @@ window.recomputeAllJokerNeg = async function() {
 
   let recomputeResult;
   try {
-    ({ recomputeResult } = await import("./scrabble/recompute.js?v=226"));
+    ({ recomputeResult } = await import("./scrabble/recompute.js?v=227"));
   } catch (e) {
     statusEl.textContent = "❌ Impossible de charger recompute.js : " + e.message;
     return;
