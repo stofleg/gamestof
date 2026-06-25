@@ -357,6 +357,39 @@ function parseSimuPartie(text: string) {
   return { meta: { mode: "duplicate", withJoker: false }, moves };
 }
 
+// ---------- OCR Vision IA (Claude) pour les PDF « image » ----------
+const OCR_PROMPT = `Cette image est une partie de Scrabble duplicate présentée en tableau.
+Recopie EXACTEMENT chaque ligne du tableau, une par ligne, au format :
+<numéro> <tirage> <mot> <position> <score>
+Règles :
+- La 1re ligne n'a que le numéro et le tirage (pas de mot).
+- Le tirage peut contenir « + » (reliquat), commencer par « - » (rejet), et « ? » (joker).
+- Mot retenu : mets la/les lettre(s) posée(s) avec un joker entre parenthèses, ex CUI(V)RAGE.
+- Position : ex « H4 » ou « 5E ».
+- La toute dernière ligne (mot final, sans numéro) : recopie-la telle quelle.
+Ne renvoie QUE ces lignes, sans titre, sans commentaire, sans la colonne « arbitrage ».`;
+
+async function claudeOcr(key: string, b64: string): Promise<string> {
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+    body: JSON.stringify({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 2000,
+      messages: [{
+        role: "user",
+        content: [
+          { type: "image", source: { type: "base64", media_type: "image/png", data: b64 } },
+          { type: "text", text: OCR_PROMPT },
+        ],
+      }],
+    }),
+  });
+  if (!res.ok) throw new Error(`Claude ${res.status}`);
+  const j = await res.json();
+  return (j.content && j.content[0] && j.content[0].text) || "";
+}
+
 // ---------- Page des scores : table ↔ joueur ----------
 function normName(s: string): string {
   return s.normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase().replace(/\s+/g, " ").trim();
@@ -477,6 +510,25 @@ export default {
       return json({ id, isPdf: b64.startsWith("JVBER"), b64 });
     }
 
+    // OCR Vision IA : reçoit les images des pages (POST {id, images:[dataURL]}),
+    // les fait lire par Claude, renvoie les parties structurées.
+    if (action === "ocr") {
+      const key = Deno.env.get("ANTHROPIC_API_KEY");
+      if (!key) return json({ error: "OCR IA non configuré (secret ANTHROPIC_API_KEY manquant)" }, 500);
+      let body: any;
+      try { body = await req.json(); } catch { return json({ error: "corps JSON requis (POST)" }, 400); }
+      const images = Array.isArray(body.images) ? body.images : [];
+      const parties = [];
+      for (const img of images) {
+        const b64 = String(img).replace(/^data:image\/[^;]+;base64,/, "");
+        let txt = "";
+        try { txt = await claudeOcr(key, b64); } catch (e) { /* page illisible → ignorée */ }
+        const r = parseSimuPartie(txt);
+        if (r.moves.length) parties.push({ numero: parties.length + 1, meta: r.meta, moves: r.moves, topTotal: r.moves.reduce((s, m) => s + (m.top.score || 0), 0) });
+      }
+      return json({ id: body.id || null, parties });
+    }
+
     // Liste datée des tournois d'une année (tournois.php) → matching par date.
     // ?action=tournois_ffsc&annee=2026
     if (action === "tournois_ffsc") {
@@ -553,7 +605,7 @@ export default {
       return new Response(txt, { headers: { ...CORS, "Content-Type": "text/plain; charset=utf-8" } });
     }
 
-    return json({ error: "action inconnue", actions: ["tournois", "tournois_ffsc", "partie", "parties", "route", "import", "fisf", "simu", "pdfraw", "raw", "fisf_raw"] }, 400);
+    return json({ error: "action inconnue", actions: ["tournois", "tournois_ffsc", "partie", "parties", "route", "import", "fisf", "simu", "pdfraw", "ocr", "raw", "fisf_raw"] }, 400);
   } catch (e) {
     return json({ error: String((e as Error).message || e) }, 502);
   }

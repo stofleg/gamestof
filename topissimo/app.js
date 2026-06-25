@@ -174,7 +174,7 @@ let myGamesSort = {
 async function loadMyGames() {
   if (!state.currentPlayerId) return;
   const pid = +state.currentPlayerId;
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=230");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=231");
 
   // Tournoi : prepared_game_results jointes avec prepared_games
   const { data: tour } = await sb.from("prepared_game_results")
@@ -587,84 +587,59 @@ function parseSimuText(text) {
   return { meta: { mode: "duplicate", withJoker: false }, moves };
 }
 
-let _pdfjs = null, _tessWorker = null;
-async function ensureOcrLibs(onStatus) {
-  if (!_pdfjs) {
-    onStatus && onStatus("Chargement du moteur PDF…");
-    _pdfjs = await import("https://cdn.jsdelivr.net/npm/pdfjs-dist@4.7.76/build/pdf.min.mjs");
-    _pdfjs.GlobalWorkerOptions.workerSrc = "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.7.76/build/pdf.worker.min.mjs";
-  }
-  if (!_tessWorker) {
-    onStatus && onStatus("Chargement de l'OCR (1ʳᵉ fois, ~10 s)…");
-    const T = await import("https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.esm.min.js");
-    const createWorker = T.createWorker || (T.default && T.default.createWorker);
-    if (typeof createWorker !== "function") throw new Error("tesseract.js : createWorker introuvable");
-    _tessWorker = await createWorker("fra");
-  }
+let _pdfjs = null;
+async function ensurePdfjs(onStatus) {
+  if (_pdfjs) return _pdfjs;
+  onStatus && onStatus("Chargement du moteur PDF…");
+  _pdfjs = await import("https://cdn.jsdelivr.net/npm/pdfjs-dist@4.7.76/build/pdf.min.mjs");
+  _pdfjs.GlobalWorkerOptions.workerSrc = "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.7.76/build/pdf.worker.min.mjs";
+  return _pdfjs;
 }
 
-// OCR complet d'un PDF image → textes par page (éditables ensuite).
+// Appel POST à l'Edge Function (pour l'OCR vision : envoi des images).
+async function ffscPost(action, body) {
+  const url = new URL(FFSC_FN);
+  url.searchParams.set("action", action);
+  const res = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+  if (!res.ok) throw new Error(`FFSC ${action}: HTTP ${res.status}`);
+  return res.json();
+}
+
+// OCR Vision IA : le navigateur rasterise les pages du PDF, l'Edge Function les
+// envoie à Claude (vision) qui renvoie les parties structurées.
 window.ocrFfscPdf = async function(id, name, cont) {
-  cont.innerHTML = `<p class="muted">⏳ Préparation de l'OCR…</p>`;
   const setStatus = (m) => { cont.innerHTML = `<p class="muted">⏳ ${m}</p>`; };
+  setStatus("Préparation…");
   try {
-    await ensureOcrLibs(setStatus);
+    await ensurePdfjs(setStatus);
     setStatus("Téléchargement du PDF…");
     const res = await ffscCall("pdfraw", { id });
-    if (!res || !res.b64) { cont.innerHTML = `<p class="muted">PDF indisponible.</p>`; return; }
+    if (!res || !res.b64) { cont.innerHTML = `<p class="muted">PDF indisponible pour ce tournoi.</p>`; return; }
     const bytes = Uint8Array.from(atob(res.b64), c => c.charCodeAt(0));
     const pdf = await _pdfjs.getDocument({ data: bytes }).promise;
-    const pages = [];
+    const images = [];
     for (let i = 1; i <= pdf.numPages; i++) {
-      setStatus(`OCR page ${i}/${pdf.numPages}…`);
+      setStatus(`Rendu page ${i}/${pdf.numPages}…`);
       const page = await pdf.getPage(i);
-      const viewport = page.getViewport({ scale: 2.4 });
-      const canvas = document.createElement("canvas");
-      canvas.width = viewport.width; canvas.height = viewport.height;
-      await page.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
-      const { data: { text } } = await _tessWorker.recognize(canvas);
-      // On ne garde que les pages contenant des coups (≥3 lignes numérotées).
-      if ((text.match(/^\s*\d+[.\s]/gm) || []).length >= 3) pages.push(text);
+      const vp = page.getViewport({ scale: 2 });
+      const cv = document.createElement("canvas");
+      cv.width = vp.width; cv.height = vp.height;
+      await page.render({ canvasContext: cv.getContext("2d"), viewport: vp }).promise;
+      images.push(cv.toDataURL("image/png"));
     }
-    if (!pages.length) { cont.innerHTML = `<p class="muted">OCR : aucune partie détectée. Le PDF est peut-être trop dégradé.</p>`; return; }
-    window._ocrPages = window._ocrPages || {};
-    window._ocrPages[id] = pages;
-    renderOcrEditor(id, name, cont);
-  } catch (e) {
-    cont.innerHTML = `<p class="muted">❌ OCR : ${e.message}</p>`;
-  }
-};
-
-function renderOcrEditor(id, name, cont) {
-  const pages = window._ocrPages[id] || [];
-  cont.innerHTML = `
-    <p class="muted">🔍 OCR (bêta) — vérifie/corrige le texte de chaque partie (format « N TIRAGE MOT PLACE SCORE »), puis analyse.</p>
-    ${pages.map((t, i) => `
-      <details ${i === 0 ? "open" : ""} style="margin:6px 0">
-        <summary style="cursor:pointer;font-weight:600">Partie ${i + 1}</summary>
-        <textarea id="ocrTa-${id}-${i}" style="width:100%;min-height:200px;font-family:monospace;font-size:.8rem">${escapeHtml(t)}</textarea>
-      </details>`).join("")}
-    <button class="btn ghost small" onclick="analyzeOcr('${id}', ${JSON.stringify(name).replace(/"/g, "&quot;")})">✅ Analyser les parties</button>`;
-}
-
-window.analyzeOcr = function(id, name) {
-  const pages = window._ocrPages[id] || [];
-  const parties = [];
-  pages.forEach((_, i) => {
-    const ta = document.getElementById(`ocrTa-${id}-${i}`);
-    if (!ta) return;
-    const r = parseSimuText(ta.value);
-    if (r.moves.length) parties.push({ numero: parties.length + 1, meta: r.meta, moves: r.moves, topTotal: r.moves.reduce((s, m) => s + (m.top.score || 0), 0) });
-  });
-  const cont = document.querySelector(`#ffscFavList details[data-id="${CSS.escape(String(id))}"] .fav-parties`);
-  if (!parties.length) { if (cont) cont.insertAdjacentHTML("beforeend", `<p class="muted">Aucune partie analysable — vérifie le format des lignes.</p>`); return; }
-  const data = { simu: true, ocr: true, player: name || "", tournoi: name || "", parties, _id: String(id) };
-  _ffscDataCache[String(id)] = data;
-  if (cont) {
+    setStatus(`Lecture IA des ${images.length} pages…`);
+    const r = await ffscPost("ocr", { id, images });
+    if (r.error) { cont.innerHTML = `<p class="muted">❌ ${r.error}</p>`; return; }
+    const parties = (r.parties || []);
+    if (!parties.length) { cont.innerHTML = `<p class="muted">Aucune partie lue par l'IA sur ce PDF.</p>`; return; }
+    const data = { simu: true, ocr: true, player: name || "", tournoi: name || "", parties, _id: String(id) };
+    _ffscDataCache[String(id)] = data;
     const statusEl = document.createElement("p"); statusEl.className = "muted"; statusEl.style.margin = "2px 0 6px";
     const bodyEl = document.createElement("div");
     cont.innerHTML = ""; cont.append(statusEl, bodyEl);
     renderFfscParties(data, bodyEl, statusEl);
+  } catch (e) {
+    cont.innerHTML = `<p class="muted">❌ OCR : ${e.message}</p>`;
   }
 };
 
@@ -1046,7 +1021,7 @@ async function loadMyStats() {
   const pid = +state.currentPlayerId;
 
   body.innerHTML = `<p class="muted">⏳ Calcul…</p>`;
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=230");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=231");
 
   // 1) Toutes mes parties tournoi (avec détails)
   const { data: tour } = await sb.from("prepared_game_results")
@@ -1798,7 +1773,7 @@ async function loadTournamentDetail(tournamentId) {
     });
   }
 
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=230");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=231");
   const btnStyle = "text-decoration:none;padding:5px 10px;border-radius:6px;font-weight:600;font-size:.85rem";
   const admin = isAdmin();
   $("#pgBody").innerHTML = (games || []).length === 0
@@ -2288,7 +2263,7 @@ async function loadTournamentStats(tournamentId, games) {
   // On détermine « le top est un scrabble » en REjouant le plateau coup par coup
   // (nombre de NOUVELLES tuiles posées par le top == clé de prime du mode), ce qui
   // est fiable même sur d'anciennes parties (le hadBonus stocké est non fiable).
-  const { emptyBoard, applyMove, GAME_MODES } = await import("./scrabble/engine.js?v=230");
+  const { emptyBoard, applyMove, GAME_MODES } = await import("./scrabble/engine.js?v=231");
   const gameById = {};
   for (const g of games) gameById[g.id] = g;
   const bonusesOf = (gid) => (GAME_MODES[gameById[gid]?.mode] || GAME_MODES.duplicate).bonuses || { 7: 50 };
@@ -2382,7 +2357,7 @@ $("#tCreate").onclick = async () => {
 
 // Quand on change de mode, mettre à jour le temps/coup par défaut
 $("#pgMode").addEventListener("change", async () => {
-  const { GAME_MODES } = await import("./scrabble/engine.js?v=230");
+  const { GAME_MODES } = await import("./scrabble/engine.js?v=231");
   const m = GAME_MODES[$("#pgMode").value];
   if (m) $("#pgTime").value = m.defaultTime;
 });
@@ -2409,8 +2384,8 @@ $("#pgCreate").onclick = async () => {
     let mods;
     try {
       mods = await Promise.all([
-        import("./scrabble/dictionary.js?v=230"),
-        import("./scrabble/generator.js?v=230"),
+        import("./scrabble/dictionary.js?v=231"),
+        import("./scrabble/generator.js?v=231"),
       ]);
     } catch (e) {
       $("#pgStatus").innerHTML = `<span style="color:#a02525">Échec de chargement des modules : ${escapeHtml(e.message)}</span>`;
@@ -2474,7 +2449,7 @@ window.recomputeAllNeg = async function(force = false) {
 
   let recomputeResult;
   try {
-    ({ recomputeResult } = await import("./scrabble/recompute.js?v=230"));
+    ({ recomputeResult } = await import("./scrabble/recompute.js?v=231"));
   } catch (e) {
     statusEl.textContent = "❌ Impossible de charger recompute.js : " + e.message;
     return;
@@ -2668,7 +2643,7 @@ window.recomputeAllJokerNeg = async function() {
 
   let recomputeResult;
   try {
-    ({ recomputeResult } = await import("./scrabble/recompute.js?v=230"));
+    ({ recomputeResult } = await import("./scrabble/recompute.js?v=231"));
   } catch (e) {
     statusEl.textContent = "❌ Impossible de charger recompute.js : " + e.message;
     return;
