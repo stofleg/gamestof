@@ -14,7 +14,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fraunces:wght@500;600;700;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=223">
+<link rel="stylesheet" href="style.css?v=224">
 </head>
 <body>
 
@@ -205,13 +205,9 @@
   <div id="ggPersoPanel" hidden>
     <div class="card">
       <h2>🎖 Mes tournois FFSC</h2>
-      <p class="muted">Relie ton compte à tes résultats officiels (en direct FFSC). Saisis ton nom tel qu'il apparaît au classement.</p>
+      <p class="muted">Saisis ton n° de licence FFSC : on récupère ton palmarès et ton nom automatiquement.</p>
       <div class="row" style="align-items:flex-end">
-        <div style="flex:2 1 220px">
-          <label>Mon nom FFSC</label>
-          <input type="text" id="ffscName" placeholder="ex : LEGUAY Christophe">
-        </div>
-        <div style="flex:1 1 130px">
+        <div style="flex:1 1 180px">
           <label>N° de licence</label>
           <input type="text" id="ffscLicence" placeholder="ex : 2231415">
         </div>
@@ -244,17 +240,6 @@
       <div id="ffscPartiesBody" style="margin-top:8px"></div>
     </div>
 
-    <div class="card">
-      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
-        <h2 style="margin:0;flex:1">📅 Tournois disponibles</h2>
-        <button class="btn ghost small" id="ffscLoadBtn" onclick="loadFfscTournois()">🔄 Charger la liste</button>
-      </div>
-      <div class="row" style="margin-top:10px">
-        <input type="text" id="ffscSearch" placeholder="Filtrer (nom du tournoi)…" oninput="renderFfscTournois()" style="flex:1">
-      </div>
-      <p class="muted" id="ffscTournoisStatus" style="margin-top:8px"></p>
-      <div id="ffscTournoisList" style="margin-top:8px"></div>
-    </div>
   </div>
 </section>
 
@@ -396,6 +381,6 @@
 
 <script src="config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script src="app.js?v=223"></script>
+<script src="app.js?v=224"></script>
 </body>
 </html>

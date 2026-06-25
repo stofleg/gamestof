@@ -174,7 +174,7 @@ let myGamesSort = {
 async function loadMyGames() {
   if (!state.currentPlayerId) return;
   const pid = +state.currentPlayerId;
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=223");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=224");
 
   // Tournoi : prepared_game_results jointes avec prepared_games
   const { data: tour } = await sb.from("prepared_game_results")
@@ -335,8 +335,6 @@ window.switchPreparedTab = function(which) {
   document.querySelectorAll("#preparedSubtabs .subtab")
     .forEach(b => b.classList.toggle("active", b.dataset.ptab === which));
   if (which === "perso") {
-    const saved = ffscSavedName();
-    if (saved && !$("#ffscName").value) $("#ffscName").value = saved;
     const lic = ffscSavedLicence();
     if (lic && !$("#ffscLicence").value) $("#ffscLicence").value = lic;
     renderFfscFavs();
@@ -344,13 +342,11 @@ window.switchPreparedTab = function(which) {
 };
 
 window.saveFfscName = async function() {
-  const v = $("#ffscName").value.trim();
   const lic = ($("#ffscLicence").value || "").trim();
-  if (!v && !lic) { $("#ffscNameStatus").textContent = "Saisis ton nom et/ou ta licence."; return; }
-  if (v) localStorage.setItem(ffscNameKey(), v);
-  if (lic) localStorage.setItem(`ffscLicence:${state.currentPlayerId || "anon"}`, lic);
-  $("#ffscNameStatus").textContent = `✅ Enregistré${v ? " : " + v : ""}${lic ? " (licence " + lic + ")" : ""}`;
-  try { await patchPlayerSettings({ ffscName: v, ffscLicence: lic }); } catch (e) { /* miroir local suffit */ }
+  if (!lic) { $("#ffscNameStatus").textContent = "Saisis ta licence."; return; }
+  localStorage.setItem(`ffscLicence:${state.currentPlayerId || "anon"}`, lic);
+  $("#ffscNameStatus").textContent = `✅ Licence enregistrée (${lic})`;
+  try { await patchPlayerSettings({ ffscLicence: lic }); } catch (e) { /* miroir local suffit */ }
 };
 
 // ---- Tournois favoris -------------------------------------------------------
@@ -451,11 +447,11 @@ const _ffscDataCache = {};
 async function fetchFfscData(tournoiId, displayName, onStatus) {
   const id = String(tournoiId);
   if (_ffscDataCache[id]) return _ffscDataCache[id];
-  const name = (ffscSavedName() || $("#ffscName").value || "").trim();
+  const name = ffscSavedName().trim();   // nom déduit du palmarès FISF (via licence)
   let data = null;
   if (name) {
     try { data = await ffscCall("import", { tournoi: id, nom: name }); }
-    catch (e) { data = null; }   // 404 joueur introuvable → repli PDF
+    catch (e) { data = null; }   // 404 joueur introuvable → repli parties/PDF
   }
   if (!data || !data.player) {
     // 2) À défaut du joueur : les parties seules via l'export endirect (tirages
@@ -663,6 +659,11 @@ window.loadFfscPalmares = async function() {
     const data = await ffscCall("fisf", { licence });
     _ffscPalmares = (data.tournois || []);
     status.textContent = `${data.player || ""} — ${_ffscPalmares.length} tournois.`;
+    // On mémorise le nom officiel (FISF) → sert à l'import endirect (négatifs)
+    // sans que le joueur ait à le retaper.
+    if (data.player && data.player !== playerSettings().ffscName) {
+      try { await patchPlayerSettings({ ffscName: data.player }); } catch (e) {}
+    }
     renderFfscPalmares();
   } catch (e) {
     status.textContent = `❌ ${e.message}`;
@@ -861,7 +862,7 @@ async function loadMyStats() {
   const pid = +state.currentPlayerId;
 
   body.innerHTML = `<p class="muted">⏳ Calcul…</p>`;
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=223");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=224");
 
   // 1) Toutes mes parties tournoi (avec détails)
   const { data: tour } = await sb.from("prepared_game_results")
@@ -1613,7 +1614,7 @@ async function loadTournamentDetail(tournamentId) {
     });
   }
 
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=223");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=224");
   const btnStyle = "text-decoration:none;padding:5px 10px;border-radius:6px;font-weight:600;font-size:.85rem";
   const admin = isAdmin();
   $("#pgBody").innerHTML = (games || []).length === 0
@@ -2103,7 +2104,7 @@ async function loadTournamentStats(tournamentId, games) {
   // On détermine « le top est un scrabble » en REjouant le plateau coup par coup
   // (nombre de NOUVELLES tuiles posées par le top == clé de prime du mode), ce qui
   // est fiable même sur d'anciennes parties (le hadBonus stocké est non fiable).
-  const { emptyBoard, applyMove, GAME_MODES } = await import("./scrabble/engine.js?v=223");
+  const { emptyBoard, applyMove, GAME_MODES } = await import("./scrabble/engine.js?v=224");
   const gameById = {};
   for (const g of games) gameById[g.id] = g;
   const bonusesOf = (gid) => (GAME_MODES[gameById[gid]?.mode] || GAME_MODES.duplicate).bonuses || { 7: 50 };
@@ -2197,7 +2198,7 @@ $("#tCreate").onclick = async () => {
 
 // Quand on change de mode, mettre à jour le temps/coup par défaut
 $("#pgMode").addEventListener("change", async () => {
-  const { GAME_MODES } = await import("./scrabble/engine.js?v=223");
+  const { GAME_MODES } = await import("./scrabble/engine.js?v=224");
   const m = GAME_MODES[$("#pgMode").value];
   if (m) $("#pgTime").value = m.defaultTime;
 });
@@ -2224,8 +2225,8 @@ $("#pgCreate").onclick = async () => {
     let mods;
     try {
       mods = await Promise.all([
-        import("./scrabble/dictionary.js?v=223"),
-        import("./scrabble/generator.js?v=223"),
+        import("./scrabble/dictionary.js?v=224"),
+        import("./scrabble/generator.js?v=224"),
       ]);
     } catch (e) {
       $("#pgStatus").innerHTML = `<span style="color:#a02525">Échec de chargement des modules : ${escapeHtml(e.message)}</span>`;
@@ -2289,7 +2290,7 @@ window.recomputeAllNeg = async function(force = false) {
 
   let recomputeResult;
   try {
-    ({ recomputeResult } = await import("./scrabble/recompute.js?v=223"));
+    ({ recomputeResult } = await import("./scrabble/recompute.js?v=224"));
   } catch (e) {
     statusEl.textContent = "❌ Impossible de charger recompute.js : " + e.message;
     return;
@@ -2483,7 +2484,7 @@ window.recomputeAllJokerNeg = async function() {
 
   let recomputeResult;
   try {
-    ({ recomputeResult } = await import("./scrabble/recompute.js?v=223"));
+    ({ recomputeResult } = await import("./scrabble/recompute.js?v=224"));
   } catch (e) {
     statusEl.textContent = "❌ Impossible de charger recompute.js : " + e.message;
     return;
