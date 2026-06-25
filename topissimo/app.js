@@ -174,7 +174,7 @@ let myGamesSort = {
 async function loadMyGames() {
   if (!state.currentPlayerId) return;
   const pid = +state.currentPlayerId;
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=227");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=228");
 
   // Tournoi : prepared_game_results jointes avec prepared_games
   const { data: tour } = await sb.from("prepared_game_results")
@@ -380,14 +380,22 @@ window.unlinkFfscPalmares = async function(fisfId) {
   renderFfscPalmares();
 };
 
-// Saison d'un favori : déduite de sa date (jj-mm-aaaa) ; sinon de l'année.
+// Saison FFSC d'un favori (1er sept → 31 août). Ordre de fiabilité :
+// 1) saison FISF mémorisée ; 2) déduite de la date jj-mm-aaaa ; 3) retrouvée
+// dans le palmarès via le fisfId ; 4) à défaut, l'année (supposée 1re moitié).
 function favSaison(t) {
-  let y = null, mo = 0;
-  if (t.date && /^\d{2}-\d{2}-\d{4}$/.test(t.date)) { y = +t.date.slice(6); mo = +t.date.slice(3, 5); }
-  else if (t.year) { y = +t.year; }
-  if (!y) return "Autres";
-  const start = mo >= 9 ? y : (mo ? y - 1 : y);   // sept→août ; année seule = approx
-  return `${start}-${start + 1}`;
+  if (t.saison) return t.saison;
+  if (t.date && /^\d{2}-\d{2}-\d{4}$/.test(t.date)) {
+    const y = +t.date.slice(6), mo = +t.date.slice(3, 5);
+    const start = mo >= 9 ? y : y - 1;
+    return `${start}-${start + 1}`;
+  }
+  for (const id of favFisfIds(t)) {
+    const pe = _ffscPalmares.find(x => x.fisfId === id);
+    if (pe && pe.saison) return pe.saison;
+  }
+  if (t.year) { const y = +t.year; return `${y - 1}-${y}`; }
+  return "Autres";
 }
 
 function renderFfscFavs() {
@@ -699,6 +707,7 @@ window.loadFfscPalmares = async function() {
       try { await patchPlayerSettings({ ffscName: data.player }); } catch (e) {}
     }
     renderFfscPalmares();
+    renderFfscFavs();   // recalcule les saisons des favoris via le palmarès chargé
   } catch (e) {
     status.textContent = `❌ ${e.message}`;
   } finally {
@@ -840,9 +849,10 @@ window.finalizeFfscRelier = async function(id, name, ffscPartie) {
   // (interclubs — plusieurs lignes FISF vers le même id), on AJOUTE la ligne.
   let fav = favs.find(f => f.id === id);
   if (!fav) {
-    fav = { id, name, year: t.year, date: t.date, fisfIds: [], fisfNeg: 0, lines: [] };
+    fav = { id, name, year: t.year, date: t.date, saison: t.saison || null, fisfIds: [], fisfNeg: 0, lines: [] };
     favs.push(fav);
   }
+  if (!fav.saison && t.saison) fav.saison = t.saison;
   fav.fisfIds = favFisfIds(fav);
   fav.lines = fav.lines || [];
   if (!fav.fisfIds.includes(t.fisfId)) {
@@ -896,7 +906,7 @@ async function loadMyStats() {
   const pid = +state.currentPlayerId;
 
   body.innerHTML = `<p class="muted">⏳ Calcul…</p>`;
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=227");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=228");
 
   // 1) Toutes mes parties tournoi (avec détails)
   const { data: tour } = await sb.from("prepared_game_results")
@@ -1648,7 +1658,7 @@ async function loadTournamentDetail(tournamentId) {
     });
   }
 
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=227");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=228");
   const btnStyle = "text-decoration:none;padding:5px 10px;border-radius:6px;font-weight:600;font-size:.85rem";
   const admin = isAdmin();
   $("#pgBody").innerHTML = (games || []).length === 0
@@ -2138,7 +2148,7 @@ async function loadTournamentStats(tournamentId, games) {
   // On détermine « le top est un scrabble » en REjouant le plateau coup par coup
   // (nombre de NOUVELLES tuiles posées par le top == clé de prime du mode), ce qui
   // est fiable même sur d'anciennes parties (le hadBonus stocké est non fiable).
-  const { emptyBoard, applyMove, GAME_MODES } = await import("./scrabble/engine.js?v=227");
+  const { emptyBoard, applyMove, GAME_MODES } = await import("./scrabble/engine.js?v=228");
   const gameById = {};
   for (const g of games) gameById[g.id] = g;
   const bonusesOf = (gid) => (GAME_MODES[gameById[gid]?.mode] || GAME_MODES.duplicate).bonuses || { 7: 50 };
@@ -2232,7 +2242,7 @@ $("#tCreate").onclick = async () => {
 
 // Quand on change de mode, mettre à jour le temps/coup par défaut
 $("#pgMode").addEventListener("change", async () => {
-  const { GAME_MODES } = await import("./scrabble/engine.js?v=227");
+  const { GAME_MODES } = await import("./scrabble/engine.js?v=228");
   const m = GAME_MODES[$("#pgMode").value];
   if (m) $("#pgTime").value = m.defaultTime;
 });
@@ -2259,8 +2269,8 @@ $("#pgCreate").onclick = async () => {
     let mods;
     try {
       mods = await Promise.all([
-        import("./scrabble/dictionary.js?v=227"),
-        import("./scrabble/generator.js?v=227"),
+        import("./scrabble/dictionary.js?v=228"),
+        import("./scrabble/generator.js?v=228"),
       ]);
     } catch (e) {
       $("#pgStatus").innerHTML = `<span style="color:#a02525">Échec de chargement des modules : ${escapeHtml(e.message)}</span>`;
@@ -2324,7 +2334,7 @@ window.recomputeAllNeg = async function(force = false) {
 
   let recomputeResult;
   try {
-    ({ recomputeResult } = await import("./scrabble/recompute.js?v=227"));
+    ({ recomputeResult } = await import("./scrabble/recompute.js?v=228"));
   } catch (e) {
     statusEl.textContent = "❌ Impossible de charger recompute.js : " + e.message;
     return;
@@ -2518,7 +2528,7 @@ window.recomputeAllJokerNeg = async function() {
 
   let recomputeResult;
   try {
-    ({ recomputeResult } = await import("./scrabble/recompute.js?v=227"));
+    ({ recomputeResult } = await import("./scrabble/recompute.js?v=228"));
   } catch (e) {
     statusEl.textContent = "❌ Impossible de charger recompute.js : " + e.message;
     return;
