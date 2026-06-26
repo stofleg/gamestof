@@ -930,3 +930,16 @@ th.sortable:hover { color: var(--petrol, #002E44); }
 .ffsc-drop:hover { border-color: var(--petrol, #002E44); }
 .ffsc-drop.over { border-color: var(--petrol, #002E44); background: rgba(255,221,0,.12); }
 .ffsc-drop u { text-decoration: underline; }
+
+/* ---- Accordéon par saison dans « Mes tournois » ---- */
+.fav-saison > summary {
+  cursor: pointer; list-style: none;
+  font-weight: 700; color: #5a6a73; font-size: .9rem;
+  margin: 8px 0 4px; padding: 4px 2px;
+  display: flex; align-items: center; gap: 6px;
+}
+.fav-saison > summary::-webkit-details-marker { display: none; }
+.fav-saison > summary::before {
+  content: "▸"; font-size: .8em; transition: transform .12s ease; color: var(--petrol, #002E44);
+}
+.fav-saison[open] > summary::before { transform: rotate(90deg); }
