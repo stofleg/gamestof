@@ -675,7 +675,7 @@ input:disabled, select:disabled {
 .rack .tile[draggable="true"] { cursor: grab; }
 .rack .tile[draggable="true"]:active { cursor: grabbing; }
 /* Retour visuel de pression au tap (sensation de « touche enfoncée »). */
-.rack .tile:active:not(.used):not(.dragging) { transform: scale(.9); filter: brightness(1.08); }
+.rack .tile:active:not(.used):not(.dragging) { transform: scale(.9); filter: brightness(1.08); transition: none; }
 .rack .tile.dragging { opacity: .4; }
 /* Tuile fantôme suivant le doigt pendant un glisser tactile */
 .tile.drag-ghost {

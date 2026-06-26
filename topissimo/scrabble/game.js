@@ -27,9 +27,9 @@ import {
   emptyBoard, BOARD_BONUSES, BOARD_SIZE, CENTER, LETTER_VALUE, LETTER_BAG,
   VOWELS, drawForDuplicate, scoreMove, applyMove,
   bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName,
-} from "./engine.js?v=235";
-import { Dictionary } from "./dictionary.js?v=235";
-import { findTop, findTopRanked } from "./topfinder.js?v=235";
+} from "./engine.js?v=236";
+import { Dictionary } from "./dictionary.js?v=236";
+import { findTop, findTopRanked } from "./topfinder.js?v=236";
 
 // État du mode review (parcours coup par coup)
 const review = {
@@ -59,7 +59,7 @@ const FFSC_REVIEW = URL_PARAMS.get("ffscreview");  // revoir une partie FFSC imp
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v235";
+const BUILD_VERSION = "garenna-v236";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -590,7 +590,10 @@ function onRackTouchMove(e) {
   if (!_touchDrag) return;
   const t = e.touches[0];
   if (!_touchDrag.moved) {
-    if (Math.hypot(t.clientX - _touchDrag.startX, t.clientY - _touchDrag.startY) < 8) return;
+    // Seuil généreux : en dessous, on reste sur un TAP (pose au curseur). Un appui
+    // « ferme » bouge souvent de quelques pixels — un seuil trop bas le requalifiait
+    // à tort en glisser, et le tap était perdu (d'où l'impression d'« appuyer fort »).
+    if (Math.hypot(t.clientX - _touchDrag.startX, t.clientY - _touchDrag.startY) < 14) return;
     _touchDrag.moved = true;
     const tile = state.rack.find(x => x.id === _touchDrag.id);
     const g = document.createElement("div");
@@ -630,14 +633,17 @@ function onRackTouchEnd(e) {
     return;
   }
   const t = e.changedTouches && e.changedTouches[0];
-  if (!t) return;
+  // Glisser sans point de relâche exploitable → on retombe sur un tap (pose au curseur).
+  if (!t) { tapRackTile(drag.id); return; }
   const under = document.elementFromPoint(t.clientX, t.clientY);
-  if (!under || !under.closest) return;
-  const td = under.closest("td[data-r]");
+  const td = under && under.closest && under.closest("td[data-r]");
   if (td) { placeRackTileOnCell(drag.id, +td.dataset.r, +td.dataset.c); return; }
-  const rt = under.closest(".tile[data-rack-id]");
-  if (rt) { reorderRack(drag.id, +rt.dataset.rackId); return; }
-  // lâché ailleurs → rien (la lettre reste au chevalet)
+  const rt = under && under.closest && under.closest(".tile[data-rack-id]");
+  // Relâché sur une AUTRE tuile → réordonnancement ; sur la même tuile → tap.
+  if (rt && +rt.dataset.rackId !== drag.id) { reorderRack(drag.id, +rt.dataset.rackId); return; }
+  // Petit glissé qui ne vise ni une case ni une autre tuile (resté sur le chevalet
+  // ou relâché « dans le vide ») → on est indulgent : on pose au curseur comme un tap.
+  tapRackTile(drag.id);
 }
 
 function onRackTileDragStart(e) {
