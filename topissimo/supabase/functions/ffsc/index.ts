@@ -579,26 +579,22 @@ export default {
       if (!licence) return json({ error: "licence requise" }, 400);
       const enc = encodeURIComponent;
       const base = `joueurs/details/${enc(pays)}/${enc(licence)}.html`;
-      // Tableau paginé (Fabrik, offset via `limitstart25`). On boucle jusqu'à
-      // épuisement : on détecte la taille de page sur la 1re page puis on avance
-      // d'autant, en s'arrêtant dès qu'une page n'apporte plus rien de neuf ou
-      // qu'elle est incomplète (dernière page). Indispensable pour les joueurs
-      // prolifiques (>100 tournois) dont les vieilles saisons étaient coupées.
+      // Tableau Fabrik paginé. On force 200 lignes/page (`limit25`, max du
+      // sélecteur du site) et on boucle l'offset `limitstart25` jusqu'à la
+      // dernière page (page incomplète ou rien de neuf). Indispensable pour les
+      // joueurs prolifiques : ex. 883 tournois → 5 pages (sinon coupé à ~100).
+      const LIMIT = 200;
       const out: any[] = [];
       const seen = new Set<number>();
       let player = "";
-      let start = 0, pageSize = 0;
-      for (let guard = 0; guard < 40; guard++) {
-        const html = await fetchFisf(start === 0 ? base : `${base}?limitstart25=${start}`).catch(() => "");
+      for (let start = 0, guard = 0; guard < 30; guard++, start += LIMIT) {
+        const html = await fetchFisf(`${base}?limit25=${LIMIT}&limitstart25=${start}`).catch(() => "");
         if (!html) break;
         const p = parseFisfPalmares(html);
         if (!player && p.player) player = p.player;
         const fresh = p.tournois.filter((t: any) => !seen.has(t.fisfId));
         for (const t of fresh) { seen.add(t.fisfId); out.push(t); }
-        if (start === 0) pageSize = p.tournois.length;        // taille de page réelle
-        if (!p.tournois.length || !fresh.length) break;        // page vide / rien de neuf
-        if (!pageSize || p.tournois.length < pageSize) break;  // dernière page (incomplète)
-        start += pageSize;
+        if (p.tournois.length < LIMIT || !fresh.length) break;   // dernière page atteinte
       }
       return json({ player, licence, tournois: out });
     }
