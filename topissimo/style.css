@@ -958,7 +958,12 @@ th.sortable:hover { color: var(--petrol, #002E44); }
   font-size: .8em; transition: transform .12s ease;
 }
 .fav-row[open] > summary::before { transform: rotate(90deg); }
-.fav-row > summary > .muted { opacity: 0; transition: opacity .12s ease; }   /* indice "déplier/replier" */
-.fav-row > summary:hover > .muted { opacity: .7; }
-.fav-remove { filter: grayscale(1); opacity: .6; }
+.fav-hint { opacity: 0; transition: opacity .12s ease; font-size: .72rem; }   /* indice "déplier/replier" */
+.fav-row > summary:hover .fav-hint { opacity: .65; }
+/* Corbeille discrète : pas de fond bouton, petite icône. */
+.fav-remove {
+  flex: 0 0 auto; background: none; border: none; cursor: pointer;
+  padding: 2px 4px; font-size: .82rem; line-height: 1;
+  filter: grayscale(1); opacity: .45; transition: opacity .12s ease;
+}
 .fav-remove:hover { filter: none; opacity: 1; }
