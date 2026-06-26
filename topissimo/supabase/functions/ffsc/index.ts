@@ -579,17 +579,28 @@ export default {
       if (!licence) return json({ error: "licence requise" }, 400);
       const enc = encodeURIComponent;
       const base = `joueurs/details/${enc(pays)}/${enc(licence)}.html`;
-      // Le tableau est paginé (50/page). On récupère les 2 premières pages
-      // (≈100 tournois, largement suffisant) et on fusionne.
-      const [h1, h2] = await Promise.all([
-        fetchFisf(base),
-        fetchFisf(`${base}?limitstart25=50`).catch(() => ""),
-      ]);
-      const p1 = parseFisfPalmares(h1);
-      const p2 = h2 ? parseFisfPalmares(h2) : { player: "", tournois: [] };
-      const seen = new Set(p1.tournois.map((t: any) => t.fisfId));
-      for (const t of p2.tournois) if (!seen.has(t.fisfId)) p1.tournois.push(t);
-      return json({ player: p1.player, licence, tournois: p1.tournois });
+      // Tableau paginé (Fabrik, offset via `limitstart25`). On boucle jusqu'à
+      // épuisement : on détecte la taille de page sur la 1re page puis on avance
+      // d'autant, en s'arrêtant dès qu'une page n'apporte plus rien de neuf ou
+      // qu'elle est incomplète (dernière page). Indispensable pour les joueurs
+      // prolifiques (>100 tournois) dont les vieilles saisons étaient coupées.
+      const out: any[] = [];
+      const seen = new Set<number>();
+      let player = "";
+      let start = 0, pageSize = 0;
+      for (let guard = 0; guard < 40; guard++) {
+        const html = await fetchFisf(start === 0 ? base : `${base}?limitstart25=${start}`).catch(() => "");
+        if (!html) break;
+        const p = parseFisfPalmares(html);
+        if (!player && p.player) player = p.player;
+        const fresh = p.tournois.filter((t: any) => !seen.has(t.fisfId));
+        for (const t of fresh) { seen.add(t.fisfId); out.push(t); }
+        if (start === 0) pageSize = p.tournois.length;        // taille de page réelle
+        if (!p.tournois.length || !fresh.length) break;        // page vide / rien de neuf
+        if (!pageSize || p.tournois.length < pageSize) break;  // dernière page (incomplète)
+        start += pageSize;
+      }
+      return json({ player, licence, tournois: out });
     }
 
     // FISF : palmarès brut d'un joueur (DEBUG, le temps d'écrire le parseur).
