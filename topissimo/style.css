@@ -919,3 +919,14 @@ th.sortable:hover { color: var(--petrol, #002E44); }
   font-family: ui-monospace, Menlo, monospace; font-size: .74rem; word-break: break-all;
 }
 .help-tip .help-url mark { background: var(--yellow, #FFDD00); border-radius: 3px; padding: 0 2px; }
+
+/* ---- Zone de dépôt / import OCR (modal Relier) ---- */
+.ffsc-drop {
+  margin-top: 8px; padding: 18px 12px; text-align: center; cursor: pointer;
+  border: 2px dashed var(--line, #c8d0d4); border-radius: 10px;
+  color: var(--ink-soft, #5a6b73); font-size: .86rem;
+  background: #fafcfc; transition: background .12s ease, border-color .12s ease;
+}
+.ffsc-drop:hover { border-color: var(--petrol, #002E44); }
+.ffsc-drop.over { border-color: var(--petrol, #002E44); background: rgba(255,221,0,.12); }
+.ffsc-drop u { text-decoration: underline; }

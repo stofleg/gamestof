@@ -174,7 +174,7 @@ let myGamesSort = {
 async function loadMyGames() {
   if (!state.currentPlayerId) return;
   const pid = +state.currentPlayerId;
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=237");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=238");
 
   // Tournoi : prepared_game_results jointes avec prepared_games
   const { data: tour } = await sb.from("prepared_game_results")
@@ -506,6 +506,10 @@ const _ffscDataCache = {};
 async function fetchFfscData(tournoiId, displayName, onStatus) {
   const id = String(tournoiId);
   if (_ffscDataCache[id]) return _ffscDataCache[id];
+  // Favori importé par OCR : parties persistées dans players.settings → on les
+  // sert directement (pas de réseau, pas de re-OCR ni de coût).
+  const favOcr = ffscFavs().find(f => f.id === id && f.ocrData && f.ocrData.parties);
+  if (favOcr) { _ffscDataCache[id] = favOcr.ocrData; return favOcr.ocrData; }
   const name = ffscSavedName().trim();   // nom déduit du palmarès FISF (via licence)
   let data = null;
   if (name) {
@@ -640,6 +644,84 @@ window.ocrFfscPdf = async function(id, name, cont) {
     renderFfscParties(data, bodyEl, statusEl);
   } catch (e) {
     cont.innerHTML = `<p class="muted">❌ OCR : ${e.message}</p>`;
+  }
+};
+
+// Convertit un fichier (PDF → pages rasterisées, ou image) en data URLs PNG/JPEG
+// prêtes pour l'action OCR.
+async function fileToOcrImages(file, setStatus) {
+  if (file.type === "application/pdf" || /\.pdf$/i.test(file.name)) {
+    await ensurePdfjs(setStatus);
+    const bytes = new Uint8Array(await file.arrayBuffer());
+    const pdf = await _pdfjs.getDocument({ data: bytes }).promise;
+    const imgs = [];
+    for (let i = 1; i <= pdf.numPages; i++) {
+      setStatus(`Rendu page ${i}/${pdf.numPages}…`);
+      const page = await pdf.getPage(i);
+      const vp = page.getViewport({ scale: 2 });
+      const cv = document.createElement("canvas");
+      cv.width = vp.width; cv.height = vp.height;
+      await page.render({ canvasContext: cv.getContext("2d"), viewport: vp }).promise;
+      imgs.push(cv.toDataURL("image/png"));
+    }
+    return imgs;
+  }
+  // Image : lue telle quelle en data URL.
+  return [await new Promise((res, rej) => {
+    const fr = new FileReader();
+    fr.onload = () => res(fr.result);
+    fr.onerror = () => rej(new Error("lecture du fichier impossible"));
+    fr.readAsDataURL(file);
+  })];
+}
+
+// Import OCR d'un PDF/image uploadé par le joueur, relié au tournoi FISF courant.
+// Les parties lues sont persistées dans le favori (ocrData) → réutilisables sans
+// re-OCR. Mutualise le pipeline Vision IA (action « ocr »).
+window.importFfscOcrFiles = async function(fileList) {
+  const t = (window._ffscRelierTargets || [])[0];
+  if (!t) return;
+  const status = $("#ffscOcrStatus");
+  const files = Array.from(fileList || []).filter(f =>
+    /pdf|image\//.test(f.type) || /\.(pdf|png|jpe?g|webp|gif|bmp|tiff?)$/i.test(f.name));
+  if (!files.length) { status.textContent = "Dépose un PDF ou une image."; return; }
+  const set = (m) => { status.textContent = `⏳ ${m}`; };
+  try {
+    set("Préparation…");
+    let images = [];
+    for (const f of files) images = images.concat(await fileToOcrImages(f, set));
+    set(`Lecture IA de ${images.length} image(s)…`);
+    const r = await ffscPost("ocr", { id: "upload", images });
+    if (r.error) { status.textContent = `❌ ${r.error}`; return; }
+    const parties = (r.parties || []);
+    if (!parties.length) { status.textContent = "Aucune partie lue — vérifie la mise en forme (voir la note ci-dessus)."; return; }
+    const id = "ocr-" + t.fisfId;
+    const data = { simu: true, ocr: true, player: ffscSavedName() || "", tournoi: t.name || "", parties, _id: id };
+    _ffscDataCache[id] = data;
+    // Crée (ou met à jour) le favori OCR, lié à la ligne FISF cible.
+    let favs = ffscFavs();
+    let fav = favs.find(f => f.id === id);
+    if (!fav) {
+      fav = { id, name: t.name, year: t.year, date: t.date, saison: t.saison || null, fisfIds: [], fisfNeg: 0, lines: [], ocrData: data };
+      favs.push(fav);
+    } else { fav.ocrData = data; }
+    if (!fav.saison && t.saison) fav.saison = t.saison;
+    fav.fisfIds = favFisfIds(fav);
+    if (!fav.fisfIds.includes(t.fisfId)) {
+      fav.fisfIds.push(t.fisfId);
+      fav.fisfNeg = (fav.fisfNeg || 0) + (t.neg || 0);
+      fav.lines = fav.lines || [];
+      fav.lines.push({ fisfId: t.fisfId, name: t.name, neg: t.neg, place: t.place, ffscPartie: null });
+    }
+    fav.fisfPlace = fav.fisfIds.length === 1 ? t.place : null;
+    delete fav.fisfId;
+    await patchPlayerSettings({ ffscTournois: favs });
+    $("#ffscRelierModal").hidden = true;
+    renderFfscFavs();
+    renderFfscPalmares();
+    importFfscTournoi(id, null, t.name);
+  } catch (e) {
+    status.textContent = `❌ ${e.message}`;
   }
 };
 
@@ -1016,7 +1098,7 @@ async function loadMyStats() {
   const pid = +state.currentPlayerId;
 
   body.innerHTML = `<p class="muted">⏳ Calcul…</p>`;
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=237");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=238");
 
   // 1) Toutes mes parties tournoi (avec détails)
   const { data: tour } = await sb.from("prepared_game_results")
@@ -1771,7 +1853,7 @@ async function loadTournamentDetail(tournamentId) {
     });
   }
 
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=237");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=238");
   const btnStyle = "text-decoration:none;padding:5px 10px;border-radius:6px;font-weight:600;font-size:.85rem";
   const admin = isAdmin();
   $("#pgBody").innerHTML = (games || []).length === 0
@@ -2261,7 +2343,7 @@ async function loadTournamentStats(tournamentId, games) {
   // On détermine « le top est un scrabble » en REjouant le plateau coup par coup
   // (nombre de NOUVELLES tuiles posées par le top == clé de prime du mode), ce qui
   // est fiable même sur d'anciennes parties (le hadBonus stocké est non fiable).
-  const { emptyBoard, applyMove, GAME_MODES } = await import("./scrabble/engine.js?v=237");
+  const { emptyBoard, applyMove, GAME_MODES } = await import("./scrabble/engine.js?v=238");
   const gameById = {};
   for (const g of games) gameById[g.id] = g;
   const bonusesOf = (gid) => (GAME_MODES[gameById[gid]?.mode] || GAME_MODES.duplicate).bonuses || { 7: 50 };
@@ -2355,7 +2437,7 @@ $("#tCreate").onclick = async () => {
 
 // Quand on change de mode, mettre à jour le temps/coup par défaut
 $("#pgMode").addEventListener("change", async () => {
-  const { GAME_MODES } = await import("./scrabble/engine.js?v=237");
+  const { GAME_MODES } = await import("./scrabble/engine.js?v=238");
   const m = GAME_MODES[$("#pgMode").value];
   if (m) $("#pgTime").value = m.defaultTime;
 });
@@ -2382,8 +2464,8 @@ $("#pgCreate").onclick = async () => {
     let mods;
     try {
       mods = await Promise.all([
-        import("./scrabble/dictionary.js?v=237"),
-        import("./scrabble/generator.js?v=237"),
+        import("./scrabble/dictionary.js?v=238"),
+        import("./scrabble/generator.js?v=238"),
       ]);
     } catch (e) {
       $("#pgStatus").innerHTML = `<span style="color:#a02525">Échec de chargement des modules : ${escapeHtml(e.message)}</span>`;
@@ -2447,7 +2529,7 @@ window.recomputeAllNeg = async function(force = false) {
 
   let recomputeResult;
   try {
-    ({ recomputeResult } = await import("./scrabble/recompute.js?v=237"));
+    ({ recomputeResult } = await import("./scrabble/recompute.js?v=238"));
   } catch (e) {
     statusEl.textContent = "❌ Impossible de charger recompute.js : " + e.message;
     return;
@@ -2641,7 +2723,7 @@ window.recomputeAllJokerNeg = async function() {
 
   let recomputeResult;
   try {
-    ({ recomputeResult } = await import("./scrabble/recompute.js?v=237"));
+    ({ recomputeResult } = await import("./scrabble/recompute.js?v=238"));
   } catch (e) {
     statusEl.textContent = "❌ Impossible de charger recompute.js : " + e.message;
     return;
