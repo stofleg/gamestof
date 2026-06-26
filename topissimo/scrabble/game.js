@@ -27,9 +27,9 @@ import {
   emptyBoard, BOARD_BONUSES, BOARD_SIZE, CENTER, LETTER_VALUE, LETTER_BAG,
   VOWELS, drawForDuplicate, scoreMove, applyMove,
   bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName,
-} from "./engine.js?v=242";
-import { Dictionary } from "./dictionary.js?v=242";
-import { findTop, findTopRanked } from "./topfinder.js?v=242";
+} from "./engine.js?v=243";
+import { Dictionary } from "./dictionary.js?v=243";
+import { findTop, findTopRanked } from "./topfinder.js?v=243";
 
 // État du mode review (parcours coup par coup)
 const review = {
@@ -59,7 +59,7 @@ const FFSC_REVIEW = URL_PARAMS.get("ffscreview");  // revoir une partie FFSC imp
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v242";
+const BUILD_VERSION = "garenna-v243";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -3479,7 +3479,8 @@ function startGame() {
   $("#actionRowPreStart").hidden = true;
   $("#actionRowInGame").hidden = false;
   const isTraining = !state.prepared && !state.isPuzzle;
-  $("#btnPause").hidden = !isTraining;
+  // Pause disponible en entraînement ET en tournoi (pas en puzzle, partie unique).
+  $("#btnPause").hidden = state.isPuzzle;
   // Annot toolbar : masquée par défaut, visible uniquement via le bouton ✏️ Annoter
   if (isTraining) clearSavedTraining();
   // Bouton Revoir : masqué pendant la partie (tout mode), visible seulement en fin
@@ -3571,7 +3572,10 @@ function restorePausedTraining() {
 }
 
 function pauseGame({ showModal = true } = {}) {
-  if (!state.started || state.chronoFinal != null || state.prepared || state.isPuzzle) return;
+  // Pause autorisée en entraînement et en tournoi (pas en puzzle). En tournoi, la
+  // pause n'est pas persistée (saveTrainingState ne s'applique qu'à l'entraînement)
+  // mais le rechargement est de toute façon protégé par le garde beforeunload.
+  if (!state.started || state.chronoFinal != null || state.isPuzzle) return;
   if (state.paused) {
     if (showModal) $("#pauseModal").hidden = false;
     return;
@@ -3610,6 +3614,18 @@ function resumeGame() {
   $("#pauseModal").hidden = true;
   clearSavedTraining();
 }
+
+// Anti-rechargement en TOURNOI : une partie pré-tirée en cours n'est pas
+// sauvegardée (contrairement à l'entraînement) → un rafraîchissement la perdrait.
+// On avertit donc avant de quitter/recharger tant qu'elle n'est pas terminée.
+// (Pour faire une pause, utiliser le bouton Pause plutôt que recharger.)
+window.addEventListener("beforeunload", (e) => {
+  if (state.prepared && state.started && state.chronoFinal == null) {
+    e.preventDefault();
+    e.returnValue = "";   // déclenche la confirmation native du navigateur
+    return "";
+  }
+});
 
 function endGame() {
   console.log(`[endGame] ${BUILD_VERSION} — reconstruction plateau depuis ${state.history?.length || 0} coups d'historique`);
@@ -3996,8 +4012,8 @@ document.addEventListener("keyup", (e) => {
   if (e.target.tagName === "INPUT" || e.target.tagName === "SELECT" || e.target.tagName === "TEXTAREA") return;
   if (e.key === "Shift" && shiftAloneFlag) {
     shiftAloneFlag = false;
-    // Seulement en entraînement actif, partie démarrée non terminée
-    if (state.started && !state.prepared && state.chronoFinal == null) {
+    // Partie démarrée non terminée (entraînement ou tournoi, pas puzzle)
+    if (state.started && !state.isPuzzle && state.chronoFinal == null) {
       if (state.paused) resumeGame(); else pauseGame();
     }
   }
