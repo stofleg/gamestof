@@ -188,7 +188,7 @@ let myGamesSort = {
 async function loadMyGames() {
   if (!state.currentPlayerId) return;
   const pid = +state.currentPlayerId;
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=246");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=247");
 
   // Tournoi : prepared_game_results jointes avec prepared_games
   const { data: tour } = await sb.from("prepared_game_results")
@@ -858,14 +858,23 @@ function renderFfscParties(data, bodyEl, statusEl) {
   }
   const simu = !!data.simu;
   const fav = ffscFavs().find(f => f.id === id);
-  const fisfInfo = fav && fav.fisfNeg != null
-    ? ` · Négatif total FISF : <strong style="color:${fav.fisfNeg < 0 ? "#a02525" : "inherit"}">${fav.fisfNeg}</strong>${fav.fisfPlace ? ` (place ${fav.fisfPlace})` : ""}`
-    : "";
+  // Négatif total FISF du favori : on agrège les négatifs par ligne. Si une ligne
+  // est « non connue », le total l'est aussi (on ne mélange pas connu/inconnu).
+  let fisfInfo = "";
+  if (fav) {
+    const lns = fav.lines || [];
+    let favNeg = null, anyUnknown = false;
+    if (lns.length) { favNeg = 0; for (const l of lns) { if (l.neg == null) anyUnknown = true; else favNeg += l.neg; } }
+    else if (fav.fisfNeg != null) favNeg = fav.fisfNeg;
+    if (favNeg != null || anyUnknown) {
+      fisfInfo = ` · Négatif total FISF : <strong>${anyUnknown ? fmtFisfNeg(null) : fmtFisfNeg(favNeg)}</strong>${fav.fisfPlace ? ` (place ${fav.fisfPlace})` : ""}`;
+    }
+  }
   const lineByPartie = {};
   for (const l of ((fav && fav.lines) || [])) if (l.ffscPartie) lineByPartie[l.ffscPartie] = l;
   const partieTag = (p) => {
     const l = lineByPartie[p.numero];
-    return l ? ` <span class="muted">· ${escapeHtml(l.name)}${l.neg != null ? ` (FISF ${l.neg})` : ""}</span>` : "";
+    return l ? ` <span class="muted">· ${escapeHtml(l.name)} (FISF ${fmtFisfNeg(l.neg, { plain: true })})</span>` : "";
   };
   if (statusEl) statusEl.innerHTML = (simu
     ? `${parties.length} partie(s) — tirages & tops officiels (négatif perso à saisir en « Revoir »).`
@@ -1002,6 +1011,36 @@ function ffscPicksNegForPartie(tournoiId, partie) {
   return entered ? { neg, entered, total: (partie.moves || []).length } : null;
 }
 
+// Affichage d'un négatif FISF : null → « non connu », 0 → « TOP » (aucun point
+// perdu), sinon la valeur. {plain:true} pour une version texte (sans HTML).
+function fmtFisfNeg(neg, { plain = false } = {}) {
+  if (neg == null) return plain ? "non connu" : `<span class="muted">non connu</span>`;
+  if (neg === 0) return plain ? "TOP" : `<span style="color:#1f7a34;font-weight:700">TOP</span>`;
+  return plain ? String(neg) : `<span style="color:${neg < 0 ? "#a02525" : "inherit"}">${neg}</span>`;
+}
+
+// Négatif d'un tournoi (ou d'une ligne interclubs) DÉDUIT des coups saisis en
+// « Revoir », si TOUS les coups de toutes les parties concernées sont renseignés.
+// Permet de remplacer un négatif FISF « non connu ». null si incomplet/indispo.
+function computedNegForFisf(fisfId) {
+  const fav = ffscFavs().find(f => favFisfIds(f).includes(fisfId));
+  if (!fav) return null;
+  const data = fav.data || fav.ocrData;
+  const parties = (data && data.parties) || [];
+  if (!parties.length) return null;
+  // Interclubs : cette ligne FISF ne couvre qu'une partie précise.
+  const line = (fav.lines || []).find(l => l.fisfId === fisfId);
+  const wanted = (line && line.ffscPartie) ? parties.filter(p => p.numero === line.ffscPartie) : parties;
+  if (!wanted.length) return null;
+  let total = 0;
+  for (const p of wanted) {
+    const pn = ffscPicksNegForPartie(fav.id, p);
+    if (!pn || pn.entered < pn.total) return null;   // partie incomplète → non fiable
+    total += pn.neg;
+  }
+  return total;
+}
+
 window.loadFfscPalmares = async function() {
   const licence = (ffscSavedLicence() || $("#ffscLicence").value || "").trim();
   const status = $("#ffscPalmaresStatus");
@@ -1051,11 +1090,17 @@ function renderFfscPalmares() {
         <tbody>
           ${bySaison[s].map(t => {
             const linked = favHasFisf(t.fisfId);
+            let negCell;
+            if (t.neg != null) negCell = fmtFisfNeg(t.neg);
+            else {
+              const c = computedNegForFisf(t.fisfId);   // « non connu » → calcul depuis les coups saisis
+              negCell = c != null ? `${fmtFisfNeg(c)} <span class="muted">(saisi)</span>` : fmtFisfNeg(null);
+            }
             return `<tr>
               <td style="white-space:nowrap">${t.date}</td>
               <td>${escapeHtml(t.name)}</td>
               <td>${t.place || "—"}</td>
-              <td style="color:${t.neg < 0 ? "#a02525" : "inherit"}">${t.neg || 0}</td>
+              <td>${negCell}</td>
               <td style="white-space:nowrap">${linked
                 ? `<span class="muted">✅ relié</span> <button class="btn ghost small" title="Délier" onclick="unlinkFfscPalmares(${t.fisfId})">✖</button>`
                 : `<button class="btn ghost small" onclick="openFfscRelier(${t.fisfId})">🔗 Relier</button>`}</td>
@@ -1220,7 +1265,7 @@ async function loadMyStats() {
   const pid = +state.currentPlayerId;
 
   body.innerHTML = `<p class="muted">⏳ Calcul…</p>`;
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=246");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=247");
 
   // 1) Toutes mes parties tournoi (avec détails)
   const { data: tour } = await sb.from("prepared_game_results")
@@ -1975,7 +2020,7 @@ async function loadTournamentDetail(tournamentId) {
     });
   }
 
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=246");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=247");
   const btnStyle = "text-decoration:none;padding:5px 10px;border-radius:6px;font-weight:600;font-size:.85rem";
   const admin = isAdmin();
   $("#pgBody").innerHTML = (games || []).length === 0
@@ -2465,7 +2510,7 @@ async function loadTournamentStats(tournamentId, games) {
   // On détermine « le top est un scrabble » en REjouant le plateau coup par coup
   // (nombre de NOUVELLES tuiles posées par le top == clé de prime du mode), ce qui
   // est fiable même sur d'anciennes parties (le hadBonus stocké est non fiable).
-  const { emptyBoard, applyMove, GAME_MODES } = await import("./scrabble/engine.js?v=246");
+  const { emptyBoard, applyMove, GAME_MODES } = await import("./scrabble/engine.js?v=247");
   const gameById = {};
   for (const g of games) gameById[g.id] = g;
   const bonusesOf = (gid) => (GAME_MODES[gameById[gid]?.mode] || GAME_MODES.duplicate).bonuses || { 7: 50 };
@@ -2559,7 +2604,7 @@ $("#tCreate").onclick = async () => {
 
 // Quand on change de mode, mettre à jour le temps/coup par défaut
 $("#pgMode").addEventListener("change", async () => {
-  const { GAME_MODES } = await import("./scrabble/engine.js?v=246");
+  const { GAME_MODES } = await import("./scrabble/engine.js?v=247");
   const m = GAME_MODES[$("#pgMode").value];
   if (m) $("#pgTime").value = m.defaultTime;
 });
@@ -2586,8 +2631,8 @@ $("#pgCreate").onclick = async () => {
     let mods;
     try {
       mods = await Promise.all([
-        import("./scrabble/dictionary.js?v=246"),
-        import("./scrabble/generator.js?v=246"),
+        import("./scrabble/dictionary.js?v=247"),
+        import("./scrabble/generator.js?v=247"),
       ]);
     } catch (e) {
       $("#pgStatus").innerHTML = `<span style="color:#a02525">Échec de chargement des modules : ${escapeHtml(e.message)}</span>`;
@@ -2651,7 +2696,7 @@ window.recomputeAllNeg = async function(force = false) {
 
   let recomputeResult;
   try {
-    ({ recomputeResult } = await import("./scrabble/recompute.js?v=246"));
+    ({ recomputeResult } = await import("./scrabble/recompute.js?v=247"));
   } catch (e) {
     statusEl.textContent = "❌ Impossible de charger recompute.js : " + e.message;
     return;
@@ -2845,7 +2890,7 @@ window.recomputeAllJokerNeg = async function() {
 
   let recomputeResult;
   try {
-    ({ recomputeResult } = await import("./scrabble/recompute.js?v=246"));
+    ({ recomputeResult } = await import("./scrabble/recompute.js?v=247"));
   } catch (e) {
     statusEl.textContent = "❌ Impossible de charger recompute.js : " + e.message;
     return;
