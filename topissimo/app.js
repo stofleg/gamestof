@@ -174,7 +174,7 @@ let myGamesSort = {
 async function loadMyGames() {
   if (!state.currentPlayerId) return;
   const pid = +state.currentPlayerId;
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=241");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=242");
 
   // Tournoi : prepared_game_results jointes avec prepared_games
   const { data: tour } = await sb.from("prepared_game_results")
@@ -355,7 +355,11 @@ function isFav(id) { return ffscFavs().some(t => t.id === id); }
 window.toggleFfscFav = async function(id, ev) {
   if (ev) ev.stopPropagation();
   let favs = ffscFavs();
-  if (favs.some(t => t.id === id)) {
+  const existing = favs.find(t => t.id === id);
+  if (existing) {
+    // Suppression DÉFINITIVE (et non un simple repli) → on confirme pour éviter
+    // les clics accidentels (le joueur veut souvent juste replier le tournoi).
+    if (!confirm(`Retirer « ${existing.name} » de Mes tournois ?\n(Pour seulement replier le tournoi, clique sur sa ligne.)`)) return;
     favs = favs.filter(t => t.id !== id);
   } else {
     const src = _ffscTournois.find(t => t.id === id);
@@ -412,10 +416,11 @@ function renderFfscFavs() {
   });
   // Chaque tournoi = un accordéon : on déplie ses parties juste sous la ligne.
   const item = (t) => `
-    <details data-id="${t.id}" data-name="${escapeHtml(t.name)}" ontoggle="onFavToggle(this)" style="margin-bottom:4px;border:1px solid var(--soft);border-radius:8px">
+    <details class="fav-row" data-id="${t.id}" data-name="${escapeHtml(t.name)}" ontoggle="onFavToggle(this)" style="margin-bottom:4px;border:1px solid var(--soft);border-radius:8px">
       <summary style="cursor:pointer;display:flex;align-items:center;gap:6px;padding:8px 10px;list-style:none">
         <span style="flex:1">${escapeHtml(t.name)}${t.date ? ` <span class="muted">(${t.date})</span>` : t.year ? ` <span class="muted">(${t.year})</span>` : ""}</span>
-        <span class="btn ghost small" title="Retirer des favoris" onclick="event.preventDefault();event.stopPropagation();toggleFfscFav('${t.id}', event)">✖</span>
+        <span class="muted" style="font-size:.78rem">déplier/replier</span>
+        <button class="btn ghost small fav-remove" title="Retirer ce tournoi de Mes tournois" onclick="event.preventDefault();event.stopPropagation();toggleFfscFav('${t.id}', event)">🗑</button>
       </summary>
       <div class="fav-parties" style="padding:0 10px 8px"></div>
     </details>`;
@@ -1184,7 +1189,7 @@ async function loadMyStats() {
   const pid = +state.currentPlayerId;
 
   body.innerHTML = `<p class="muted">⏳ Calcul…</p>`;
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=241");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=242");
 
   // 1) Toutes mes parties tournoi (avec détails)
   const { data: tour } = await sb.from("prepared_game_results")
@@ -1939,7 +1944,7 @@ async function loadTournamentDetail(tournamentId) {
     });
   }
 
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=241");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=242");
   const btnStyle = "text-decoration:none;padding:5px 10px;border-radius:6px;font-weight:600;font-size:.85rem";
   const admin = isAdmin();
   $("#pgBody").innerHTML = (games || []).length === 0
@@ -2429,7 +2434,7 @@ async function loadTournamentStats(tournamentId, games) {
   // On détermine « le top est un scrabble » en REjouant le plateau coup par coup
   // (nombre de NOUVELLES tuiles posées par le top == clé de prime du mode), ce qui
   // est fiable même sur d'anciennes parties (le hadBonus stocké est non fiable).
-  const { emptyBoard, applyMove, GAME_MODES } = await import("./scrabble/engine.js?v=241");
+  const { emptyBoard, applyMove, GAME_MODES } = await import("./scrabble/engine.js?v=242");
   const gameById = {};
   for (const g of games) gameById[g.id] = g;
   const bonusesOf = (gid) => (GAME_MODES[gameById[gid]?.mode] || GAME_MODES.duplicate).bonuses || { 7: 50 };
@@ -2523,7 +2528,7 @@ $("#tCreate").onclick = async () => {
 
 // Quand on change de mode, mettre à jour le temps/coup par défaut
 $("#pgMode").addEventListener("change", async () => {
-  const { GAME_MODES } = await import("./scrabble/engine.js?v=241");
+  const { GAME_MODES } = await import("./scrabble/engine.js?v=242");
   const m = GAME_MODES[$("#pgMode").value];
   if (m) $("#pgTime").value = m.defaultTime;
 });
@@ -2550,8 +2555,8 @@ $("#pgCreate").onclick = async () => {
     let mods;
     try {
       mods = await Promise.all([
-        import("./scrabble/dictionary.js?v=241"),
-        import("./scrabble/generator.js?v=241"),
+        import("./scrabble/dictionary.js?v=242"),
+        import("./scrabble/generator.js?v=242"),
       ]);
     } catch (e) {
       $("#pgStatus").innerHTML = `<span style="color:#a02525">Échec de chargement des modules : ${escapeHtml(e.message)}</span>`;
@@ -2615,7 +2620,7 @@ window.recomputeAllNeg = async function(force = false) {
 
   let recomputeResult;
   try {
-    ({ recomputeResult } = await import("./scrabble/recompute.js?v=241"));
+    ({ recomputeResult } = await import("./scrabble/recompute.js?v=242"));
   } catch (e) {
     statusEl.textContent = "❌ Impossible de charger recompute.js : " + e.message;
     return;
@@ -2809,7 +2814,7 @@ window.recomputeAllJokerNeg = async function() {
 
   let recomputeResult;
   try {
-    ({ recomputeResult } = await import("./scrabble/recompute.js?v=241"));
+    ({ recomputeResult } = await import("./scrabble/recompute.js?v=242"));
   } catch (e) {
     statusEl.textContent = "❌ Impossible de charger recompute.js : " + e.message;
     return;

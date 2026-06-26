@@ -950,3 +950,15 @@ th.sortable:hover { color: var(--petrol, #002E44); }
   overflow-y: auto;
   padding-right: 4px;   /* évite que l'ascenseur masque le bouton ✖ */
 }
+
+/* ---- Ligne de tournoi (accordéon) : chevron pour signaler déplier/replier ---- */
+.fav-row > summary::-webkit-details-marker { display: none; }
+.fav-row > summary::before {
+  content: "▸"; flex: 0 0 auto; color: var(--petrol, #002E44);
+  font-size: .8em; transition: transform .12s ease;
+}
+.fav-row[open] > summary::before { transform: rotate(90deg); }
+.fav-row > summary > .muted { opacity: 0; transition: opacity .12s ease; }   /* indice "déplier/replier" */
+.fav-row > summary:hover > .muted { opacity: .7; }
+.fav-remove { filter: grayscale(1); opacity: .6; }
+.fav-remove:hover { filter: none; opacity: 1; }
