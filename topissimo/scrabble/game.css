@@ -147,7 +147,9 @@ body.show-coords .right-col {
 /* Bouton ✕ d'annulation : mobile uniquement (sur desktop on annule au clic grille) */
 .btn-cancel { display: none; }
 /* Bouton « ☰ Raccourcis » (afficher/cacher les pictos) : mobile uniquement */
-.shortcut-toggle { display: none; }
+/* Masqué sur PC (réservé au mobile). Spécificité alignée sur `.title-row .btn`
+   pour la battre ; le mobile le ré-affiche en !important. */
+.title-row .shortcut-toggle { display: none; }
 
 
 .game-wrap {

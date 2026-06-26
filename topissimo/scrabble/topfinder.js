@@ -12,7 +12,7 @@
 //     aussi les mots croisés) et on garde le maximum.
 // ============================================================
 
-import { BOARD_SIZE, CENTER, scoreMove, applyMove, LETTER_VALUE, VOWELS } from "./engine.js?v=231";
+import { BOARD_SIZE, CENTER, scoreMove, applyMove, LETTER_VALUE, VOWELS } from "./engine.js?v=232";
 
 // ============================================================
 //  Top finder avec départage des isotops (mêmes scores)
@@ -40,7 +40,7 @@ export function findTopRanked(board, rack, dict, bag = null, opts = {}) {
 
   const scored = tied.map(c => ({
     ...c,
-    _noJoker:   (c.move.blanks?.length || 0) === 0 ? 1 : 0,
+    _noJoker:   scoreJokerPreserved(c.move, bag, preserveJoker),
     _endsGame:  scoreEndsGame(rack, c.move, bag),       // 1 si ce coup termine la partie
     _playsQ:    c.move.word.includes("Q") ? 1 : 0,
     _qPos:      scoreQPosition(c.move),                 // -1 si Q en bout, 0 sinon
@@ -84,6 +84,26 @@ export function findTopRanked(board, rack, dict, bag = null, opts = {}) {
     b._leave - a._leave
   );
   return { ...scored[0], isotops: tied.length, isotopWords };
+}
+
+// Renvoie 1 si le coup PRÉSERVE le joker, 0 s'il le consomme.
+//   • Aucun joker posé → 1.
+//   • Hors partie joker (preserveJoker faux ou sac inconnu) → un joker posé est
+//     consommé définitivement → 0.
+//   • En partie joker (règle FFSC 3.8.1) : le joker est recyclé si la lettre
+//     qu'il représente est encore dans le sac. Si TOUS les jokers du mot sont
+//     recyclables, le coup ne consomme aucun joker → 1 (à départager ensuite par
+//     l'ouverture de la grille : VEXE(R) recyclable et plus ouvrant > VEXE).
+function scoreJokerPreserved(move, bag, preserveJoker) {
+  const blanks = move.blanks || [];
+  if (blanks.length === 0) return 1;
+  if (!preserveJoker || !bag) return 0;
+  const need = {};
+  for (const i of blanks) { const L = move.word[i]; need[L] = (need[L] || 0) + 1; }
+  for (const [L, n] of Object.entries(need)) {
+    if ((bag[L] || 0) < n) return 0;   // au moins un joker non recyclable
+  }
+  return 1;
 }
 
 // Renvoie 1 si le coup TERMINE la partie : après avoir joué, ce qui reste

@@ -27,9 +27,9 @@ import {
   emptyBoard, BOARD_BONUSES, BOARD_SIZE, CENTER, LETTER_VALUE, LETTER_BAG,
   VOWELS, drawForDuplicate, scoreMove, applyMove,
   bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName,
-} from "./engine.js?v=231";
-import { Dictionary } from "./dictionary.js?v=231";
-import { findTop, findTopRanked } from "./topfinder.js?v=231";
+} from "./engine.js?v=232";
+import { Dictionary } from "./dictionary.js?v=232";
+import { findTop, findTopRanked } from "./topfinder.js?v=232";
 
 // État du mode review (parcours coup par coup)
 const review = {
@@ -59,7 +59,7 @@ const FFSC_REVIEW = URL_PARAMS.get("ffscreview");  // revoir une partie FFSC imp
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v231";
+const BUILD_VERSION = "garenna-v232";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -2458,7 +2458,7 @@ async function initGame() {
   $("#reviewPanel").hidden = true;
   if (typeof closeReviewDict === "function") closeReviewDict();
   // Masquer le bouton Revoir (n'a de sens qu'en fin de partie)
-  if (_btnReview) { _btnReview.hidden = true; _btnReview.classList.remove("active"); }
+  if (_btnReview) { _btnReview.hidden = true; _btnReview.disabled = true; _btnReview.classList.remove("active"); }
   // (rien à reset côté layout)
   document.querySelector(".info-bar")?.style.removeProperty("display");
   $("#endModal").hidden = true;
@@ -2871,7 +2871,8 @@ function renderReviewPlayed(m) {
     if (pick.zero) playedEl.innerHTML = `🚫 Zéro${pick.word ? " : " + wLink(pick.word) + (pick.pos ? " en " + pick.pos : "") : " (mot refusé)"} — 0 pt`;
     else playedEl.innerHTML = `${wLink(pick.word)} — ${pick.score} pts en ${pick.pos} ${pick.score >= (m.top.score || 0) ? "🏆" : ""} <span class="muted">(ma saisie)</span>`;
   } else if (known && known.played) {
-    playedEl.innerHTML = `${wLink(known.played)} — ${known.playerScore} pts ${known.status === "top" ? "🏆" : known.status === "timeout" ? "⏱" : ""}`;
+    const refPos = known.playedPos ? ` en ${known.playedPos}` : "";
+    playedEl.innerHTML = `${wLink(known.played)} — ${known.playerScore} pts${refPos} ${known.status === "top" ? "🏆" : known.status === "timeout" ? "⏱" : ""}`;
   } else if (known && known.status) {
     playedEl.textContent = `— (rien joué, ${known.status})`;
   } else {
@@ -3244,17 +3245,20 @@ if (_btnShare) _btnShare.onclick = () => {
 };
 const _btnReview = $("#btnReview");
 if (_btnReview) {
-  _btnReview.hidden = true; // masqué tant que la partie n'est pas terminée
+  _btnReview.hidden = true;      // masqué tant que la partie n'est pas terminée
+  _btnReview.disabled = true;    // grisé : sur mobile le picto reste affiché (CSS !important)
   _btnReview.onclick = () => {
     if (review.active) {
       exitLocalReview();
-    } else {
-      if (!state.history?.length) return;
-      // En mode tournoi, pas de review pendant la partie
-      if (state.prepared && state.started) return;
-      closeEndModal?.();
-      enterLocalReview();
+      return;
     }
+    if (!state.history?.length) return;
+    // Tant que la partie est en cours (chrono non figé), Revoir est inactif :
+    // cliquer ne doit JAMAIS interrompre la partie. (Sur mobile le bouton reste
+    // visible dans la barre de pictos malgré `hidden`, d'où ce garde-fou.)
+    if (state.chronoFinal == null) return;
+    closeEndModal?.();
+    enterLocalReview();
   };
 }
 
@@ -3446,7 +3450,7 @@ function startGame() {
   // Annot toolbar : masquée par défaut, visible uniquement via le bouton ✏️ Annoter
   if (isTraining) clearSavedTraining();
   // Bouton Revoir : masqué pendant la partie (tout mode), visible seulement en fin
-  if (_btnReview) { _btnReview.hidden = true; _btnReview.classList.remove("active"); }
+  if (_btnReview) { _btnReview.hidden = true; _btnReview.disabled = true; _btnReview.classList.remove("active"); }
   updateTournamentNavButtons();
   startChrono();
   nextMove();
@@ -3639,7 +3643,7 @@ function endGame() {
     <div>Temps : <strong>${time}</strong>${state.chronoPenalty ? ` (dont ${state.chronoPenalty}s de pénalités)` : ""}</div>`;
   $("#endModal").hidden = false;
   // Rendre le bouton Revoir accessible (partie terminée)
-  if (_btnReview) { _btnReview.hidden = false; _btnReview.classList.remove("active"); }
+  if (_btnReview) { _btnReview.hidden = false; _btnReview.disabled = false; _btnReview.classList.remove("active"); }
   updateTournamentNavButtons();
   // Pas de sauvegarde en mode puzzle (rejouer d'un solo)
   if (state.isPuzzle) return;
@@ -3751,7 +3755,7 @@ window.enterLocalReview = function() {
   document.querySelector(".info-bar")?.style.setProperty("display", "none");
   $("#reviewPanel").hidden = false;
   // Activer le bouton Revoir
-  if (_btnReview) { _btnReview.hidden = false; _btnReview.classList.add("active"); }
+  if (_btnReview) { _btnReview.hidden = false; _btnReview.disabled = false; _btnReview.classList.add("active"); }
   // (layout déjà en 2 colonnes — rien à faire)
   renderGameTitle();
   showFeedback("success", `📺 Parcours de « ${fakeGame.name} »`,
