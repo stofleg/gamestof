@@ -1427,8 +1427,11 @@ body.in-review .review-solutions {
 .review-solutions th { position: sticky; top: 0; background: var(--petrol); color: #fff; padding: 6px 10px; text-align: left; font-size: .72rem; text-transform: uppercase; letter-spacing: .05em; }
 .review-solutions td { padding: 6px 10px; border-bottom: 1px solid var(--soft); }
 .review-solutions tr { cursor: pointer; }
-.review-solutions tr.is-top td { color: #2c7a3b; font-weight: 700; }
-.review-solutions tr.is-played td { color: #d6740b; font-weight: 700; }
+.review-solutions tr.is-top td { color: #2c7a3b; font-weight: 700; }      /* top en vert */
+.review-solutions tr.is-played td { color: #c62828; font-weight: 700; }   /* coup joué en rouge */
+/* Saisie « mon coup / zéro » : réservée aux reviews FFSC (coups inconnus).
+   Pour une partie Topissimo, le coup joué est connu → on masque les contrôles. */
+body:not(.ffsc-review) .review-pick { display: none !important; }
 .review-solutions tr:hover td { background: var(--cream); }
 .review-solutions tr.selected td { background: #e0eaff; box-shadow: inset 3px 0 0 #4a6bff; }
 .review-solutions tr.is-mine td { background: #fff3d6; box-shadow: inset 3px 0 0 #e0a52e; }

@@ -27,9 +27,9 @@ import {
   emptyBoard, BOARD_BONUSES, BOARD_SIZE, CENTER, LETTER_VALUE, LETTER_BAG,
   VOWELS, drawForDuplicate, scoreMove, applyMove,
   bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName,
-} from "./engine.js?v=249";
-import { Dictionary } from "./dictionary.js?v=249";
-import { findTop, findTopRanked } from "./topfinder.js?v=249";
+} from "./engine.js?v=250";
+import { Dictionary } from "./dictionary.js?v=250";
+import { findTop, findTopRanked } from "./topfinder.js?v=250";
 
 // État du mode review (parcours coup par coup)
 const review = {
@@ -59,7 +59,7 @@ const FFSC_REVIEW = URL_PARAMS.get("ffscreview");  // revoir une partie FFSC imp
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v249";
+const BUILD_VERSION = "garenna-v250";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -2821,6 +2821,11 @@ function renderReviewStep() {
   const idx = review.step - 1;
   const m = moves[idx];
 
+  // La saisie « mon coup / zéro » n'a de sens qu'en review FFSC (coups inconnus).
+  // Pour une partie Topissimo, le coup joué est connu → affichage seul (top vert,
+  // coup joué en rouge), sans contrôles de saisie.
+  document.body.classList.toggle("ffsc-review", !!review._ffscKey);
+
   const replay = !!review.replayMode;
   // Sync visuel du bouton replay
   const _rvReplayBtn = $("#rvReplay");
@@ -2908,8 +2913,10 @@ function renderReviewPlayed(m) {
     playedEl.innerHTML = `${wLink(known.played)} — ${known.playerScore} pts${refPos} ${known.status === "top" ? "🏆" : known.status === "timeout" ? "⏱" : ""}`;
   } else if (known && known.status) {
     playedEl.textContent = `— (rien joué, ${known.status})`;
-  } else {
+  } else if (review._ffscKey) {
     playedEl.innerHTML = `<span class="muted">à compléter (choisis ton coup ci-dessous)</span>`;
+  } else {
+    playedEl.innerHTML = `<span class="muted">—</span>`;
   }
 
   // Négatif effectif + écart éventuel avec le négatif connu
@@ -3219,6 +3226,7 @@ function renderReviewSolutions(idx) {
     // Au 1er coup, on ne joue jamais verticalement en duplicate
     if (idx === 0) all = all.filter(s => s.move.dir === "H");
     review._solutions = all.slice(0, 200);
+    const isFfsc = !!review._ffscKey;   // saisie « mon coup » réservée aux reviews FFSC
     const pick = review.userPicks?.[moves[idx].moveNo];
     const rows = review._solutions.map((s, i) => {
       const isTop = s.move.word === topMv.word && s.move.row === topMv.row && s.move.col === topMv.col && s.move.dir === topMv.dir;
@@ -3227,10 +3235,10 @@ function renderReviewSolutions(idx) {
       const isMine = pick && !pick.zero && s.move.word === pick.word && posLabelMove(s.move) === pick.pos;
       const cls = [isTop ? "is-top" : "", isPlayed ? "is-played" : "", isMine ? "is-mine" : ""].join(" ").trim();
       return `<tr class="${cls}" data-i="${i}"><td>${wLink(s.move.word)}</td><td>${posLabelMove(s.move)}</td><td>${s.score}</td>` +
-        `<td><button class="btn small rv-pick-btn" title="C'est le mot que j'ai joué" onclick="event.stopPropagation();setReviewMyMove(${i})">${isMine ? "✅" : "C'est mon coup"}</button></td></tr>`;
+        (isFfsc ? `<td><button class="btn small rv-pick-btn" title="C'est le mot que j'ai joué" onclick="event.stopPropagation();setReviewMyMove(${i})">${isMine ? "✅" : "C'est mon coup"}</button></td>` : "") + `</tr>`;
     }).join("");
     div.innerHTML = `<table>
-      <thead><tr><th>Mot</th><th>Place</th><th>Score</th><th></th></tr></thead>
+      <thead><tr><th>Mot</th><th>Place</th><th>Score</th>${isFfsc ? "<th></th>" : ""}</tr></thead>
       <tbody>${rows}</tbody>
     </table>`;
     div.querySelectorAll("tr[data-i]").forEach(tr => {
