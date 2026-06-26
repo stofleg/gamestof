@@ -14,7 +14,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fraunces:wght@500;600;700;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=239">
+<link rel="stylesheet" href="style.css?v=240">
 </head>
 <body>
 
@@ -275,17 +275,19 @@
       <p class="muted" id="ffscRelierLinkStatus" style="margin-top:6px"></p>
     </div>
     <details style="margin-top:12px">
-      <summary style="cursor:pointer;font-weight:600">Toujours rien ? Importer un PDF / une image (OCR)</summary>
+      <summary style="cursor:pointer;font-weight:600">Toujours rien ? Importer un PDF / une image / un fichier texte</summary>
       <div id="ffscOcrDrop" class="ffsc-drop"
            ondragover="event.preventDefault();this.classList.add('over')"
            ondragleave="this.classList.remove('over')"
            ondrop="event.preventDefault();this.classList.remove('over');importFfscOcrFiles(event.dataTransfer.files)"
            onclick="document.getElementById('ffscOcrFile').click()">
-        <span>📄 Glisse un PDF ou une image ici, ou <u>clique pour choisir</u></span>
-        <input type="file" id="ffscOcrFile" accept="application/pdf,image/*" multiple hidden
+        <span>📄 Glisse un PDF, une image ou un fichier texte ici, ou <u>clique pour choisir</u></span>
+        <input type="file" id="ffscOcrFile" accept="application/pdf,image/*,text/plain,.txt" multiple hidden
                onchange="importFfscOcrFiles(this.files)">
       </div>
       <p class="muted" style="margin-top:8px">
+        Un <strong>fichier texte</strong> ou un <strong>PDF non aplati</strong> (texte sélectionnable) est lu
+        directement ; une <strong>image</strong> ou un PDF scanné passe par la reconnaissance IA.<br>
         Présentation attendue : une <strong>feuille de parties</strong> où chaque ligne est
         « <code>n°&nbsp;&nbsp;tirage&nbsp;&nbsp;solution&nbsp;&nbsp;place&nbsp;&nbsp;points</code> ».
         Particularité : la <strong>1re ligne ne porte que le tirage</strong> (décalage), et le mot d'une
@@ -400,6 +402,6 @@
 
 <script src="config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script src="app.js?v=239"></script>
+<script src="app.js?v=240"></script>
 </body>
 </html>

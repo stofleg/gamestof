@@ -943,3 +943,10 @@ th.sortable:hover { color: var(--petrol, #002E44); }
   content: "▸"; font-size: .8em; transition: transform .12s ease; color: var(--petrol, #002E44);
 }
 .fav-saison[open] > summary::before { transform: rotate(90deg); }
+
+/* ---- « Mes tournois » : scroll interne quand la liste est longue ---- */
+#ffscFavList {
+  max-height: 60vh;
+  overflow-y: auto;
+  padding-right: 4px;   /* évite que l'ascenseur masque le bouton ✖ */
+}

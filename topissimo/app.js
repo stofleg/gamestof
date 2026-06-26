@@ -174,7 +174,7 @@ let myGamesSort = {
 async function loadMyGames() {
   if (!state.currentPlayerId) return;
   const pid = +state.currentPlayerId;
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=239");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=240");
 
   // Tournoi : prepared_game_results jointes avec prepared_games
   const { data: tour } = await sb.from("prepared_game_results")
@@ -658,54 +658,117 @@ window.ocrFfscPdf = async function(id, name, cont) {
   }
 };
 
-// Convertit un fichier (PDF → pages rasterisées, ou image) en data URLs PNG/JPEG
-// prêtes pour l'action OCR.
-async function fileToOcrImages(file, setStatus) {
-  if (file.type === "application/pdf" || /\.pdf$/i.test(file.name)) {
-    await ensurePdfjs(setStatus);
-    const bytes = new Uint8Array(await file.arrayBuffer());
-    const pdf = await _pdfjs.getDocument({ data: bytes }).promise;
-    const imgs = [];
-    for (let i = 1; i <= pdf.numPages; i++) {
-      setStatus(`Rendu page ${i}/${pdf.numPages}…`);
-      const page = await pdf.getPage(i);
-      const vp = page.getViewport({ scale: 2 });
-      const cv = document.createElement("canvas");
-      cv.width = vp.width; cv.height = vp.height;
-      await page.render({ canvasContext: cv.getContext("2d"), viewport: vp }).promise;
-      imgs.push(cv.toDataURL("image/png"));
+// Convertit un texte (1 ou plusieurs parties) en parties Topissimo, SANS Vision IA.
+// Découpe en blocs (saut de page \f, sinon à chaque retour au coup « 1 »).
+function textToParties(text) {
+  let chunks;
+  if (text.includes("\f")) chunks = text.split("\f");
+  else {
+    chunks = []; let cur = [];
+    for (const ln of String(text).split("\n")) {
+      if (/^\s*1[.\s]/.test(ln) && cur.some(l => l.trim())) { chunks.push(cur.join("\n")); cur = []; }
+      cur.push(ln);
     }
-    return imgs;
+    if (cur.length) chunks.push(cur.join("\n"));
   }
-  // Image : lue telle quelle en data URL.
-  return [await new Promise((res, rej) => {
+  const out = [];
+  for (const c of chunks) {
+    const r = parseSimuText(c);
+    if (r.moves.length) out.push({ meta: r.meta, moves: r.moves, topTotal: r.moves.reduce((s, m) => s + (m.top.score || 0), 0) });
+  }
+  return out;
+}
+
+// Extrait le texte d'un PDF page par page (pdf.js), en reconstituant les lignes
+// par regroupement vertical. Renvoie les objets page (pour rasterisation au repli)
+// et le texte de chaque page.
+async function pdfTextPages(bytes, setStatus) {
+  await ensurePdfjs(setStatus);
+  const pdf = await _pdfjs.getDocument({ data: bytes }).promise;
+  const pages = [];
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const tc = await page.getTextContent();
+    const rows = {};
+    for (const it of tc.items) {
+      const y = Math.round(it.transform[5] / 3) * 3;   // bucket vertical ~3px
+      (rows[y] = rows[y] || []).push({ x: it.transform[4], s: it.str });
+    }
+    const text = Object.keys(rows).map(Number).sort((a, b) => b - a)
+      .map(y => rows[y].sort((a, b) => a.x - b.x).map(o => o.s).join(" ").replace(/\s+/g, " ").trim())
+      .filter(Boolean).join("\n");
+    pages.push({ page, text });
+  }
+  return { pdf, pages };
+}
+
+function fileText(file) {
+  return new Promise((res, rej) => {
+    const fr = new FileReader();
+    fr.onload = () => res(fr.result);
+    fr.onerror = () => rej(new Error("lecture du fichier impossible"));
+    fr.readAsText(file);
+  });
+}
+function fileDataURL(file) {
+  return new Promise((res, rej) => {
     const fr = new FileReader();
     fr.onload = () => res(fr.result);
     fr.onerror = () => rej(new Error("lecture du fichier impossible"));
     fr.readAsDataURL(file);
-  })];
+  });
 }
 
-// Import OCR d'un PDF/image uploadé par le joueur, relié au tournoi FISF courant.
-// Les parties lues sont persistées dans le favori (ocrData) → réutilisables sans
-// re-OCR. Mutualise le pipeline Vision IA (action « ocr »).
+// Import d'un PDF/image/txt uploadé, relié au tournoi FISF courant. Tri :
+//   • .txt / texte                 → parsé localement (gratuit, instantané) ;
+//   • PDF avec texte extractible   → parsé localement (pas de Vision IA) ;
+//   • PDF « aplati » (image) / image → Vision IA (action « ocr »).
+// Les parties sont persistées dans le favori (ocrData) → réutilisables sans re-traitement.
 window.importFfscOcrFiles = async function(fileList) {
   const t = (window._ffscRelierTargets || [])[0];
   if (!t) return;
   const status = $("#ffscOcrStatus");
   const files = Array.from(fileList || []).filter(f =>
-    /pdf|image\//.test(f.type) || /\.(pdf|png|jpe?g|webp|gif|bmp|tiff?)$/i.test(f.name));
-  if (!files.length) { status.textContent = "Dépose un PDF ou une image."; return; }
+    /pdf|image\/|text\/plain/.test(f.type) || /\.(pdf|txt|png|jpe?g|webp|gif|bmp|tiff?)$/i.test(f.name));
+  if (!files.length) { status.textContent = "Dépose un PDF, une image ou un fichier texte."; return; }
   const set = (m) => { status.textContent = `⏳ ${m}`; };
   try {
-    set("Préparation…");
-    let images = [];
-    for (const f of files) images = images.concat(await fileToOcrImages(f, set));
-    set(`Lecture IA de ${images.length} image(s)…`);
-    const r = await ffscPost("ocr", { id: "upload", images });
-    if (r.error) { status.textContent = `❌ ${r.error}`; return; }
-    const parties = (r.parties || []);
+    set("Analyse des fichiers…");
+    let parties = [];           // parties obtenues par parsing local (texte)
+    const visionImages = [];    // images à envoyer à Vision IA (repli)
+    for (const f of files) {
+      const isTxt = /text\/plain/.test(f.type) || /\.txt$/i.test(f.name);
+      const isPdf = f.type === "application/pdf" || /\.pdf$/i.test(f.name);
+      if (isTxt) {
+        parties = parties.concat(textToParties(await fileText(f)));
+      } else if (isPdf) {
+        const { pages } = await pdfTextPages(new Uint8Array(await f.arrayBuffer()), set);
+        const fromText = textToParties(pages.map(p => p.text).join("\f"));
+        if (fromText.length) {
+          parties = parties.concat(fromText);   // PDF texte → parsing local
+        } else {
+          // PDF aplati (scanné) : on rasterise pour Vision IA.
+          for (let i = 0; i < pages.length; i++) {
+            set(`Rendu page ${i + 1}/${pages.length}…`);
+            const vp = pages[i].page.getViewport({ scale: 2 });
+            const cv = document.createElement("canvas");
+            cv.width = vp.width; cv.height = vp.height;
+            await pages[i].page.render({ canvasContext: cv.getContext("2d"), viewport: vp }).promise;
+            visionImages.push(cv.toDataURL("image/png"));
+          }
+        }
+      } else {
+        visionImages.push(await fileDataURL(f));   // image → Vision IA
+      }
+    }
+    if (visionImages.length) {
+      set(`Lecture IA de ${visionImages.length} image(s)…`);
+      const r = await ffscPost("ocr", { id: "upload", images: visionImages });
+      if (r.error) { status.textContent = `❌ ${r.error}`; return; }
+      parties = parties.concat(r.parties || []);
+    }
     if (!parties.length) { status.textContent = "Aucune partie lue — vérifie la mise en forme (voir la note ci-dessus)."; return; }
+    parties = parties.map((p, i) => ({ ...p, numero: i + 1 }));   // renumérotation séquentielle
     const id = "ocr-" + t.fisfId;
     const data = { simu: true, ocr: true, player: ffscSavedName() || "", tournoi: t.name || "", parties, _id: id };
     _ffscDataCache[id] = data;
@@ -1109,7 +1172,7 @@ async function loadMyStats() {
   const pid = +state.currentPlayerId;
 
   body.innerHTML = `<p class="muted">⏳ Calcul…</p>`;
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=239");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=240");
 
   // 1) Toutes mes parties tournoi (avec détails)
   const { data: tour } = await sb.from("prepared_game_results")
@@ -1864,7 +1927,7 @@ async function loadTournamentDetail(tournamentId) {
     });
   }
 
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=239");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=240");
   const btnStyle = "text-decoration:none;padding:5px 10px;border-radius:6px;font-weight:600;font-size:.85rem";
   const admin = isAdmin();
   $("#pgBody").innerHTML = (games || []).length === 0
@@ -2354,7 +2417,7 @@ async function loadTournamentStats(tournamentId, games) {
   // On détermine « le top est un scrabble » en REjouant le plateau coup par coup
   // (nombre de NOUVELLES tuiles posées par le top == clé de prime du mode), ce qui
   // est fiable même sur d'anciennes parties (le hadBonus stocké est non fiable).
-  const { emptyBoard, applyMove, GAME_MODES } = await import("./scrabble/engine.js?v=239");
+  const { emptyBoard, applyMove, GAME_MODES } = await import("./scrabble/engine.js?v=240");
   const gameById = {};
   for (const g of games) gameById[g.id] = g;
   const bonusesOf = (gid) => (GAME_MODES[gameById[gid]?.mode] || GAME_MODES.duplicate).bonuses || { 7: 50 };
@@ -2448,7 +2511,7 @@ $("#tCreate").onclick = async () => {
 
 // Quand on change de mode, mettre à jour le temps/coup par défaut
 $("#pgMode").addEventListener("change", async () => {
-  const { GAME_MODES } = await import("./scrabble/engine.js?v=239");
+  const { GAME_MODES } = await import("./scrabble/engine.js?v=240");
   const m = GAME_MODES[$("#pgMode").value];
   if (m) $("#pgTime").value = m.defaultTime;
 });
@@ -2475,8 +2538,8 @@ $("#pgCreate").onclick = async () => {
     let mods;
     try {
       mods = await Promise.all([
-        import("./scrabble/dictionary.js?v=239"),
-        import("./scrabble/generator.js?v=239"),
+        import("./scrabble/dictionary.js?v=240"),
+        import("./scrabble/generator.js?v=240"),
       ]);
     } catch (e) {
       $("#pgStatus").innerHTML = `<span style="color:#a02525">Échec de chargement des modules : ${escapeHtml(e.message)}</span>`;
@@ -2540,7 +2603,7 @@ window.recomputeAllNeg = async function(force = false) {
 
   let recomputeResult;
   try {
-    ({ recomputeResult } = await import("./scrabble/recompute.js?v=239"));
+    ({ recomputeResult } = await import("./scrabble/recompute.js?v=240"));
   } catch (e) {
     statusEl.textContent = "❌ Impossible de charger recompute.js : " + e.message;
     return;
@@ -2734,7 +2797,7 @@ window.recomputeAllJokerNeg = async function() {
 
   let recomputeResult;
   try {
-    ({ recomputeResult } = await import("./scrabble/recompute.js?v=239"));
+    ({ recomputeResult } = await import("./scrabble/recompute.js?v=240"));
   } catch (e) {
     statusEl.textContent = "❌ Impossible de charger recompute.js : " + e.message;
     return;
