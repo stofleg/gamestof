@@ -188,7 +188,7 @@ let myGamesSort = {
 async function loadMyGames() {
   if (!state.currentPlayerId) return;
   const pid = +state.currentPlayerId;
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=244");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=245");
 
   // Tournoi : prepared_game_results jointes avec prepared_games
   const { data: tour } = await sb.from("prepared_game_results")
@@ -534,16 +534,31 @@ window.renderFfscTournois = function() {
 // Récupération hybride des parties d'un tournoi (endirect → sinon PDF), mise en
 // cache pour éviter de recharger (reliage + import + sélection de partie).
 const _ffscDataCache = {};
+
+// Grave les parties d'un tournoi dans le favori correspondant (players.settings),
+// pour ne PLUS JAMAIS interroger le distant ensuite. Sans effet si aucun favori
+// ne correspond, ou si une copie est déjà gravée.
+async function persistFavData(id, data) {
+  if (!data || !data.parties || !data.parties.length) return;
+  const favs = ffscFavs();
+  const fav = favs.find(f => f.id === id);
+  if (!fav || fav.data || fav.ocrData) return;   // rien à graver / déjà permanent
+  fav.data = data;
+  try { await patchPlayerSettings({ ffscTournois: favs }); } catch (_) { /* miroir mémoire suffit */ }
+}
+
 async function fetchFfscData(tournoiId, displayName, onStatus) {
   const id = String(tournoiId);
-  if (_ffscDataCache[id]) return _ffscDataCache[id];
-  // Favori importé par OCR : parties persistées dans players.settings → on les
-  // sert directement (pas de réseau, pas de re-OCR ni de coût).
-  const favOcr = ffscFavs().find(f => f.id === id && f.ocrData && f.ocrData.parties);
-  if (favOcr) { _ffscDataCache[id] = favOcr.ocrData; return favOcr.ocrData; }
+  // 1) Copie PERMANENTE gravée dans le favori (OCR uploadé OU import déjà effectué) :
+  //    on la sert telle quelle, AUCUNE requête distante (robuste si endirect change).
+  const favSaved = ffscFavs().find(f => f.id === id);
+  const saved = favSaved && (favSaved.data || favSaved.ocrData);
+  if (saved && saved.parties && saved.parties.length) { _ffscDataCache[id] = saved; return saved; }
+  // 2) Cache mémoire (aperçu de reliage…) : on en profite pour graver si un favori existe.
+  if (_ffscDataCache[id]) { await persistFavData(id, _ffscDataCache[id]); return _ffscDataCache[id]; }
   // La clé du favori peut être composite (id#date) en cas de collision d'id ;
   // pour les appels réseau on utilise le VRAI id FFSC (ffscId), sinon la clé telle quelle.
-  const fav = ffscFavs().find(f => f.id === id);
+  const fav = favSaved;
   const realId = (fav && fav.ffscId) || id.split("#")[0];
   const name = ffscSavedName().trim();   // nom déduit du palmarès FISF (via licence)
   let data = null;
@@ -569,6 +584,7 @@ async function fetchFfscData(tournoiId, displayName, onStatus) {
   }
   data._id = id;
   _ffscDataCache[id] = data;
+  await persistFavData(id, data);   // 1re récupération réussie → gravée définitivement
   return data;
 }
 
@@ -673,6 +689,7 @@ window.ocrFfscPdf = async function(id, name, cont) {
     if (!parties.length) { cont.innerHTML = `<p class="muted">Aucune partie lue par l'IA sur ce PDF.</p>`; return; }
     const data = { simu: true, ocr: true, player: name || "", tournoi: name || "", parties, _id: String(id) };
     _ffscDataCache[String(id)] = data;
+    await persistFavData(String(id), data);   // OCR gravé → ne se relancera plus jamais
     const statusEl = document.createElement("p"); statusEl.className = "muted"; statusEl.style.margin = "2px 0 6px";
     const bodyEl = document.createElement("div");
     cont.innerHTML = ""; cont.append(statusEl, bodyEl);
@@ -1204,7 +1221,7 @@ async function loadMyStats() {
   const pid = +state.currentPlayerId;
 
   body.innerHTML = `<p class="muted">⏳ Calcul…</p>`;
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=244");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=245");
 
   // 1) Toutes mes parties tournoi (avec détails)
   const { data: tour } = await sb.from("prepared_game_results")
@@ -1959,7 +1976,7 @@ async function loadTournamentDetail(tournamentId) {
     });
   }
 
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=244");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=245");
   const btnStyle = "text-decoration:none;padding:5px 10px;border-radius:6px;font-weight:600;font-size:.85rem";
   const admin = isAdmin();
   $("#pgBody").innerHTML = (games || []).length === 0
@@ -2449,7 +2466,7 @@ async function loadTournamentStats(tournamentId, games) {
   // On détermine « le top est un scrabble » en REjouant le plateau coup par coup
   // (nombre de NOUVELLES tuiles posées par le top == clé de prime du mode), ce qui
   // est fiable même sur d'anciennes parties (le hadBonus stocké est non fiable).
-  const { emptyBoard, applyMove, GAME_MODES } = await import("./scrabble/engine.js?v=244");
+  const { emptyBoard, applyMove, GAME_MODES } = await import("./scrabble/engine.js?v=245");
   const gameById = {};
   for (const g of games) gameById[g.id] = g;
   const bonusesOf = (gid) => (GAME_MODES[gameById[gid]?.mode] || GAME_MODES.duplicate).bonuses || { 7: 50 };
@@ -2543,7 +2560,7 @@ $("#tCreate").onclick = async () => {
 
 // Quand on change de mode, mettre à jour le temps/coup par défaut
 $("#pgMode").addEventListener("change", async () => {
-  const { GAME_MODES } = await import("./scrabble/engine.js?v=244");
+  const { GAME_MODES } = await import("./scrabble/engine.js?v=245");
   const m = GAME_MODES[$("#pgMode").value];
   if (m) $("#pgTime").value = m.defaultTime;
 });
@@ -2570,8 +2587,8 @@ $("#pgCreate").onclick = async () => {
     let mods;
     try {
       mods = await Promise.all([
-        import("./scrabble/dictionary.js?v=244"),
-        import("./scrabble/generator.js?v=244"),
+        import("./scrabble/dictionary.js?v=245"),
+        import("./scrabble/generator.js?v=245"),
       ]);
     } catch (e) {
       $("#pgStatus").innerHTML = `<span style="color:#a02525">Échec de chargement des modules : ${escapeHtml(e.message)}</span>`;
@@ -2635,7 +2652,7 @@ window.recomputeAllNeg = async function(force = false) {
 
   let recomputeResult;
   try {
-    ({ recomputeResult } = await import("./scrabble/recompute.js?v=244"));
+    ({ recomputeResult } = await import("./scrabble/recompute.js?v=245"));
   } catch (e) {
     statusEl.textContent = "❌ Impossible de charger recompute.js : " + e.message;
     return;
@@ -2829,7 +2846,7 @@ window.recomputeAllJokerNeg = async function() {
 
   let recomputeResult;
   try {
-    ({ recomputeResult } = await import("./scrabble/recompute.js?v=244"));
+    ({ recomputeResult } = await import("./scrabble/recompute.js?v=245"));
   } catch (e) {
     statusEl.textContent = "❌ Impossible de charger recompute.js : " + e.message;
     return;

@@ -27,9 +27,9 @@ import {
   emptyBoard, BOARD_BONUSES, BOARD_SIZE, CENTER, LETTER_VALUE, LETTER_BAG,
   VOWELS, drawForDuplicate, scoreMove, applyMove,
   bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName,
-} from "./engine.js?v=244";
-import { Dictionary } from "./dictionary.js?v=244";
-import { findTop, findTopRanked } from "./topfinder.js?v=244";
+} from "./engine.js?v=245";
+import { Dictionary } from "./dictionary.js?v=245";
+import { findTop, findTopRanked } from "./topfinder.js?v=245";
 
 // État du mode review (parcours coup par coup)
 const review = {
@@ -59,7 +59,7 @@ const FFSC_REVIEW = URL_PARAMS.get("ffscreview");  // revoir une partie FFSC imp
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v244";
+const BUILD_VERSION = "garenna-v245";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
