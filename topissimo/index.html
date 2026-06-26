@@ -14,7 +14,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fraunces:wght@500;600;700;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=236">
+<link rel="stylesheet" href="style.css?v=237">
 </head>
 <body>
 
@@ -255,17 +255,25 @@
       <button class="btn ghost small" onclick="closeFfscRelier()">✖</button>
     </div>
     <p class="muted" id="ffscRelierSub" style="margin-top:6px"></p>
-    <input type="text" id="ffscRelierSearch" placeholder="Chercher un tournoi en direct (lieu, « monde », « championnat »…)" oninput="renderFfscRelierCandidates()" style="width:100%;margin-top:8px">
     <div id="ffscRelierList" style="margin-top:8px;display:flex;flex-direction:column;gap:4px"></div>
-    <details style="margin-top:12px">
-      <summary style="cursor:pointer;font-weight:600">Tu ne le trouves pas ? Colle le lien « en direct »</summary>
-      <p class="muted" style="margin-top:6px">Ouvre la page du tournoi sur <code>ffsc.fr/endirect</code> et colle son lien (ou la valeur de <code>tournoi_id=</code>, ex. <code>cdm2023elite</code>). Utile pour les Championnats du monde, absents du calendrier daté.</p>
+    <div style="margin-top:14px;border-top:1px solid var(--line,#e2e2e2);padding-top:10px">
+      <div style="display:flex;align-items:center;gap:6px">
+        <strong>Recherche avec l'ID du tournoi</strong>
+        <span class="help-tip" tabindex="0" aria-label="Comment trouver l'ID du tournoi ?">?
+          <span class="help-bubble">
+            Sur <code>ffsc.fr/endirect</code>, ouvre la page de ton tournoi.
+            L'ID est la valeur juste après <code>tournoi_id=</code> dans l'adresse :
+            <span class="help-url">…endirect.php?tournoi_id=<mark>vichy2014</mark>&amp;page=parties</span>
+            Copie la partie surlignée (ici <code>vichy2014</code>) et colle-la ci-dessous.
+          </span>
+        </span>
+      </div>
       <div style="display:flex;gap:6px;margin-top:6px">
-        <input type="text" id="ffscRelierLink" placeholder="https://www.ffsc.fr/endirect/endirect.php?tournoi_id=… ou cdm2023elite" style="flex:1">
-        <button class="btn ghost small" onclick="confirmFfscRelierLink()">Relier ce lien</button>
+        <input type="text" id="ffscRelierLink" placeholder="vichy2014 ou https://…tournoi_id=…" style="flex:1">
+        <button class="btn ghost small" onclick="confirmFfscRelierLink()">Relier</button>
       </div>
       <p class="muted" id="ffscRelierLinkStatus" style="margin-top:6px"></p>
-    </details>
+    </div>
   </div>
 </div>
 
@@ -372,6 +380,6 @@
 
 <script src="config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script src="app.js?v=236"></script>
+<script src="app.js?v=237"></script>
 </body>
 </html>
