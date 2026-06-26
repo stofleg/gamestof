@@ -27,9 +27,9 @@ import {
   emptyBoard, BOARD_BONUSES, BOARD_SIZE, CENTER, LETTER_VALUE, LETTER_BAG,
   VOWELS, drawForDuplicate, scoreMove, applyMove,
   bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName,
-} from "./engine.js?v=233";
-import { Dictionary } from "./dictionary.js?v=233";
-import { findTop, findTopRanked } from "./topfinder.js?v=233";
+} from "./engine.js?v=234";
+import { Dictionary } from "./dictionary.js?v=234";
+import { findTop, findTopRanked } from "./topfinder.js?v=234";
 
 // État du mode review (parcours coup par coup)
 const review = {
@@ -59,7 +59,7 @@ const FFSC_REVIEW = URL_PARAMS.get("ffscreview");  // revoir une partie FFSC imp
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v233";
+const BUILD_VERSION = "garenna-v234";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -474,10 +474,10 @@ function renderRack() {
   });
 }
 
-function onRackTileTap(e) {
+// Pose la tuile de chevalet d'id donné au curseur courant (joker → sélecteur).
+// Appelé soit par le click natif (desktop), soit directement au touchend (mobile).
+function tapRackTile(id) {
   if (review.active) return;
-  const el = e.currentTarget;
-  const id = +el.dataset.rackId;
   const t = state.rack.find(x => x.id === id);
   if (!t || t.used) return;
   if (!state.cursor) {
@@ -491,6 +491,9 @@ function onRackTileTap(e) {
     // disparaisse du chevalet (pas la première de la même lettre).
     placeLetter(t.letter, t.id);
   }
+}
+function onRackTileTap(e) {
+  tapRackTile(+e.currentTarget.dataset.rackId);
 }
 
 // --- Sélecteur de lettre pour joker (mobile + desktop) ---
@@ -615,7 +618,17 @@ function onRackTouchEnd(e) {
   if (drag.ghost) drag.ghost.remove();
   drag.srcEl && drag.srcEl.classList.remove("dragging");
   $$(".board td.drop-target").forEach(td => td.classList.remove("drop-target"));
-  if (!drag.moved) return;   // simple tap → le clic natif pose la lettre au curseur
+  if (!drag.moved) {
+    // Tap simple : on pose IMMÉDIATEMENT au touchend, sans attendre le click natif.
+    // Celui-ci arrive en différé (≈300 ms / détection double-tap), peut être avalé
+    // lors de taps rapides, et — surtout — viserait une tuile reconstruite par
+    // renderRack() (donc une AUTRE lettre). On bloque ce click synthétique via
+    // preventDefault (listener non passif) pour éviter toute double pose.
+    e.preventDefault();
+    tapRackTile(drag.id);
+    if (navigator.vibrate) { try { navigator.vibrate(8); } catch (_) {} }
+    return;
+  }
   const t = e.changedTouches && e.changedTouches[0];
   if (!t) return;
   const under = document.elementFromPoint(t.clientX, t.clientY);
