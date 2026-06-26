@@ -27,9 +27,9 @@ import {
   emptyBoard, BOARD_BONUSES, BOARD_SIZE, CENTER, LETTER_VALUE, LETTER_BAG,
   VOWELS, drawForDuplicate, scoreMove, applyMove,
   bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName,
-} from "./engine.js?v=232";
-import { Dictionary } from "./dictionary.js?v=232";
-import { findTop, findTopRanked } from "./topfinder.js?v=232";
+} from "./engine.js?v=233";
+import { Dictionary } from "./dictionary.js?v=233";
+import { findTop, findTopRanked } from "./topfinder.js?v=233";
 
 // État du mode review (parcours coup par coup)
 const review = {
@@ -59,7 +59,7 @@ const FFSC_REVIEW = URL_PARAMS.get("ffscreview");  // revoir une partie FFSC imp
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v232";
+const BUILD_VERSION = "garenna-v233";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -919,8 +919,15 @@ function stopMoveTimer() {
 
 // Coup non trouvé dans le temps : on révèle le top sans pénalité supplémentaire
 function timeoutAdvance() {
+  if (!state.started) return;
   ensureTopReady();
-  if (!state.started || !state.topMove) return;
+  // Si le top reste introuvable (dictionnaire vraiment indisponible), on ne fige
+  // PAS la partie : on relance le minuteur pour laisser une chance au dico de se
+  // charger, plutôt que de rester bloqué sur le coup avec le chrono qui défile.
+  if (!state.topMove) {
+    if (!state.dict) { startMoveTimer(); return; }
+    return;
+  }
   let playerScore = 0, playedWord = null;
   if (state.pending.length) {
     const m = buildMoveFromPending();
@@ -1568,7 +1575,12 @@ function flashFeedback(kind, title, detail) {
 // Si le calcul du top a été différé (cf. nextMove), on le force maintenant :
 // garantit que state.topMove est prêt avant toute comparaison.
 function ensureTopReady() {
-  if (state._topPending) { computeTop(); state._topPending = false; }
+  // On ne lève le drapeau « à calculer » QUE si le calcul a effectivement abouti.
+  // Si le dictionnaire n'est pas encore chargé (mobile lent, partie démarrée
+  // pendant le chargement), computeTop() renvoie false et on reste en attente —
+  // le prochain ensureTopReady (validation, timeout, fin de chargement du dico)
+  // réessaiera, au lieu de figer topMove à null pour tout le coup.
+  if (state._topPending && computeTop()) state._topPending = false;
 }
 
 function validate() {
@@ -2196,7 +2208,7 @@ function nextMove() {
   // (supprime la latence ressentie quand on enchaîne après avoir trouvé le top).
   // validate() force le calcul si le joueur valide avant que ce minuteur ne tourne.
   state._topPending = true;
-  setTimeout(() => { if (state._topPending) { computeTop(); state._topPending = false; } }, 0);
+  setTimeout(() => { if (state._topPending && computeTop()) state._topPending = false; }, 0);
 }
 
 // Garde le curseur sur le plateau et sur une case libre après l'avancement
@@ -2225,30 +2237,28 @@ function ensureCursorOnFreeCell() {
 let nextTileIdCounter = 1;
 function nextTileId() { return nextTileIdCounter++; }
 
+// Renvoie true si le top a pu être calculé (dictionnaire prêt), false sinon.
 function computeTop() {
-  if (!state.dict) return;
+  if (!state.dict) return false;   // dico pas encore chargé → réessai ultérieur
   // Mode pré-tiré : utiliser le top stocké, pas de calcul
   if (state.prepared) {
     const m = state.prepared.moves[state.preparedIdx];
-    if (!m) { state.topMove = null; return; }
+    if (!m) { state.topMove = null; return true; }
     state.topMove = {
       score: m.top.score,
       move: { word: m.top.word, row: m.top.row, col: m.top.col, dir: m.top.dir, blanks: m.top.blanks || [] },
       words: m.top.words || [],
     };
-    return;
+    return true;
   }
   const mode = currentMode();
   const rackLetters = state.rack.map(t => t.letter);
-  const t0 = performance.now();
   state.topMove = findTopRanked(state.board, rackLetters, state.dict, state.bag, {
     maxTilesUsed: mode.maxPlayed,
     bonuses: mode.bonuses,
     preserveJoker: state.settings.withJoker && state.spareJokers > 0,
   });
-  const t1 = performance.now();
-  // Pas de log du mot pour ne pas spoiler via la console
-  void t1;
+  return true;
 }
 
 // ============================================================
@@ -2474,6 +2484,10 @@ async function initGame() {
   if (!state.dict) {
     // (Pas de feedback "Chargement du dictionnaire" — UX silencieuse)
     state.dict = await new Dictionary().load("ods9.txt");
+    // Le bouton ✓ (démarrer) est cliquable avant la fin de ce chargement : si la
+    // partie a démarré entre-temps, le top du coup courant n'a pas pu être calculé.
+    // On le (re)calcule maintenant que le dico est prêt.
+    if (state._topPending) { ensureTopReady(); renderInfo?.(); }
   }
   // Charger les préférences perso depuis Supabase (asynchrone, silencieux)
   loadSettingsFromSupabase().catch(() => {});
