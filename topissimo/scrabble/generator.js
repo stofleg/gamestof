@@ -10,8 +10,8 @@
 import {
   emptyBoard, LETTER_BAG, drawForDuplicate, applyMove,
   bagTotalVowels, bagTotalConsonants, GAME_MODES,
-} from "./engine.js?v=252";
-import { findTopRanked } from "./topfinder.js?v=252";
+} from "./engine.js?v=253";
+import { findTopRanked } from "./topfinder.js?v=253";
 
 /**
  * Génère une partie complète.
@@ -26,7 +26,10 @@ import { findTopRanked } from "./topfinder.js?v=252";
 export function generateGame(dict, options = {}, onProgress = null) {
   const modeKey = options.mode || "duplicate";
   const mode = GAME_MODES[modeKey] || GAME_MODES.duplicate;
-  const withJoker = !!options.withJoker;
+  const jokerPays = !!mode.jokerPays;          // mode « Joker payant »
+  const alternateDir = !!mode.alternateDir;    // mode « Horizontal/Vertical »
+  // Le joker payant est une partie joker (jokers retirés du sac + recyclés).
+  const withJoker = !!options.withJoker || jokerPays;
 
   let bag = { ...LETTER_BAG };
   let spareJokers = 0;
@@ -70,41 +73,43 @@ export function generateGame(dict, options = {}, onProgress = null) {
       }
     }
 
-    // Compléter le chevalet
+    // Compléter le chevalet (+ direction imposée éventuelle).
     const target = mode.rackSize;
-    const jokerInRack = rack.some(t => t.letter === "?");
-    const forceJoker = withJoker && spareJokers > 0 && !jokerInRack;
-    const regularTarget = forceJoker ? target - 1 : target;
-    const kept = rack.map(t => t.letter);
-    const result = drawForDuplicate(bag, kept, moveNo, regularTarget, { minVowels: mode.minVowels });
-    if (result.failed) break;
-    bag = result.bag;
-    // Rejet : le reliquat (hors jokers) a été remis dans le sac → on le retire
-    // du chevalet et on garde uniquement les jokers conservés.
-    if (result.fresh) rack = rack.filter(t => t.letter === "?");
-    for (const L of (result.drawn || [])) rack.push({ letter: L, id: nextId++ });
-    if (forceJoker) rack.push({ letter: "?", id: nextId++ });
-    const freshRack = !!result.fresh;
-
-    // Si on n'a pas pu compléter (sac vide), fin
-    if (rack.length === 0) break;
-
-    // Calcul du top. La préservation du joker ET la fin de partie sont gérées
-    // par le classement de findTopRanked : le coup qui TERMINE la partie (pose
-    // la dernière voyelle/consonne) est prioritaire sur la préservation du joker
-    // (_endsGame avant _noJoker), et le recyclage du joker (3.8.1, plus bas)
-    // gère le cas « conserver le joker et continuer ».
-    const rackLetters = rack.map(t => t.letter);
-    const top = findTopRanked(board, rackLetters, dict, bag, {
-      maxTilesUsed: mode.maxPlayed,
-      bonuses: mode.bonuses,
-      preserveJoker: withJoker && spareJokers > 0,
-    });
-
-    if (!top) {
-      // aucun coup possible — partie terminée
-      break;
+    // Mode Horizontal/Vertical : H au coup 1, V au 2, H au 3, etc.
+    const forceDir = alternateDir ? (moveNo % 2 === 1 ? "H" : "V") : undefined;
+    let kept = [], freshRack = false, top = null, endNow = false;
+    // En H/V, si aucun coup n'existe dans la direction imposée, on REJETTE le
+    // tirage et on en pioche un autre (rare). Sinon une seule tentative.
+    const bagSnap = { ...bag };
+    const rackSnap = rack.map(t => ({ ...t }));
+    let tries = alternateDir ? 40 : 1;
+    while (tries-- > 0) {
+      const jokerInRack = rack.some(t => t.letter === "?");
+      const forceJoker = withJoker && spareJokers > 0 && !jokerInRack;
+      const regularTarget = forceJoker ? target - 1 : target;
+      kept = rack.map(t => t.letter);
+      const result = drawForDuplicate(bag, kept, moveNo, regularTarget, { minVowels: mode.minVowels });
+      if (result.failed) { endNow = true; break; }
+      bag = result.bag;
+      if (result.fresh) rack = rack.filter(t => t.letter === "?");
+      for (const L of (result.drawn || [])) rack.push({ letter: L, id: nextId++ });
+      if (forceJoker) rack.push({ letter: "?", id: nextId++ });
+      freshRack = !!result.fresh;
+      if (rack.length === 0) { endNow = true; break; }
+      const rackLetters = rack.map(t => t.letter);
+      top = findTopRanked(board, rackLetters, dict, bag, {
+        maxTilesUsed: mode.maxPlayed,
+        bonuses: mode.bonuses,
+        preserveJoker: withJoker && spareJokers > 0,
+        jokerPays,
+        forceDir,
+      });
+      if (top || !alternateDir) break;
+      // Rejet H/V : on restaure l'état AVANT pioche et on retente un tirage neuf.
+      bag = { ...bagSnap };
+      rack = rackSnap.map(t => ({ ...t }));
     }
+    if (endNow || !top) break;
 
     // Enregistrer le coup
     moves.push({

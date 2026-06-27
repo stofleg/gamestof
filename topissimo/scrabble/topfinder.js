@@ -12,7 +12,7 @@
 //     aussi les mots croisés) et on garde le maximum.
 // ============================================================
 
-import { BOARD_SIZE, CENTER, scoreMove, applyMove, LETTER_VALUE, VOWELS } from "./engine.js?v=252";
+import { BOARD_SIZE, CENTER, scoreMove, applyMove, LETTER_VALUE, VOWELS } from "./engine.js?v=253";
 
 // ============================================================
 //  Top finder avec départage des isotops (mêmes scores)
@@ -368,6 +368,8 @@ export function findTop(board, rack, dict, opts = {}) {
   for (const dir of ["H", "V"]) {
     // FFSC : au 1er coup (plateau vide), on ne joue qu'horizontalement
     if (isEmpty && dir === "V") continue;
+    // Mode Horizontal/Vertical : direction imposée pour ce coup.
+    if (opts.forceDir && dir !== opts.forceDir) continue;
     const dr = dir === "V" ? 1 : 0;
     const dc = dir === "H" ? 1 : 0;
     for (const [ar, ac] of anchors) {
@@ -412,6 +414,7 @@ export function findTop(board, rack, dict, opts = {}) {
           tilesUsed: 0,
           maxTilesUsed,
           bonuses,
+          jokerPays: opts.jokerPays,
           anchorCovered: false,
           candidates, seenMoves,
         });
@@ -453,7 +456,7 @@ function extend(ctx) {
     if (!seenMoves.has(key)) {
       seenMoves.add(key);
       const move = { word: currentWord, row: startR, col: startC, dir, blanks: [...blanksAt] };
-      const result = scoreMove(board, move, dict, { bonuses });
+      const result = scoreMove(board, move, dict, { bonuses, jokerPays: ctx.jokerPays });
       if (result.errors.length === 0) {
         candidates.push({ score: result.score, move, words: result.words, placedCount: result.placed.length });
       }

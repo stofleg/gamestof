@@ -38,6 +38,13 @@ export const GAME_MODES = {
   "15lettres": { label: "15 lettres", rackSize: 15, maxPlayed: 15,
     bonuses: { 7: 50, 8: 75, 9: 100, 10: 125, 11: 150, 12: 175, 13: 200, 14: 225, 15: 250 },
     defaultTime: 240, minVowels: 4, adminOnly: true },
+  // Joker payant : partie joker classique, mais le joker vaut les points de la
+  // lettre qu'il représente (le top est calculé en testant chaque lettre possible).
+  jokerpayant: { label: "Joker payant", rackSize: 7, maxPlayed: 7, bonuses: { 7: 50 },
+    defaultTime: 120, adminOnly: true, jokerPays: true },
+  // Horizontal/Vertical : top horizontal imposé au coup 1, vertical au 2, etc.
+  horizvert: { label: "Horizontal/Vertical", rackSize: 7, maxPlayed: 7, bonuses: { 7: 50 },
+    defaultTime: 120, adminOnly: true, alternateDir: true },
 };
 // Nom affiché en combinant mode + joker
 export function modeDisplayName(modeKey, withJoker) {
@@ -244,7 +251,9 @@ export function scoreMove(board, move, dict, opts = {}) {
     for (const cell of cells) {
       const key = `${cell.r},${cell.c}`;
       const isNew = placedSet.has(key);
-      let letterScore = cell.isBlank ? 0 : LETTER_VALUE[cell.letter];
+      // Joker payant : le joker vaut les points de la lettre représentée (et prend
+      // les multiplicateurs comme un vrai jeton). Sinon il vaut 0 (Scrabble standard).
+      let letterScore = (cell.isBlank && !opts.jokerPays) ? 0 : (LETTER_VALUE[cell.letter] || 0);
       if (isNew) {
         const b = BOARD_BONUSES[cell.r][cell.c];
         if (b === "d") letterScore *= 2;

@@ -27,9 +27,9 @@ import {
   emptyBoard, BOARD_BONUSES, BOARD_SIZE, CENTER, LETTER_VALUE, LETTER_BAG,
   VOWELS, drawForDuplicate, scoreMove, applyMove,
   bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName,
-} from "./engine.js?v=252";
-import { Dictionary } from "./dictionary.js?v=252";
-import { findTop, findTopRanked } from "./topfinder.js?v=252";
+} from "./engine.js?v=253";
+import { Dictionary } from "./dictionary.js?v=253";
+import { findTop, findTopRanked } from "./topfinder.js?v=253";
 
 // État du mode review (parcours coup par coup)
 const review = {
@@ -59,7 +59,7 @@ const FFSC_REVIEW = URL_PARAMS.get("ffscreview");  // revoir une partie FFSC imp
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v252";
+const BUILD_VERSION = "garenna-v253";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -318,7 +318,7 @@ function renderBoard() {
   if (state.pending.length > 0) {
     const mv = buildMoveFromPending();
     if (mv) {
-      const r0 = scoreMove(state.board, mv, null, { bonuses: currentMode().bonuses, raw: true });
+      const r0 = scoreMove(state.board, mv, null, { bonuses: currentMode().bonuses, jokerPays: currentMode().jokerPays, raw: true });
       badgeScore = r0.score;
       badgeDir = mv.dir;
       const dr = mv.dir === "V" ? 1 : 0, dc = mv.dir === "H" ? 1 : 0;
@@ -862,7 +862,7 @@ function computePendingScore() {
   if (state.pending.length === 0) return null;
   const m = buildMoveFromPending();
   if (!m) return null;
-  const r = scoreMove(state.board, m, null, { bonuses: currentMode().bonuses });
+  const r = scoreMove(state.board, m, null, { bonuses: currentMode().bonuses, jokerPays: currentMode().jokerPays });
   if (r.errors.length) return null;
   return r.score;
 }
@@ -951,7 +951,7 @@ function timeoutAdvance() {
   if (state.pending.length) {
     const m = buildMoveFromPending();
     if (m) {
-      const r = scoreMove(state.board, m, state.dict, { bonuses: currentMode().bonuses });
+      const r = scoreMove(state.board, m, state.dict, { bonuses: currentMode().bonuses, jokerPays: currentMode().jokerPays });
       if (!r.errors.length) { playerScore = r.score; playedWord = m.word; }
     }
   }
@@ -1646,7 +1646,7 @@ function validate() {
   }
   // Règle FFSC : si le joker a un homonyme (même lettre) dans le mot, on permute
   // automatiquement vers la combinaison la plus avantageuse en points.
-  const result = bestJokerVariant(state.board, move, state.dict, { bonuses: mode.bonuses });
+  const result = bestJokerVariant(state.board, move, state.dict, { bonuses: mode.bonuses, jokerPays: mode.jokerPays });
   // bestJokerVariant peut avoir modifié move.blanks ; on relit ici.
   if (result.errors.length) {
     // Coup invalide : on flash le mot en rouge sur le plateau (1s), puis on
@@ -1993,7 +1993,7 @@ function revealTop() {
   if (state.pending.length) {
     const move = buildMoveFromPending();
     if (move) {
-      const r = scoreMove(state.board, move, state.dict, { bonuses: currentMode().bonuses });
+      const r = scoreMove(state.board, move, state.dict, { bonuses: currentMode().bonuses, jokerPays: currentMode().jokerPays });
       if (!r.errors.length) { pendingScore = r.score; pendingWord = move.word; }
     }
   }
@@ -4210,7 +4210,7 @@ function abandonRest() {
   if (state.pending.length) {
     const m = buildMoveFromPending();
     if (m) {
-      const r = scoreMove(state.board, m, state.dict, { bonuses: currentMode().bonuses });
+      const r = scoreMove(state.board, m, state.dict, { bonuses: currentMode().bonuses, jokerPays: currentMode().jokerPays });
       if (!r.errors.length) { playerScore = r.score; playedWord = m.word; }
     }
   }
