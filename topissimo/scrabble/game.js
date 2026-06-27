@@ -27,9 +27,9 @@ import {
   emptyBoard, BOARD_BONUSES, BOARD_SIZE, CENTER, LETTER_VALUE, LETTER_BAG,
   VOWELS, drawForDuplicate, scoreMove, applyMove,
   bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName,
-} from "./engine.js?v=255";
-import { Dictionary } from "./dictionary.js?v=255";
-import { findTop, findTopRanked } from "./topfinder.js?v=255";
+} from "./engine.js?v=256";
+import { Dictionary } from "./dictionary.js?v=256";
+import { findTop, findTopRanked } from "./topfinder.js?v=256";
 
 // État du mode review (parcours coup par coup)
 const review = {
@@ -59,7 +59,7 @@ const FFSC_REVIEW = URL_PARAMS.get("ffscreview");  // revoir une partie FFSC imp
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v255";
+const BUILD_VERSION = "garenna-v256";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -947,6 +947,18 @@ function timeoutAdvance() {
     if (!state.dict) { startMoveTimer(); return; }
     return;
   }
+  // Mode Top/sous-top : temps écoulé → crédit partiel des deux meilleurs mots trouvés.
+  if (currentMode().dualTop) {
+    const d = state._dual || {};
+    const playerScore = (d.best?.score || 0) + (d.second?.score || 0);
+    recordMove({ status: "timeout", playerScore, playedWord: d.best?.word || null, dual: dualSnapshot() });
+    placeTopAndAdvance(playerScore, d.best?.word || null, playerScore, null);
+    const st = state.subTop;
+    const maxScore = (state.topMove.score || 0) + (st?.score || 0);
+    showFeedback("miss", `⏱ Temps écoulé — tu marques ${playerScore} / ${maxScore}`, "");
+    setTimeout(nextMove, 1000);
+    return;
+  }
   let playerScore = 0, playedWord = null;
   if (state.pending.length) {
     const m = buildMoveFromPending();
@@ -1602,6 +1614,53 @@ function ensureTopReady() {
   if (state._topPending && computeTop()) state._topPending = false;
 }
 
+// ===== Mode Top/sous-top : suivi des deux meilleurs mots DISTINCTS du joueur =====
+// d.best = meilleur mot ; d.second = meilleur AUTRE mot de score strictement
+// inférieur (le sous-top du joueur). Score du coup = best + second.
+function dualSnapshot() {
+  const d = state._dual || {};
+  const tm = state.topMove, st = state.subTop;
+  return {
+    topPts: d.best?.score || 0, topWord: d.best?.word || null,
+    subPts: d.second?.score || 0, subWord: d.second?.word || null,
+    officialTop: tm?.score || 0, officialTopWord: tm?.move.word || null,
+    officialSub: st?.score ?? null, officialSubWord: st?.move.word || null,
+  };
+}
+function handleDualValidate(move, result) {
+  const officialTop = state.topMove?.score || 0;
+  const officialSub = state.subTop?.score ?? null;   // null si pas de sous-top
+  const s = result.score, w = move.word;
+  state.moveMaxPlaced = Math.max(state.moveMaxPlaced, result.placed?.length || 0);
+  const d = state._dual = state._dual || { best: null, second: null };
+  if (!d.best || s > d.best.score) {
+    if (d.best && d.best.word !== w && (!d.second || d.best.score > d.second.score)) d.second = d.best;
+    d.best = { word: w, score: s };
+    if (d.second && (d.second.word === w || d.second.score >= d.best.score)) d.second = null;
+  } else if (s < d.best.score && w !== d.best.word && (!d.second || s > d.second.score)) {
+    d.second = { word: w, score: s };
+  }
+  const topFound = d.best && d.best.score === officialTop;
+  const subFound = officialSub == null ? true : (d.second && d.second.score === officialSub);
+  // Message : ce que le joueur vient de réaliser sur CE mot.
+  let msg;
+  if (s === officialTop) msg = `🏆 Top trouvé : <strong>${wLink(w)}</strong> — ${s} pts`;
+  else if (officialSub != null && s === officialSub) msg = `✅ Sous-top trouvé : <strong>${wLink(w)}</strong> — ${s} pts`;
+  else msg = `Essai : <strong>${wLink(w)}</strong> — ${s} pts`;
+  const état = `Top ${topFound ? "✅" : "—"}${officialSub != null ? ` · Sous-top ${subFound ? "✅" : "—"}` : ""}`;
+  // On ne pose jamais le coup du joueur : les tuiles reviennent au chevalet.
+  clearPending(); state.cursor = null; renderBoard(); renderRack();
+  if (topFound && subFound) {
+    const playerScore = officialTop + (officialSub || 0);
+    recordMove({ status: "top", playerScore, playedWord: w, playedMove: move, dual: dualSnapshot() });
+    hideTopFeedback();
+    placeTopAndAdvance(playerScore, w, playerScore, move);
+    nextMove();
+    return;
+  }
+  showFeedback("miss", msg, état);
+}
+
 function validate() {
   ensureTopReady();
   if (!state.pending.length) {
@@ -1618,7 +1677,7 @@ function validate() {
   const topMv = state.topMove?.move;
   // Exception 1er coup : on accepte tout mot du top OU isotop (même score que le top),
   // peu importe la position de placement.
-  if (state.moveNo === 1 && topMv && state.topMove) {
+  if (state.moveNo === 1 && topMv && state.topMove && !mode.dualTop) {
     const topScore = state.topMove.score;
     // Liste des mots isotopes pré-calculée par findTopRanked.
     // En mode pré-tiré (tournoi), la liste n'est pas stockée → on la calcule à la volée.
@@ -1659,6 +1718,8 @@ function validate() {
     showTransientError(`Trop de lettres posées (max ${mode.maxPlayed})`, `Le mode ${mode.label} limite à ${mode.maxPlayed} lettres jouées par coup.`);
     return;
   }
+  // Mode Top/sous-top : on cherche le top ET le sous-top (gestion dédiée).
+  if (mode.dualTop) { handleDualValidate(move, result); return; }
   // Comparer au top
   const topScore = state.topMove?.score || 0;
   const topWord = state.topMove?.move.word || "?";
@@ -1960,14 +2021,16 @@ function placeTopAndAdvance(playerScore, playedWord = null, playedScore = null, 
   // Mémoriser le top pour l'afficher en zone C au début du coup suivant
   state.lastTop = { word: tm.move.word, row: tm.move.row, col: tm.move.col, dir: tm.move.dir, score: tm.score, playedWord, playedScore, playedMove };
 
-  // Score
+  // Score. En Top/sous-top, la référence (le « maximum ») est top + sous-top.
+  const refScore = (currentMode().dualTop && state.subTop) ? (tm.score + state.subTop.score) : tm.score;
   state.totalScore += playerScore;
-  state.sumNeg += (playerScore - tm.score);
+  state.sumNeg += (playerScore - refScore);
   // Nettoyage. On NE supprime PAS le curseur : il reste visible pour permettre
   // une navigation 100% clavier sans avoir à recliquer après chaque validation.
   // S'il atterrit sur une case maintenant occupée, on l'avance après nextMove.
   state.pending = [];
   state.bestAttempt = null;
+  state._dual = null;   // réinitialise le suivi top/sous-top pour le coup suivant
   state.moveInvalidCount = 0;
   state.moveMaxPlaced = 0;
   state.moveNo++;
@@ -2018,9 +2081,12 @@ function revealTop() {
 }
 
 // Enregistre un coup dans l'historique (pour la feuille de route)
-function recordMove({ status, playerScore, playedWord = null, playedMove = null }) {
+function recordMove({ status, playerScore, playedWord = null, playedMove = null, dual = null }) {
   const tm = state.topMove;
   const timeMs = stopMoveTimer();
+  // Mode Top/sous-top : référence = top + sous-top ; on stocke le détail (pour la review).
+  const st = state.subTop;
+  const refScore = (currentMode().dualTop && st) ? (tm?.score || 0) + st.score : (tm?.score || 0);
   state.history.push({
     moveNo: state.moveNo,
     rack: state.rack.map(t => t.letter).join(""),
@@ -2043,10 +2109,16 @@ function recordMove({ status, playerScore, playedWord = null, playedMove = null 
     placedCount: Math.max(state.moveMaxPlaced, playedMove ? state.pending.length : 0),
     gotBonus: playedMove ? !!(currentMode().bonuses?.[state.pending.length]) : false,
     playerScore,
-    neg: playerScore - (tm?.score || 0),
+    neg: playerScore - refScore,
     status,        // "top" | "giveup" | "timeout"
     invalidCount: state.moveInvalidCount,
     timeMs,
+    // Top/sous-top : sous-top officiel + ce que le joueur a trouvé (pour la review).
+    ...(currentMode().dualTop ? {
+      subTop: st ? { word: st.move.word, score: st.score, pos: posLabel(st.move),
+        row: st.move.row, col: st.move.col, dir: st.move.dir, blanks: st.move.blanks || [], words: st.words || [] } : null,
+      dual: dual || null,
+    } : {}),
     v: 2,
   });
 }
@@ -2262,12 +2334,17 @@ function computeTop() {
   // Mode pré-tiré : utiliser le top stocké, pas de calcul
   if (state.prepared) {
     const m = state.prepared.moves[state.preparedIdx];
-    if (!m) { state.topMove = null; return true; }
+    if (!m) { state.topMove = null; state.subTop = null; return true; }
     state.topMove = {
       score: m.top.score,
       move: { word: m.top.word, row: m.top.row, col: m.top.col, dir: m.top.dir, blanks: m.top.blanks || [] },
       words: m.top.words || [],
     };
+    // Mode Top/sous-top : on expose aussi le sous-top stocké.
+    state.subTop = m.subTop
+      ? { score: m.subTop.score, words: m.subTop.words || [],
+          move: { word: m.subTop.word, row: m.subTop.row, col: m.subTop.col, dir: m.subTop.dir, blanks: m.subTop.blanks || [] } }
+      : null;
     return true;
   }
   const mode = currentMode();
@@ -2877,7 +2954,8 @@ function renderReviewStep() {
 
   if (!replay) {
     // Top joué
-    $("#rvTop").innerHTML = `${wLink(m.top.word)} — ${m.top.score} pts en ${posLabelMove(m.top)}`;
+    $("#rvTop").innerHTML = `${wLink(m.top.word)} — ${m.top.score} pts en ${posLabelMove(m.top)}`
+      + (m.subTop ? ` <span class="muted">· sous-top ${wLink(m.subTop.word)} — ${m.subTop.score} pts en ${posLabelMove(m.subTop)}</span>` : "");
     renderReviewPlayed(m);
     // Autres solutions valides (calcul à la volée)
     renderReviewSolutions(idx);
@@ -3228,12 +3306,20 @@ function renderReviewSolutions(idx) {
     review._solutions = all.slice(0, 200);
     const isFfsc = !!review._ffscKey;   // saisie « mon coup » réservée aux reviews FFSC
     const pick = review.userPicks?.[moves[idx].moveNo];
+    // Mode Top/sous-top : sous-top officiel + coups trouvés par le joueur.
+    const subMv = moves[idx].subTop;
+    const subWords = subMv ? (subMv.words && subMv.words.length ? subMv.words : [subMv.word]) : [];
+    const dual = _ph?.dual;
+    const myTopWord = dual?.topWord, mySubWord = dual?.subWord;
     const rows = review._solutions.map((s, i) => {
       const isTop = s.move.word === topMv.word && s.move.row === topMv.row && s.move.col === topMv.col && s.move.dir === topMv.dir;
-      const isPlayed = playedMv && s.move.word === playedMv
-        && (!playedPos || posLabelMove(s.move) === playedPos);
+      const isSub = subMv && subWords.includes(s.move.word) && s.score === subMv.score;
+      const isPlayed = dual
+        ? (myTopWord && myTopWord !== topMv.word && s.move.word === myTopWord)
+        : (playedMv && s.move.word === playedMv && (!playedPos || posLabelMove(s.move) === playedPos));
+      const isPlayedSub = dual && mySubWord && (!subMv || mySubWord !== subMv.word) && s.move.word === mySubWord;
       const isMine = pick && !pick.zero && s.move.word === pick.word && posLabelMove(s.move) === pick.pos;
-      const cls = [isTop ? "is-top" : "", isPlayed ? "is-played" : "", isMine ? "is-mine" : ""].join(" ").trim();
+      const cls = [isTop ? "is-top" : "", isSub ? "is-subtop" : "", isPlayed ? "is-played" : "", isPlayedSub ? "is-played-sub" : "", isMine ? "is-mine" : ""].join(" ").trim();
       return `<tr class="${cls}" data-i="${i}"><td>${wLink(s.move.word)}</td><td>${posLabelMove(s.move)}</td><td>${s.score}</td>` +
         (isFfsc ? `<td><button class="btn small rv-pick-btn" title="C'est le mot que j'ai joué" onclick="event.stopPropagation();setReviewMyMove(${i})">${isMine ? "✅" : "C'est mon coup"}</button></td>` : "") + `</tr>`;
     }).join("");

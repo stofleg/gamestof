@@ -1428,7 +1428,9 @@ body.in-review .review-solutions {
 .review-solutions td { padding: 6px 10px; border-bottom: 1px solid var(--soft); }
 .review-solutions tr { cursor: pointer; }
 .review-solutions tr.is-top td { color: #2c7a3b; font-weight: 700; }      /* top en vert */
+.review-solutions tr.is-subtop td { color: #5fa873; font-weight: 600; }   /* sous-top en vert « descendu » */
 .review-solutions tr.is-played td { color: #c62828; font-weight: 700; }   /* coup joué en rouge */
+.review-solutions tr.is-played-sub td { color: #e06a6a; font-weight: 600; } /* sous-top joué en rouge « descendu » */
 /* Saisie « mon coup / zéro » : réservée aux reviews FFSC (coups inconnus).
    Pour une partie Topissimo, le coup joué est connu → on masque les contrôles. */
 body:not(.ffsc-review) .review-pick { display: none !important; }
