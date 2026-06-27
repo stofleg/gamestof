@@ -9,9 +9,9 @@
 
 import {
   emptyBoard, LETTER_BAG, drawForDuplicate, applyMove,
-  bagTotalVowels, bagTotalConsonants, GAME_MODES,
-} from "./engine.js?v=258";
-import { findTopRanked, findTop } from "./topfinder.js?v=258";
+  bagTotalVowels, bagTotalConsonants, GAME_MODES, randomBoardLayout,
+} from "./engine.js?v=259";
+import { findTopRanked, findTop } from "./topfinder.js?v=259";
 
 /**
  * Génère une partie complète.
@@ -30,6 +30,7 @@ export function generateGame(dict, options = {}, onProgress = null) {
   const alternateDir = !!mode.alternateDir;    // mode « Horizontal/Vertical »
   const dualTop = !!mode.dualTop;              // mode « Top/sous-top »
   const infJoker = !!mode.infJoker;           // mode « Double joker infini »
+  const layout = mode.randomBoard ? randomBoardLayout() : null;   // mode « Grille random »
   // Le joker payant est une partie joker (jokers retirés du sac + recyclés).
   const withJoker = !!options.withJoker || jokerPays;
 
@@ -130,6 +131,7 @@ export function generateGame(dict, options = {}, onProgress = null) {
         preserveJoker: withJoker && spareJokers > 0,
         jokerPays,
         forceDir,
+        layout,
       });
       if (top || !alternateDir) break;
       // Rejet H/V : on restaure l'état AVANT pioche et on retente un tirage neuf.
@@ -235,6 +237,9 @@ export function generateGame(dict, options = {}, onProgress = null) {
   }
 
   if (onProgress) onProgress(1);
+  // Grille random : on grave la disposition des bonus sur le 1er coup (stockée
+  // avec la partie, relue au jeu et à la review).
+  if (layout && moves.length) moves[0]._layout = layout;
   // On expose aussi l'état final du sac et du chevalet pour debug/vérification
   const finalRack = rack.map(t => t.letter);
 

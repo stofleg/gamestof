@@ -52,6 +52,9 @@ export const GAME_MODES = {
   // la grille (non recyclés), fin quand toutes les lettres réelles sont posées.
   infjoker: { label: "Double joker infini", rackSize: 7, maxPlayed: 7, bonuses: { 7: 50 },
     defaultTime: 120, adminOnly: true, infJoker: true },
+  // Grille random : disposition des bonus mélangée (générée et stockée par partie).
+  grillerandom: { label: "Grille random", rackSize: 7, maxPlayed: 7, bonuses: { 7: 50 },
+    defaultTime: 120, adminOnly: true, randomBoard: true },
 };
 // Nom affiché en combinant mode + joker
 export function modeDisplayName(modeKey, withJoker) {
@@ -101,6 +104,45 @@ export function emptyBoard() {
 // pour simplifier on regarde juste si board[r][c] est null.
 export function cellBonus(r, c) {
   return BOARD_BONUSES[r][c];
+}
+
+// Génère une grille de bonus ALÉATOIRE pour le mode « Grille random » :
+//  • mêmes effectifs de chaque case spéciale que la grille classique ;
+//  • l'étoile reste au centre ;
+//  • aucune case spéciale n'est adjacente orthogonalement à une autre (elles ne
+//    peuvent se côtoyer qu'en diagonale, comme sur une grille de Scrabble).
+// Renvoie un tableau de 15 chaînes (même format que BOARD_BONUSES).
+export function randomBoardLayout() {
+  const N = BOARD_SIZE, C = CENTER;
+  const types = [];
+  for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
+    const b = BOARD_BONUSES[r][c];
+    if (b !== "." && !(r === C && c === C)) types.push(b);
+  }
+  const shuffle = (a) => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+  for (let attempt = 0; attempt < 600; attempt++) {
+    const grid = Array.from({ length: N }, () => Array(N).fill("."));
+    grid[C][C] = "*";
+    const cells = [];
+    for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) if (!(r === C && c === C)) cells.push([r, c]);
+    shuffle(cells);
+    const free = (r, c) => {
+      if (grid[r][c] !== ".") return false;
+      for (const [dr, dc] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const nr = r + dr, nc = c + dc;
+        if (nr >= 0 && nr < N && nc >= 0 && nc < N && grid[nr][nc] !== ".") return false;
+      }
+      return true;
+    };
+    let ok = true;
+    for (const t of shuffle(types.slice())) {
+      let placed = false;
+      for (const [r, c] of cells) { if (free(r, c)) { grid[r][c] = t; placed = true; break; } }
+      if (!placed) { ok = false; break; }
+    }
+    if (ok) return grid.map(row => row.join(""));
+  }
+  return BOARD_BONUSES.slice();   // repli (très improbable) : grille classique
 }
 
 // ============================================================
@@ -265,7 +307,8 @@ export function scoreMove(board, move, dict, opts = {}) {
         ? ((opts.jokerPays && isNew) ? (LETTER_VALUE[cell.letter] || 0) : 0)
         : LETTER_VALUE[cell.letter];
       if (isNew) {
-        const b = BOARD_BONUSES[cell.r][cell.c];
+        // Grille random : disposition des bonus propre à la partie (opts.layout).
+        const b = (opts.layout || BOARD_BONUSES)[cell.r][cell.c];
         if (b === "d") letterScore *= 2;
         else if (b === "t") letterScore *= 3;
         else if (b === "D" || b === "*") wordMult *= 2;

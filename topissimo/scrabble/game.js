@@ -26,10 +26,10 @@
 import {
   emptyBoard, BOARD_BONUSES, BOARD_SIZE, CENTER, LETTER_VALUE, LETTER_BAG,
   VOWELS, drawForDuplicate, scoreMove, applyMove,
-  bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName,
-} from "./engine.js?v=258";
-import { Dictionary } from "./dictionary.js?v=258";
-import { findTop, findTopRanked } from "./topfinder.js?v=258";
+  bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName, randomBoardLayout,
+} from "./engine.js?v=259";
+import { Dictionary } from "./dictionary.js?v=259";
+import { findTop, findTopRanked } from "./topfinder.js?v=259";
 
 // État du mode review (parcours coup par coup)
 const review = {
@@ -59,7 +59,7 @@ const FFSC_REVIEW = URL_PARAMS.get("ffscreview");  // revoir une partie FFSC imp
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v258";
+const BUILD_VERSION = "garenna-v259";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -318,7 +318,7 @@ function renderBoard() {
   if (state.pending.length > 0) {
     const mv = buildMoveFromPending();
     if (mv) {
-      const r0 = scoreMove(state.board, mv, null, { bonuses: currentMode().bonuses, jokerPays: currentMode().jokerPays, raw: true });
+      const r0 = scoreMove(state.board, mv, null, { bonuses: currentMode().bonuses, jokerPays: currentMode().jokerPays, layout: state.boardLayout, raw: true });
       badgeScore = r0.score;
       badgeDir = mv.dir;
       const dr = mv.dir === "V" ? 1 : 0, dc = mv.dir === "H" ? 1 : 0;
@@ -335,7 +335,7 @@ function renderBoard() {
     html += "<tr>";
     if (showCoords) html += `<td class="coord">${ROW_LETTERS[r]}</td>`;
     for (let c = 0; c < BOARD_SIZE; c++) {
-      const bonus = BOARD_BONUSES[r][c];
+      const bonus = (state.boardLayout || BOARD_BONUSES)[r][c];
       const cls = [bonusClass(bonus)];
       const tile = cellTile(r, c);
       if (tile) cls.push("has-tile");
@@ -862,7 +862,7 @@ function computePendingScore() {
   if (state.pending.length === 0) return null;
   const m = buildMoveFromPending();
   if (!m) return null;
-  const r = scoreMove(state.board, m, null, { bonuses: currentMode().bonuses, jokerPays: currentMode().jokerPays });
+  const r = scoreMove(state.board, m, null, { bonuses: currentMode().bonuses, jokerPays: currentMode().jokerPays, layout: state.boardLayout });
   if (r.errors.length) return null;
   return r.score;
 }
@@ -963,7 +963,7 @@ function timeoutAdvance() {
   if (state.pending.length) {
     const m = buildMoveFromPending();
     if (m) {
-      const r = scoreMove(state.board, m, state.dict, { bonuses: currentMode().bonuses, jokerPays: currentMode().jokerPays });
+      const r = scoreMove(state.board, m, state.dict, { bonuses: currentMode().bonuses, jokerPays: currentMode().jokerPays, layout: state.boardLayout });
       if (!r.errors.length) { playerScore = r.score; playedWord = m.word; }
     }
   }
@@ -1685,7 +1685,7 @@ function validate() {
     if (!isotopWords) {
       const rackLetters = state.rack.map(t => t.letter);
       const allMoves = findTop(state.board, rackLetters, state.dict, {
-        all: true, maxTilesUsed: mode.maxPlayed, bonuses: mode.bonuses,
+        all: true, maxTilesUsed: mode.maxPlayed, bonuses: mode.bonuses, layout: state.boardLayout,
       }) || [];
       isotopWords = [...new Set(allMoves.filter(c => c.score === topScore).map(c => c.move.word))];
       state.topMove.isotopWords = isotopWords;
@@ -1705,7 +1705,7 @@ function validate() {
   }
   // Règle FFSC : si le joker a un homonyme (même lettre) dans le mot, on permute
   // automatiquement vers la combinaison la plus avantageuse en points.
-  const result = bestJokerVariant(state.board, move, state.dict, { bonuses: mode.bonuses, jokerPays: mode.jokerPays });
+  const result = bestJokerVariant(state.board, move, state.dict, { bonuses: mode.bonuses, jokerPays: mode.jokerPays, layout: state.boardLayout });
   // bestJokerVariant peut avoir modifié move.blanks ; on relit ici.
   if (result.errors.length) {
     // Coup invalide : on flash le mot en rouge sur le plateau (1s), puis on
@@ -2056,7 +2056,7 @@ function revealTop() {
   if (state.pending.length) {
     const move = buildMoveFromPending();
     if (move) {
-      const r = scoreMove(state.board, move, state.dict, { bonuses: currentMode().bonuses, jokerPays: currentMode().jokerPays });
+      const r = scoreMove(state.board, move, state.dict, { bonuses: currentMode().bonuses, jokerPays: currentMode().jokerPays, layout: state.boardLayout });
       if (!r.errors.length) { pendingScore = r.score; pendingWord = move.word; }
     }
   }
@@ -2379,24 +2379,25 @@ function computeTop() {
   // Formules spéciales en entraînement live : direction imposée (H/V) et joker payant.
   const forceDir = mode.alternateDir ? (state.moveNo % 2 === 1 ? "H" : "V") : undefined;
   const jokerPays = !!mode.jokerPays;
+  const layout = state.boardLayout;
   state.topMove = findTopRanked(state.board, rackLetters, state.dict, state.bag, {
     maxTilesUsed: mode.maxPlayed,
     bonuses: mode.bonuses,
     preserveJoker: effJoker() && state.spareJokers > 0,
-    jokerPays, forceDir,
+    jokerPays, forceDir, layout,
   });
   // H/V : si aucun coup dans la direction imposée (rare), on retombe sans contrainte
   // pour ne pas figer l'entraînement.
   if (!state.topMove && forceDir) {
     state.topMove = findTopRanked(state.board, rackLetters, state.dict, state.bag, {
       maxTilesUsed: mode.maxPlayed, bonuses: mode.bonuses,
-      preserveJoker: effJoker() && state.spareJokers > 0, jokerPays,
+      preserveJoker: effJoker() && state.spareJokers > 0, jokerPays, layout,
     });
   }
   // Top/sous-top live : calculer le sous-top.
   if (mode.dualTop && state.topMove) {
     const all = findTop(state.board, rackLetters, state.dict, {
-      all: true, maxTilesUsed: mode.maxPlayed, bonuses: mode.bonuses, jokerPays, forceDir,
+      all: true, maxTilesUsed: mode.maxPlayed, bonuses: mode.bonuses, jokerPays, forceDir, layout,
     }) || [];
     const lower = all.filter(c => c.score < state.topMove.score);
     state.subTop = lower.length
@@ -2604,6 +2605,8 @@ async function initGame() {
   } else {
     state.spareJokers = 0;
   }
+  // Grille random (entraînement) : disposition des bonus tirée pour cette partie.
+  state.boardLayout = currentMode().randomBoard ? randomBoardLayout() : null;
   state.board = emptyBoard();
   state.rack = [];
   state.pending = [];
@@ -2778,6 +2781,7 @@ async function enterPuzzleMode(gameId, moveNo) {
     timePerMove: g.time_per_move,
     moves: [g.moves[idx]],   // une seule "partie"
   };
+  state.boardLayout = g.moves?.[0]?._layout || null;   // grille random (solo rejouer)
   state.preparedIdx = 0;
   // Synchroniser state.moveNo sur la position réelle dans la partie, pour que
   // les règles dépendantes du numéro de coup (ex. : exception 1er coup) ne
@@ -2931,6 +2935,7 @@ async function enterReviewMode(id) {
   review.game = game;
   review.result = result;
   review.historyByMove = {};
+  state.boardLayout = game.moves?.[0]?._layout || null;   // grille random : disposition stockée
   // Adopter les paramètres de la partie pour le titre
   state.settings.gameMode = game.mode;
   state.settings.withJoker = game.with_joker;
@@ -3253,7 +3258,7 @@ function renderSnapshotToBlob(board, rack, opts = {}) {
     const boardY = PAD + TITLE_H;
     for (let r = 0; r < BOARD_SIZE; r++) {
       for (let c = 0; c < BOARD_SIZE; c++) {
-        const bonus = BOARD_BONUSES[r][c];
+        const bonus = (state.boardLayout || BOARD_BONUSES)[r][c];
         const isCenter = r === CENTER && c === CENTER;
         let cls = "normal";
         if (isCenter)         cls = "center";
@@ -3373,6 +3378,8 @@ function renderReviewSolutions(idx) {
       all: true,
       bonuses: GAME_MODES[review.game.mode]?.bonuses || { 7: 50 },
       maxTilesUsed: GAME_MODES[review.game.mode]?.maxPlayed || 7,
+      jokerPays: !!GAME_MODES[review.game.mode]?.jokerPays,
+      layout: state.boardLayout,
     }) || [];
     // Au 1er coup, on ne joue jamais verticalement en duplicate
     if (idx === 0) all = all.filter(s => s.move.dir === "H");
@@ -3585,6 +3592,8 @@ async function loadPreparedGame(id) {
     timePerMove: data.time_per_move,
     moves: data.moves,
   };
+  // Grille random : disposition des bonus stockée sur le 1er coup.
+  state.boardLayout = data.moves?.[0]?._layout || null;
   // Diagnostic : tracer la partie chargée et le nombre de coups stockés.
   diag.preparedId = data.id;
   diag.mode = data.mode;
@@ -4369,7 +4378,7 @@ function abandonRest() {
   if (state.pending.length) {
     const m = buildMoveFromPending();
     if (m) {
-      const r = scoreMove(state.board, m, state.dict, { bonuses: currentMode().bonuses, jokerPays: currentMode().jokerPays });
+      const r = scoreMove(state.board, m, state.dict, { bonuses: currentMode().bonuses, jokerPays: currentMode().jokerPays, layout: state.boardLayout });
       if (!r.errors.length) { playerScore = r.score; playedWord = m.word; }
     }
   }

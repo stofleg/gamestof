@@ -12,7 +12,7 @@
 //     aussi les mots croisés) et on garde le maximum.
 // ============================================================
 
-import { BOARD_SIZE, CENTER, scoreMove, applyMove, LETTER_VALUE, VOWELS } from "./engine.js?v=258";
+import { BOARD_SIZE, CENTER, scoreMove, applyMove, LETTER_VALUE, VOWELS } from "./engine.js?v=259";
 
 // ============================================================
 //  Top finder avec départage des isotops (mêmes scores)
@@ -415,6 +415,7 @@ export function findTop(board, rack, dict, opts = {}) {
           maxTilesUsed,
           bonuses,
           jokerPays: opts.jokerPays,
+          layout: opts.layout,
           anchorCovered: false,
           candidates, seenMoves,
         });
@@ -456,7 +457,7 @@ function extend(ctx) {
     if (!seenMoves.has(key)) {
       seenMoves.add(key);
       const move = { word: currentWord, row: startR, col: startC, dir, blanks: [...blanksAt] };
-      const result = scoreMove(board, move, dict, { bonuses, jokerPays: ctx.jokerPays });
+      const result = scoreMove(board, move, dict, { bonuses, jokerPays: ctx.jokerPays, layout: ctx.layout });
       if (result.errors.length === 0) {
         candidates.push({ score: result.score, move, words: result.words, placedCount: result.placed.length });
       }
