@@ -27,9 +27,9 @@ import {
   emptyBoard, BOARD_BONUSES, BOARD_SIZE, CENTER, LETTER_VALUE, LETTER_BAG,
   VOWELS, drawForDuplicate, scoreMove, applyMove,
   bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName,
-} from "./engine.js?v=250";
-import { Dictionary } from "./dictionary.js?v=250";
-import { findTop, findTopRanked } from "./topfinder.js?v=250";
+} from "./engine.js?v=251";
+import { Dictionary } from "./dictionary.js?v=251";
+import { findTop, findTopRanked } from "./topfinder.js?v=251";
 
 // État du mode review (parcours coup par coup)
 const review = {
@@ -59,7 +59,7 @@ const FFSC_REVIEW = URL_PARAMS.get("ffscreview");  // revoir une partie FFSC imp
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v250";
+const BUILD_VERSION = "garenna-v251";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -3452,6 +3452,7 @@ async function loadPreparedGame(id) {
   }
   renderGameTitle();
   updateTournamentNavButtons();
+  loadTournamentSiblings();   // détermine l'id de la partie suivante (async, non bloquant)
 }
 
 async function loadSupabaseClient() {
@@ -4103,9 +4104,36 @@ if (_btnBackToTournament) {
   };
 }
 
+// « Partie suivante » : entre DIRECTEMENT dans la partie suivante du tournoi
+// (à son départ), sans repasser par le menu de sélection. Grisé s'il n'y en a plus.
+window.goToNextGame = function() {
+  if (!state._nextGameId) return;
+  const tid = TOURNAMENT_ID ? `&tid=${encodeURIComponent(TOURNAMENT_ID)}` : "";
+  window.location.href = `game.html?prepared=${encodeURIComponent(state._nextGameId)}${tid}`;
+};
+
+// Détermine l'id de la partie suivante du tournoi (ordre naturel du nom, comme la
+// liste de l'accueil : « Partie 2 » < « Partie 10 »). null s'il n'y en a pas.
+async function loadTournamentSiblings() {
+  state._nextGameId = null;
+  if (!TOURNAMENT_ID || !state.prepared) { updateTournamentNavButtons(); return; }
+  try {
+    if (!window._sb) await loadSupabaseClient();
+    const { data } = await window._sb.from("prepared_games")
+      .select("id,name,created_at").eq("tournament_id", TOURNAMENT_ID);
+    const games = (data || []).slice().sort((a, b) => {
+      const cmp = (a.name || "").localeCompare(b.name || "", "fr", { numeric: true, sensitivity: "base" });
+      return cmp !== 0 ? cmp : (a.created_at || "").localeCompare(b.created_at || "");
+    });
+    const i = games.findIndex(g => String(g.id) === String(state.prepared.id));
+    if (i >= 0 && i + 1 < games.length) state._nextGameId = games[i + 1].id;
+  } catch (e) { /* non bloquant : bouton restera grisé */ }
+  updateTournamentNavButtons();
+}
+
 const _btnNextGame = $("#btnNextGame");
 if (_btnNextGame) {
-  _btnNextGame.onclick = () => goBackToTournament(false);
+  _btnNextGame.onclick = () => goToNextGame();
 }
 
 // Met à jour la visibilité des boutons Accueil / Tournoi / Nouvelle partie / Partie suivante
@@ -4119,13 +4147,15 @@ function updateTournamentNavButtons() {
   const btnHome = $("#btnHome");
   if (btnHome) btnHome.hidden = isTournament;
   if (_btnBackToTournament) _btnBackToTournament.hidden = !isTournament;
-  // Partie suivante : enabled seulement quand la partie est terminée
-  if (_btnNextGame) _btnNextGame.disabled = !gameOver;
+  // Partie suivante : active seulement quand la partie est terminée ET qu'une
+  // partie suivante existe dans le tournoi (sinon grisée).
+  const hasNext = !!state._nextGameId;
+  if (_btnNextGame) _btnNextGame.disabled = !gameOver || !hasNext;
   // Modale de fin
   const endModalRestart = $("#endModalRestart");
   const endModalNextGame = $("#endModalNextGame");
   if (endModalRestart) endModalRestart.hidden = isTournament;
-  if (endModalNextGame) endModalNextGame.hidden = !isTournament;
+  if (endModalNextGame) { endModalNextGame.hidden = !isTournament; endModalNextGame.disabled = !hasNext; }
 }
 $("#btnRestart").onclick = () => {
   if (confirm("Démarrer une nouvelle partie ? La partie en cours sera perdue.")) restartGame();
