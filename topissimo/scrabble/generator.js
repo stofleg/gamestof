@@ -10,8 +10,8 @@
 import {
   emptyBoard, LETTER_BAG, drawForDuplicate, applyMove,
   bagTotalVowels, bagTotalConsonants, GAME_MODES,
-} from "./engine.js?v=257";
-import { findTopRanked, findTop } from "./topfinder.js?v=257";
+} from "./engine.js?v=258";
+import { findTopRanked, findTop } from "./topfinder.js?v=258";
 
 /**
  * Génère une partie complète.
@@ -29,6 +29,7 @@ export function generateGame(dict, options = {}, onProgress = null) {
   const jokerPays = !!mode.jokerPays;          // mode « Joker payant »
   const alternateDir = !!mode.alternateDir;    // mode « Horizontal/Vertical »
   const dualTop = !!mode.dualTop;              // mode « Top/sous-top »
+  const infJoker = !!mode.infJoker;           // mode « Double joker infini »
   // Le joker payant est une partie joker (jokers retirés du sac + recyclés).
   const withJoker = !!options.withJoker || jokerPays;
 
@@ -38,6 +39,7 @@ export function generateGame(dict, options = {}, onProgress = null) {
     spareJokers = bag["?"] || 0;
     bag["?"] = 0;
   }
+  if (infJoker) bag["?"] = 0;   // jokers infinis : sortis du sac (réinjectés à chaque tirage)
 
   let board = emptyBoard();
   let rack = []; // [{letter, id}]
@@ -49,6 +51,13 @@ export function generateGame(dict, options = {}, onProgress = null) {
   const estimatedMoves = 28; // pour le calcul de progress
 
   while (true) {
+    // Double joker infini : la partie s'arrête quand il n'y a plus AUCUNE lettre
+    // réelle (ni dans le sac, ni dans le chevalet) — tout a été posé sur la grille.
+    if (infJoker) {
+      const _bagReal = bagTotalVowels(bag) + bagTotalConsonants(bag);
+      const _rackReal = rack.filter(t => t.letter !== "?").length;
+      if (_bagReal === 0 && _rackReal === 0) break;
+    }
     // Fin de partie : voyelles OU consonnes épuisées DANS LE POOL TOTAL
     // (chevalet conservé + sac restant). Sinon la partie continue.
     // §3.7 exception : si un joker ou le Y est dans le pool (≥2 lettres),
@@ -61,7 +70,7 @@ export function generateGame(dict, options = {}, onProgress = null) {
       if (t.letter === "?") continue;
       if (VOWELS_SET.has(t.letter)) v++; else c++;
     }
-    if (v === 0 || c === 0) {
+    if (!infJoker && (v === 0 || c === 0)) {
       // Compter les wildcards (joker + Y) dans le pool total
       const jokersInPool = (bag["?"] || 0) + rack.filter(t => t.letter === "?").length;
       const totalPool = v + c + jokersInPool;
@@ -79,6 +88,23 @@ export function generateGame(dict, options = {}, onProgress = null) {
     // Mode Horizontal/Vertical : H au coup 1, V au 2, H au 3, etc.
     const forceDir = alternateDir ? (moveNo % 2 === 1 ? "H" : "V") : undefined;
     let kept = [], freshRack = false, top = null, endNow = false, rackLetters = [];
+    if (infJoker) {
+      // 5 lettres réelles (reliquat conservé, pioche LIBRE sans règle V/C) + 2 jokers.
+      rack = rack.filter(t => t.letter !== "?");
+      kept = rack.map(t => t.letter);
+      const needReal = Math.max(0, 5 - rack.length);
+      const pool = [];
+      for (const [l, n] of Object.entries(bag)) { if (l === "?") continue; for (let k = 0; k < n; k++) pool.push(l); }
+      for (let k = 0; k < needReal && pool.length; k++) {
+        const i = Math.floor(Math.random() * pool.length);
+        const L = pool.splice(i, 1)[0];
+        bag[L] = (bag[L] || 0) - 1;
+        rack.push({ letter: L, id: nextId++ });
+      }
+      rack.push({ letter: "?", id: nextId++ }, { letter: "?", id: nextId++ });
+      rackLetters = rack.map(t => t.letter);
+      top = findTopRanked(board, rackLetters, dict, bag, { maxTilesUsed: mode.maxPlayed, bonuses: mode.bonuses });
+    } else {
     // En H/V, si aucun coup n'existe dans la direction imposée, on REJETTE le
     // tirage et on en pioche un autre (rare). Sinon une seule tentative.
     const bagSnap = { ...bag };
@@ -109,6 +135,7 @@ export function generateGame(dict, options = {}, onProgress = null) {
       // Rejet H/V : on restaure l'état AVANT pioche et on retente un tirage neuf.
       bag = { ...bagSnap };
       rack = rackSnap.map(t => ({ ...t }));
+    }
     }
     if (endNow || !top) break;
 

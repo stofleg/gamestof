@@ -48,6 +48,10 @@ export const GAME_MODES = {
   // Top/sous-top : il faut trouver le top ET le sous-top ; score = top + sous-top.
   topsoustop: { label: "Top/sous-top", rackSize: 7, maxPlayed: 7, bonuses: { 7: 50 },
     defaultTime: 180, adminOnly: true, dualTop: true },
+  // Double joker infini : 2 jokers + 5 lettres à chaque tirage, jokers laissés sur
+  // la grille (non recyclés), fin quand toutes les lettres réelles sont posées.
+  infjoker: { label: "Double joker infini", rackSize: 7, maxPlayed: 7, bonuses: { 7: 50 },
+    defaultTime: 120, adminOnly: true, infJoker: true },
 };
 // Nom affiché en combinant mode + joker
 export function modeDisplayName(modeKey, withJoker) {

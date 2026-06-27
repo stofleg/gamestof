@@ -27,9 +27,9 @@ import {
   emptyBoard, BOARD_BONUSES, BOARD_SIZE, CENTER, LETTER_VALUE, LETTER_BAG,
   VOWELS, drawForDuplicate, scoreMove, applyMove,
   bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName,
-} from "./engine.js?v=257";
-import { Dictionary } from "./dictionary.js?v=257";
-import { findTop, findTopRanked } from "./topfinder.js?v=257";
+} from "./engine.js?v=258";
+import { Dictionary } from "./dictionary.js?v=258";
+import { findTop, findTopRanked } from "./topfinder.js?v=258";
 
 // État du mode review (parcours coup par coup)
 const review = {
@@ -59,7 +59,7 @@ const FFSC_REVIEW = URL_PARAMS.get("ffscreview");  // revoir une partie FFSC imp
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v257";
+const BUILD_VERSION = "garenna-v258";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -2234,6 +2234,33 @@ function nextMove() {
   }
 
   // ===== Mode entraînement (aléatoire) =====
+  // Double joker infini : 5 lettres réelles (reliquat conservé, pioche libre) + 2
+  // jokers à chaque tirage ; fin quand plus aucune lettre réelle (sac + chevalet).
+  if (currentMode().infJoker) {
+    const bagReal = bagTotalVowels(state.bag) + bagTotalConsonants(state.bag);
+    state.rack = state.rack.filter(t => t.letter !== "?");
+    const rackReal = state.rack.length;
+    if (bagReal === 0 && rackReal === 0) { endGame(); return; }
+    const needReal = Math.max(0, 5 - rackReal);
+    const pool = [];
+    for (const [l, n] of Object.entries(state.bag)) { if (l === "?") continue; for (let k = 0; k < n; k++) pool.push(l); }
+    state.currentRackFresh = false;
+    state.currentKept = state.rack.map(t => t.letter).join("");
+    for (let k = 0; k < needReal && pool.length; k++) {
+      const i = Math.floor(Math.random() * pool.length);
+      const L = pool.splice(i, 1)[0];
+      state.bag[L] = (state.bag[L] || 0) - 1;
+      state.rack.push({ letter: L, used: false, id: nextTileId() });
+    }
+    state.rack.push({ letter: "?", used: false, id: nextTileId() }, { letter: "?", used: false, id: nextTileId() });
+    for (const t of state.rack) t.used = false;
+    renderRack(); renderBoard(); renderBag();
+    startMoveTimer(); showLastTopFeedback(); ensureCursorOnFreeCell();
+    state._topPending = true;
+    setTimeout(() => { if (state._topPending && computeTop()) state._topPending = false; }, 0);
+    return;
+  }
+
   // La partie ne s'arrête que quand IL N'Y A PLUS DE voyelles OU PLUS DE
   // consonnes dans l'UNION du sac ET du chevalet conservé du joueur.
   // → la partie continue même si le tirage est < 7 lettres, tant qu'on
