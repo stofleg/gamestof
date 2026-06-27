@@ -77,7 +77,7 @@ export function generateGame(dict, options = {}, onProgress = null) {
     const target = mode.rackSize;
     // Mode Horizontal/Vertical : H au coup 1, V au 2, H au 3, etc.
     const forceDir = alternateDir ? (moveNo % 2 === 1 ? "H" : "V") : undefined;
-    let kept = [], freshRack = false, top = null, endNow = false;
+    let kept = [], freshRack = false, top = null, endNow = false, rackLetters = [];
     // En H/V, si aucun coup n'existe dans la direction imposée, on REJETTE le
     // tirage et on en pioche un autre (rare). Sinon une seule tentative.
     const bagSnap = { ...bag };
@@ -96,7 +96,7 @@ export function generateGame(dict, options = {}, onProgress = null) {
       if (forceJoker) rack.push({ letter: "?", id: nextId++ });
       freshRack = !!result.fresh;
       if (rack.length === 0) { endNow = true; break; }
-      const rackLetters = rack.map(t => t.letter);
+      rackLetters = rack.map(t => t.letter);
       top = findTopRanked(board, rackLetters, dict, bag, {
         maxTilesUsed: mode.maxPlayed,
         bonuses: mode.bonuses,
