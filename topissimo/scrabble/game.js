@@ -27,9 +27,9 @@ import {
   emptyBoard, BOARD_BONUSES, BOARD_SIZE, CENTER, LETTER_VALUE, LETTER_BAG,
   VOWELS, drawForDuplicate, scoreMove, applyMove,
   bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName,
-} from "./engine.js?v=256";
-import { Dictionary } from "./dictionary.js?v=256";
-import { findTop, findTopRanked } from "./topfinder.js?v=256";
+} from "./engine.js?v=257";
+import { Dictionary } from "./dictionary.js?v=257";
+import { findTop, findTopRanked } from "./topfinder.js?v=257";
 
 // État du mode review (parcours coup par coup)
 const review = {
@@ -59,7 +59,7 @@ const FFSC_REVIEW = URL_PARAMS.get("ffscreview");  // revoir une partie FFSC imp
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v256";
+const BUILD_VERSION = "garenna-v257";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -835,7 +835,7 @@ function renderBag() {
     counts = computeRemainingBagFromBoard();
   } else {
     counts = { ...state.bag };
-    if (state.settings.withJoker && state.spareJokers > 0) {
+    if (effJoker() && state.spareJokers > 0) {
       counts["?"] = (counts["?"] || 0) + state.spareJokers;
     }
   }
@@ -1987,7 +1987,7 @@ function placeTopAndAdvance(playerScore, playedWord = null, playedScore = null, 
   // Remplacement réussi → joker recyclé, state.spareJokers inchangé.
   // Remplacement impossible → joker posé définitivement, state.spareJokers--.
   if (!state.prepared && !state.isPuzzle &&
-      state.settings.withJoker && jokerUsedAsLetter !== null && state.spareJokers > 0) {
+      effJoker() && jokerUsedAsLetter !== null && state.spareJokers > 0) {
     if (state.bag[jokerUsedAsLetter] > 0) {
       state.bag[jokerUsedAsLetter]--;
       const cell = lastPlaced[jokerCellIdx];
@@ -2264,10 +2264,10 @@ function nextMove() {
   const targetSize = mode.rackSize;
   // Mode joker : si jokers actifs disponibles, on impose 1 joker dans le tirage
   const jokerInRack = state.rack.some(t => t.letter === "?");
-  const forceJoker = state.settings.withJoker && state.spareJokers > 0 && !jokerInRack;
+  const forceJoker = effJoker() && state.spareJokers > 0 && !jokerInRack;
   const regularTarget = forceJoker ? targetSize - 1 : targetSize;
   const kept = state.rack.map(t => t.letter);
-  const result = drawForDuplicate(state.bag, kept, state.moveNo, regularTarget);
+  const result = drawForDuplicate(state.bag, kept, state.moveNo, regularTarget, { minVowels: mode.minVowels });
   if (result.failed) {
     endGame();
     return;
@@ -2349,13 +2349,40 @@ function computeTop() {
   }
   const mode = currentMode();
   const rackLetters = state.rack.map(t => t.letter);
+  // Formules spéciales en entraînement live : direction imposée (H/V) et joker payant.
+  const forceDir = mode.alternateDir ? (state.moveNo % 2 === 1 ? "H" : "V") : undefined;
+  const jokerPays = !!mode.jokerPays;
   state.topMove = findTopRanked(state.board, rackLetters, state.dict, state.bag, {
     maxTilesUsed: mode.maxPlayed,
     bonuses: mode.bonuses,
-    preserveJoker: state.settings.withJoker && state.spareJokers > 0,
+    preserveJoker: effJoker() && state.spareJokers > 0,
+    jokerPays, forceDir,
   });
+  // H/V : si aucun coup dans la direction imposée (rare), on retombe sans contrainte
+  // pour ne pas figer l'entraînement.
+  if (!state.topMove && forceDir) {
+    state.topMove = findTopRanked(state.board, rackLetters, state.dict, state.bag, {
+      maxTilesUsed: mode.maxPlayed, bonuses: mode.bonuses,
+      preserveJoker: effJoker() && state.spareJokers > 0, jokerPays,
+    });
+  }
+  // Top/sous-top live : calculer le sous-top.
+  if (mode.dualTop && state.topMove) {
+    const all = findTop(state.board, rackLetters, state.dict, {
+      all: true, maxTilesUsed: mode.maxPlayed, bonuses: mode.bonuses, jokerPays, forceDir,
+    }) || [];
+    const lower = all.filter(c => c.score < state.topMove.score);
+    state.subTop = lower.length
+      ? { score: lower[0].score, words: [...new Set(lower.filter(c => c.score === lower[0].score).map(c => c.move.word))],
+          move: { ...lower[0].move } }
+      : null;
+  } else if (!state.prepared) {
+    state.subTop = null;
+  }
   return true;
 }
+// Joker effectif : mode joker classique OU joker payant (qui est aussi une partie joker).
+function effJoker() { return state.settings.withJoker || !!currentMode().jokerPays; }
 
 // ============================================================
 //  Settings modal
@@ -2518,14 +2545,33 @@ if (window.matchMedia("(max-width: 700px)").matches) {
 }
 
 
+// Ajoute les formules « superoriginales » au sélecteur d'entraînement, mais
+// UNIQUEMENT pour le pseudo admin (les autres joueurs ne les voient pas).
+function populateAdminModes() {
+  if ((localStorage.getItem("currentPseudo") || "").toLowerCase() !== "admin") return;
+  const sel = $("#optGameMode");
+  if (!sel || sel.dataset.adminDone) return;
+  const grp = document.createElement("optgroup");
+  grp.label = "Formules superoriginales";
+  for (const [key, m] of Object.entries(GAME_MODES)) {
+    if (!m.adminOnly) continue;
+    const o = document.createElement("option");
+    o.value = key; o.textContent = m.label;
+    grp.appendChild(o);
+  }
+  sel.appendChild(grp);
+  sel.dataset.adminDone = "1";
+}
+
 async function initGame() {
   captureSwVersion();   // détecter un éventuel service worker périmé
+  populateAdminModes();
   state.bag = { ...LETTER_BAG };
   state.prepared = null;
   state.isPuzzle = false;
   state.preparedIdx = 0;
-  // Mode joker : extraire les 2 jokers du sac et les stocker à part
-  if (state.settings.withJoker) {
+  // Mode joker (ou joker payant) : extraire les 2 jokers du sac et les stocker à part
+  if (effJoker()) {
     state.spareJokers = state.bag["?"] || 0;
     state.bag["?"] = 0;
   } else {
