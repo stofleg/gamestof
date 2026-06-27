@@ -251,9 +251,12 @@ export function scoreMove(board, move, dict, opts = {}) {
     for (const cell of cells) {
       const key = `${cell.r},${cell.c}`;
       const isNew = placedSet.has(key);
-      // Joker payant : le joker vaut les points de la lettre représentée (et prend
-      // les multiplicateurs comme un vrai jeton). Sinon il vaut 0 (Scrabble standard).
-      let letterScore = (cell.isBlank && !opts.jokerPays) ? 0 : (LETTER_VALUE[cell.letter] || 0);
+      // Joker payant : le joker vaut les points de la lettre représentée UNIQUEMENT
+      // au moment où il est posé (jeton nouveau). Une fois sur la grille, un mot qui
+      // s'appuie dessus le compte 0 (comme un blanc classique). Sinon : 0 (standard).
+      let letterScore = cell.isBlank
+        ? ((opts.jokerPays && isNew) ? (LETTER_VALUE[cell.letter] || 0) : 0)
+        : LETTER_VALUE[cell.letter];
       if (isNew) {
         const b = BOARD_BONUSES[cell.r][cell.c];
         if (b === "d") letterScore *= 2;

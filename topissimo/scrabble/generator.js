@@ -10,8 +10,8 @@
 import {
   emptyBoard, LETTER_BAG, drawForDuplicate, applyMove,
   bagTotalVowels, bagTotalConsonants, GAME_MODES,
-} from "./engine.js?v=253";
-import { findTopRanked } from "./topfinder.js?v=253";
+} from "./engine.js?v=254";
+import { findTopRanked } from "./topfinder.js?v=254";
 
 /**
  * Génère une partie complète.
