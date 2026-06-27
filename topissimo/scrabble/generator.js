@@ -10,8 +10,8 @@
 import {
   emptyBoard, LETTER_BAG, drawForDuplicate, applyMove,
   bagTotalVowels, bagTotalConsonants, GAME_MODES,
-} from "./engine.js?v=254";
-import { findTopRanked } from "./topfinder.js?v=254";
+} from "./engine.js?v=255";
+import { findTopRanked, findTop } from "./topfinder.js?v=255";
 
 /**
  * Génère une partie complète.
@@ -28,6 +28,7 @@ export function generateGame(dict, options = {}, onProgress = null) {
   const mode = GAME_MODES[modeKey] || GAME_MODES.duplicate;
   const jokerPays = !!mode.jokerPays;          // mode « Joker payant »
   const alternateDir = !!mode.alternateDir;    // mode « Horizontal/Vertical »
+  const dualTop = !!mode.dualTop;              // mode « Top/sous-top »
   // Le joker payant est une partie joker (jokers retirés du sac + recyclés).
   const withJoker = !!options.withJoker || jokerPays;
 
@@ -111,6 +112,25 @@ export function generateGame(dict, options = {}, onProgress = null) {
     }
     if (endNow || !top) break;
 
+    // Mode Top/sous-top : calculer aussi le SOUS-TOP (meilleur coup d'un score
+    // strictement inférieur au top) + la liste des iso-sous-top (mêmes points).
+    let subTop = null;
+    if (dualTop) {
+      const allCands = findTop(board, rackLetters, dict, {
+        all: true, maxTilesUsed: mode.maxPlayed, bonuses: mode.bonuses, jokerPays, forceDir,
+      }) || [];
+      const lower = allCands.filter(c => c.score < top.score);
+      if (lower.length) {
+        const subScore = lower[0].score;
+        const subWords = [...new Set(lower.filter(c => c.score === subScore).map(c => c.move.word))];
+        const rep = lower[0].move;
+        subTop = {
+          word: rep.word, row: rep.row, col: rep.col, dir: rep.dir,
+          blanks: rep.blanks || [], score: subScore, words: subWords,
+        };
+      }
+    }
+
     // Enregistrer le coup
     moves.push({
       moveNo,
@@ -126,6 +146,7 @@ export function generateGame(dict, options = {}, onProgress = null) {
         score: top.score,
         words: top.words,
       },
+      ...(subTop ? { subTop } : {}),
     });
     totalTopScore += top.score;
 

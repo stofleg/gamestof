@@ -45,6 +45,9 @@ export const GAME_MODES = {
   // Horizontal/Vertical : top horizontal imposé au coup 1, vertical au 2, etc.
   horizvert: { label: "Horizontal/Vertical", rackSize: 7, maxPlayed: 7, bonuses: { 7: 50 },
     defaultTime: 120, adminOnly: true, alternateDir: true },
+  // Top/sous-top : il faut trouver le top ET le sous-top ; score = top + sous-top.
+  topsoustop: { label: "Top/sous-top", rackSize: 7, maxPlayed: 7, bonuses: { 7: 50 },
+    defaultTime: 180, adminOnly: true, dualTop: true },
 };
 // Nom affiché en combinant mode + joker
 export function modeDisplayName(modeKey, withJoker) {
