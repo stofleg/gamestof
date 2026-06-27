@@ -10,8 +10,8 @@
 import {
   emptyBoard, LETTER_BAG, drawForDuplicate, applyMove,
   bagTotalVowels, bagTotalConsonants, GAME_MODES,
-} from "./engine.js?v=251";
-import { findTopRanked } from "./topfinder.js?v=251";
+} from "./engine.js?v=252";
+import { findTopRanked } from "./topfinder.js?v=252";
 
 /**
  * Génère une partie complète.
@@ -76,7 +76,7 @@ export function generateGame(dict, options = {}, onProgress = null) {
     const forceJoker = withJoker && spareJokers > 0 && !jokerInRack;
     const regularTarget = forceJoker ? target - 1 : target;
     const kept = rack.map(t => t.letter);
-    const result = drawForDuplicate(bag, kept, moveNo, regularTarget);
+    const result = drawForDuplicate(bag, kept, moveNo, regularTarget, { minVowels: mode.minVowels });
     if (result.failed) break;
     bag = result.bag;
     // Rejet : le reliquat (hors jokers) a été remis dans le sac → on le retire

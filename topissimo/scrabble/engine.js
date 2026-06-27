@@ -29,6 +29,15 @@ export const GAME_MODES = {
   "7sur8":   { label: "7 sur 8",   rackSize: 8, maxPlayed: 7, bonuses: { 7: 50 },              defaultTime: 120 },
   "7et8":    { label: "7 et 8",    rackSize: 8, maxPlayed: 8, bonuses: { 7: 50, 8: 75 },       defaultTime: 120 },
   "789":     { label: "7, 8 et 9", rackSize: 9, maxPlayed: 9, bonuses: { 7: 50, 8: 75, 9: 100 }, defaultTime: 120 },
+  // ----- Formules « superoriginales » (génération de tournoi réservée à l'admin) -----
+  // 6 lettres : duplicate à 6 jetons, jamais de prime de scrabble.
+  "6lettres":  { label: "6 lettres",  rackSize: 6,  maxPlayed: 6,  bonuses: {}, defaultTime: 120, adminOnly: true },
+  // Hyperblitz : blitz à 30 s/coup.
+  hyperblitz:  { label: "Hyperblitz", rackSize: 7,  maxPlayed: 7,  bonuses: { 7: 50 }, defaultTime: 30, adminOnly: true },
+  // 15 lettres : tirage de 15, prime dès 7 jouées (+25 par jeton au-delà), min 4 voyelles (3 dès le 15e coup).
+  "15lettres": { label: "15 lettres", rackSize: 15, maxPlayed: 15,
+    bonuses: { 7: 50, 8: 75, 9: 100, 10: 125, 11: 150, 12: 175, 13: 200, 14: 225, 15: 250 },
+    defaultTime: 240, minVowels: 4, adminOnly: true },
 };
 // Nom affiché en combinant mode + joker
 export function modeDisplayName(modeKey, withJoker) {
@@ -288,8 +297,13 @@ export function applyMove(board, move) {
 //               lui seul, qui est affiché « –XXX » sur la feuille de route.
 //               Un chevalet vidé par le jeu (reliquat vide) n'est PAS un rejet.
 // ============================================================
-export function drawForDuplicate(bag, kept, moveNo, target = 7) {
-  const minVC = moveNo >= 15 ? 1 : 2;
+export function drawForDuplicate(bag, kept, moveNo, target = 7, opts = {}) {
+  // Minimum de voyelles paramétrable (mode « 15 lettres » : 4, sinon 2),
+  // réduit de 1 à partir du coup 15 (comme la règle FFSC standard 2→1).
+  const baseV = opts.minVowels || 2;
+  const minV = moveNo >= 15 ? Math.max(1, baseV - 1) : baseV;
+  const minC = moveNo >= 15 ? 1 : 2;
+  const minVC = minV;   // conservé pour minApplied (compat logs)
   // Règle FFSC du tirage, sensible au numéro de coup :
   //  • jusqu'au coup 14 inclus (min 2/2) : le joker PEUT servir de voyelle ou de
   //    consonne pour atteindre le quota (on l'affecte au type déficitaire) ;
@@ -297,16 +311,21 @@ export function drawForDuplicate(bag, kept, moveNo, target = 7) {
   //    vraie voyelle ET une vraie consonne, SAUF si le type manquant est épuisé
   //    dans le sac restant (alors le joker peut s'y substituer).
   const jokerWildcard = moveNo <= 14;
-  const rackValid = (rack, remBag, mvc) => {
+  // Quotas voyelles/consonnes potentiellement différents (mode 15 lettres).
+  const rackValid = (rack, remBag, mvV, mvC = mvV) => {
     let v = 0, c = 0, j = 0;
     for (const l of rack) { if (l === "?") j++; else if (VOWELS.has(l)) v++; else c++; }
     if (jokerWildcard) {
-      while (j > 0 && (v < mvc || c < mvc)) { if (v <= c) v++; else c++; j--; }
+      while (j > 0 && (v < mvV || c < mvC)) {
+        const dv = mvV - v, dc = mvC - c;
+        if (dv >= dc && dv > 0) v++; else if (dc > 0) c++; else break;
+        j--;
+      }
     } else {
-      if (v < mvc && bagTotalVowels(remBag) === 0) { const u = Math.min(j, mvc - v); v += u; j -= u; }
-      if (c < mvc && bagTotalConsonants(remBag) === 0) { const u = Math.min(j, mvc - c); c += u; j -= u; }
+      if (v < mvV && bagTotalVowels(remBag) === 0) { const u = Math.min(j, mvV - v); v += u; j -= u; }
+      if (c < mvC && bagTotalConsonants(remBag) === 0) { const u = Math.min(j, mvC - c); c += u; j -= u; }
     }
-    return v >= mvc && c >= mvc;
+    return v >= mvV && c >= mvC;
   };
 
   const realKept = kept.filter(l => l !== "?");
@@ -346,7 +365,7 @@ export function drawForDuplicate(bag, kept, moveNo, target = 7) {
   {
     const r = drawN(bag, need);
     if (r.drawn.length === need) {
-      if (rackValid([...kept, ...r.drawn], r.bag, minVC)) {
+      if (rackValid([...kept, ...r.drawn], r.bag, minV, minC)) {
         // Complément valide : on garde le reliquat → ce n'est PAS un rejet.
         return { drawn: r.drawn, bag: r.bag, fresh: false, minApplied: minVC };
       }
@@ -384,7 +403,7 @@ export function drawForDuplicate(bag, kept, moveNo, target = 7) {
   for (let attempt = 0; attempt < 200; attempt++) {
     const r = drawN(bagBack, freshNeed);
     if (r.drawn.length < freshNeed) break;   // plus assez de lettres
-    if (rackValid([...jokerFill, ...r.drawn], r.bag, minVC)) {
+    if (rackValid([...jokerFill, ...r.drawn], r.bag, minV, minC)) {
       return { drawn: r.drawn, bag: r.bag, fresh: true, minApplied: minVC };
     }
   }

@@ -14,7 +14,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fraunces:wght@500;600;700;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=251">
+<link rel="stylesheet" href="style.css?v=252">
 </head>
 <body>
 
@@ -137,12 +137,18 @@
       <div class="row" style="margin-top:12px">
         <div style="flex:2 1 200px"><label>Nom de la partie</label><input type="text" id="pgName" placeholder="Partie 1"></div>
         <div style="flex:2 1 180px"><label>Mode</label>
-          <select id="pgMode" style="width:100%">
-            <option value="duplicate">Normal</option>
-            <option value="blitz">Blitz</option>
-            <option value="7sur8">7 sur 8</option>
-            <option value="7et8">7 et 8</option>
-            <option value="789">7, 8 et 9</option>
+          <select id="pgMode" style="width:100%"
+            onchange="var t=this.selectedOptions[0].dataset.time; if(t) document.getElementById('pgTime').value=t;">
+            <option value="duplicate" data-time="120">Normal</option>
+            <option value="blitz" data-time="60">Blitz</option>
+            <option value="7sur8" data-time="120">7 sur 8</option>
+            <option value="7et8" data-time="120">7 et 8</option>
+            <option value="789" data-time="120">7, 8 et 9</option>
+            <optgroup label="Formules superoriginales">
+              <option value="6lettres" data-time="120">6 lettres</option>
+              <option value="hyperblitz" data-time="30">Hyperblitz (30 s/coup)</option>
+              <option value="15lettres" data-time="240">15 lettres</option>
+            </optgroup>
           </select>
         </div>
         <div style="flex:0 0 110px"><label>Temps/coup (s)</label><input type="number" id="pgTime" min="0" max="600" step="10" value="120" style="width:100%"></div>
@@ -402,6 +408,6 @@
 
 <script src="config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script src="app.js?v=251"></script>
+<script src="app.js?v=252"></script>
 </body>
 </html>
