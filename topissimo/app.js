@@ -188,7 +188,7 @@ let myGamesSort = {
 async function loadMyGames() {
   if (!state.currentPlayerId) return;
   const pid = +state.currentPlayerId;
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=272");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=273");
 
   // Tournoi : prepared_game_results jointes avec prepared_games
   const { data: tour } = await sb.from("prepared_game_results")
@@ -1265,7 +1265,7 @@ async function loadMyStats() {
   const pid = +state.currentPlayerId;
 
   body.innerHTML = `<p class="muted">⏳ Calcul…</p>`;
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=272");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=273");
 
   // 1) Toutes mes parties tournoi (avec détails)
   const { data: tour } = await sb.from("prepared_game_results")
@@ -1863,9 +1863,14 @@ async function loadTournaments() {
   $("#tournamentFormCard").hidden = !isAdmin();
   if (isAdmin()) renderPresence(); else { const c = $("#presenceCard"); if (c) c.hidden = true; }
 
-  const { data: tournaments, error } = await sb.from("tournaments")
-    .select("*").is("archived_at", null)
-    .order("created_at", { ascending: false });
+  // Les joueurs ne voient que les tournois actifs (archived_at null). L'admin voit
+  // EN PLUS les tournois verrouillés (archived_at renseigné) pour les déverrouiller.
+  let q = sb.from("tournaments").select("*");
+  if (!isAdmin()) q = q.is("archived_at", null);
+  const { data: tournamentsRaw, error } = await q.order("created_at", { ascending: false });
+  // Actifs d'abord, verrouillés ensuite.
+  const tournaments = (tournamentsRaw || []).slice().sort((a, b) =>
+    (a.archived_at ? 1 : 0) - (b.archived_at ? 1 : 0));
   if (error) {
     $("#tournamentsBody").innerHTML = `<tr><td colspan="4" class="muted">Erreur : ${error.message}<br>As-tu exécuté <code>schema-tournaments-archive.sql</code> ?</td></tr>`;
     return;
@@ -1897,14 +1902,18 @@ async function loadTournaments() {
     const partiesCell = isDemo
       ? "10/10"
       : `${playedByT[t.id] || 0}/${countsByT[t.id] || 0}`;
+    const locked = !!t.archived_at;   // verrouillé = masqué aux joueurs
+    const adminBtns = !isAdmin() ? "" : locked
+      ? `<button class="btn ghost small" onclick="event.stopPropagation();unlockTournament(${t.id})">🔓 Déverrouiller</button>`
+      : `<button class="btn ghost small" onclick="event.stopPropagation();lockTournament(${t.id})">🔒 Verrouiller</button>`;
     return `
-    <tr class="clickable" onclick="openTournament(${t.id})">
+    <tr class="clickable" onclick="openTournament(${t.id})"${locked ? ' style="opacity:.55"' : ''}>
       <td>${(t.created_at || "").slice(0,10)}</td>
-      <td><strong>${escapeHtml(t.name)}</strong></td>
+      <td><strong>${locked ? "🔒 " : ""}${escapeHtml(t.name)}</strong></td>
       <td>${partiesCell}</td>
-      <td>${isAdmin() ? `<button class="danger" onclick="event.stopPropagation();archiveTournament(${t.id})">archiver</button>` : ""}</td>
+      <td>${adminBtns}</td>
     </tr>`;
-  }).join("") || `<tr><td colspan="4" class="muted">${isAdmin() ? "Aucun tournoi actif. Crée-en un ci-dessus." : "Aucun tournoi disponible."}</td></tr>`;
+  }).join("") || `<tr><td colspan="4" class="muted">${isAdmin() ? "Aucun tournoi. Crée-en un ci-dessus." : "Aucun tournoi disponible."}</td></tr>`;
 }
 
 // Archiver le plus ancien tournoi tant qu'on dépasse la limite
@@ -1933,6 +1942,18 @@ window.backToTournaments = async () => {
 window.archiveTournament = async (id) => {
   if (!confirm("Archiver ce tournoi ? Il disparaît de la liste mais les scores, l'historique et les replays restent accessibles.")) return;
   const { error } = await sb.from("tournaments").update({ archived_at: new Date().toISOString() }).eq("id", id);
+  if (error) return alert(error.message);
+  loadTournaments();
+};
+// Verrouiller un tournoi = le masquer aux joueurs (réutilise archived_at). L'admin
+// continue de le voir et peut le déverrouiller d'un clic.
+window.lockTournament = async (id) => {
+  const { error } = await sb.from("tournaments").update({ archived_at: new Date().toISOString() }).eq("id", id);
+  if (error) return alert(error.message);
+  loadTournaments();
+};
+window.unlockTournament = async (id) => {
+  const { error } = await sb.from("tournaments").update({ archived_at: null }).eq("id", id);
   if (error) return alert(error.message);
   loadTournaments();
 };
@@ -2014,7 +2035,7 @@ async function loadTournamentDetail(tournamentId) {
     });
   }
 
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=272");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=273");
   const btnStyle = "text-decoration:none;padding:5px 10px;border-radius:6px;font-weight:600;font-size:.85rem";
   const admin = isAdmin();
   $("#pgBody").innerHTML = (games || []).length === 0
@@ -2504,7 +2525,7 @@ async function loadTournamentStats(tournamentId, games) {
   // On détermine « le top est un scrabble » en REjouant le plateau coup par coup
   // (nombre de NOUVELLES tuiles posées par le top == clé de prime du mode), ce qui
   // est fiable même sur d'anciennes parties (le hadBonus stocké est non fiable).
-  const { emptyBoard, applyMove, GAME_MODES } = await import("./scrabble/engine.js?v=272");
+  const { emptyBoard, applyMove, GAME_MODES } = await import("./scrabble/engine.js?v=273");
   const gameById = {};
   for (const g of games) gameById[g.id] = g;
   const bonusesOf = (gid) => (GAME_MODES[gameById[gid]?.mode] || GAME_MODES.duplicate).bonuses || { 7: 50 };
@@ -2667,9 +2688,9 @@ $("#pgCreate").onclick = async () => {
     let mods;
     try {
       mods = await Promise.all([
-        import("./scrabble/dictionary.js?v=272"),
-        import("./scrabble/generator.js?v=272"),
-        import("./scrabble/engine.js?v=272"),
+        import("./scrabble/dictionary.js?v=273"),
+        import("./scrabble/generator.js?v=273"),
+        import("./scrabble/engine.js?v=273"),
       ]);
     } catch (e) {
       $("#pgStatus").innerHTML = `<span style="color:#a02525">Échec de chargement des modules : ${escapeHtml(e.message)}</span>`;
@@ -2735,7 +2756,7 @@ window.recomputeAllNeg = async function(force = false) {
 
   let recomputeResult;
   try {
-    ({ recomputeResult } = await import("./scrabble/recompute.js?v=272"));
+    ({ recomputeResult } = await import("./scrabble/recompute.js?v=273"));
   } catch (e) {
     statusEl.textContent = "❌ Impossible de charger recompute.js : " + e.message;
     return;
@@ -2929,7 +2950,7 @@ window.recomputeAllJokerNeg = async function() {
 
   let recomputeResult;
   try {
-    ({ recomputeResult } = await import("./scrabble/recompute.js?v=272"));
+    ({ recomputeResult } = await import("./scrabble/recompute.js?v=273"));
   } catch (e) {
     statusEl.textContent = "❌ Impossible de charger recompute.js : " + e.message;
     return;
