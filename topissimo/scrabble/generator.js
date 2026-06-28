@@ -10,8 +10,8 @@
 import {
   emptyBoard, LETTER_BAG, drawForDuplicate, applyMove,
   bagTotalVowels, bagTotalConsonants, GAME_MODES, randomBoardLayout,
-} from "./engine.js?v=263";
-import { findTopRanked, findTop, snakeBestTop } from "./topfinder.js?v=263";
+} from "./engine.js?v=264";
+import { findTopRanked, findTop, snakeBestTop } from "./topfinder.js?v=264";
 
 const VOWELS_GEN = new Set(["A", "E", "I", "O", "U", "Y"]);
 
@@ -77,16 +77,10 @@ export function generateGame(dict, options = {}, onProgress = null) {
       if (VOWELS_SET.has(t.letter)) v++; else c++;
     }
     if (!infJoker && (v === 0 || c === 0)) {
-      // Compter les wildcards (joker + Y) dans le pool total
+      // Règle de fin : dernière voyelle OU dernière consonne posée → fin, SAUF s'il
+      // reste un joker (qui peut combler le type manquant).
       const jokersInPool = (bag["?"] || 0) + rack.filter(t => t.letter === "?").length;
-      const totalPool = v + c + jokersInPool;
-      const hasWildcard = jokersInPool > 0 || (bag["Y"] || 0) > 0
-        || rack.some(t => t.letter === "Y");
-      if (hasWildcard && totalPool >= 2) {
-        // wildcard peut combler le type manquant — on laisse drawForDuplicate décider
-      } else {
-        break;
-      }
+      if (jokersInPool === 0) break;
     }
 
     // Compléter le chevalet (+ direction imposée éventuelle).
