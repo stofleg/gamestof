@@ -188,7 +188,7 @@ let myGamesSort = {
 async function loadMyGames() {
   if (!state.currentPlayerId) return;
   const pid = +state.currentPlayerId;
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=271");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=272");
 
   // Tournoi : prepared_game_results jointes avec prepared_games
   const { data: tour } = await sb.from("prepared_game_results")
@@ -1265,7 +1265,7 @@ async function loadMyStats() {
   const pid = +state.currentPlayerId;
 
   body.innerHTML = `<p class="muted">⏳ Calcul…</p>`;
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=271");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=272");
 
   // 1) Toutes mes parties tournoi (avec détails)
   const { data: tour } = await sb.from("prepared_game_results")
@@ -2014,7 +2014,7 @@ async function loadTournamentDetail(tournamentId) {
     });
   }
 
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=271");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=272");
   const btnStyle = "text-decoration:none;padding:5px 10px;border-radius:6px;font-weight:600;font-size:.85rem";
   const admin = isAdmin();
   $("#pgBody").innerHTML = (games || []).length === 0
@@ -2504,7 +2504,7 @@ async function loadTournamentStats(tournamentId, games) {
   // On détermine « le top est un scrabble » en REjouant le plateau coup par coup
   // (nombre de NOUVELLES tuiles posées par le top == clé de prime du mode), ce qui
   // est fiable même sur d'anciennes parties (le hadBonus stocké est non fiable).
-  const { emptyBoard, applyMove, GAME_MODES } = await import("./scrabble/engine.js?v=271");
+  const { emptyBoard, applyMove, GAME_MODES } = await import("./scrabble/engine.js?v=272");
   const gameById = {};
   for (const g of games) gameById[g.id] = g;
   const bonusesOf = (gid) => (GAME_MODES[gameById[gid]?.mode] || GAME_MODES.duplicate).bonuses || { 7: 50 };
@@ -2599,12 +2599,13 @@ $("#tCreate").onclick = async () => {
 // Quand on change de mode, mettre à jour le temps/coup par défaut
 // ---- Générateur de tournoi par lot (admin) ----
 // Liste d'options de formules (mêmes que le menu, hors « Snake » masqué).
-const PG_MODE_OPTIONS = `
+const PG_STD_OPTIONS = `
   <option value="duplicate">Normal</option>
   <option value="blitz">Blitz</option>
   <option value="7sur8">7 sur 8</option>
   <option value="7et8">7 et 8</option>
-  <option value="789">7, 8 et 9</option>
+  <option value="789">7, 8 et 9</option>`;
+const PG_SUPER_OPTIONS = `
   <optgroup label="Formules superoriginales">
     <option value="6lettres">6 lettres</option>
     <option value="hyperblitz">Hyperblitz</option>
@@ -2615,6 +2616,8 @@ const PG_MODE_OPTIONS = `
     <option value="infjoker">Double joker infini</option>
     <option value="grillerandom">Grille random</option>
   </optgroup>`;
+// Les superoriginales ne sont proposées qu'au pseudo stof.
+function pgModeOptions() { return PG_STD_OPTIONS + (isStof() ? PG_SUPER_OPTIONS : ""); }
 const PG_STD_MODES = ["duplicate", "blitz", "7sur8", "7et8", "789"];   // modes où le joker est optionnel
 
 function pgAddRecipeLine() {
@@ -2624,7 +2627,7 @@ function pgAddRecipeLine() {
   row.className = "pg-line";
   row.style.cssText = "display:flex;gap:8px;align-items:center;flex-wrap:wrap";
   row.innerHTML = `
-    <select class="pg-line-mode" style="flex:1 1 200px">${PG_MODE_OPTIONS}</select>
+    <select class="pg-line-mode" style="flex:1 1 200px">${pgModeOptions()}</select>
     <label style="display:inline-flex;align-items:center;gap:4px;font-size:.85rem"><input type="checkbox" class="pg-line-joker"> Joker</label>
     <span class="muted">×</span>
     <input type="number" class="pg-line-qty" min="1" max="50" value="1" style="width:64px">
@@ -2664,9 +2667,9 @@ $("#pgCreate").onclick = async () => {
     let mods;
     try {
       mods = await Promise.all([
-        import("./scrabble/dictionary.js?v=271"),
-        import("./scrabble/generator.js?v=271"),
-        import("./scrabble/engine.js?v=271"),
+        import("./scrabble/dictionary.js?v=272"),
+        import("./scrabble/generator.js?v=272"),
+        import("./scrabble/engine.js?v=272"),
       ]);
     } catch (e) {
       $("#pgStatus").innerHTML = `<span style="color:#a02525">Échec de chargement des modules : ${escapeHtml(e.message)}</span>`;
@@ -2732,7 +2735,7 @@ window.recomputeAllNeg = async function(force = false) {
 
   let recomputeResult;
   try {
-    ({ recomputeResult } = await import("./scrabble/recompute.js?v=271"));
+    ({ recomputeResult } = await import("./scrabble/recompute.js?v=272"));
   } catch (e) {
     statusEl.textContent = "❌ Impossible de charger recompute.js : " + e.message;
     return;
@@ -2926,7 +2929,7 @@ window.recomputeAllJokerNeg = async function() {
 
   let recomputeResult;
   try {
-    ({ recomputeResult } = await import("./scrabble/recompute.js?v=271"));
+    ({ recomputeResult } = await import("./scrabble/recompute.js?v=272"));
   } catch (e) {
     statusEl.textContent = "❌ Impossible de charger recompute.js : " + e.message;
     return;
@@ -3013,8 +3016,11 @@ window.recomputeAllJokerNeg = async function() {
 let authMode = "login";       // login | signup | forgot
 let session = null;
 let currentPlayer = null;     // { id, name, email, auth_user_id }
-const ADMIN_PSEUDO = "admin"; // marqueur du compte administrateur
-function isAdmin() { return currentPlayer?.name === ADMIN_PSEUDO; }
+const ADMIN_PSEUDO = "admin"; // compte de test (exclu des classements)
+// Droit de GÉNÉRER des tournois : admin ET stof (le gating UI passe par isAdmin()).
+function isAdmin() { return ["admin", "stof"].includes(currentPlayer?.name); }
+// Accès aux FORMULES SUPERORIGINALES : réservé au pseudo stof.
+function isStof() { return currentPlayer?.name === "stof"; }
 
 // Les parties de l'admin sont enregistrées (utile pour débusquer des bugs)
 // mais ne doivent PAS apparaître dans les résultats publics (classements,

@@ -27,9 +27,9 @@ import {
   emptyBoard, BOARD_BONUSES, BOARD_SIZE, CENTER, LETTER_VALUE, LETTER_BAG,
   VOWELS, drawForDuplicate, scoreMove, applyMove,
   bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName, randomBoardLayout, snakeEndpointsAfter,
-} from "./engine.js?v=271";
-import { Dictionary } from "./dictionary.js?v=271";
-import { findTop, findTopRanked, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=271";
+} from "./engine.js?v=272";
+import { Dictionary } from "./dictionary.js?v=272";
+import { findTop, findTopRanked, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=272";
 
 // État du mode review (parcours coup par coup)
 const review = {
@@ -59,7 +59,7 @@ const FFSC_REVIEW = URL_PARAMS.get("ffscreview");  // revoir une partie FFSC imp
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v271";
+const BUILD_VERSION = "garenna-v272";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -2631,9 +2631,9 @@ if (window.matchMedia("(max-width: 700px)").matches) {
 
 
 // Ajoute les formules « superoriginales » au sélecteur d'entraînement, mais
-// UNIQUEMENT pour le pseudo admin (les autres joueurs ne les voient pas).
+// UNIQUEMENT pour le pseudo stof (les autres joueurs ne les voient pas).
 function populateAdminModes() {
-  if ((localStorage.getItem("currentPseudo") || "").toLowerCase() !== "admin") return;
+  if ((localStorage.getItem("currentPseudo") || "").toLowerCase() !== "stof") return;
   const sel = $("#optGameMode");
   if (!sel || sel.dataset.adminDone) return;
   const grp = document.createElement("optgroup");
