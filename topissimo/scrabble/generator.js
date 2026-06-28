@@ -9,9 +9,9 @@
 
 import {
   emptyBoard, LETTER_BAG, drawForDuplicate, applyMove,
-  bagTotalVowels, bagTotalConsonants, GAME_MODES, randomBoardLayout,
-} from "./engine.js?v=265";
-import { findTopRanked, findTop, snakeBestTop } from "./topfinder.js?v=265";
+  bagTotalVowels, bagTotalConsonants, GAME_MODES, randomBoardLayout, snakeEndpointsAfter,
+} from "./engine.js?v=266";
+import { findTopRanked, findTop, snakeBestTop } from "./topfinder.js?v=266";
 
 const VOWELS_GEN = new Set(["A", "E", "I", "O", "U", "Y"]);
 
@@ -50,6 +50,7 @@ export function generateGame(dict, options = {}, onProgress = null) {
   const moves = [];
   let totalTopScore = 0;
   let moveNo = 1;
+  let snakeEnds = null;   // mode Snake : les 2 extrémités du serpent
 
   const estimatedMoves = 28; // pour le calcul de progress
 
@@ -128,7 +129,7 @@ export function generateGame(dict, options = {}, onProgress = null) {
       if (rack.length === 0) { endNow = true; break; }
       rackLetters = rack.map(t => t.letter);
       top = mode.snake
-        ? snakeBestTop(board, rackLetters, dict, { maxTilesUsed: mode.maxPlayed, bonuses: mode.bonuses, layout })
+        ? snakeBestTop(board, rackLetters, dict, snakeEnds, { maxTilesUsed: mode.maxPlayed, bonuses: mode.bonuses, layout })
         : findTopRanked(board, rackLetters, dict, bag, {
             maxTilesUsed: mode.maxPlayed,
             bonuses: mode.bonuses,
@@ -180,6 +181,7 @@ export function generateGame(dict, options = {}, onProgress = null) {
         words: top.words,
       },
       ...(subTop ? { subTop } : {}),
+      ...(mode.snake ? { _ends: snakeEnds } : {}),   // extrémités du serpent AVANT ce coup
     });
     totalTopScore += top.score;
 
@@ -203,6 +205,9 @@ export function generateGame(dict, options = {}, onProgress = null) {
         }
       }
     }
+
+    // Snake : mettre à jour les extrémités AVANT d'appliquer le coup au plateau.
+    if (mode.snake) snakeEnds = snakeEndpointsAfter(snakeEnds, board, top.move);
 
     // Appliquer au plateau
     board = applyMove(board, top.move);

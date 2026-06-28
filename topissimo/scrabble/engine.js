@@ -157,6 +157,63 @@ export function isSimplePath(board) {
   return seen.size === occ.length;
 }
 
+// --- Snake : suivi du serpent par ses 2 extrémités (chemin ordonné) ---
+// Les cases du mot principal du coup.
+function moveCells(move) {
+  const dr = move.dir === "V" ? 1 : 0, dc = move.dir === "H" ? 1 : 0;
+  const out = [];
+  for (let i = 0; i < move.word.length; i++) out.push([move.row + i * dr, move.col + i * dc]);
+  return out;
+}
+const _adj = (a, b) => Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]) === 1;
+
+// Vrai si le coup PROLONGE le serpent depuis UNE de ses extrémités : exactement
+// une extrémité est « accrochée » (case posée adjacente OU mot passant par elle),
+// avec une seule case posée adjacente à cette extrémité (pas de jonction en T).
+// Les contacts latéraux avec l'intérieur (= mots croisés) sont permis.
+// ends = [[r,c],[r,c]] ou null/vide pour le 1er coup (toujours légal ici).
+export function isSnakeMove(board, ends, move) {
+  if (!ends || ends.length < 2) return true;
+  const cells = moveCells(move);
+  const placed = cells.filter(([r, c]) => board[r] && !board[r][c]);
+  if (!placed.length) return false;
+  let attached = 0;
+  for (const E of ends) {
+    const nAdj = placed.filter(p => _adj(p, E)).length;
+    const inWord = cells.some(([r, c]) => r === E[0] && c === E[1]);
+    if (nAdj >= 1 || inWord) {
+      if (nAdj > 1) return false;   // 2 cases posées touchent l'extrémité → jonction en T
+      attached++;
+    }
+  }
+  return attached === 1;
+}
+
+// Nouvelles extrémités du serpent après application du coup.
+export function snakeEndpointsAfter(ends, board, move) {
+  const cells = moveCells(move);
+  const placed = cells.filter(([r, c]) => board[r] && !board[r][c]);
+  if (!ends || ends.length < 2) return [cells[0], cells[cells.length - 1]];
+  const attachedEnds = ends.filter(E => placed.some(p => _adj(p, E)) || cells.some(([r, c]) => r === E[0] && c === E[1]));
+  if (attachedEnds.length === 1) {
+    const E = attachedEnds[0];
+    const other = ends.find(e => e !== E);
+    let far = placed[0], best = -1;
+    for (const p of placed) { const d = Math.abs(p[0] - E[0]) + Math.abs(p[1] - E[1]); if (d > best) { best = d; far = p; } }
+    return [other, far];
+  }
+  // Extension colinéaire des 2 côtés (coup 2) → extrémités = les 2 cases de degré 1.
+  const after = applyMove(board, move);
+  const N = BOARD_SIZE, deg1 = [];
+  for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
+    if (!after[r][c]) continue;
+    let d = 0;
+    for (const [dr, dc] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const nr = r + dr, nc = c + dc; if (nr >= 0 && nr < N && nc >= 0 && nc < N && after[nr][nc]) d++; }
+    if (d === 1) deg1.push([r, c]);
+  }
+  return deg1.length === 2 ? deg1 : [cells[0], cells[cells.length - 1]];
+}
+
 // Génère une grille de bonus ALÉATOIRE pour le mode « Grille random » :
 //  • mêmes effectifs de chaque case spéciale que la grille classique ;
 //  • l'étoile reste au centre ;

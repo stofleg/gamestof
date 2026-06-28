@@ -26,10 +26,10 @@
 import {
   emptyBoard, BOARD_BONUSES, BOARD_SIZE, CENTER, LETTER_VALUE, LETTER_BAG,
   VOWELS, drawForDuplicate, scoreMove, applyMove,
-  bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName, randomBoardLayout, isSimplePath,
-} from "./engine.js?v=265";
-import { Dictionary } from "./dictionary.js?v=265";
-import { findTop, findTopRanked, snakeBestTop } from "./topfinder.js?v=265";
+  bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName, randomBoardLayout, snakeEndpointsAfter,
+} from "./engine.js?v=266";
+import { Dictionary } from "./dictionary.js?v=266";
+import { findTop, findTopRanked, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=266";
 
 // État du mode review (parcours coup par coup)
 const review = {
@@ -59,7 +59,7 @@ const FFSC_REVIEW = URL_PARAMS.get("ffscreview");  // revoir une partie FFSC imp
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v265";
+const BUILD_VERSION = "garenna-v266";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -1747,8 +1747,9 @@ function validate() {
     showTransientError(`Trop de lettres posées (max ${mode.maxPlayed})`, `Le mode ${mode.label} limite à ${mode.maxPlayed} lettres jouées par coup.`);
     return;
   }
-  // Mode Snake : le coup doit prolonger le serpent (chemin simple), sinon « non accepté ».
-  if (mode.snake && !isSimplePath(applyMove(state.board, move))) {
+  // Mode Snake : le coup doit prolonger le serpent (s'accrocher à une extrémité ;
+  // les mots croisés latéraux sont permis), sinon « non accepté ».
+  if (mode.snake && !snakeMoveLegal(state.board, state.snakeEnds, move)) {
     flashInvalidWord("Ce coup ne continue pas le serpent 🐍 — non accepté", result.placed || []);
     return;
   }
@@ -2010,6 +2011,8 @@ function placeTopAndAdvance(playerScore, playedWord = null, playedScore = null, 
   // (cf. clearTopHighlight()). Plus d'effacement automatique au bout de 1,5 s.
   if (topWordTimer) { clearTimeout(topWordTimer); topWordTimer = null; }
 
+  // Snake : mettre à jour les extrémités du serpent avant d'appliquer le top.
+  if (currentMode().snake) state.snakeEnds = snakeEndpointsAfter(state.snakeEnds, state.board, tm.move);
   // Appliquer le top au plateau
   state.board = applyMove(state.board, tm.move);
 
@@ -2400,6 +2403,8 @@ function computeTop() {
       move: { word: m.top.word, row: m.top.row, col: m.top.col, dir: m.top.dir, blanks: m.top.blanks || [] },
       words: m.top.words || [],
     };
+    // Mode Snake : extrémités du serpent AVANT ce coup (stockées à la génération).
+    if (currentMode().snake) state.snakeEnds = m._ends || null;
     // Mode Top/sous-top : on expose aussi le sous-top stocké.
     state.subTop = m.subTop
       ? { score: m.subTop.score, words: m.subTop.words || [],
@@ -2414,8 +2419,8 @@ function computeTop() {
   const jokerPays = !!mode.jokerPays;
   const layout = state.boardLayout;
   if (mode.snake) {
-    // Snake : le top est le meilleur coup qui prolonge le serpent.
-    state.topMove = snakeBestTop(state.board, rackLetters, state.dict, {
+    // Snake : le top est le meilleur coup qui prolonge le serpent (depuis ses extrémités).
+    state.topMove = snakeBestTop(state.board, rackLetters, state.dict, state.snakeEnds, {
       maxTilesUsed: mode.maxPlayed, bonuses: mode.bonuses, layout,
     });
     return true;
@@ -2647,6 +2652,8 @@ async function initGame() {
   }
   // Grille random (entraînement) : disposition des bonus tirée pour cette partie.
   state.boardLayout = currentMode().randomBoard ? randomBoardLayout() : null;
+  state.snakeEnds = null;   // mode Snake : extrémités du serpent
+
   state.board = emptyBoard();
   state.rack = [];
   state.pending = [];

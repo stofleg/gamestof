@@ -12,15 +12,21 @@
 //     aussi les mots croisés) et on garde le maximum.
 // ============================================================
 
-import { BOARD_SIZE, CENTER, scoreMove, applyMove, LETTER_VALUE, VOWELS, isSimplePath } from "./engine.js?v=265";
+import { BOARD_SIZE, CENTER, scoreMove, applyMove, LETTER_VALUE, VOWELS, isSimplePath, isSnakeMove } from "./engine.js?v=266";
 
-// Mode Snake : meilleur coup (score max) qui PROLONGE le serpent — c.-à-d. dont
-// l'application laisse les cases occupées en chemin simple. findTop renvoie les
-// candidats triés par score décroissant : le 1er légal est donc le top.
-export function snakeBestTop(board, rack, dict, opts = {}) {
+// Un coup PROLONGE le serpent s'il s'accroche à une extrémité (isSnakeMove ; les
+// mots croisés latéraux sont permis), OU s'il garde un chemin simple (extension
+// colinéaire du coup 2). `ends` = les 2 extrémités courantes du serpent.
+export function snakeMoveLegal(board, ends, move) {
+  return isSnakeMove(board, ends, move) || isSimplePath(applyMove(board, move));
+}
+
+// Mode Snake : meilleur coup (score max) qui prolonge le serpent. findTop renvoie
+// les candidats triés par score décroissant : le 1er légal est le top.
+export function snakeBestTop(board, rack, dict, ends, opts = {}) {
   const all = findTop(board, rack, dict, { all: true, ...opts }) || [];
   for (const c of all) {
-    if (isSimplePath(applyMove(board, c.move))) return c;
+    if (snakeMoveLegal(board, ends, c.move)) return c;
   }
   return null;
 }
