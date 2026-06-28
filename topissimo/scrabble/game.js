@@ -27,9 +27,9 @@ import {
   emptyBoard, BOARD_BONUSES, BOARD_SIZE, CENTER, LETTER_VALUE, LETTER_BAG,
   VOWELS, drawForDuplicate, scoreMove, applyMove,
   bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName, randomBoardLayout, isSimplePath,
-} from "./engine.js?v=264";
-import { Dictionary } from "./dictionary.js?v=264";
-import { findTop, findTopRanked, snakeBestTop } from "./topfinder.js?v=264";
+} from "./engine.js?v=265";
+import { Dictionary } from "./dictionary.js?v=265";
+import { findTop, findTopRanked, snakeBestTop } from "./topfinder.js?v=265";
 
 // État du mode review (parcours coup par coup)
 const review = {
@@ -59,7 +59,7 @@ const FFSC_REVIEW = URL_PARAMS.get("ffscreview");  // revoir une partie FFSC imp
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v264";
+const BUILD_VERSION = "garenna-v265";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -2309,11 +2309,14 @@ function nextMove() {
     if (VOWELS.has(L)) vAvail++; else cAvail++;
   }
   if (vAvail === 0 || cAvail === 0) {
-    // Règle de fin : dernière voyelle OU dernière consonne posée → fin, SAUF s'il
-    // reste un joker (qui peut combler le type manquant).
+    // Fin : dernière voyelle OU dernière consonne posée → fin, SAUF s'il reste un
+    // joker (comble n'importe quel type) ou un Y (peut servir de consonne quand
+    // c'est la dernière consonne qui manque). On continue tant qu'il n'est pas posé.
     const jokersInPool = (state.bag["?"] || 0)
       + remainingRackLetters.filter(l => l === "?").length;
-    if (jokersInPool === 0) { endGame(); return; }
+    const ysInPool = (state.bag["Y"] || 0)
+      + remainingRackLetters.filter(l => l === "Y").length;
+    if (jokersInPool === 0 && ysInPool === 0) { endGame(); return; }
   }
 
   // Compléter le chevalet selon le mode de partie

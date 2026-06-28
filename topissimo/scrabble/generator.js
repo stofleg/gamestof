@@ -10,8 +10,8 @@
 import {
   emptyBoard, LETTER_BAG, drawForDuplicate, applyMove,
   bagTotalVowels, bagTotalConsonants, GAME_MODES, randomBoardLayout,
-} from "./engine.js?v=264";
-import { findTopRanked, findTop, snakeBestTop } from "./topfinder.js?v=264";
+} from "./engine.js?v=265";
+import { findTopRanked, findTop, snakeBestTop } from "./topfinder.js?v=265";
 
 const VOWELS_GEN = new Set(["A", "E", "I", "O", "U", "Y"]);
 
@@ -78,9 +78,12 @@ export function generateGame(dict, options = {}, onProgress = null) {
     }
     if (!infJoker && (v === 0 || c === 0)) {
       // Règle de fin : dernière voyelle OU dernière consonne posée → fin, SAUF s'il
-      // reste un joker (qui peut combler le type manquant).
+      // reste un joker (qui comble n'importe quel type) ou un Y (qui peut servir de
+      // CONSONNE quand c'est la dernière consonne qui manque). La partie continue
+      // tant que ce joker / ce Y n'est pas posé.
       const jokersInPool = (bag["?"] || 0) + rack.filter(t => t.letter === "?").length;
-      if (jokersInPool === 0) break;
+      const ysInPool = (bag["Y"] || 0) + rack.filter(t => t.letter === "Y").length;
+      if (jokersInPool === 0 && ysInPool === 0) break;
     }
 
     // Compléter le chevalet (+ direction imposée éventuelle).

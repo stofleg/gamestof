@@ -12,7 +12,7 @@
 //     aussi les mots croisés) et on garde le maximum.
 // ============================================================
 
-import { BOARD_SIZE, CENTER, scoreMove, applyMove, LETTER_VALUE, VOWELS, isSimplePath } from "./engine.js?v=264";
+import { BOARD_SIZE, CENTER, scoreMove, applyMove, LETTER_VALUE, VOWELS, isSimplePath } from "./engine.js?v=265";
 
 // Mode Snake : meilleur coup (score max) qui PROLONGE le serpent — c.-à-d. dont
 // l'application laisse les cases occupées en chemin simple. findTop renvoie les
