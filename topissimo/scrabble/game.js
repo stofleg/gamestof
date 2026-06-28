@@ -27,9 +27,9 @@ import {
   emptyBoard, BOARD_BONUSES, BOARD_SIZE, CENTER, LETTER_VALUE, LETTER_BAG,
   VOWELS, drawForDuplicate, scoreMove, applyMove,
   bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName, randomBoardLayout,
-} from "./engine.js?v=260";
-import { Dictionary } from "./dictionary.js?v=260";
-import { findTop, findTopRanked } from "./topfinder.js?v=260";
+} from "./engine.js?v=261";
+import { Dictionary } from "./dictionary.js?v=261";
+import { findTop, findTopRanked } from "./topfinder.js?v=261";
 
 // État du mode review (parcours coup par coup)
 const review = {
@@ -59,7 +59,7 @@ const FFSC_REVIEW = URL_PARAMS.get("ffscreview");  // revoir une partie FFSC imp
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v260";
+const BUILD_VERSION = "garenna-v261";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -336,8 +336,11 @@ function renderBoard() {
     if (showCoords) html += `<td class="coord">${ROW_LETTERS[r]}</td>`;
     for (let c = 0; c < BOARD_SIZE; c++) {
       const bonus = (state.boardLayout || BOARD_BONUSES)[r][c];
-      // L'étoile centrale est toujours affichée (y compris en grille random).
-      const cls = [(r === CENTER && c === CENTER) ? "center" : bonusClass(bonus)];
+      // Centre : en grille random, on garde la couleur de la case tirée + une étoile
+      // de départ (classe "start") ; sinon case centre classique (mot ×2 + étoile).
+      let cls;
+      if (r === CENTER && c === CENTER) cls = state.boardLayout ? [bonusClass(bonus), "start"] : ["center"];
+      else cls = [bonusClass(bonus)];
       const tile = cellTile(r, c);
       if (tile) cls.push("has-tile");
       const isCursor = state.cursor && state.cursor.row === r && state.cursor.col === c;
@@ -2263,11 +2266,12 @@ function nextMove() {
   // Double joker infini : 5 lettres réelles (reliquat conservé, pioche libre) + 2
   // jokers à chaque tirage ; fin quand plus aucune lettre réelle (sac + chevalet).
   if (currentMode().infJoker) {
-    const bagReal = bagTotalVowels(state.bag) + bagTotalConsonants(state.bag);
     state.rack = state.rack.filter(t => t.letter !== "?");
+    // Fin quand on a posé la dernière voyelle OU consonne réelle (jokers infinis exclus).
+    let djV = bagTotalVowels(state.bag), djC = bagTotalConsonants(state.bag);
+    for (const t of state.rack) { if (VOWELS.has(t.letter)) djV++; else djC++; }
+    if (djV === 0 || djC === 0) { endGame(); return; }
     const rackReal = state.rack.length;
-    // Fin quand on ne peut plus constituer un tirage de 7 (= 5 réelles + 2 jokers).
-    if (bagReal + rackReal < 5) { endGame(); return; }
     const needReal = Math.max(0, 5 - rackReal);
     const pool = [];
     for (const [l, n] of Object.entries(state.bag)) { if (l === "?") continue; for (let k = 0; k < n; k++) pool.push(l); }
@@ -2609,7 +2613,7 @@ function populateAdminModes() {
   const grp = document.createElement("optgroup");
   grp.label = "Formules superoriginales";
   for (const [key, m] of Object.entries(GAME_MODES)) {
-    if (!m.adminOnly) continue;
+    if (!m.adminOnly || m.hidden) continue;
     const o = document.createElement("option");
     o.value = key; o.textContent = m.label;
     grp.appendChild(o);
@@ -3287,8 +3291,10 @@ function renderSnapshotToBlob(board, rack, opts = {}) {
       for (let c = 0; c < BOARD_SIZE; c++) {
         const bonus = (state.boardLayout || BOARD_BONUSES)[r][c];
         const isCenter = r === CENTER && c === CENTER;
+        // En grille random, le centre garde la couleur de sa case tirée (l'étoile
+        // est dessinée par-dessus). Sinon, centre classique = mot ×2.
         let cls = "normal";
-        if (isCenter)         cls = "center";
+        if (bonus === "*" || (isCenter && !state.boardLayout)) cls = "center";
         else if (bonus === "d") cls = "dl";
         else if (bonus === "t") cls = "tl";
         else if (bonus === "D") cls = "dw";

@@ -34,10 +34,15 @@ export const GAME_MODES = {
   "6lettres":  { label: "6 lettres",  rackSize: 6,  maxPlayed: 6,  bonuses: {}, defaultTime: 120, adminOnly: true },
   // Hyperblitz : blitz à 30 s/coup.
   hyperblitz:  { label: "Hyperblitz", rackSize: 7,  maxPlayed: 7,  bonuses: { 7: 50 }, defaultTime: 30, adminOnly: true },
-  // 15 lettres : tirage de 15, prime dès 7 jouées (+25 par jeton au-delà), min 4 voyelles (3 dès le 15e coup).
+  // 7 sur 15 : tirage de 15, max 7 jouées (sur le modèle 7 sur 8). Min 4 voyelles.
+  "7sur15": { label: "7 sur 15", rackSize: 15, maxPlayed: 7, bonuses: { 7: 50 },
+    defaultTime: 240, minVowels: 4, adminOnly: true },
+  // 15 lettres : tirage de 15, prime dès 7 jouées (+25 par jeton au-delà), min 4 voyelles.
+  // CONSERVÉE pour une future généralisation (jouer avec N lettres au choix) mais
+  // RETIRÉE des menus pour l'instant (hidden) car jugée trop difficile.
   "15lettres": { label: "15 lettres", rackSize: 15, maxPlayed: 15,
     bonuses: { 7: 50, 8: 75, 9: 100, 10: 125, 11: 150, 12: 175, 13: 200, 14: 225, 15: 250 },
-    defaultTime: 240, minVowels: 4, adminOnly: true },
+    defaultTime: 240, minVowels: 4, adminOnly: true, hidden: true },
   // Joker payant : partie joker classique, mais le joker vaut les points de la
   // lettre qu'il représente (le top est calculé en testant chaque lettre possible).
   jokerpayant: { label: "Joker payant", rackSize: 7, maxPlayed: 7, bonuses: { 7: 50 },
@@ -114,17 +119,20 @@ export function cellBonus(r, c) {
 // Renvoie un tableau de 15 chaînes (même format que BOARD_BONUSES).
 export function randomBoardLayout() {
   const N = BOARD_SIZE, C = CENTER;
+  // Effectifs des cases spéciales (l'étoile centrale comptait comme un mot compte
+  // double → on la remet dans le pool en tant que "D"). Le centre n'est donc PAS
+  // forcément un mot compte double : il reçoit une case quelconque comme les autres
+  // (l'étoile de départ est un marqueur d'affichage, géré à part au rendu).
   const types = [];
   for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
     const b = BOARD_BONUSES[r][c];
-    if (b !== "." && !(r === C && c === C)) types.push(b);
+    if (b !== ".") types.push(b === "*" ? "D" : b);
   }
   const shuffle = (a) => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
   for (let attempt = 0; attempt < 600; attempt++) {
     const grid = Array.from({ length: N }, () => Array(N).fill("."));
-    grid[C][C] = "*";
     const cells = [];
-    for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) if (!(r === C && c === C)) cells.push([r, c]);
+    for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) cells.push([r, c]);
     shuffle(cells);
     const free = (r, c) => {
       if (grid[r][c] !== ".") return false;

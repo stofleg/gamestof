@@ -10,8 +10,10 @@
 import {
   emptyBoard, LETTER_BAG, drawForDuplicate, applyMove,
   bagTotalVowels, bagTotalConsonants, GAME_MODES, randomBoardLayout,
-} from "./engine.js?v=260";
-import { findTopRanked, findTop } from "./topfinder.js?v=260";
+} from "./engine.js?v=261";
+import { findTopRanked, findTop } from "./topfinder.js?v=261";
+
+const VOWELS_GEN = new Set(["A", "E", "I", "O", "U", "Y"]);
 
 /**
  * Génère une partie complète.
@@ -55,10 +57,12 @@ export function generateGame(dict, options = {}, onProgress = null) {
     // Double joker infini : la partie s'arrête quand il n'y a plus AUCUNE lettre
     // réelle (ni dans le sac, ni dans le chevalet) — tout a été posé sur la grille.
     if (infJoker) {
-      // Fin quand on ne peut plus constituer un tirage de 7 (= 5 réelles + 2 jokers).
-      const _bagReal = bagTotalVowels(bag) + bagTotalConsonants(bag);
-      const _rackReal = rack.filter(t => t.letter !== "?").length;
-      if (_bagReal + _rackReal < 5) break;
+      // Fin quand on a posé la dernière voyelle OU la dernière consonne RÉELLE
+      // (les jokers, infinis, ne comptent pas). On s'arrête si le pool réel
+      // (sac + reliquat) n'a plus de voyelle ou plus de consonne.
+      let _v = bagTotalVowels(bag), _c = bagTotalConsonants(bag);
+      for (const t of rack) { if (t.letter === "?") continue; if (VOWELS_GEN.has(t.letter)) _v++; else _c++; }
+      if (_v === 0 || _c === 0) break;
     }
     // Fin de partie : voyelles OU consonnes épuisées DANS LE POOL TOTAL
     // (chevalet conservé + sac restant). Sinon la partie continue.

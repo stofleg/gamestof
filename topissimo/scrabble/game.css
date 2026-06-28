@@ -300,6 +300,8 @@ body.show-coords .right-col {
 .board td.tw { background: var(--bonus-tw); color: #fff; }
 .board td.center { background: var(--yellow); }
 .board td.center::before { content: "★"; font-size: 1.1rem; }
+/* Grille random : étoile de départ par-dessus n'importe quelle couleur de case. */
+.board td.start::before { content: "★"; font-size: 1.05rem; color: rgba(0,46,68,.85); }
 .board td.has-tile::before { content: none !important; }
 .board td.has-tile { background: transparent; }
 
