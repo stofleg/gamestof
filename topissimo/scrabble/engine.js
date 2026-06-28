@@ -179,12 +179,18 @@ export function isSnakeMove(board, ends, move) {
   if (!placed.length) return false;
   let attached = 0;
   for (const E of ends) {
-    const nAdj = placed.filter(p => _adj(p, E)).length;
-    const inWord = cells.some(([r, c]) => r === E[0] && c === E[1]);
-    if (nAdj >= 1 || inWord) {
-      if (nAdj > 1) return false;   // 2 cases posées touchent l'extrémité → jonction en T
-      attached++;
-    }
+    const adjPlaced = placed.filter(p => _adj(p, E));
+    const eInWord = cells.some(([r, c]) => r === E[0] && c === E[1]);
+    if (!adjPlaced.length && !eInWord) continue;     // extrémité non connectée
+    if (adjPlaced.length > 1) return false;          // 2 cases posées touchent E → jonction en T
+    // L'accroche doit se faire à un BOUT du nouveau mot : la case d'entrée (la
+    // case posée touchant E, sinon E lui-même) doit être à une extrémité du mot,
+    // sinon le mot part dans deux directions depuis l'accroche = branche (impossible
+    // à tracer d'un seul trait : cf. PAKOL entré par son milieu).
+    const entry = adjPlaced.length ? adjPlaced[0] : E;
+    const idx = cells.findIndex(([r, c]) => r === entry[0] && c === entry[1]);
+    if (idx !== 0 && idx !== cells.length - 1) return false;
+    attached++;
   }
   return attached === 1;
 }
