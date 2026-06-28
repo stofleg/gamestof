@@ -27,9 +27,9 @@ import {
   emptyBoard, BOARD_BONUSES, BOARD_SIZE, CENTER, LETTER_VALUE, LETTER_BAG,
   VOWELS, drawForDuplicate, scoreMove, applyMove,
   bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName, randomBoardLayout, snakeEndpointsAfter,
-} from "./engine.js?v=269";
-import { Dictionary } from "./dictionary.js?v=269";
-import { findTop, findTopRanked, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=269";
+} from "./engine.js?v=270";
+import { Dictionary } from "./dictionary.js?v=270";
+import { findTop, findTopRanked, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=270";
 
 // État du mode review (parcours coup par coup)
 const review = {
@@ -59,7 +59,7 @@ const FFSC_REVIEW = URL_PARAMS.get("ffscreview");  // revoir une partie FFSC imp
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v269";
+const BUILD_VERSION = "garenna-v270";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -2759,7 +2759,7 @@ async function initGame() {
     return;
   }
   // Charger une partie pré-tirée si demandée via URL
-  if (PREPARED_ID && !state.prepared) {
+  if (PREPARED_ID && String(state.prepared?.id) !== String(PREPARED_ID)) {
     showFeedback("", "Chargement de la partie…", "");
     try {
       await loadPreparedGame(PREPARED_ID);
@@ -3645,6 +3645,25 @@ async function loadPreparedGame(id) {
   }
   const { data, error } = await window._sb.from("prepared_games").select("*").eq("id", id).single();
   if (error) throw new Error(error.message);
+  // Réinitialisation COMPLÈTE de l'état de jeu : évite qu'un reliquat d'une partie
+  // précédente (plateau, tirage, index) ne déborde si l'état n'a pas été remis à zéro
+  // (cache navigateur / réentrée). C'est la cause du « 1er tirage erroné » corrigé au refresh.
+  state.board = emptyBoard();
+  state.rack = [];
+  state.pending = [];
+  state.cursor = null;
+  state.history = [];
+  state.preparedIdx = 0;
+  state.moveNo = 1;
+  state.totalScore = 0;
+  state.sumNeg = 0;
+  state.topMove = null;
+  state.subTop = null;
+  state.snakeEnds = null;
+  state.bestAttempt = null;
+  state._dual = null;
+  state._topPending = false;
+  state.chronoFinal = null;
   state.prepared = {
     id: data.id,
     name: data.name,
@@ -3863,6 +3882,12 @@ window.addEventListener("beforeunload", (e) => {
     e.returnValue = "";   // déclenche la confirmation native du navigateur
     return "";
   }
+});
+
+// Restauration depuis le cache navigateur (bfcache, retour arrière) : le JS garde
+// son ancien état (mauvaise partie / tirage périmé). On force un rechargement propre.
+window.addEventListener("pageshow", (e) => {
+  if (e.persisted) window.location.reload();
 });
 
 function endGame() {
