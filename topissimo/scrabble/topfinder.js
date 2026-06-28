@@ -12,7 +12,7 @@
 //     aussi les mots croisés) et on garde le maximum.
 // ============================================================
 
-import { BOARD_SIZE, CENTER, scoreMove, applyMove, LETTER_VALUE, VOWELS } from "./engine.js?v=261";
+import { BOARD_SIZE, CENTER, scoreMove, applyMove, LETTER_VALUE, VOWELS } from "./engine.js?v=262";
 
 // ============================================================
 //  Top finder avec départage des isotops (mêmes scores)
@@ -41,7 +41,7 @@ export function findTopRanked(board, rack, dict, bag = null, opts = {}) {
   const scored = tied.map(c => ({
     ...c,
     _noJoker:   scoreJokerPreserved(c.move, bag, preserveJoker),
-    _endsGame:  scoreEndsGame(rack, c.move, bag),       // 1 si ce coup termine la partie
+    _endsGame:  scoreEndsGame(rack, c.move, bag, board),  // 1 si ce coup termine la partie
     _playsQ:    c.move.word.includes("Q") ? 1 : 0,
     _qPos:      scoreQPosition(c.move),                 // -1 si Q en bout, 0 sinon
     _extBoth:   isFirstMove ? scoreExtBothSides(c.move.word, dict) : 0, // 1 si rallongeable des 2 côtés (1er coup)
@@ -109,15 +109,17 @@ function scoreJokerPreserved(move, bag, preserveJoker) {
 // Renvoie 1 si le coup TERMINE la partie : après avoir joué, ce qui reste
 // (chevalet conservé + sac) n'a plus de voyelle OU plus de consonne.
 // Le bag passé peut être null (cas générique) → on retourne 0 (info indispo).
-function scoreEndsGame(rack, move, bag) {
+function scoreEndsGame(rack, move, bag, board) {
   if (!bag) return 0;
-  // Compter les lettres POSÉES (= les nouvelles tuiles utilisées du rack)
-  // Pour chaque lettre du mot, si la case est nouvelle (pas déjà sur le board)
-  // on consomme une tuile du rack. Approximation : on suppose toutes nouvelles.
-  // En pratique on n'a pas le board ici, donc on prend les letters du move.blanks
-  // pour identifier les jokers (qui consomment "?") et les autres consomment leur lettre.
-  const used = []; // letters retirées du chevalet
+  // Lettres réellement POSÉES depuis le chevalet = uniquement les cases NOUVELLES
+  // (vides sur le plateau). Les lettres du mot déjà présentes sur le plateau ne
+  // consomment PAS de tuile → il ne faut pas les retirer du reliquat (sinon on
+  // sous-estime le reliquat et on croit à tort la partie terminée sur un isotop).
+  const dr = move.dir === "V" ? 1 : 0, dc = move.dir === "H" ? 1 : 0;
+  const used = []; // lettres retirées du chevalet
   for (let i = 0; i < move.word.length; i++) {
+    const r = move.row + i * dr, cc = move.col + i * dc;
+    if (board && board[r] && board[r][cc]) continue;   // déjà sur le plateau → pas du rack
     const isBlank = (move.blanks || []).includes(i);
     used.push(isBlank ? "?" : move.word[i]);
   }
