@@ -188,7 +188,7 @@ let myGamesSort = {
 async function loadMyGames() {
   if (!state.currentPlayerId) return;
   const pid = +state.currentPlayerId;
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=270");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=271");
 
   // Tournoi : prepared_game_results jointes avec prepared_games
   const { data: tour } = await sb.from("prepared_game_results")
@@ -1265,7 +1265,7 @@ async function loadMyStats() {
   const pid = +state.currentPlayerId;
 
   body.innerHTML = `<p class="muted">⏳ Calcul…</p>`;
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=270");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=271");
 
   // 1) Toutes mes parties tournoi (avec détails)
   const { data: tour } = await sb.from("prepared_game_results")
@@ -1998,14 +1998,8 @@ async function loadTournamentDetail(tournamentId) {
     return (a.created_at || "").localeCompare(b.created_at || "");
   });
 
-  // Pré-remplir le nom par défaut "Partie N+1" pour ce tournoi
-  const nums = (games || []).map(g => {
-    const m = g.name.match(/^Partie (\d+)$/);
-    return m ? +m[1] : 0;
-  });
-  const next = (nums.length ? Math.max(...nums) : 0) + 1;
-  $("#pgName").placeholder = `Partie ${next}`;
-  $("#pgName").value = $("#pgName").value || `Partie ${next}`;
+  // S'assurer qu'au moins une ligne de formule est présente dans le générateur.
+  if (isAdmin() && $("#pgRecipe") && !$("#pgRecipe").children.length) pgAddRecipeLine();
 
   // Parties déjà jouées par le joueur courant
   // → "jouée" = result présent ET détail coup par coup non vide (sinon c'est
@@ -2020,7 +2014,7 @@ async function loadTournamentDetail(tournamentId) {
     });
   }
 
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=270");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=271");
   const btnStyle = "text-decoration:none;padding:5px 10px;border-radius:6px;font-weight:600;font-size:.85rem";
   const admin = isAdmin();
   $("#pgBody").innerHTML = (games || []).length === 0
@@ -2510,7 +2504,7 @@ async function loadTournamentStats(tournamentId, games) {
   // On détermine « le top est un scrabble » en REjouant le plateau coup par coup
   // (nombre de NOUVELLES tuiles posées par le top == clé de prime du mode), ce qui
   // est fiable même sur d'anciennes parties (le hadBonus stocké est non fiable).
-  const { emptyBoard, applyMove, GAME_MODES } = await import("./scrabble/engine.js?v=270");
+  const { emptyBoard, applyMove, GAME_MODES } = await import("./scrabble/engine.js?v=271");
   const gameById = {};
   for (const g of games) gameById[g.id] = g;
   const bonusesOf = (gid) => (GAME_MODES[gameById[gid]?.mode] || GAME_MODES.duplicate).bonuses || { 7: 50 };
@@ -2603,11 +2597,46 @@ $("#tCreate").onclick = async () => {
 };
 
 // Quand on change de mode, mettre à jour le temps/coup par défaut
-$("#pgMode").addEventListener("change", async () => {
-  const { GAME_MODES } = await import("./scrabble/engine.js?v=270");
-  const m = GAME_MODES[$("#pgMode").value];
-  if (m) $("#pgTime").value = m.defaultTime;
-});
+// ---- Générateur de tournoi par lot (admin) ----
+// Liste d'options de formules (mêmes que le menu, hors « Snake » masqué).
+const PG_MODE_OPTIONS = `
+  <option value="duplicate">Normal</option>
+  <option value="blitz">Blitz</option>
+  <option value="7sur8">7 sur 8</option>
+  <option value="7et8">7 et 8</option>
+  <option value="789">7, 8 et 9</option>
+  <optgroup label="Formules superoriginales">
+    <option value="6lettres">6 lettres</option>
+    <option value="hyperblitz">Hyperblitz</option>
+    <option value="7sur15">7 sur 15</option>
+    <option value="jokerpayant">Joker payant</option>
+    <option value="horizvert">Horizontal/Vertical</option>
+    <option value="topsoustop">Top/sous-top</option>
+    <option value="infjoker">Double joker infini</option>
+    <option value="grillerandom">Grille random</option>
+  </optgroup>`;
+const PG_STD_MODES = ["duplicate", "blitz", "7sur8", "7et8", "789"];   // modes où le joker est optionnel
+
+function pgAddRecipeLine() {
+  const cont = $("#pgRecipe");
+  if (!cont) return;
+  const row = document.createElement("div");
+  row.className = "pg-line";
+  row.style.cssText = "display:flex;gap:8px;align-items:center;flex-wrap:wrap";
+  row.innerHTML = `
+    <select class="pg-line-mode" style="flex:1 1 200px">${PG_MODE_OPTIONS}</select>
+    <label style="display:inline-flex;align-items:center;gap:4px;font-size:.85rem"><input type="checkbox" class="pg-line-joker"> Joker</label>
+    <span class="muted">×</span>
+    <input type="number" class="pg-line-qty" min="1" max="50" value="1" style="width:64px">
+    <button class="btn ghost small pg-line-del" title="Retirer cette formule">✖</button>`;
+  row.querySelector(".pg-line-del").onclick = () => {
+    row.remove();
+    if (!cont.children.length) pgAddRecipeLine();   // garder au moins une ligne
+  };
+  cont.appendChild(row);
+}
+window.pgAddRecipeLine = pgAddRecipeLine;
+if ($("#pgAddLine")) $("#pgAddLine").onclick = () => pgAddRecipeLine();
 
 window.delPreparedGame = async function(id) {
   if (!confirm("Supprimer cette partie pré-tirée et tous ses résultats ?")) return;
@@ -2620,63 +2649,70 @@ $("#pgCreate").onclick = async () => {
   if (!isAdmin()) { alert("Seul l'admin peut créer des parties."); return; }
   if (!currentTournamentId) { alert("Choisis ou crée d'abord un tournoi."); return; }
   try {
-    const name = $("#pgName").value.trim();
-    if (!name) return alert("Donne un nom à la partie.");
-    const mode = $("#pgMode").value;
-    const withJoker = $("#pgJoker").checked;
-    const timePerMove = +$("#pgTime").value || 0;
+    // Lire la recette : pour chaque ligne, une formule × une quantité.
+    const recipe = [];
+    for (const row of document.querySelectorAll("#pgRecipe .pg-line")) {
+      const mode = row.querySelector(".pg-line-mode").value;
+      const joker = row.querySelector(".pg-line-joker").checked && PG_STD_MODES.includes(mode);
+      const qty = Math.max(1, Math.min(50, +row.querySelector(".pg-line-qty").value || 1));
+      recipe.push({ mode, joker, qty });
+    }
+    if (!recipe.length) return alert("Ajoute au moins une formule.");
+    const total = recipe.reduce((a, r) => a + r.qty, 0);
 
     $("#pgStatus").innerHTML = "⏳ Chargement du dictionnaire (≈1 s)…";
-
     let mods;
     try {
       mods = await Promise.all([
-        import("./scrabble/dictionary.js?v=270"),
-        import("./scrabble/generator.js?v=270"),
+        import("./scrabble/dictionary.js?v=271"),
+        import("./scrabble/generator.js?v=271"),
+        import("./scrabble/engine.js?v=271"),
       ]);
     } catch (e) {
       $("#pgStatus").innerHTML = `<span style="color:#a02525">Échec de chargement des modules : ${escapeHtml(e.message)}</span>`;
-      console.error(e);
-      return;
+      console.error(e); return;
     }
     const { Dictionary } = mods[0];
     const { generateGame } = mods[1];
+    const { GAME_MODES } = mods[2];
 
     let dict;
-    try {
-      dict = await new Dictionary().load("scrabble/ods9.txt");
-    } catch (e) {
-      $("#pgStatus").innerHTML = `<span style="color:#a02525">Impossible de charger le dictionnaire : ${escapeHtml(e.message)}</span>`;
-      return;
+    try { dict = await new Dictionary().load("scrabble/ods9.txt"); }
+    catch (e) { $("#pgStatus").innerHTML = `<span style="color:#a02525">Impossible de charger le dictionnaire : ${escapeHtml(e.message)}</span>`; return; }
+
+    // Numérotation : on continue après les parties « Partie N » déjà présentes.
+    const { data: existing } = await sb.from("prepared_games").select("name").eq("tournament_id", currentTournamentId);
+    let next = 1 + (existing || []).reduce((mx, g) => {
+      const m = (g.name || "").match(/^Partie (\d+)$/); return m ? Math.max(mx, +m[1]) : mx;
+    }, 0);
+
+    let done = 0, created = 0;
+    for (const { mode, joker, qty } of recipe) {
+      const timePerMove = GAME_MODES[mode]?.defaultTime ?? 120;
+      for (let k = 0; k < qty; k++) {
+        const name = `Partie ${next++}`;
+        $("#pgStatus").innerHTML = `⏳ Génération ${done + 1}/${total} (${escapeHtml(name)})… <span id='pgPct'>0%</span>`;
+        const onProgress = (p) => { const el = $("#pgPct"); if (el) el.textContent = Math.round(p * 100) + "%"; };
+        await new Promise(r => setTimeout(r, 20));
+        const game = generateGame(dict, { mode, withJoker: joker }, onProgress);
+        if (game.jokerError) {
+          $("#pgStatus").innerHTML = `<span style="color:#a02525">❌ « ${escapeHtml(name)} » : joker absent dans certains coups (${escapeHtml(game.jokerError)}). ${created} partie(s) créée(s) avant l'arrêt.</span>`;
+          loadPreparedGames(); return;
+        }
+        const { error } = await sb.from("prepared_games").insert({
+          name, mode, with_joker: joker, time_per_move: timePerMove,
+          moves: game.moves, total_top_score: game.totalTopScore,
+          created_by_player_id: state.currentPlayerId ? +state.currentPlayerId : null,
+          tournament_id: currentTournamentId,
+        });
+        if (error) {
+          $("#pgStatus").innerHTML = `<span style="color:#a02525">Erreur Supabase sur « ${escapeHtml(name)} » : ${escapeHtml(error.message)}. ${created} partie(s) créée(s).</span>`;
+          loadPreparedGames(); return;
+        }
+        created++; done++;
+      }
     }
-
-    $("#pgStatus").innerHTML = "⏳ Génération de la partie… <span id='pgPct'>0%</span>";
-    const onProgress = (p) => { const el = $("#pgPct"); if (el) el.textContent = Math.round(p * 100) + "%"; };
-
-    await new Promise(r => setTimeout(r, 20));
-    const game = generateGame(dict, { mode, withJoker }, onProgress);
-
-    // Bloquer la sauvegarde si la génération a produit des racks joker invalides
-    if (game.jokerError) {
-      $("#pgStatus").innerHTML = `<span style="color:#a02525">❌ Erreur de génération : joker absent dans certains coups (${escapeHtml(game.jokerError)}). Partie non sauvegardée — relance la génération.</span>`;
-      return;
-    }
-
-    $("#pgStatus").textContent = "💾 Enregistrement…";
-    const { data, error } = await sb.from("prepared_games").insert({
-      name, mode, with_joker: withJoker, time_per_move: timePerMove,
-      moves: game.moves, total_top_score: game.totalTopScore,
-      created_by_player_id: state.currentPlayerId ? +state.currentPlayerId : null,
-      tournament_id: currentTournamentId,
-    }).select().single();
-
-    if (error) {
-      $("#pgStatus").innerHTML = `<span style="color:#a02525">Erreur Supabase : ${escapeHtml(error.message)}<br>As-tu exécuté <code>scrabble/schema-prepared.sql</code> dans Supabase SQL Editor ?</span>`;
-      return;
-    }
-
-    $("#pgStatus").innerHTML = `✅ Partie « ${escapeHtml(name)} » créée.`;
-    $("#pgName").value = "";
+    $("#pgStatus").innerHTML = `✅ ${created} partie(s) générée(s).`;
     loadPreparedGames();
   } catch (e) {
     console.error("pgCreate error:", e);
@@ -2696,7 +2732,7 @@ window.recomputeAllNeg = async function(force = false) {
 
   let recomputeResult;
   try {
-    ({ recomputeResult } = await import("./scrabble/recompute.js?v=270"));
+    ({ recomputeResult } = await import("./scrabble/recompute.js?v=271"));
   } catch (e) {
     statusEl.textContent = "❌ Impossible de charger recompute.js : " + e.message;
     return;
@@ -2890,7 +2926,7 @@ window.recomputeAllJokerNeg = async function() {
 
   let recomputeResult;
   try {
-    ({ recomputeResult } = await import("./scrabble/recompute.js?v=270"));
+    ({ recomputeResult } = await import("./scrabble/recompute.js?v=271"));
   } catch (e) {
     statusEl.textContent = "❌ Impossible de charger recompute.js : " + e.message;
     return;
