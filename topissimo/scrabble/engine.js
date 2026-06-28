@@ -60,9 +60,10 @@ export const GAME_MODES = {
   // Grille random : disposition des bonus mélangée (générée et stockée par partie).
   grillerandom: { label: "Grille random", rackSize: 7, maxPlayed: 7, bonuses: { 7: 50 },
     defaultTime: 120, adminOnly: true, randomBoard: true },
-  // Snake : chaque coup doit prolonger le serpent (cases occupées = chemin simple).
+  // Snake : chaque coup doit prolonger le serpent (un seul trait continu).
+  // RETIRÉE des menus (hidden) — jugée peu intéressante ; code conservé au cas où.
   snake: { label: "Snake", rackSize: 7, maxPlayed: 7, bonuses: { 7: 50 },
-    defaultTime: 120, adminOnly: true, snake: true },
+    defaultTime: 120, adminOnly: true, snake: true, hidden: true },
 };
 // Nom affiché en combinant mode + joker
 export function modeDisplayName(modeKey, withJoker) {
