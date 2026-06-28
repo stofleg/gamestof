@@ -27,9 +27,9 @@ import {
   emptyBoard, BOARD_BONUSES, BOARD_SIZE, CENTER, LETTER_VALUE, LETTER_BAG,
   VOWELS, drawForDuplicate, scoreMove, applyMove,
   bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName, randomBoardLayout, snakeEndpointsAfter,
-} from "./engine.js?v=266";
-import { Dictionary } from "./dictionary.js?v=266";
-import { findTop, findTopRanked, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=266";
+} from "./engine.js?v=267";
+import { Dictionary } from "./dictionary.js?v=267";
+import { findTop, findTopRanked, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=267";
 
 // État du mode review (parcours coup par coup)
 const review = {
@@ -59,7 +59,7 @@ const FFSC_REVIEW = URL_PARAMS.get("ffscreview");  // revoir une partie FFSC imp
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v266";
+const BUILD_VERSION = "garenna-v267";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -949,6 +949,8 @@ function timeoutAdvance() {
   // charger, plutôt que de rester bloqué sur le coup avec le chrono qui défile.
   if (!state.topMove) {
     if (!state.dict) { startMoveTimer(); return; }
+    // Dico chargé mais aucun coup possible (ex. Snake bloqué) → fin de partie.
+    endGame();
     return;
   }
   // Mode Top/sous-top : temps écoulé → crédit partiel des deux meilleurs mots trouvés.
@@ -1631,6 +1633,16 @@ function ensureTopReady() {
   if (state._topPending && computeTop()) state._topPending = false;
 }
 
+// Aucun coup possible (dico chargé, top introuvable) → fin de partie immédiate
+// (sans laisser le chrono défiler dans le vide, ex. Snake bloqué).
+function endIfNoMove() {
+  if (state.started && state.chronoFinal == null && state.dict && !review.active && !state.topMove) {
+    endGame();
+    return true;
+  }
+  return false;
+}
+
 // ===== Mode Top/sous-top : suivi des deux meilleurs mots DISTINCTS du joueur =====
 // d.best = meilleur mot ; d.second = meilleur AUTRE mot de score strictement
 // inférieur (le sous-top du joueur). Score du coup = best + second.
@@ -2296,7 +2308,7 @@ function nextMove() {
     renderRack(); renderBoard(); renderBag();
     startMoveTimer(); showLastTopFeedback(); ensureCursorOnFreeCell();
     state._topPending = true;
-    setTimeout(() => { if (state._topPending && computeTop()) state._topPending = false; }, 0);
+    setTimeout(() => { if (state._topPending && computeTop()) { state._topPending = false; endIfNoMove(); } }, 0);
     return;
   }
 

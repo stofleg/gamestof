@@ -12,7 +12,7 @@
 //     aussi les mots croisés) et on garde le maximum.
 // ============================================================
 
-import { BOARD_SIZE, CENTER, scoreMove, applyMove, LETTER_VALUE, VOWELS, isSimplePath, isSnakeMove } from "./engine.js?v=266";
+import { BOARD_SIZE, CENTER, scoreMove, applyMove, LETTER_VALUE, VOWELS, isSimplePath, isSnakeMove } from "./engine.js?v=267";
 
 // Un coup PROLONGE le serpent s'il s'accroche à une extrémité (isSnakeMove ; les
 // mots croisés latéraux sont permis), OU s'il garde un chemin simple (extension
@@ -21,14 +21,18 @@ export function snakeMoveLegal(board, ends, move) {
   return isSnakeMove(board, ends, move) || isSimplePath(applyMove(board, move));
 }
 
-// Mode Snake : meilleur coup (score max) qui prolonge le serpent. findTop renvoie
-// les candidats triés par score décroissant : le 1er légal est le top.
+// Mode Snake : meilleur coup (score max) qui prolonge le serpent. En cas d'isotop
+// (même score), on privilégie le mot le plus RALLONGEABLE dans le dico (par l'avant
+// ou l'arrière) pour que le serpent puisse continuer (tête/queue extensible).
 export function snakeBestTop(board, rack, dict, ends, opts = {}) {
   const all = findTop(board, rack, dict, { all: true, ...opts }) || [];
-  for (const c of all) {
-    if (snakeMoveLegal(board, ends, c.move)) return c;
-  }
-  return null;
+  const legal = all.filter(c => snakeMoveLegal(board, ends, c.move));
+  if (!legal.length) return null;
+  const top = legal[0].score;                       // legal garde l'ordre décroissant
+  const tied = legal.filter(c => c.score === top);
+  if (tied.length === 1) return tied[0];
+  tied.sort((a, b) => scoreDictExtensibility(b.move.word, dict) - scoreDictExtensibility(a.move.word, dict));
+  return tied[0];
 }
 
 // ============================================================
