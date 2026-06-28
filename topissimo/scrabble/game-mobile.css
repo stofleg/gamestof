@@ -26,6 +26,10 @@
   html, body {
     overflow: hidden;
     touch-action: manipulation;
+    /* Empêche le swipe de bord (navigation arrière/avant) qui ferait quitter la
+       partie prématurément — surtout sur Chrome Android. */
+    overscroll-behavior-x: none;
+    overscroll-behavior: contain;
     height: 100%;
     margin: 0;
     -webkit-text-size-adjust: 100%;

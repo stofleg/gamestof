@@ -27,9 +27,9 @@ import {
   emptyBoard, BOARD_BONUSES, BOARD_SIZE, CENTER, LETTER_VALUE, LETTER_BAG,
   VOWELS, drawForDuplicate, scoreMove, applyMove,
   bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName, randomBoardLayout, snakeEndpointsAfter,
-} from "./engine.js?v=273";
-import { Dictionary } from "./dictionary.js?v=273";
-import { findTop, findTopRanked, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=273";
+} from "./engine.js?v=274";
+import { Dictionary } from "./dictionary.js?v=274";
+import { findTop, findTopRanked, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=274";
 
 // État du mode review (parcours coup par coup)
 const review = {
@@ -59,7 +59,7 @@ const FFSC_REVIEW = URL_PARAMS.get("ffscreview");  // revoir une partie FFSC imp
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v273";
+const BUILD_VERSION = "garenna-v274";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -3888,6 +3888,22 @@ window.addEventListener("beforeunload", (e) => {
 // son ancien état (mauvaise partie / tirage périmé). On force un rechargement propre.
 window.addEventListener("pageshow", (e) => {
   if (e.persisted) window.location.reload();
+});
+
+// Garde-fou contre le swipe de bord d'écran (geste « retour » sur mobile) qui
+// ferait quitter la partie prématurément. On empile un état sentinelle : tant
+// qu'une partie est en cours, tout « retour » (swipe inclus) est intercepté, on
+// ré-empile et on demande confirmation avant de réellement quitter.
+let _allowBack = false;
+const _gameInProgress = () => state.started && state.chronoFinal == null && !review.active;
+history.pushState({ topissimo: true }, "");
+window.addEventListener("popstate", () => {
+  if (_allowBack || !_gameInProgress()) return;   // on laisse passer
+  history.pushState({ topissimo: true }, "");      // annule le retour
+  if (confirm("Quitter la partie en cours ? Elle ne sera pas enregistrée.")) {
+    _allowBack = true;
+    history.go(-2);
+  }
 });
 
 function endGame() {

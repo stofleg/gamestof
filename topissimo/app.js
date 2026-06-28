@@ -188,7 +188,7 @@ let myGamesSort = {
 async function loadMyGames() {
   if (!state.currentPlayerId) return;
   const pid = +state.currentPlayerId;
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=273");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=274");
 
   // Tournoi : prepared_game_results jointes avec prepared_games
   const { data: tour } = await sb.from("prepared_game_results")
@@ -1265,7 +1265,7 @@ async function loadMyStats() {
   const pid = +state.currentPlayerId;
 
   body.innerHTML = `<p class="muted">⏳ Calcul…</p>`;
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=273");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=274");
 
   // 1) Toutes mes parties tournoi (avec détails)
   const { data: tour } = await sb.from("prepared_game_results")
@@ -2035,7 +2035,7 @@ async function loadTournamentDetail(tournamentId) {
     });
   }
 
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=273");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=274");
   const btnStyle = "text-decoration:none;padding:5px 10px;border-radius:6px;font-weight:600;font-size:.85rem";
   const admin = isAdmin();
   $("#pgBody").innerHTML = (games || []).length === 0
@@ -2054,7 +2054,7 @@ async function loadTournamentDetail(tournamentId) {
       }).join("")}</div>`;
 
   loadTournamentStats(tournamentId, games || []);
-  loadTournamentLeaderboard(tournamentId, games || []);
+  loadTournamentLeaderboard(tournamentId, games || [], t.name, modeDisplayName);
 }
 
 // ===== Classement complet par tournoi (Std / Blitz / Originales) =====
@@ -2069,13 +2069,44 @@ function categorize(g) {
 const CAT_LABEL = { std: "Standard", blitz: "Blitz", orig: "Originales" };
 const CAT_CLASS = { std: "cat-std", blitz: "cat-blitz", orig: "cat-orig" };
 
-async function loadTournamentLeaderboard(tournamentId, games) {
+// Détermine le découpage du classement intermédiaire :
+//  - mode habituel : 3 blocs (Standard / Blitz / Originales — toutes les
+//    originales regroupées) ;
+//  - mode « par type » (ex. tournoi « En route vers les ICE ») : un bloc par
+//    formule de partie distincte, sans regrouper les originales.
+function makeCategorizer(games, byType, modeDisplayName) {
+  if (!byType) {
+    return { keyOf: categorize, labelOf: (k) => CAT_LABEL[k], order: ["std", "blitz", "orig"] };
+  }
+  const keyOf = (g) => {
+    if (g.mode === "duplicate" && !g.with_joker)
+      return Number(g.time_per_move) === 60 ? "blitz" : "std";
+    return (g.with_joker ? "j_" : "") + g.mode;
+  };
+  const labels = {};
+  for (const g of games) {
+    const k = keyOf(g);
+    if (labels[k]) continue;
+    labels[k] = k === "std" ? "Standard" : k === "blitz" ? "Blitz"
+      : (modeDisplayName ? modeDisplayName(g.mode, g.with_joker) : g.mode);
+  }
+  const rest = Object.keys(labels).filter(k => k !== "std" && k !== "blitz").sort();
+  const order = ["std", "blitz", ...rest].filter(k => labels[k] != null);
+  return { keyOf, labelOf: (k) => labels[k] || k, order };
+}
+
+async function loadTournamentLeaderboard(tournamentId, games, tournamentName, modeDisplayName) {
   const body = $("#tournamentLeaderboardBody");
   if (!games.length) { body.innerHTML = `<p class="muted">Pas encore de partie.</p>`; return; }
 
+  // Classement par type de partie pour les tournois « En route vers les ICE ».
+  const byType = /en route|ICE/i.test(tournamentName || "");
+  const cat = makeCategorizer(games, byType, modeDisplayName);
+
   // Trier les parties par catégorie + tri naturel par nom (Partie 2 < Partie 10)
-  const cats = { std: [], blitz: [], orig: [] };
-  for (const g of games) cats[categorize(g)].push(g);
+  const cats = {};
+  for (const k of cat.order) cats[k] = [];
+  for (const g of games) { const k = cat.keyOf(g); (cats[k] = cats[k] || []).push(g); }
   for (const k of Object.keys(cats)) {
     cats[k].sort((a, b) => {
       const cmp = a.name.localeCompare(b.name, "fr", { numeric: true, sensitivity: "base" });
@@ -2109,21 +2140,20 @@ async function loadTournamentLeaderboard(tournamentId, games) {
 
   // Calculer les totaux par catégorie + global
   for (const p of players) {
-    p.byCat = { std: { neg: 0, time: 0, missed: 0, count: 0 },
-                blitz: { neg: 0, time: 0, missed: 0, count: 0 },
-                orig: { neg: 0, time: 0, missed: 0, count: 0 } };
+    p.byCat = {};
+    for (const k of cat.order) p.byCat[k] = { neg: 0, time: 0, missed: 0, count: 0 };
     for (const g of games) {
       const r = p.perGame[g.id];
       if (!r) continue;
-      const c = p.byCat[categorize(g)];
+      const c = p.byCat[cat.keyOf(g)];
+      if (!c) continue;
       c.neg += r.neg; c.time += r.time; c.missed += r.missed; c.count++;
     }
-    p.total = {
-      neg: p.byCat.std.neg + p.byCat.blitz.neg + p.byCat.orig.neg,
-      time: p.byCat.std.time + p.byCat.blitz.time + p.byCat.orig.time,
-      missed: p.byCat.std.missed + p.byCat.blitz.missed + p.byCat.orig.missed,
-      count: p.byCat.std.count + p.byCat.blitz.count + p.byCat.orig.count,
-    };
+    p.total = { neg: 0, time: 0, missed: 0, count: 0 };
+    for (const k of cat.order) {
+      p.total.neg += p.byCat[k].neg; p.total.time += p.byCat[k].time;
+      p.total.missed += p.byCat[k].missed; p.total.count += p.byCat[k].count;
+    }
   }
 
   // Calcul des rangs : par catégorie (par neg DESC car neg ≤ 0) + global
@@ -2155,14 +2185,14 @@ async function loadTournamentLeaderboard(tournamentId, games) {
   const rankTotalTime   = rankAmong(genEligible, p => p.total.time, true);
   const rankTotalMissed = rankAmong(genEligible, p => p.total.missed, true);
   const rankByCat = {};
-  for (const c of ["std", "blitz", "orig"]) {
+  for (const c of cat.order) {
     rankByCat[c] = rankAmong(players.filter(p => completeCat(p, c)), p => p.byCat[c].neg);
   }
 
   const me = +state.currentPlayerId || 0;
   const fmtT = (s) => !s ? "—" : `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
   const rankClass = (r) => r === 1 ? "gold" : r === 2 ? "silver" : r === 3 ? "bronze" : "";
-  const orderedCats = ["std", "blitz", "orig"].filter(c => cats[c].length > 0);
+  const orderedCats = cat.order.filter(c => cats[c] && cats[c].length > 0);
 
   // Contexte pour les modales feuille de route joueur
   const myGameIds = new Set(results.filter(r => r.player_id === me).map(r => r.prepared_game_id));
@@ -2194,7 +2224,7 @@ async function loadTournamentLeaderboard(tournamentId, games) {
           sheetBtn = `<span class="muted" style="font-size:.78rem" title="Joue d'abord cette partie pour voir sa feuille de route">🔒</span>`;
         }
       }
-      html += `<tr><td>${CAT_LABEL[c]}</td><td>${escapeHtml(g.name)}</td><td class="neg">${r ? r.neg : "—"}</td><td>${r ? fmtT(r.time) + mobileIcon : "—"}</td><td>${r ? r.missed : "—"}</td><td style="text-align:right">${sheetBtn}</td></tr>`;
+      html += `<tr><td>${cat.labelOf(c)}</td><td>${escapeHtml(g.name)}</td><td class="neg">${r ? r.neg : "—"}</td><td>${r ? fmtT(r.time) + mobileIcon : "—"}</td><td>${r ? r.missed : "—"}</td><td style="text-align:right">${sheetBtn}</td></tr>`;
     });
     html += `</tbody></table></div>`;
     return html;
@@ -2235,7 +2265,7 @@ async function loadTournamentLeaderboard(tournamentId, games) {
   // ===== En-têtes triables (data-sort) =====
   const th = (key, label, extra = "") => `<th data-sort="${key}" style="cursor:pointer"${extra}>${label}<span class="lb-arrow"></span></th>`;
   let genHeader = `<thead><tr>${th("rank", "#")}${th("name", "Joueur")}`;
-  for (const c of orderedCats) genHeader += th("cat_" + c, `${CAT_LABEL[c]}<br><small style="font-weight:400;text-transform:none">${cats[c].length} partie${cats[c].length > 1 ? 's' : ''}</small>`);
+  for (const c of orderedCats) genHeader += th("cat_" + c, `${cat.labelOf(c)}<br><small style="font-weight:400;text-transform:none">${cats[c].length} partie${cats[c].length > 1 ? 's' : ''}</small>`);
   genHeader += `${th("sumNeg", "∑ Nég.")}${th("sumTime", "∑ Temps")}${th("sumMiss", "∑ Loupés")}${th("rankT", "R-T", ' title="Rang temps"')}${th("rankL", "R-L", ' title="Rang loupés"')}</tr></thead>`;
   const catHeader = `<thead><tr>${th("rank", "#")}${th("name", "Joueur")}${th("catNeg", "∑ Négatif")}${th("catTime", "∑ Temps")}</tr></thead>`;
 
@@ -2258,16 +2288,17 @@ async function loadTournamentLeaderboard(tournamentId, games) {
   });
 
   // ===== Panneaux =====
-  const catMeta = { std: "Parties standard", blitz: "Parties blitz", orig: "Parties originales" };
+  const catMetaStd = { std: "Parties standard", blitz: "Parties blitz", orig: "Parties originales" };
+  const catMeta = (c) => byType ? cat.labelOf(c) : (catMetaStd[c] || cat.labelOf(c));
   const panels = [{
     k: "gen", label: "Classement général", header: genHeader, rowFn: genRowFn, cols: genCols,
     list: displayList(rankTotalNeg, genEligible), colspan: 5 + orderedCats.length,
     empty: "Aucun joueur n'a encore terminé toutes les parties.",
   }];
-  for (const c of ["std", "blitz", "orig"]) {
-    if (!cats[c].length) continue;
+  for (const c of cat.order) {
+    if (!cats[c] || !cats[c].length) continue;
     panels.push({
-      k: c, label: catMeta[c], header: catHeader, rowFn: catRowFn(c), cols: catCols(c),
+      k: c, label: catMeta(c), header: catHeader, rowFn: catRowFn(c), cols: catCols(c),
       list: displayList(rankByCat[c], players.filter(pp => completeCat(pp, c))), colspan: 4,
       empty: "Aucun joueur n'a encore terminé ce bloc.",
     });
@@ -2525,7 +2556,7 @@ async function loadTournamentStats(tournamentId, games) {
   // On détermine « le top est un scrabble » en REjouant le plateau coup par coup
   // (nombre de NOUVELLES tuiles posées par le top == clé de prime du mode), ce qui
   // est fiable même sur d'anciennes parties (le hadBonus stocké est non fiable).
-  const { emptyBoard, applyMove, GAME_MODES } = await import("./scrabble/engine.js?v=273");
+  const { emptyBoard, applyMove, GAME_MODES } = await import("./scrabble/engine.js?v=274");
   const gameById = {};
   for (const g of games) gameById[g.id] = g;
   const bonusesOf = (gid) => (GAME_MODES[gameById[gid]?.mode] || GAME_MODES.duplicate).bonuses || { 7: 50 };
@@ -2640,6 +2671,15 @@ const PG_SUPER_OPTIONS = `
 // Les superoriginales ne sont proposées qu'au pseudo stof.
 function pgModeOptions() { return PG_STD_OPTIONS + (isStof() ? PG_SUPER_OPTIONS : ""); }
 const PG_STD_MODES = ["duplicate", "blitz", "7sur8", "7et8", "789"];   // modes où le joker est optionnel
+// Temps par défaut (s/coup) par mode — doit refléter GAME_MODES[mode].defaultTime
+// d'engine.js. Sert à préremplir le champ « temps » du générateur (le générateur
+// relit GAME_MODES, mais l'UI a besoin d'une valeur immédiate, sans import async).
+const PG_DEFAULT_TIME = {
+  duplicate: 120, blitz: 60, "7sur8": 120, "7et8": 120, "789": 120,
+  "6lettres": 120, hyperblitz: 30, "7sur15": 240, jokerpayant: 120,
+  horizvert: 120, topsoustop: 180, infjoker: 120, grillerandom: 120,
+};
+const pgDefaultTime = (mode) => PG_DEFAULT_TIME[mode] ?? 120;
 
 function pgAddRecipeLine() {
   const cont = $("#pgRecipe");
@@ -2650,9 +2690,18 @@ function pgAddRecipeLine() {
   row.innerHTML = `
     <select class="pg-line-mode" style="flex:1 1 200px">${pgModeOptions()}</select>
     <label style="display:inline-flex;align-items:center;gap:4px;font-size:.85rem"><input type="checkbox" class="pg-line-joker"> Joker</label>
+    <label style="display:inline-flex;align-items:center;gap:4px;font-size:.85rem">⏱<input type="number" class="pg-line-time" min="5" max="600" step="5" value="120" style="width:78px" title="Temps par coup (secondes)"> s</label>
     <span class="muted">×</span>
     <input type="number" class="pg-line-qty" min="1" max="50" value="1" style="width:64px">
     <button class="btn ghost small pg-line-del" title="Retirer cette formule">✖</button>`;
+  const modeSel = row.querySelector(".pg-line-mode");
+  const timeInput = row.querySelector(".pg-line-time");
+  // Le temps suit le défaut du mode tant que l'utilisateur ne l'a pas modifié à la main.
+  let timeTouched = false;
+  timeInput.addEventListener("input", () => { timeTouched = true; });
+  const applyDefaultTime = () => { if (!timeTouched) timeInput.value = pgDefaultTime(modeSel.value); };
+  modeSel.addEventListener("change", applyDefaultTime);
+  applyDefaultTime();
   row.querySelector(".pg-line-del").onclick = () => {
     row.remove();
     if (!cont.children.length) pgAddRecipeLine();   // garder au moins une ligne
@@ -2679,7 +2728,8 @@ $("#pgCreate").onclick = async () => {
       const mode = row.querySelector(".pg-line-mode").value;
       const joker = row.querySelector(".pg-line-joker").checked && PG_STD_MODES.includes(mode);
       const qty = Math.max(1, Math.min(50, +row.querySelector(".pg-line-qty").value || 1));
-      recipe.push({ mode, joker, qty });
+      const time = Math.max(5, Math.min(600, +row.querySelector(".pg-line-time").value || pgDefaultTime(mode)));
+      recipe.push({ mode, joker, qty, time });
     }
     if (!recipe.length) return alert("Ajoute au moins une formule.");
     const total = recipe.reduce((a, r) => a + r.qty, 0);
@@ -2688,9 +2738,9 @@ $("#pgCreate").onclick = async () => {
     let mods;
     try {
       mods = await Promise.all([
-        import("./scrabble/dictionary.js?v=273"),
-        import("./scrabble/generator.js?v=273"),
-        import("./scrabble/engine.js?v=273"),
+        import("./scrabble/dictionary.js?v=274"),
+        import("./scrabble/generator.js?v=274"),
+        import("./scrabble/engine.js?v=274"),
       ]);
     } catch (e) {
       $("#pgStatus").innerHTML = `<span style="color:#a02525">Échec de chargement des modules : ${escapeHtml(e.message)}</span>`;
@@ -2711,8 +2761,8 @@ $("#pgCreate").onclick = async () => {
     }, 0);
 
     let done = 0, created = 0;
-    for (const { mode, joker, qty } of recipe) {
-      const timePerMove = GAME_MODES[mode]?.defaultTime ?? 120;
+    for (const { mode, joker, qty, time } of recipe) {
+      const timePerMove = time || GAME_MODES[mode]?.defaultTime || 120;
       for (let k = 0; k < qty; k++) {
         const name = `Partie ${next++}`;
         $("#pgStatus").innerHTML = `⏳ Génération ${done + 1}/${total} (${escapeHtml(name)})… <span id='pgPct'>0%</span>`;
@@ -2756,7 +2806,7 @@ window.recomputeAllNeg = async function(force = false) {
 
   let recomputeResult;
   try {
-    ({ recomputeResult } = await import("./scrabble/recompute.js?v=273"));
+    ({ recomputeResult } = await import("./scrabble/recompute.js?v=274"));
   } catch (e) {
     statusEl.textContent = "❌ Impossible de charger recompute.js : " + e.message;
     return;
@@ -2950,7 +3000,7 @@ window.recomputeAllJokerNeg = async function() {
 
   let recomputeResult;
   try {
-    ({ recomputeResult } = await import("./scrabble/recompute.js?v=273"));
+    ({ recomputeResult } = await import("./scrabble/recompute.js?v=274"));
   } catch (e) {
     statusEl.textContent = "❌ Impossible de charger recompute.js : " + e.message;
     return;
