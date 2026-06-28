@@ -10,8 +10,8 @@
 import {
   emptyBoard, LETTER_BAG, drawForDuplicate, applyMove,
   bagTotalVowels, bagTotalConsonants, GAME_MODES, randomBoardLayout,
-} from "./engine.js?v=259";
-import { findTopRanked, findTop } from "./topfinder.js?v=259";
+} from "./engine.js?v=260";
+import { findTopRanked, findTop } from "./topfinder.js?v=260";
 
 /**
  * Génère une partie complète.
@@ -55,9 +55,10 @@ export function generateGame(dict, options = {}, onProgress = null) {
     // Double joker infini : la partie s'arrête quand il n'y a plus AUCUNE lettre
     // réelle (ni dans le sac, ni dans le chevalet) — tout a été posé sur la grille.
     if (infJoker) {
+      // Fin quand on ne peut plus constituer un tirage de 7 (= 5 réelles + 2 jokers).
       const _bagReal = bagTotalVowels(bag) + bagTotalConsonants(bag);
       const _rackReal = rack.filter(t => t.letter !== "?").length;
-      if (_bagReal === 0 && _rackReal === 0) break;
+      if (_bagReal + _rackReal < 5) break;
     }
     // Fin de partie : voyelles OU consonnes épuisées DANS LE POOL TOTAL
     // (chevalet conservé + sac restant). Sinon la partie continue.

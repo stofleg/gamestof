@@ -1442,3 +1442,14 @@ body:not(.ffsc-review) .review-pick { display: none !important; }
 
 /* (Plus de tailles fixes : --cell-size gère le responsive sur tous les modes,
    y compris PWA standalone et mobile.) */
+
+/* ---- Panneau « changement de sens » (mode Horizontal/Vertical) ---- */
+#dirFlash {
+  position: fixed; inset: 0; z-index: 3000; display: none;
+  align-items: center; justify-content: center; pointer-events: none;
+  background: rgba(192, 40, 40, .55);
+  color: #fff; font-weight: 800; text-align: center;
+  font-size: clamp(1.6rem, 9vw, 3.6rem); text-shadow: 0 2px 10px rgba(0,0,0,.55);
+}
+#dirFlash.show { display: flex; animation: dirBlink .16s steps(1) 3; }
+@keyframes dirBlink { 0% { opacity: 1; } 50% { opacity: .15; } 100% { opacity: 1; } }

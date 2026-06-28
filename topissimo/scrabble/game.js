@@ -27,9 +27,9 @@ import {
   emptyBoard, BOARD_BONUSES, BOARD_SIZE, CENTER, LETTER_VALUE, LETTER_BAG,
   VOWELS, drawForDuplicate, scoreMove, applyMove,
   bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName, randomBoardLayout,
-} from "./engine.js?v=259";
-import { Dictionary } from "./dictionary.js?v=259";
-import { findTop, findTopRanked } from "./topfinder.js?v=259";
+} from "./engine.js?v=260";
+import { Dictionary } from "./dictionary.js?v=260";
+import { findTop, findTopRanked } from "./topfinder.js?v=260";
 
 // État du mode review (parcours coup par coup)
 const review = {
@@ -59,7 +59,7 @@ const FFSC_REVIEW = URL_PARAMS.get("ffscreview");  // revoir une partie FFSC imp
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v259";
+const BUILD_VERSION = "garenna-v260";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -336,7 +336,8 @@ function renderBoard() {
     if (showCoords) html += `<td class="coord">${ROW_LETTERS[r]}</td>`;
     for (let c = 0; c < BOARD_SIZE; c++) {
       const bonus = (state.boardLayout || BOARD_BONUSES)[r][c];
-      const cls = [bonusClass(bonus)];
+      // L'étoile centrale est toujours affichée (y compris en grille random).
+      const cls = [(r === CENTER && c === CENTER) ? "center" : bonusClass(bonus)];
       const tile = cellTile(r, c);
       if (tile) cls.push("has-tile");
       const isCursor = state.cursor && state.cursor.row === r && state.cursor.col === c;
@@ -1590,6 +1591,19 @@ function cancelCurrent() {
   // Le feedback reste inchangé : on conserve l'état jusqu'à la prochaine validation.
 }
 
+// Gros panneau « changement de sens » clignotant ~0,5 s (mode Horizontal/Vertical).
+function flashDirectionWarning() {
+  let el = document.getElementById("dirFlash");
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "dirFlash";
+    el.innerHTML = "↻ Changement de sens !";
+    document.body.appendChild(el);
+  }
+  el.classList.remove("show"); void el.offsetWidth; el.classList.add("show");
+  clearTimeout(el._t); el._t = setTimeout(() => el.classList.remove("show"), 600);
+}
+
 let flashTimer = null;
 let topWordTimer = null;   // efface la surbrillance bleue du mot top après 3s
 function flashFeedback(kind, title, detail) {
@@ -1674,6 +1688,18 @@ function validate() {
     return;
   }
   const mode = currentMode();
+  // Mode Horizontal/Vertical : un mot validé dans le MAUVAIS sens compte 0
+  // (gros panneau « changement de sens » clignotant pour alerter le joueur).
+  if (mode.alternateDir) {
+    const forcedDir = state.moveNo % 2 === 1 ? "H" : "V";
+    if (move.dir !== forcedDir) {
+      flashDirectionWarning();
+      clearPending(); state.cursor = null; renderBoard(); renderRack();
+      showFeedback("miss", "↻ Mauvais sens — ce coup compte 0",
+        `Sens imposé ce coup : ${forcedDir === "H" ? "horizontal ↔" : "vertical ↕"}`);
+      return;
+    }
+  }
   const topMv = state.topMove?.move;
   // Exception 1er coup : on accepte tout mot du top OU isotop (même score que le top),
   // peu importe la position de placement.
@@ -2240,7 +2266,8 @@ function nextMove() {
     const bagReal = bagTotalVowels(state.bag) + bagTotalConsonants(state.bag);
     state.rack = state.rack.filter(t => t.letter !== "?");
     const rackReal = state.rack.length;
-    if (bagReal === 0 && rackReal === 0) { endGame(); return; }
+    // Fin quand on ne peut plus constituer un tirage de 7 (= 5 réelles + 2 jokers).
+    if (bagReal + rackReal < 5) { endGame(); return; }
     const needReal = Math.max(0, 5 - rackReal);
     const pool = [];
     for (const [l, n] of Object.entries(state.bag)) { if (l === "?") continue; for (let k = 0; k < n; k++) pool.push(l); }
@@ -4114,12 +4141,24 @@ window.openSheet = () => {
     const statusIcon = { top: "🏆", giveup: "🏳️", timeout: "⏱" }[h.status] || "";
     const statusLabel = { top: "top", giveup: "abandon", timeout: "temps écoulé" }[h.status] || h.status;
     const coord = pos => `<span style="font-size:.75em;color:#888;vertical-align:.1em">${pos}</span>`;
-    const topCell = h.top
-      ? `<strong>${wLink(h.top.word)}</strong> ${coord(h.top.pos)} ${h.top.score} pts`
-      : "—";
-    const playedCell = h.played
-      ? `<strong>${wLink(h.played)}</strong>${h.playedPos ? " " + coord(h.playedPos) : ""} ${h.playerScore} pts`
-      : `<em>—</em>`;
+    let topCell, playedCell;
+    if (h.subTop || h.dual) {
+      // Top/sous-top : on affiche le top ET le sous-top (officiels), et en face le
+      // top et le sous-top trouvés par le joueur.
+      const d = h.dual || {};
+      topCell = h.top ? `<strong>${wLink(h.top.word)}</strong> ${coord(h.top.pos)} ${h.top.score}` : "—";
+      if (h.subTop) topCell += `<br><span class="muted">ss-top ${wLink(h.subTop.word)} ${coord(h.subTop.pos)} ${h.subTop.score}</span>`;
+      const tw = d.topWord ? `<strong>${wLink(d.topWord)}</strong> ${d.topPts || 0}` : "<em>—</em>";
+      playedCell = tw;
+      if (h.subTop) playedCell += `<br><span class="muted">${d.subWord ? `${wLink(d.subWord)} ${d.subPts || 0}` : "—"}</span>`;
+    } else {
+      topCell = h.top
+        ? `<strong>${wLink(h.top.word)}</strong> ${coord(h.top.pos)} ${h.top.score} pts`
+        : "—";
+      playedCell = h.played
+        ? `<strong>${wLink(h.played)}</strong>${h.playedPos ? " " + coord(h.playedPos) : ""} ${h.playerScore} pts`
+        : `<em>—</em>`;
+    }
     const onclick = clickable ? `onclick="jumpToReviewMove(${h.moveNo})" style="cursor:pointer"` : "";
     return `<tr class="${rowClass}" ${onclick}>
       <td>${h.moveNo}</td>
