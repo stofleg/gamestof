@@ -60,6 +60,9 @@ export const GAME_MODES = {
   // Grille random : disposition des bonus mélangée (générée et stockée par partie).
   grillerandom: { label: "Grille random", rackSize: 7, maxPlayed: 7, bonuses: { 7: 50 },
     defaultTime: 120, adminOnly: true, randomBoard: true },
+  // Snake : chaque coup doit prolonger le serpent (cases occupées = chemin simple).
+  snake: { label: "Snake", rackSize: 7, maxPlayed: 7, bonuses: { 7: 50 },
+    defaultTime: 120, adminOnly: true, snake: true },
 };
 // Nom affiché en combinant mode + joker
 export function modeDisplayName(modeKey, withJoker) {
@@ -109,6 +112,49 @@ export function emptyBoard() {
 // pour simplifier on regarde juste si board[r][c] est null.
 export function cellBonus(r, c) {
   return BOARD_BONUSES[r][c];
+}
+
+// Mode « Snake » : les cases occupées doivent former un CHEMIN SIMPLE (serpent).
+// Vrai si l'ensemble des cases occupées est un chemin : chaque case a ≤ 2 voisines
+// orthogonales, exactement 2 extrémités (degré 1), c'est connexe et sans boucle.
+export function isSimplePath(board) {
+  const N = BOARD_SIZE;
+  const occ = [];
+  for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) if (board[r][c]) occ.push([r, c]);
+  if (occ.length <= 1) return true;
+  const key = (r, c) => r * N + c;
+  let deg1 = 0;
+  for (const [r, c] of occ) {
+    let d = 0;
+    for (const [dr, dc] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const nr = r + dr, nc = c + dc;
+      if (nr >= 0 && nr < N && nc >= 0 && nc < N && board[nr][nc]) d++;
+    }
+    if (d > 2) return false;       // branche → pas un chemin
+    if (d === 0) return false;     // case isolée (≥2 occupées) → pas connexe
+    if (d === 1) deg1++;
+  }
+  if (deg1 !== 2) return false;    // un chemin a exactement 2 extrémités (sinon boucle)
+  // Connexité : BFS depuis une extrémité.
+  const isEnd = ([r, c]) => {
+    let d = 0;
+    for (const [dr, dc] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const nr = r + dr, nc = c + dc;
+      if (nr >= 0 && nr < N && nc >= 0 && nc < N && board[nr][nc]) d++;
+    }
+    return d === 1;
+  };
+  const start = occ.find(isEnd);
+  const seen = new Set([key(start[0], start[1])]);
+  const stack = [start];
+  while (stack.length) {
+    const [r, c] = stack.pop();
+    for (const [dr, dc] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const nr = r + dr, nc = c + dc, k = key(nr, nc);
+      if (nr >= 0 && nr < N && nc >= 0 && nc < N && board[nr][nc] && !seen.has(k)) { seen.add(k); stack.push([nr, nc]); }
+    }
+  }
+  return seen.size === occ.length;
 }
 
 // Génère une grille de bonus ALÉATOIRE pour le mode « Grille random » :

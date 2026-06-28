@@ -12,7 +12,18 @@
 //     aussi les mots croisés) et on garde le maximum.
 // ============================================================
 
-import { BOARD_SIZE, CENTER, scoreMove, applyMove, LETTER_VALUE, VOWELS } from "./engine.js?v=262";
+import { BOARD_SIZE, CENTER, scoreMove, applyMove, LETTER_VALUE, VOWELS, isSimplePath } from "./engine.js?v=263";
+
+// Mode Snake : meilleur coup (score max) qui PROLONGE le serpent — c.-à-d. dont
+// l'application laisse les cases occupées en chemin simple. findTop renvoie les
+// candidats triés par score décroissant : le 1er légal est donc le top.
+export function snakeBestTop(board, rack, dict, opts = {}) {
+  const all = findTop(board, rack, dict, { all: true, ...opts }) || [];
+  for (const c of all) {
+    if (isSimplePath(applyMove(board, c.move))) return c;
+  }
+  return null;
+}
 
 // ============================================================
 //  Top finder avec départage des isotops (mêmes scores)

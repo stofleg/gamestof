@@ -26,10 +26,10 @@
 import {
   emptyBoard, BOARD_BONUSES, BOARD_SIZE, CENTER, LETTER_VALUE, LETTER_BAG,
   VOWELS, drawForDuplicate, scoreMove, applyMove,
-  bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName, randomBoardLayout,
-} from "./engine.js?v=262";
-import { Dictionary } from "./dictionary.js?v=262";
-import { findTop, findTopRanked } from "./topfinder.js?v=262";
+  bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName, randomBoardLayout, isSimplePath,
+} from "./engine.js?v=263";
+import { Dictionary } from "./dictionary.js?v=263";
+import { findTop, findTopRanked, snakeBestTop } from "./topfinder.js?v=263";
 
 // État du mode review (parcours coup par coup)
 const review = {
@@ -59,7 +59,7 @@ const FFSC_REVIEW = URL_PARAMS.get("ffscreview");  // revoir une partie FFSC imp
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v262";
+const BUILD_VERSION = "garenna-v263";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -1747,6 +1747,11 @@ function validate() {
     showTransientError(`Trop de lettres posées (max ${mode.maxPlayed})`, `Le mode ${mode.label} limite à ${mode.maxPlayed} lettres jouées par coup.`);
     return;
   }
+  // Mode Snake : le coup doit prolonger le serpent (chemin simple), sinon « non accepté ».
+  if (mode.snake && !isSimplePath(applyMove(state.board, move))) {
+    flashInvalidWord("Ce coup ne continue pas le serpent 🐍 — non accepté", result.placed || []);
+    return;
+  }
   // Mode Top/sous-top : on cherche le top ET le sous-top (gestion dédiée).
   if (mode.dualTop) { handleDualValidate(move, result); return; }
   // Comparer au top
@@ -2411,6 +2416,13 @@ function computeTop() {
   const forceDir = mode.alternateDir ? (state.moveNo % 2 === 1 ? "H" : "V") : undefined;
   const jokerPays = !!mode.jokerPays;
   const layout = state.boardLayout;
+  if (mode.snake) {
+    // Snake : le top est le meilleur coup qui prolonge le serpent.
+    state.topMove = snakeBestTop(state.board, rackLetters, state.dict, {
+      maxTilesUsed: mode.maxPlayed, bonuses: mode.bonuses, layout,
+    });
+    return true;
+  }
   state.topMove = findTopRanked(state.board, rackLetters, state.dict, state.bag, {
     maxTilesUsed: mode.maxPlayed,
     bonuses: mode.bonuses,

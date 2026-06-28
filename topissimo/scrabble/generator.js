@@ -10,8 +10,8 @@
 import {
   emptyBoard, LETTER_BAG, drawForDuplicate, applyMove,
   bagTotalVowels, bagTotalConsonants, GAME_MODES, randomBoardLayout,
-} from "./engine.js?v=262";
-import { findTopRanked, findTop } from "./topfinder.js?v=262";
+} from "./engine.js?v=263";
+import { findTopRanked, findTop, snakeBestTop } from "./topfinder.js?v=263";
 
 const VOWELS_GEN = new Set(["A", "E", "I", "O", "U", "Y"]);
 
@@ -130,14 +130,16 @@ export function generateGame(dict, options = {}, onProgress = null) {
       freshRack = !!result.fresh;
       if (rack.length === 0) { endNow = true; break; }
       rackLetters = rack.map(t => t.letter);
-      top = findTopRanked(board, rackLetters, dict, bag, {
-        maxTilesUsed: mode.maxPlayed,
-        bonuses: mode.bonuses,
-        preserveJoker: withJoker && spareJokers > 0,
-        jokerPays,
-        forceDir,
-        layout,
-      });
+      top = mode.snake
+        ? snakeBestTop(board, rackLetters, dict, { maxTilesUsed: mode.maxPlayed, bonuses: mode.bonuses, layout })
+        : findTopRanked(board, rackLetters, dict, bag, {
+            maxTilesUsed: mode.maxPlayed,
+            bonuses: mode.bonuses,
+            preserveJoker: withJoker && spareJokers > 0,
+            jokerPays,
+            forceDir,
+            layout,
+          });
       if (top || !alternateDir) break;
       // Rejet H/V : on restaure l'état AVANT pioche et on retente un tirage neuf.
       bag = { ...bagSnap };
