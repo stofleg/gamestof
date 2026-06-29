@@ -27,9 +27,9 @@ import {
   emptyBoard, BOARD_BONUSES, BOARD_SIZE, CENTER, LETTER_VALUE, LETTER_BAG,
   VOWELS, drawForDuplicate, scoreMove, applyMove,
   bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName, randomBoardLayout, snakeEndpointsAfter,
-} from "./engine.js?v=276";
-import { Dictionary } from "./dictionary.js?v=276";
-import { findTop, findTopRanked, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=276";
+} from "./engine.js?v=277";
+import { Dictionary } from "./dictionary.js?v=277";
+import { findTop, findTopRanked, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=277";
 
 // État du mode review (parcours coup par coup)
 const review = {
@@ -59,7 +59,7 @@ const FFSC_REVIEW = URL_PARAMS.get("ffscreview");  // revoir une partie FFSC imp
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v276";
+const BUILD_VERSION = "garenna-v277";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -2712,6 +2712,46 @@ async function initGame() {
   applyColorTheme();
   updateTournamentNavButtons();
   renderGameTitle();
+  // ⚠️ ORDRE CRITIQUE : on charge la partie pré-tirée AVANT le dictionnaire.
+  // Le bouton « Démarrer » est cliquable dès maintenant (actionRowPreStart est
+  // visible) ; or le chargement du dictionnaire ci-dessous est long (~1 s au
+  // 1er chargement). Si on chargeait la partie APRÈS le dico, un clic pendant
+  // cette attente verrait state.prepared encore null → nextMove() tomberait
+  // dans le tirage ALÉATOIRE de l'entraînement → « 1er tirage erroné ».
+  // En chargeant ici, state.prepared est garanti prêt avant tout démarrage.
+  let _freshlyLoaded = false;
+  if (PREPARED_ID && String(state.prepared?.id) !== String(PREPARED_ID)) {
+    showFeedback("", "Chargement de la partie…", "");
+    try {
+      await loadPreparedGame(PREPARED_ID);
+      _freshlyLoaded = true;
+    } catch (e) {
+      showFeedback("error", "Impossible de charger la partie", e.message);
+      return;
+    }
+    // Vérification préalable silencieuse : s'assurer que le premier coup est cohérent
+    // avant d'afficher quoi que ce soit au joueur.
+    const verifyErr = verifyPreparedGame(state.prepared);
+    if (verifyErr) {
+      showFeedback("error", "Données de partie invalides", verifyErr);
+      console.error("[verifyPreparedGame]", verifyErr, state.prepared);
+      return;
+    }
+  }
+  // Auto-réparation « 1er tirage erroné » EN BACKSTAGE : si l'état pré-tiré
+  // provient de la mémoire (loadPreparedGame n'a PAS été rejoué car l'id était
+  // déjà en place — cas de réentrée/cache où les données peuvent être périmées),
+  // on compare le tirage du 1er coup en mémoire à celui réellement stocké en
+  // base. En cas de divergence, on recharge silencieusement la page : la
+  // nouvelle lecture repart de la base, le bon tirage s'affiche, et on revérifie.
+  // Le joueur ne voit qu'un bref écran de chargement, jamais le mauvais tirage.
+  if (PREPARED_ID && !_freshlyLoaded) {
+    const ok = await healFirstTirage(PREPARED_ID);
+    if (!ok) return;   // un rechargement est en cours
+  } else if (PREPARED_ID) {
+    // Chargement neuf et cohérent : on purge le compteur de tentatives.
+    try { sessionStorage.removeItem(`pgHeal_${PREPARED_ID}`); } catch {}
+  }
   if (!state.dict) {
     // (Pas de feedback "Chargement du dictionnaire" — UX silencieuse)
     state.dict = await new Dictionary().load("ods9.txt");
@@ -2758,40 +2798,8 @@ async function initGame() {
     }
     return;
   }
-  // Charger une partie pré-tirée si demandée via URL
-  let _freshlyLoaded = false;
-  if (PREPARED_ID && String(state.prepared?.id) !== String(PREPARED_ID)) {
-    showFeedback("", "Chargement de la partie…", "");
-    try {
-      await loadPreparedGame(PREPARED_ID);
-      _freshlyLoaded = true;
-    } catch (e) {
-      showFeedback("error", "Impossible de charger la partie", e.message);
-      return;
-    }
-    // Vérification préalable silencieuse : s'assurer que le premier coup est cohérent
-    // avant d'afficher quoi que ce soit au joueur.
-    const verifyErr = verifyPreparedGame(state.prepared);
-    if (verifyErr) {
-      showFeedback("error", "Données de partie invalides", verifyErr);
-      console.error("[verifyPreparedGame]", verifyErr, state.prepared);
-      return;
-    }
-  }
-  // Auto-réparation « 1er tirage erroné » EN BACKSTAGE : si l'état pré-tiré
-  // provient de la mémoire (loadPreparedGame n'a PAS été rejoué car l'id était
-  // déjà en place — cas de réentrée/cache où les données peuvent être périmées),
-  // on compare le tirage du 1er coup en mémoire à celui réellement stocké en
-  // base. En cas de divergence, on recharge silencieusement la page : la
-  // nouvelle lecture repart de la base, le bon tirage s'affiche, et on revérifie.
-  // Le joueur ne voit qu'un bref écran de chargement, jamais le mauvais tirage.
-  if (PREPARED_ID && !_freshlyLoaded) {
-    const ok = await healFirstTirage(PREPARED_ID);
-    if (!ok) return;   // un rechargement est en cours
-  } else if (PREPARED_ID) {
-    // Chargement neuf et cohérent : on purge le compteur de tentatives.
-    try { sessionStorage.removeItem(`pgHeal_${PREPARED_ID}`); } catch {}
-  }
+  // (Le chargement de la partie pré-tirée a déjà été fait plus haut, AVANT le
+  // dictionnaire — voir « ORDRE CRITIQUE ».)
   // Si aucune URL spéciale, et qu'on a un entraînement en pause sauvegardé → restaurer
   if (!PREPARED_ID && !TRAINING_ID && !PUZZLE_GAME_ID && !REVIEW_ID) {
     if (restorePausedTraining()) return;
@@ -3776,6 +3784,13 @@ async function loadSupabaseClient() {
 }
 
 function startGame() {
+  // Filet de sécurité anti « 1er tirage erroné » : en mode tournoi, ne JAMAIS
+  // démarrer tant que la partie pré-tirée n'est pas chargée. Sinon nextMove()
+  // tomberait dans le tirage aléatoire de l'entraînement (state.prepared null).
+  if (PREPARED_ID && !state.prepared) {
+    showFeedback("", "Chargement de la partie…", "Un instant, la partie se prépare.");
+    return;
+  }
   state.started = true;
   state.bestAttempt = null;
   diagLog("game_started", {
