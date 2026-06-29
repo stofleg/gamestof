@@ -27,9 +27,9 @@ import {
   emptyBoard, BOARD_BONUSES, BOARD_SIZE, CENTER, LETTER_VALUE, LETTER_BAG,
   VOWELS, drawForDuplicate, scoreMove, applyMove,
   bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName, randomBoardLayout, snakeEndpointsAfter,
-} from "./engine.js?v=274";
-import { Dictionary } from "./dictionary.js?v=274";
-import { findTop, findTopRanked, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=274";
+} from "./engine.js?v=275";
+import { Dictionary } from "./dictionary.js?v=275";
+import { findTop, findTopRanked, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=275";
 
 // État du mode review (parcours coup par coup)
 const review = {
@@ -59,7 +59,7 @@ const FFSC_REVIEW = URL_PARAMS.get("ffscreview");  // revoir une partie FFSC imp
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v274";
+const BUILD_VERSION = "garenna-v275";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -2759,10 +2759,12 @@ async function initGame() {
     return;
   }
   // Charger une partie pré-tirée si demandée via URL
+  let _freshlyLoaded = false;
   if (PREPARED_ID && String(state.prepared?.id) !== String(PREPARED_ID)) {
     showFeedback("", "Chargement de la partie…", "");
     try {
       await loadPreparedGame(PREPARED_ID);
+      _freshlyLoaded = true;
     } catch (e) {
       showFeedback("error", "Impossible de charger la partie", e.message);
       return;
@@ -2775,6 +2777,20 @@ async function initGame() {
       console.error("[verifyPreparedGame]", verifyErr, state.prepared);
       return;
     }
+  }
+  // Auto-réparation « 1er tirage erroné » EN BACKSTAGE : si l'état pré-tiré
+  // provient de la mémoire (loadPreparedGame n'a PAS été rejoué car l'id était
+  // déjà en place — cas de réentrée/cache où les données peuvent être périmées),
+  // on compare le tirage du 1er coup en mémoire à celui réellement stocké en
+  // base. En cas de divergence, on recharge silencieusement la page : la
+  // nouvelle lecture repart de la base, le bon tirage s'affiche, et on revérifie.
+  // Le joueur ne voit qu'un bref écran de chargement, jamais le mauvais tirage.
+  if (PREPARED_ID && !_freshlyLoaded) {
+    const ok = await healFirstTirage(PREPARED_ID);
+    if (!ok) return;   // un rechargement est en cours
+  } else if (PREPARED_ID) {
+    // Chargement neuf et cohérent : on purge le compteur de tentatives.
+    try { sessionStorage.removeItem(`pgHeal_${PREPARED_ID}`); } catch {}
   }
   // Si aucune URL spéciale, et qu'on a un entraînement en pause sauvegardé → restaurer
   if (!PREPARED_ID && !TRAINING_ID && !PUZZLE_GAME_ID && !REVIEW_ID) {
@@ -3594,6 +3610,43 @@ document.addEventListener("keydown", (e) => {
 // remplace le tirage corrompu par sa version correcte (avec le joker restitué).
 // Retourne null si tout est bon, sinon un message d'erreur bloquante
 // (uniquement si la donnée est irrécupérable).
+// Vérification BACKSTAGE du 1er tirage : compare le tirage du 1er coup gardé en
+// mémoire (state.prepared) à celui réellement stocké en base. S'ils divergent,
+// l'état mémoire est périmé → on recharge silencieusement la page (cap de 3
+// tentatives pour éviter toute boucle). Renvoie true si on peut continuer,
+// false si un rechargement vient d'être déclenché.
+async function healFirstTirage(id) {
+  const key = `pgHeal_${id}`;
+  try {
+    if (!window._sb) await loadSupabaseClient();
+    const { data, error } = await window._sb
+      .from("prepared_games").select("moves").eq("id", id).single();
+    if (error || !data || !Array.isArray(data.moves) || !data.moves.length) return true;
+    const dbRack  = data.moves[0]?.rack || "";
+    const memRack = state.prepared?.moves?.[0]?.rack || "";
+    if (dbRack && memRack && dbRack !== memRack) {
+      const attempts = +(sessionStorage.getItem(key) || 0);
+      diagLog("FIRST_TIRAGE_HEAL", { id, dbRack, memRack, attempts });
+      console.warn(`[healFirstTirage] tirage périmé en mémoire "${memRack}" ≠ base "${dbRack}" — rechargement (tentative ${attempts + 1}).`);
+      if (attempts < 3) {
+        showFeedback("", "Chargement de la partie…", "");
+        try { sessionStorage.setItem(key, String(attempts + 1)); } catch {}
+        location.reload();
+        return false;
+      }
+      // Divergence persistante après 3 essais : on réaligne en mémoire sur la
+      // base et on continue (mieux vaut le bon tirage qu'une boucle de reload).
+      console.error("[healFirstTirage] divergence persistante — réalignement forcé sur la base.");
+      if (state.prepared) state.prepared.moves = data.moves;
+    }
+    try { sessionStorage.removeItem(key); } catch {}
+    return true;
+  } catch (e) {
+    console.error("[healFirstTirage]", e);
+    return true;   // ne jamais bloquer le joueur si la vérification échoue
+  }
+}
+
 function verifyPreparedGame(prepared) {
   if (!prepared) return "Partie non chargée.";
   const moves = prepared.moves;
