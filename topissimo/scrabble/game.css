@@ -508,8 +508,8 @@ body.theme-duplijeu .board tr:last-child td.coord { height: calc(var(--cell-size
   display: flex;
   align-items: center;
   justify-content: center;
-  min-width: 1.35em;
-  height: 1.25em;
+  min-width: 1.485em;   /* 1.35 + 10 % */
+  height: 1.375em;      /* 1.25 + 10 % */
   padding: 0 3px;
   background: #fff;
   border: 1.5px solid var(--petrol);
@@ -517,7 +517,7 @@ body.theme-duplijeu .board tr:last-child td.coord { height: calc(var(--cell-size
   color: var(--petrol);
   font-family: 'Inter', sans-serif;
   font-weight: 700;
-  font-size: calc(var(--cell-size) * 0.26);
+  font-size: calc(var(--cell-size) * 0.286);   /* 0.26 + 10 % */
   line-height: 1;
   z-index: 70;   /* au-dessus du cadre du top (.top-frame : z-index 60) */
   pointer-events: none;
@@ -531,6 +531,9 @@ body.theme-duplijeu .board tr:last-child td.coord { height: calc(var(--cell-size
   left: 50%;
   transform: translateX(-50%);
 }
+/* La bulle de score déborde sur les cases voisines (curseur compris). On remonte
+   donc sa case au-dessus de celle du curseur pour qu'elle reste au premier plan. */
+.board td.has-badge { z-index: 75; }
 
 /* ===== Compte à rebours par coup ===== */
 .move-timer-chip {

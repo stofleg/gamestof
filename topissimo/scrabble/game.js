@@ -27,9 +27,9 @@ import {
   emptyBoard, BOARD_BONUSES, BOARD_SIZE, CENTER, LETTER_VALUE, LETTER_BAG,
   VOWELS, drawForDuplicate, scoreMove, applyMove,
   bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName, randomBoardLayout, snakeEndpointsAfter,
-} from "./engine.js?v=278";
-import { Dictionary } from "./dictionary.js?v=278";
-import { findTop, findTopRanked, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=278";
+} from "./engine.js?v=280";
+import { Dictionary } from "./dictionary.js?v=280";
+import { findTop, findTopRanked, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=280";
 
 // État du mode review (parcours coup par coup)
 const review = {
@@ -59,7 +59,7 @@ const FFSC_REVIEW = URL_PARAMS.get("ffscreview");  // revoir une partie FFSC imp
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v278";
+const BUILD_VERSION = "garenna-v280";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -361,6 +361,7 @@ function renderBoard() {
       let badge = "";
       if (badgeCell && badgeCell.r === r && badgeCell.c === c && badgeScore != null) {
         badge = `<span class="score-badge${badgeDir === "V" ? " badge-v" : ""}">${badgeScore}</span>`;
+        cls.push("has-badge");   // remonte la case au-dessus du curseur voisin
       }
       const annot = renderAnnotations(r, c);
       html += `<td class="${cls.join(" ")}" data-r="${r}" data-c="${c}">${tileHtmlStr}${badge}${annot}</td>`;
@@ -1892,21 +1893,26 @@ function flashInvalidWord(detail, invalidCells) {
   clearTimeout(state._flashTimer);
   state._invalidFlash = true;
 
-  // 2) Curseur repositionné AU DÉPART TOUT DE SUITE : il est actif et déplaçable
-  //    PENDANT le flash. Les tuiles rouges restent visibles tant que le joueur
-  //    n'agit pas ; la moindre action (clic, frappe, retour, swipe) annule le
-  //    flash immédiatement (cf. clearInvalidFlash) et s'exécute sans latence.
+  // 2) Curseur TOUJOURS ACTIF : on le repositionne au départ du mot tout de
+  //    suite ; il reste visible et déplaçable PENDANT toute la durée du flash
+  //    (et après). Les tuiles rouges restent visibles tant que le joueur n'agit
+  //    pas ; la moindre action (clic, frappe, retour, swipe) annule le flash
+  //    immédiatement (cf. clearInvalidFlash) et s'exécute sans latence.
+  //    Fallback : si le départ n'a pas pu être déterminé, on garde le curseur
+  //    courant (jamais de désactivation).
   if (startCell) state.cursor = { row: startCell.row, col: startCell.col, dir };
+  else if (!state.cursor && ps.length) state.cursor = { row: ps[0].row, col: ps[0].col, dir };
   renderBoard();
   showFeedback("error", "Coup invalide", detail);
 
   // 3) Filet : si le joueur ne fait rien, on nettoie après un court délai.
+  //    Le curseur n'est PAS effacé par ce nettoyage → il reste actif ensuite.
   state._flashTimer = setTimeout(() => {
     if (!clearInvalidFlash()) return;
     renderRack();
     renderBoard();
     restorePersistentFeedback();   // meilleur essai (avec position) ou repère
-  }, 700);
+  }, 350);
 }
 
 // Annule le flash "mot faux" en cours : retire les tuiles rouges et libère les
