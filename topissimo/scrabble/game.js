@@ -27,9 +27,9 @@ import {
   emptyBoard, BOARD_BONUSES, BOARD_SIZE, CENTER, LETTER_VALUE, LETTER_BAG,
   VOWELS, drawForDuplicate, scoreMove, applyMove,
   bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName, randomBoardLayout, snakeEndpointsAfter,
-} from "./engine.js?v=277";
-import { Dictionary } from "./dictionary.js?v=277";
-import { findTop, findTopRanked, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=277";
+} from "./engine.js?v=278";
+import { Dictionary } from "./dictionary.js?v=278";
+import { findTop, findTopRanked, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=278";
 
 // État du mode review (parcours coup par coup)
 const review = {
@@ -59,7 +59,7 @@ const FFSC_REVIEW = URL_PARAMS.get("ffscreview");  // revoir une partie FFSC imp
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v277";
+const BUILD_VERSION = "garenna-v278";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -1486,15 +1486,23 @@ function handleKey(e) {
       return;
     }
   }
-  // Barre espace : toggle sens du curseur (H ↔ V)
+  // Barre espace : bascule le sens du curseur (H ↔ V), même après avoir commencé
+  // à taper. Si des lettres sont déjà posées, on repositionne le curseur pour
+  // CONTINUER dans le nouveau sens depuis la dernière lettre posée.
+  //   Ex. : on pose une lettre en H4 (le curseur file en H5, horizontal) ;
+  //   un appui sur Espace rend le mot vertical et place le curseur en I4.
   if (state.cursor && e.key === " ") {
     if (state._invalidFlash) { clearInvalidFlash(); renderRack(); }
-    if (state.pending.length === 0) {
-      e.preventDefault();
-      state.cursor.dir = state.cursor.dir === "H" ? "V" : "H";
-      renderBoard();
-      return;
+    e.preventDefault();
+    state.cursor.dir = state.cursor.dir === "H" ? "V" : "H";
+    if (state.pending.length > 0) {
+      const last = state.pending[state.pending.length - 1];
+      state.cursor.row = last.row;
+      state.cursor.col = last.col;
+      advanceCursor();   // avance d'une case dans le NOUVEAU sens
     }
+    renderBoard();
+    return;
   }
 
   if (e.key === "?") {
@@ -1875,9 +1883,11 @@ function flashInvalidWord(detail, invalidCells) {
   // Mémoriser ce qu'il faudra restaurer si le flash arrive à son terme sans action.
   state._invalidFlashRestore = { html: prevHTML, cls: prevClass, hidden: prevHidden };
 
-  // 1) SURBRILLANCE ROUGE du/des mot(s) fautif(s).
-  state.invalidCells = (invalidCells && invalidCells.length) ? invalidCells : [];
-  if (!state.invalidCells.length) state.pending.forEach(p => p.invalid = true);
+  // 1) SURBRILLANCE ROUGE du/des mot(s) fautif(s) — uniquement si les effets de
+  //    grille sont activés (même préférence que la mise en évidence du top).
+  const gridEffects = state.settings.highlightTop !== false;
+  state.invalidCells = (gridEffects && invalidCells && invalidCells.length) ? invalidCells : [];
+  if (gridEffects && !state.invalidCells.length) state.pending.forEach(p => p.invalid = true);
   clearTimeout(state._errorTimeout);
   clearTimeout(state._flashTimer);
   state._invalidFlash = true;
@@ -1896,7 +1906,7 @@ function flashInvalidWord(detail, invalidCells) {
     renderRack();
     renderBoard();
     restorePersistentFeedback();   // meilleur essai (avec position) ou repère
-  }, 1400);
+  }, 700);
 }
 
 // Annule le flash "mot faux" en cours : retire les tuiles rouges et libère les
