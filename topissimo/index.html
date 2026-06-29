@@ -14,7 +14,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fraunces:wght@500;600;700;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=275">
+<link rel="stylesheet" href="style.css?v=276">
 </head>
 <body>
 
@@ -127,6 +127,7 @@
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
         <button class="btn ghost small" onclick="backToTournaments()">← Retour aux tournois</button>
         <h2 id="tournamentDetailTitle" style="margin:0;flex:1"></h2>
+        <button class="btn ghost small" id="tournamentRename" hidden onclick="renameCurrentTournament()">✏️ Renommer</button>
         <button class="btn ghost small" id="tournamentDelete" hidden onclick="delCurrentTournament()">🗄 Archiver</button>
         <button class="btn small" id="tournamentPurge" hidden onclick="purgeCurrentTournament()" style="background:#a02525;color:#fff">🗑 Purger</button>
       </div>
@@ -393,6 +394,6 @@
 
 <script src="config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script src="app.js?v=275"></script>
+<script src="app.js?v=276"></script>
 </body>
 </html>
