@@ -532,8 +532,10 @@ body.theme-duplijeu .board tr:last-child td.coord { height: calc(var(--cell-size
   transform: translateX(-50%);
 }
 /* La bulle de score déborde sur les cases voisines (curseur compris). On remonte
-   donc sa case au-dessus de celle du curseur pour qu'elle reste au premier plan. */
-.board td.has-badge { z-index: 75; }
+   donc sa case au-dessus de celle du curseur pour qu'elle reste au premier plan.
+   !important : sinon la règle (plus spécifique) qui donne z-index:1 aux cases
+   bonus du thème duplijeu l'emporterait quand la bulle tombe sur une case bonus. */
+.board td.has-badge { z-index: 75 !important; }
 
 /* ===== Compte à rebours par coup ===== */
 .move-timer-chip {
