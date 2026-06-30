@@ -388,6 +388,11 @@ body.theme-duplijeu .tile {
   border-radius: 3px;
   box-shadow: 0 1px 2px rgba(0,0,0,.2);
 }
+/* Mêmes lettres sans empattement que la grille pour le sac et le sélecteur de
+   joker (sinon ils restaient en Georgia serif alors que la grille duplijeu est
+   en Inter). En thème classique (Garenna), tout reste en Georgia comme la grille. */
+body.theme-duplijeu .bag-chip,
+body.theme-duplijeu .joker-pick { font-family: 'Inter', system-ui, sans-serif; }
 /* Jeton sur la grille : couvre quasi toute la case (~99%), cerné noir fin,
    coins légèrement arrondis. */
 body.theme-duplijeu .board td { position: relative; }

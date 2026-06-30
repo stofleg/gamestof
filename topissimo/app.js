@@ -188,7 +188,7 @@ let myGamesSort = {
 async function loadMyGames() {
   if (!state.currentPlayerId) return;
   const pid = +state.currentPlayerId;
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=283");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=287");
 
   // Tournoi : prepared_game_results jointes avec prepared_games
   const { data: tour } = await sb.from("prepared_game_results")
@@ -1265,7 +1265,7 @@ async function loadMyStats() {
   const pid = +state.currentPlayerId;
 
   body.innerHTML = `<p class="muted">⏳ Calcul…</p>`;
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=283");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=287");
 
   // 1) Toutes mes parties tournoi (avec détails)
   const { data: tour } = await sb.from("prepared_game_results")
@@ -2053,7 +2053,7 @@ async function loadTournamentDetail(tournamentId) {
     });
   }
 
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=283");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=287");
   const btnStyle = "text-decoration:none;padding:5px 10px;border-radius:6px;font-weight:600;font-size:.85rem";
   const admin = isAdmin();
   $("#pgBody").innerHTML = (games || []).length === 0
@@ -2574,7 +2574,7 @@ async function loadTournamentStats(tournamentId, games) {
   // On détermine « le top est un scrabble » en REjouant le plateau coup par coup
   // (nombre de NOUVELLES tuiles posées par le top == clé de prime du mode), ce qui
   // est fiable même sur d'anciennes parties (le hadBonus stocké est non fiable).
-  const { emptyBoard, applyMove, GAME_MODES } = await import("./scrabble/engine.js?v=283");
+  const { emptyBoard, applyMove, GAME_MODES } = await import("./scrabble/engine.js?v=287");
   const gameById = {};
   for (const g of games) gameById[g.id] = g;
   const bonusesOf = (gid) => (GAME_MODES[gameById[gid]?.mode] || GAME_MODES.duplicate).bonuses || { 7: 50 };
@@ -2759,9 +2759,9 @@ $("#pgCreate").onclick = async () => {
     let mods;
     try {
       mods = await Promise.all([
-        import("./scrabble/dictionary.js?v=283"),
-        import("./scrabble/generator.js?v=283"),
-        import("./scrabble/engine.js?v=283"),
+        import("./scrabble/dictionary.js?v=287"),
+        import("./scrabble/generator.js?v=287"),
+        import("./scrabble/engine.js?v=287"),
       ]);
     } catch (e) {
       $("#pgStatus").innerHTML = `<span style="color:#a02525">Échec de chargement des modules : ${escapeHtml(e.message)}</span>`;
@@ -2827,7 +2827,7 @@ window.recomputeAllNeg = async function(force = false) {
 
   let recomputeResult;
   try {
-    ({ recomputeResult } = await import("./scrabble/recompute.js?v=283"));
+    ({ recomputeResult } = await import("./scrabble/recompute.js?v=287"));
   } catch (e) {
     statusEl.textContent = "❌ Impossible de charger recompute.js : " + e.message;
     return;
@@ -3014,6 +3014,64 @@ window.adminGiveTop = async function() {
   loadTournamentDetail(currentTournamentId);
 };
 
+// Autorise un joueur à REJOUER une partie : efface son résultat enregistré pour
+// cette partie (cas d'un bug rencontré en cours de partie). Après ça, la partie
+// réaffiche « ▶ Jouer » au lieu de « 👁 Revoir ».
+window.adminAllowReplay = async function() {
+  if (!isAdmin()) return alert("Réservé à l'admin.");
+  const statusEl = $("#replayStatus");
+  if (!currentTournamentId) { statusEl.textContent = "❌ Ouvre d'abord un tournoi."; return; }
+
+  const pseudo = $("#replayPseudo").value.trim();
+  const gameNo = +$("#replayGame").value;
+  if (!pseudo) { statusEl.textContent = "❌ Indique un pseudo."; return; }
+  if (!gameNo) { statusEl.textContent = "❌ Indique le n° de partie."; return; }
+
+  statusEl.textContent = "⏳ Recherche du joueur et de la partie…";
+
+  // 1) Joueur par pseudo (insensible à la casse)
+  const { data: players, error: pErr } = await sb
+    .from("players").select("id, name").ilike("name", pseudo);
+  if (pErr) { statusEl.textContent = "❌ " + pErr.message; return; }
+  if (!players || players.length === 0) { statusEl.textContent = `❌ Joueur « ${pseudo} » introuvable.`; return; }
+  if (players.length > 1) { statusEl.textContent = `❌ Plusieurs joueurs nommés « ${pseudo} » — ambigu.`; return; }
+  const player = players[0];
+
+  // 2) Partie « Partie {gameNo} » du tournoi
+  const { data: games, error: gErr } = await sb
+    .from("prepared_games").select("id, name").eq("tournament_id", currentTournamentId);
+  if (gErr) { statusEl.textContent = "❌ " + gErr.message; return; }
+  const game = (games || []).find(g => { const m = /(\d+)/.exec(g.name || ""); return m && +m[1] === gameNo; });
+  if (!game) { statusEl.textContent = `❌ Partie ${gameNo} introuvable dans ce tournoi.`; return; }
+
+  // 3) Résultat existant ?
+  const { data: rows, error: rErr } = await sb
+    .from("prepared_game_results").select("id, total_score, sum_neg")
+    .eq("prepared_game_id", game.id).eq("player_id", player.id);
+  if (rErr) { statusEl.textContent = "❌ " + rErr.message; return; }
+  if (!rows || rows.length === 0) {
+    statusEl.textContent = `ℹ️ ${player.name} n'a pas encore de résultat sur la partie ${gameNo} — il peut déjà la jouer.`; return;
+  }
+
+  if (!confirm(`Effacer le résultat de ${player.name} sur la Partie ${gameNo} (cumul ${rows[0].total_score}, négatif ${rows[0].sum_neg}) afin qu'il puisse la rejouer ?\n\nCette action est irréversible.`)) {
+    statusEl.textContent = "Annulé."; return;
+  }
+
+  // 4) Suppression du/des résultat(s) + du miroir championnat (session_no = 1000 + id)
+  statusEl.textContent = "💾 Suppression…";
+  const { error: dErr } = await sb.from("prepared_game_results")
+    .delete().eq("prepared_game_id", game.id).eq("player_id", player.id);
+  if (dErr) { statusEl.textContent = "❌ Erreur de suppression : " + dErr.message; return; }
+  // Miroir championnat : retirer le résultat de ce joueur pour cette partie.
+  const { data: gRows } = await sb.from("games").select("id").eq("session_no", 1000 + game.id);
+  for (const gr of (gRows || [])) {
+    await sb.from("results").delete().eq("game_id", gr.id).eq("player_id", player.id);
+  }
+
+  statusEl.textContent = `✅ ${player.name} peut rejouer la Partie ${gameNo}.`;
+  loadTournamentDetail(currentTournamentId);
+};
+
 window.recomputeAllJokerNeg = async function() {
   if (!isAdmin()) return alert("Réservé à l'admin.");
   const statusEl = $("#recomputeStatus");
@@ -3021,7 +3079,7 @@ window.recomputeAllJokerNeg = async function() {
 
   let recomputeResult;
   try {
-    ({ recomputeResult } = await import("./scrabble/recompute.js?v=283"));
+    ({ recomputeResult } = await import("./scrabble/recompute.js?v=287"));
   } catch (e) {
     statusEl.textContent = "❌ Impossible de charger recompute.js : " + e.message;
     return;

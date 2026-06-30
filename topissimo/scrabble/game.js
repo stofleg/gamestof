@@ -27,9 +27,9 @@ import {
   emptyBoard, BOARD_BONUSES, BOARD_SIZE, CENTER, LETTER_VALUE, LETTER_BAG,
   VOWELS, drawForDuplicate, scoreMove, applyMove,
   bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName, randomBoardLayout, snakeEndpointsAfter,
-} from "./engine.js?v=283";
-import { Dictionary } from "./dictionary.js?v=283";
-import { findTop, findTopRanked, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=283";
+} from "./engine.js?v=287";
+import { Dictionary } from "./dictionary.js?v=287";
+import { findTop, findTopRanked, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=287";
 
 // État du mode review (parcours coup par coup)
 const review = {
@@ -59,7 +59,7 @@ const FFSC_REVIEW = URL_PARAMS.get("ffscreview");  // revoir une partie FFSC imp
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v283";
+const BUILD_VERSION = "garenna-v287";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -1156,11 +1156,23 @@ function handleBoardClick(r, c) {
   // suite (les cases redeviennent libres, les lettres reviennent au chevalet).
   if (clearInvalidFlash()) renderRack();
   clearTopHighlight();   // tout clic sur la grille efface le contour du top
-  if (state.board[r][c]) return;
+  if (state.board[r][c]) return;   // case déjà validée → intouchable
+  const clickedOnPending = state.pending.some(p => p.row === r && p.col === c);
+  // Clic sur un jeton qu'on vient de SAISIR : on le récupère (avec ceux posés
+  // après) au chevalet et on replace le curseur sur cette case, pour pouvoir
+  // repartir immédiatement (ex. changer de sens). Plus besoin de cliquer
+  // ailleurs d'abord pour « vider la grille ». 2e clic même case = bascule H↔V.
+  if (clickedOnPending) {
+    const sameCursor = state.cursor && state.cursor.row === r && state.cursor.col === c;
+    clearPendingFrom(r, c);
+    state.cursor = { row: r, col: c, dir: sameCursor ? (state.cursor.dir === "H" ? "V" : "H") : "H" };
+    renderRack();
+    renderBoard();
+    return;
+  }
   // Si on a des tuiles en cours de pose et qu'on clique en dehors, on les renvoie
   // sur le chevalet (annule la saisie) puis on repositionne le curseur.
-  const clickedOnPending = state.pending.some(p => p.row === r && p.col === c);
-  if (state.pending.length > 0 && !clickedOnPending) {
+  if (state.pending.length > 0) {
     // Sur MOBILE : un clic sur la grille ne renvoie PLUS les lettres au chevalet
     // (trop d'annulations accidentelles). On ne fait rien → le joueur voit que
     // ce n'est pas validé, et annule volontairement via le bouton ✕ rouge.
@@ -1189,10 +1201,12 @@ function handleBoardRightClick(r, c) {
   if (state.board[r][c]) return;
   if (state.pending.length > 0) {
     const clickedOnPending = state.pending.some(p => p.row === r && p.col === c);
-    if (!clickedOnPending) {
-      clearPending();
-      renderRack();
-    }
+    // Clic droit sur un jeton qu'on vient de saisir : on le récupère (et ceux
+    // posés après) au chevalet, puis on place le curseur EN VERTICAL sur cette
+    // case → on peut retaper le mot dans l'autre sens sans manip préalable.
+    if (clickedOnPending) clearPendingFrom(r, c);
+    else clearPending();
+    renderRack();
   }
   state.cursor = { row: r, col: c, dir: "V" };
   renderBoard();
@@ -1202,6 +1216,22 @@ function clearPending() {
   for (const t of state.rack) t.used = false;
   state.pending = [];
   state.jokerPending = false;
+}
+
+// Renvoie au chevalet le jeton posé sur (r,c) ET tous ceux saisis APRÈS lui
+// (ordre de pose), en libérant leurs cases. Sert à re-cliquer sur une case déjà
+// occupée par un jeton qu'on vient de saisir pour y replacer le curseur.
+// Renvoie true si un jeton en cours s'y trouvait.
+function clearPendingFrom(r, c) {
+  const idx = state.pending.findIndex(p => p.row === r && p.col === c);
+  if (idx < 0) return false;
+  const removed = state.pending.splice(idx);
+  for (const p of removed) {
+    const t = state.rack.find(tt => tt.id === p.rackId);
+    if (t) t.used = false;
+  }
+  state.jokerPending = false;
+  return true;
 }
 
 function moveCursorKey(key) {
@@ -1725,33 +1755,57 @@ function validate() {
     }
   }
   const topMv = state.topMove?.move;
-  // Exception 1er coup : on accepte tout mot du top OU isotop (même score que le top),
-  // peu importe la position de placement.
+  // ===== Premier coup : valorisation INDÉPENDANTE de la position =====
+  // Au 1er coup, le plateau est vide : n'importe quel mot valide peut être placé
+  // de plein de façons à travers le centre. On valorise donc le mot tapé à son
+  // MEILLEUR placement possible (toute position/orientation), où qu'il ait été
+  // saisi — pas besoin de toucher l'étoile.
+  //   • si cet optimum atteint le score du top → c'est le top (ou un isotop) :
+  //     on enchaîne ;
+  //   • sinon → c'est un essai valorisé à son optimum (ex. HEURE = 24 pts en H4),
+  //     enregistré comme « meilleur essai » sans pénalité de position.
   if (state.moveNo === 1 && topMv && state.topMove && !mode.dualTop) {
     const topScore = state.topMove.score;
-    // Liste des mots isotopes pré-calculée par findTopRanked.
-    // En mode pré-tiré (tournoi), la liste n'est pas stockée → on la calcule à la volée.
-    let isotopWords = state.topMove.isotopWords;
-    if (!isotopWords) {
-      const rackLetters = state.rack.map(t => t.letter);
-      const allMoves = findTop(state.board, rackLetters, state.dict, {
-        all: true, maxTilesUsed: mode.maxPlayed, bonuses: mode.bonuses, layout: state.boardLayout,
-      }) || [];
-      isotopWords = [...new Set(allMoves.filter(c => c.score === topScore).map(c => c.move.word))];
-      state.topMove.isotopWords = isotopWords;
-    }
-    if (isotopWords.includes(move.word)) {
+    const rackLetters = state.rack.map(t => t.letter);
+    const allMoves = findTop(state.board, rackLetters, state.dict, {
+      all: true, maxTilesUsed: mode.maxPlayed, bonuses: mode.bonuses,
+      jokerPays: mode.jokerPays, layout: state.boardLayout,
+    }) || [];
+    const sameWord = allMoves.filter(c => c.move.word === move.word);
+    if (sameWord.length) {
+      const best = sameWord.reduce((a, b) => (b.score > a.score ? b : a));
+      if (best.score >= topScore) {
+        // Mot du top ou isotop (même score que le top) → validé, on enchaîne.
+        state.moveMaxPlaced = Math.max(state.moveMaxPlaced, state.pending.length);
+        recordMove({ status: "top", playerScore: topScore, playedWord: move.word, playedMove: best.move });
+        hideTopFeedback();
+        placeTopAndAdvance(topScore, move.word, topScore, best.move);
+        nextMove();
+        return;
+      }
+      // Mot valide sous le top → valorisé à son optimum (meilleur essai), sans
+      // exiger qu'il touche le centre ni qu'il soit posé à l'emplacement optimal.
+      if (!state.bestAttempt || best.score > state.bestAttempt.score) {
+        state.bestAttempt = { word: move.word, score: best.score, move: best.move };
+      }
       state.moveMaxPlaced = Math.max(state.moveMaxPlaced, state.pending.length);
-      recordMove({ status: "top", playerScore: topScore, playedWord: move.word, playedMove: move });
-      hideTopFeedback();  // efface le top du coup précédent dès validation
-      placeTopAndAdvance(topScore, move.word, topScore, move);
-      nextMove();
+      const startR = move.row, startC = move.col;
+      clearPending();
+      state.cursor = { row: startR, col: startC, dir: move.dir };
+      renderBoard();
+      renderRack();
+      const b = state.bestAttempt;
+      const optPos = posLabel(best.move);
+      const isNewBest = b.word === move.word && b.score === best.score;
+      const line = isNewBest
+        ? `<strong>${wLink(move.word)}</strong> — <strong>${best.score}</strong> pts (optimum en ${optPos}) — meilleur essai`
+        : `<strong>${wLink(move.word)}</strong> — ${best.score} pts (optimum en ${optPos})<br>${bestAttemptHTML()}`;
+      hideTopFeedback();
+      showFeedback("miss", line, "");
       return;
     }
-    // DEBUG : trace si le mot ressemble au top mais isotop n'a pas matché
-    console.log("[isotop check] move.word =", JSON.stringify(move.word),
-                "| isotopWords =", JSON.stringify(isotopWords),
-                "| topScore =", topScore);
+    // Mot introuvable comme 1er coup (hors dico ou tirage insuffisant) → on laisse
+    // la validation normale ci-dessous signaler l'erreur (flash « mot invalide »).
   }
   // Règle FFSC : si le joker a un homonyme (même lettre) dans le mot, on permute
   // automatiquement vers la combinaison la plus avantageuse en points.
@@ -3973,6 +4027,20 @@ window.addEventListener("beforeunload", (e) => {
   }
 });
 
+// Bloque les raccourcis de RAFRAÎCHISSEMENT (F5, Ctrl+R, Cmd+R) tant qu'une
+// partie de TOURNOI est en cours : non sauvegardée, un refresh la relancerait
+// au 1er coup. (Le beforeunload reste le filet pour le bouton recharger natif ;
+// certains navigateurs réservent Cmd+R et l'ignoreront — best effort.)
+window.addEventListener("keydown", (e) => {
+  const inTournamentGame = state.prepared && state.started && state.chronoFinal == null && !review.active;
+  if (!inTournamentGame) return;
+  const isReload = e.key === "F5" || ((e.ctrlKey || e.metaKey) && (e.key === "r" || e.key === "R"));
+  if (isReload) {
+    e.preventDefault();
+    flashFeedback("info", "Rafraîchissement bloqué", "Impossible de recharger pendant une partie de tournoi (utilise Pause).");
+  }
+}, { capture: true });
+
 // Restauration depuis le cache navigateur (bfcache, retour arrière) : le JS garde
 // son ancien état (mauvaise partie / tirage périmé). On force un rechargement propre.
 window.addEventListener("pageshow", (e) => {
@@ -4484,7 +4552,9 @@ window.goToNextGame = function() {
 };
 
 // Détermine l'id de la partie suivante du tournoi (ordre naturel du nom, comme la
-// liste de l'accueil : « Partie 2 » < « Partie 10 »). null s'il n'y en a pas.
+// liste de l'accueil : « Partie 2 » < « Partie 10 »). On saute les parties DÉJÀ
+// JOUÉES par le joueur courant : « Partie suivante » mène toujours à une partie
+// non encore jouée. null s'il n'en reste plus.
 async function loadTournamentSiblings() {
   state._nextGameId = null;
   if (!TOURNAMENT_ID || !state.prepared) { updateTournamentNavButtons(); return; }
@@ -4496,8 +4566,24 @@ async function loadTournamentSiblings() {
       const cmp = (a.name || "").localeCompare(b.name || "", "fr", { numeric: true, sensitivity: "base" });
       return cmp !== 0 ? cmp : (a.created_at || "").localeCompare(b.created_at || "");
     });
+    // Parties déjà jouées par le joueur courant (résultat présent ET détail
+    // coup par coup non vide → vraiment jouée, pas un import sans partie réelle).
+    const played = new Set();
+    const pid = +(localStorage.getItem("currentPlayerId") || 0);
+    if (pid && games.length) {
+      const { data: results } = await window._sb.from("prepared_game_results")
+        .select("prepared_game_id,details")
+        .eq("player_id", pid)
+        .in("prepared_game_id", games.map(g => g.id));
+      (results || []).forEach(r => {
+        if (Array.isArray(r.details) && r.details.length > 0) played.add(String(r.prepared_game_id));
+      });
+    }
     const i = games.findIndex(g => String(g.id) === String(state.prepared.id));
-    if (i >= 0 && i + 1 < games.length) state._nextGameId = games[i + 1].id;
+    // Première partie NON JOUÉE strictement après la partie courante.
+    for (let k = i + 1; k < games.length; k++) {
+      if (!played.has(String(games[k].id))) { state._nextGameId = games[k].id; break; }
+    }
   } catch (e) { /* non bloquant : bouton restera grisé */ }
   updateTournamentNavButtons();
 }

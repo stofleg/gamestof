@@ -14,7 +14,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fraunces:wght@500;600;700;900&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=283">
+<link rel="stylesheet" href="style.css?v=287">
 </head>
 <body>
 
@@ -167,6 +167,20 @@
         <button class="btn ghost small" onclick="adminGiveTop()">✅ Donner le top</button>
       </div>
       <div class="muted" id="fixStatus" style="font-size:.85rem;margin-top:8px"></div>
+
+      <hr style="border:none;border-top:1px solid rgba(0,0,0,.08);margin:14px 0">
+      <h3 style="margin:0 0 8px;font-size:1rem">🔁 Autoriser à rejouer une partie (bug)</h3>
+      <p class="muted" style="margin:0 0 8px;font-size:.8rem">Efface le résultat enregistré du joueur pour cette partie : il pourra la rejouer (bouton ▶ Jouer au lieu de 👁 Revoir).</p>
+      <div style="display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap">
+        <label style="display:flex;flex-direction:column;font-size:.8rem;gap:2px">Pseudo
+          <input id="replayPseudo" type="text" placeholder="ex : Prez" style="padding:5px 8px">
+        </label>
+        <label style="display:flex;flex-direction:column;font-size:.8rem;gap:2px">Partie n°
+          <input id="replayGame" type="number" min="1" placeholder="8" style="width:70px;padding:5px 8px">
+        </label>
+        <button class="btn ghost small" onclick="adminAllowReplay()">🔁 Autoriser à rejouer</button>
+      </div>
+      <div class="muted" id="replayStatus" style="font-size:.85rem;margin-top:8px"></div>
     </div>
 
     <div class="card tournament-games-band">
@@ -394,6 +408,6 @@
 
 <script src="config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script src="app.js?v=283"></script>
+<script src="app.js?v=287"></script>
 </body>
 </html>
