@@ -143,6 +143,14 @@ body.show-coords .right-col {
 .right-col .feedback,
 .right-col .review-panel { max-width: none; width: 100%; }
 .right-col .info-bar { flex-wrap: wrap; }
+/* La colonne de droite a une hauteur fixe (= plateau) : on empêche l'info-bar,
+   le minuteur et les actions de se faire écraser quand le panneau d'isotops
+   apparaît. C'est ce panneau (scrollable) qui absorbe la place restante. */
+.right-col .info-bar,
+.right-col .move-timer-chip,
+.right-col .action-row,
+.right-col .bag-display { flex-shrink: 0; }
+.right-col .dup-top-picker { flex: 0 1 auto; min-height: 0; }
 .action-row { display: flex; gap: 8px; flex-wrap: wrap; }
 /* Bouton ✕ d'annulation : mobile uniquement (sur desktop on annule au clic grille) */
 .btn-cancel { display: none; }
@@ -912,6 +920,17 @@ input:disabled, select:disabled {
 }
 .settings-section .muted { color: var(--ink-soft); font-weight: 400; font-size: .75rem; font-family: 'Inter', sans-serif; }
 
+/* Sections de paramètres repliables : la barre jaune devient une flèche ▸/▾. */
+.settings-group { border: none; }
+.settings-group > summary.settings-section { cursor: pointer; list-style: none; }
+.settings-group:first-of-type > summary.settings-section { margin-top: 14px; }
+.settings-group > summary.settings-section::-webkit-details-marker { display: none; }
+.settings-group > summary.settings-section::before {
+  content: "▸"; width: auto; height: auto; background: none; border-radius: 0;
+  color: #97a4ab; font-weight: 700;
+}
+.settings-group[open] > summary.settings-section::before { content: "▾"; }
+
 /* Bloc dépliable « Raccourcis clavier » dans les réglages */
 .kbd-shortcuts {
   margin-top: 22px;
@@ -1227,6 +1246,69 @@ input:disabled, select:disabled {
 }
 .bag-chip.joker { color: #c8202a; }
 .bag-chip.empty { opacity: .25; }
+/* Tirage manuel : jetons du sac cliquables. */
+.bag-chip.pickable { cursor: pointer; transition: transform .08s, box-shadow .08s; }
+.bag-chip.pickable:hover { transform: translateY(-1px); box-shadow: 0 2px 5px rgba(0,0,0,.28); }
+.bag-chip.pickable:active { transform: translateY(1px); }
+
+/* Modale de tirage manuel. */
+.draw-modal { max-width: 420px; }
+.draw-modal .draw-sel {
+  min-height: 44px; padding: 8px; margin-bottom: 10px;
+  background: #f3f8fb; border: 1px dashed var(--soft, #cdd9e1); border-radius: 8px;
+}
+.draw-modal .draw-sel-tiles { display: flex; gap: 4px; flex-wrap: wrap; }
+.draw-modal .draw-tile {
+  width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center;
+  font-size: 1rem;
+}
+.draw-modal .draw-bag { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; max-height: 40vh; overflow: auto; }
+.draw-modal .draw-bag .bag-chip { font-size: 1rem; padding: 5px 7px; }
+.draw-modal .draw-actions { display: flex; justify-content: space-between; gap: 10px; }
+/* Bouton pour rouvrir la modale de tirage quand on l'a fermée : placé sous le
+   sac, dans la colonne de droite. Pas de mouvement au survol (anti-stress). */
+.draw-reopen {
+  flex-shrink: 0; width: 100%; margin-top: 4px;
+}
+.draw-reopen:hover, .draw-reopen:focus-visible, .draw-reopen:active { transform: none; }
+
+/* Sélection manuelle du top (mode duplicate) : panneau type review, placé SOUS
+   le sac dans la colonne de droite (n'apparaît qu'en cas d'isotop). */
+.dup-top-picker {
+  margin-top: 10px; max-height: 38vh; display: flex; flex-direction: column;
+  background: #fff; border: 1px solid var(--soft, #d8e0e6); border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(0,0,0,.12); overflow: hidden;
+}
+.dup-top-picker .dtp-head {
+  padding: 8px 10px; background: var(--petrol); color: #fff;
+  font-size: .82rem; font-weight: 600;
+}
+.dup-top-picker .dtp-head kbd {
+  background: rgba(255,255,255,.2); border-radius: 4px; padding: 0 4px; font-family: inherit;
+}
+.dup-top-picker .dtp-list { overflow: auto; }
+.dup-top-picker table { width: 100%; border-collapse: collapse; font-size: .85rem; }
+.dup-top-picker th { position: sticky; top: 0; background: #eef3f6; text-align: left; padding: 5px 8px; color: var(--petrol-dark, #024); }
+.dup-top-picker td { padding: 5px 8px; border-top: 1px solid #eef1f3; }
+.dup-top-picker tr { cursor: pointer; }
+.dup-top-picker tr:hover td { background: #f3f8fb; }
+.dup-top-picker tr.selected td { background: #fde9a8; font-weight: 600; }
+/* Choix « Topissimo » (le mieux classé selon les critères isotop) en vert. */
+.dup-top-picker tr.tps-pick td { color: #1f7a34; font-weight: 700; }
+.dup-top-picker tr.tps-pick td:first-child { box-shadow: inset 3px 0 0 #2c9a45; }
+/* Éditeur : isotops + sous-tops en orange (le top reste en vert .tps-pick). */
+.dup-top-picker tr.tps-other td { color: #c47a16; }
+
+/* Barre d'outils de l'éditeur (sous le titre, au-dessus du sac). */
+.editor-toolbar {
+  flex-shrink: 0; background: #fff; border: 1px solid var(--soft, #d8e0e6);
+  border-radius: 10px; padding: 8px 10px; margin-bottom: 4px;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.editor-toolbar .et-legend { font-size: .78rem; color: var(--ink-soft, #5a6a73); line-height: 1.4; }
+.editor-toolbar .et-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+/* Surbrillance de la zone sélectionnée pour le supertop. */
+.board td.zone-sel { outline: 2px solid #2c9a45; outline-offset: -2px; background: rgba(44,154,69,.18) !important; }
 
 /* ===== Annotations sur la grille (mode entraînement) ===== */
 .annot-toolbar {

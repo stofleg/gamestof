@@ -12,7 +12,7 @@
 //     aussi les mots croisés) et on garde le maximum.
 // ============================================================
 
-import { BOARD_SIZE, CENTER, scoreMove, applyMove, LETTER_VALUE, VOWELS, isSimplePath, isSnakeMove } from "./engine.js?v=287";
+import { BOARD_SIZE, CENTER, scoreMove, applyMove, LETTER_VALUE, VOWELS, isSimplePath, isSnakeMove } from "./engine.js?v=288";
 
 // Un coup PROLONGE le serpent s'il s'accroche à une extrémité (isSnakeMove ; les
 // mots croisés latéraux sont permis), OU s'il garde un chemin simple (extension
@@ -56,6 +56,13 @@ export function findTopRanked(board, rack, dict, bag = null, opts = {}) {
   const isotopWords = [...new Set(tied.map(c => c.move.word))];
   if (tied.length === 1) return { ...tied[0], isotops: 1, isotopWords };
 
+  const scored = sortTiedIsotops(tied, board, rack, dict, bag, opts);
+  return { ...scored[0], isotops: tied.length, isotopWords };
+}
+
+// Trie une liste de coups À SCORE ÉGAL (isotops) selon les critères de pertinence
+// Topissimo (mêmes critères que findTopRanked). Renvoie le tableau trié.
+function sortTiedIsotops(tied, board, rack, dict, bag, opts = {}) {
   const preserveJoker = !!opts.preserveJoker;
   const isFirstMove = board.every(row => row.every(c => !c));
 
@@ -67,6 +74,15 @@ export function findTopRanked(board, rack, dict, bag = null, opts = {}) {
     _qPos:      scoreQPosition(c.move),                 // -1 si Q en bout, 0 sinon
     _extBoth:   isFirstMove ? scoreExtBothSides(c.move.word, dict) : 0, // 1 si rallongeable des 2 côtés (1er coup)
     _dictExt:   scoreDictExtensibility(c.move.word, dict), // rallonges 1 lettre dans le dico
+    // 1er coup : pour un mot de 3 lettres, on privilégie le placement qui pose
+    // sur le centre la lettre la PLUS fréquente en bord (début/fin) de mot de 8
+    // lettres — c'est par le centre que passe le futur scrabble vertical (8A/8H).
+    // Ex. DEY : on centre sur E (fréquent en bord de 8) plutôt que Y (rare).
+    _centerL:   isFirstMove ? centerLetterScore(c.move, dict, board) : 0,
+    // À nombre de rallonges égal, on préfère les rallonges FINALES (le mot est
+    // posé à gauche, sens de lecture). Ex. SENTIRA (rallonge finale) > ENTRAIS
+    // (benjamins) pour AEINRST.
+    _backExt:   isFirstMove ? backExtCount(c.move.word, dict) : 0,
     _twAccess:  scoreTWAccess(board, c.move),              // nb de cases TW libres atteignables après ce coup
     _ext:       scoreExtensibility(board, c.move),
     _scrab:     scoreScrabbleOpenings(board, c.move),   // nb d'appuis pour scrabble perpendiculaire
@@ -89,14 +105,13 @@ export function findTopRanked(board, rack, dict, bag = null, opts = {}) {
   //  12. qualité du reliquat
   scored.sort((a, b) =>
     b._endsGame - a._endsGame ||
-    // Toujours préférer conserver le joker dans le reliquat (ne pas le consommer),
-    // quel que soit le mode. Le départage entre isotops sans joker se fait ensuite
-    // selon les autres critères.
     b._noJoker - a._noJoker ||
     b._playsQ - a._playsQ ||
     b._qPos - a._qPos ||
     b._extBoth - a._extBoth ||
     b._dictExt - a._dictExt ||
+    b._centerL - a._centerL ||
+    b._backExt - a._backExt ||
     b._twAccess - a._twAccess ||
     b._ext - a._ext ||
     b._scrab - a._scrab ||
@@ -104,7 +119,18 @@ export function findTopRanked(board, rack, dict, bag = null, opts = {}) {
     b._open - a._open ||
     b._leave - a._leave
   );
-  return { ...scored[0], isotops: tied.length, isotopWords };
+  return scored;
+}
+
+// Liste des isotops (coups au score MAX) classés par pertinence Topissimo.
+// Le premier élément est le choix qu'aurait fait findTopRanked.
+export function rankIsotops(board, rack, dict, bag = null, opts = {}) {
+  const all = findTop(board, rack, dict, { all: true, ...opts }) || [];
+  if (!all.length) return [];
+  const top = all[0].score;
+  const tied = all.filter(c => c.score === top);
+  if (tied.length <= 1) return tied;
+  return sortTiedIsotops(tied, board, rack, dict, bag, opts);
 }
 
 // Renvoie 1 si le coup PRÉSERVE le joker, 0 s'il le consomme.
@@ -189,6 +215,43 @@ function scoreExtBothSides(word, dict) {
     if (frontOK && backOK) return 1;
   }
   return 0;
+}
+
+// Fréquence de chaque lettre en 1ʳᵉ OU dernière position des mots de 8 lettres
+// de l'ODS (calculée une fois, mémorisée sur l'objet dict).
+function edge8Freq(dict) {
+  if (dict._edge8) return dict._edge8;
+  const m = {};
+  const list = (dict.byLen && dict.byLen.get(8)) || [];
+  for (const w of list) {
+    m[w[0]] = (m[w[0]] || 0) + 1;
+    m[w[7]] = (m[w[7]] || 0) + 1;
+  }
+  dict._edge8 = m;
+  return m;
+}
+
+// 1er coup, mot de 3 lettres : score de la lettre posée sur la case centrale
+// selon sa fréquence en bord de mot de 8 lettres (0 pour les autres longueurs).
+function centerLetterScore(move, dict, board) {
+  if (move.word.length !== 3) return 0;
+  const C = board.length >> 1;   // 7 pour une grille 15×15
+  const dr = move.dir === "V" ? 1 : 0, dc = move.dir === "H" ? 1 : 0;
+  for (let i = 0; i < move.word.length; i++) {
+    if (move.row + i * dr === C && move.col + i * dc === C) {
+      return edge8Freq(dict)[move.word[i]] || 0;
+    }
+  }
+  return 0;
+}
+
+// Nombre de rallonges FINALES d'une lettre (word + L) présentes dans l'ODS.
+function backExtCount(word, dict) {
+  let n = 0;
+  for (let code = 65; code <= 90; code++) {
+    if (dict.has(word + String.fromCharCode(code))) n++;
+  }
+  return n;
 }
 
 function scoreDictExtensibility(word, dict) {
@@ -384,9 +447,11 @@ export function findTop(board, rack, dict, opts = {}) {
   const seenMoves = new Set();         // dédupliquer
   const candidates = [];
 
-  const anchors = isEmpty
-    ? [[CENTER, CENTER]]
-    : findAnchors(board);
+  // Restriction optionnelle à une ZONE rectangulaire (supertop) : on limite les
+  // ancres ET l'extension des mots à cette zone → recherche bien plus rapide.
+  const zone = opts.zone || null;
+  let anchors = isEmpty ? [[CENTER, CENTER]] : findAnchors(board);
+  if (zone) anchors = anchors.filter(([r, c]) => r >= zone.r0 && r <= zone.r1 && c >= zone.c0 && c <= zone.c1);
 
   for (const dir of ["H", "V"]) {
     // FFSC : au 1er coup (plateau vide), on ne joue qu'horizontalement
@@ -424,6 +489,8 @@ export function findTop(board, rack, dict, opts = {}) {
         // pour éviter doublons : la case juste avant le start doit être
         // hors plateau ou vide (sinon le mot ferait partie d'un mot plus long
         // qu'on trouvera depuis une autre ancre)
+        // Zone : on ne démarre pas un mot avant le bord gauche/haut de la zone.
+        if (zone && (startR < zone.r0 || startC < zone.c0)) break;
         const pr = startR - dr, pc = startC - dc;
         if (pr >= 0 && pc >= 0 && pr < BOARD_SIZE && pc < BOARD_SIZE && board[pr][pc]) {
           continue;
@@ -440,7 +507,7 @@ export function findTop(board, rack, dict, opts = {}) {
           jokerPays: opts.jokerPays,
           layout: opts.layout,
           anchorCovered: false,
-          candidates, seenMoves,
+          candidates, seenMoves, zone,
         });
       }
     }
@@ -469,11 +536,12 @@ function findAnchors(board) {
 function extend(ctx) {
   const { board, dict, rack, dir, dr, dc, ar, ac, startR, startC,
           r, c, currentWord, blanksAt, tilesUsed, maxTilesUsed, bonuses,
-          anchorCovered, candidates, seenMoves } = ctx;
+          anchorCovered, candidates, seenMoves, zone } = ctx;
 
   // 1) Si on a un mot valide qui couvre l'ancre, et que la prochaine case
-  //    est vide / hors plateau → c'est un candidat.
-  const offBoard = r >= BOARD_SIZE || c >= BOARD_SIZE;
+  //    est vide / hors plateau (ou hors zone) → c'est un candidat.
+  const outZone = zone && (r < zone.r0 || r > zone.r1 || c < zone.c0 || c > zone.c1);
+  const offBoard = r >= BOARD_SIZE || c >= BOARD_SIZE || outZone;
   const nextEmpty = offBoard || !board[r][c];
   if (anchorCovered && currentWord.length >= 2 && nextEmpty && dict.has(currentWord)) {
     const key = `${dir}|${startR},${startC}|${currentWord}|${blanksAt.join(",")}`;

@@ -188,7 +188,7 @@ let myGamesSort = {
 async function loadMyGames() {
   if (!state.currentPlayerId) return;
   const pid = +state.currentPlayerId;
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=287");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=288");
 
   // Tournoi : prepared_game_results jointes avec prepared_games
   const { data: tour } = await sb.from("prepared_game_results")
@@ -641,6 +641,22 @@ function parseSimuText(text) {
   return { meta: { mode: "duplicate", withJoker: false }, moves };
 }
 
+// Rastérise une page pdf.js en JPEG DÉZOOMÉ pour la Vision IA : bord long plafonné
+// à ~1600 px (optimal Claude) et JPEG qualité 0.82 → image bien plus légère que le
+// PNG scale:2 (qui dépassait la limite 5 Mo/image de l'API et faisait échouer l'OCR
+// des pages « tableau » chargées en encre).
+const OCR_MAX_EDGE = 1600;
+function pageToOcrImage(page) {
+  const base = page.getViewport({ scale: 1 });
+  const scale = Math.min(2, OCR_MAX_EDGE / Math.max(base.width, base.height));
+  const vp = page.getViewport({ scale: Math.max(0.5, scale) });
+  const cv = document.createElement("canvas");
+  cv.width = vp.width; cv.height = vp.height;
+  const ctx = cv.getContext("2d");
+  ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, cv.width, cv.height);   // fond blanc (JPEG opaque)
+  return page.render({ canvasContext: ctx, viewport: vp }).promise.then(() => cv.toDataURL("image/jpeg", 0.82));
+}
+
 let _pdfjs = null;
 async function ensurePdfjs(onStatus) {
   if (_pdfjs) return _pdfjs;
@@ -675,23 +691,53 @@ window.ocrFfscPdf = async function(id, name, cont) {
     for (let i = 1; i <= pdf.numPages; i++) {
       setStatus(`Rendu page ${i}/${pdf.numPages}…`);
       const page = await pdf.getPage(i);
-      const vp = page.getViewport({ scale: 2 });
-      const cv = document.createElement("canvas");
-      cv.width = vp.width; cv.height = vp.height;
-      await page.render({ canvasContext: cv.getContext("2d"), viewport: vp }).promise;
-      images.push(cv.toDataURL("image/png"));
+      images.push(await pageToOcrImage(page));
     }
     setStatus(`Lecture IA des ${images.length} pages…`);
     const r = await ffscPost("ocr", { id, images });
     if (r.error) { cont.innerHTML = `<p class="muted">❌ ${r.error}</p>`; return; }
     const parties = (r.parties || []);
-    if (!parties.length) { cont.innerHTML = `<p class="muted">Aucune partie lue par l'IA sur ce PDF.</p>`; return; }
+    if (!parties.length) {
+      // Rien de structuré, mais l'IA a peut-être lu du texte → on ouvre l'éditeur
+      // prérempli avec ce texte brut pour correction manuelle (au lieu d'abandonner).
+      const raw = (r.rawPages || []).filter(t => t && t.trim());
+      if (raw.length) {
+        const data = { simu: true, ocr: true, player: name || "", tournoi: name || "", _id: String(id),
+          parties: raw.map((t, i) => ({ numero: i + 1, meta: { mode: "duplicate", withJoker: false }, moves: [], topTotal: 0, rawText: t, ocrCheck: { ok: false } })) };
+        _ffscDataCache[String(id)] = data;
+        const w = document.createElement("p");
+        w.style.cssText = "margin:2px 0 6px;padding:6px 8px;border-radius:6px;background:#fff3cd;color:#8a6d1a;font-size:.82rem";
+        w.textContent = "⚠️ La Vision IA n'a pas su structurer les parties. Le texte lu est affiché dans « ✏️ Corriger l'import » ci-dessous : corrige-le puis clique « Appliquer ».";
+        const statusEl = document.createElement("p"); statusEl.className = "muted"; statusEl.style.margin = "2px 0 6px";
+        const bodyEl = document.createElement("div");
+        cont.innerHTML = ""; cont.append(w, statusEl, bodyEl);
+        renderFfscParties(data, bodyEl, statusEl);
+        return;
+      }
+      cont.innerHTML = `<p class="muted">Aucune partie lue par l'IA sur ce PDF.</p>`;
+      return;
+    }
     const data = { simu: true, ocr: true, player: name || "", tournoi: name || "", parties, _id: String(id) };
     _ffscDataCache[String(id)] = data;
     await persistFavData(String(id), data);   // OCR gravé → ne se relancera plus jamais
     const statusEl = document.createElement("p"); statusEl.className = "muted"; statusEl.style.margin = "2px 0 6px";
     const bodyEl = document.createElement("div");
-    cont.innerHTML = ""; cont.append(statusEl, bodyEl);
+    cont.innerHTML = "";
+    // Avertissement si la Vision IA n'a pas pu garantir la cohérence d'une partie
+    // (coups manquants / cumul incohérent après 3 essais).
+    const suspects = parties.filter(p => p.ocrCheck && p.ocrCheck.ok === false);
+    if (suspects.length) {
+      const w = document.createElement("p");
+      w.style.cssText = "margin:2px 0 6px;padding:6px 8px;border-radius:6px;background:#fff3cd;color:#8a6d1a;font-size:.82rem";
+      w.innerHTML = "⚠️ Cohérence non garantie pour : " + suspects.map(p => {
+        const c = p.ocrCheck;
+        const det = c.attendus != null && c.coups !== c.attendus ? ` (${c.coups}/${c.attendus} coups)`
+                  : (c.cumulAttendu != null && c.cumul !== c.cumulAttendu ? ` (cumul ${c.cumul}≠${c.cumulAttendu})` : "");
+        return `partie ${p.numero}${det}`;
+      }).join(", ") + " — à revérifier manuellement.";
+      cont.append(w);
+    }
+    cont.append(statusEl, bodyEl);
     renderFfscParties(data, bodyEl, statusEl);
   } catch (e) {
     cont.innerHTML = `<p class="muted">❌ OCR : ${e.message}</p>`;
@@ -790,11 +836,7 @@ window.importFfscOcrFiles = async function(fileList) {
           // PDF aplati (scanné) : on rasterise pour Vision IA.
           for (let i = 0; i < pages.length; i++) {
             set(`Rendu page ${i + 1}/${pages.length}…`);
-            const vp = pages[i].page.getViewport({ scale: 2 });
-            const cv = document.createElement("canvas");
-            cv.width = vp.width; cv.height = vp.height;
-            await pages[i].page.render({ canvasContext: cv.getContext("2d"), viewport: vp }).promise;
-            visionImages.push(cv.toDataURL("image/png"));
+            visionImages.push(await pageToOcrImage(pages[i].page));
           }
         }
       } else {
@@ -848,6 +890,73 @@ window.importFfscTournoi = function(tournoiId, _btn, _displayName) {
 
 // Rend la liste des parties d'un tournoi dans les éléments fournis (statusEl,
 // bodyEl) — utilisé en accordéon sous chaque ligne de « Mes tournois ».
+// ===== Édition manuelle d'un import (repli si la Vision IA se trompe) =====
+// Sérialise les parties vers le format texte éditable ré-analysable par
+// textToParties : « N tirage MOT position score », le top d'un coup figurant
+// sur la ligne du coup SUIVANT (convention FFSC), dernier top sur une ligne sans n°.
+function _wordToStr(top) {
+  const w = (top.word || "").split("");
+  for (const b of (top.blanks || [])) if (w[b] !== undefined) w[b] = "(" + w[b] + ")";
+  return w.join("");
+}
+function _rackToStr(m) {
+  // m.rack peut être une chaîne ("AEGRTUY") ou un tableau de lettres.
+  const full = Array.isArray(m.rack) ? m.rack.join("") : String(m.rack || "");
+  const kept = Array.isArray(m.kept) ? m.kept.join("") : String(m.kept || "");
+  if (m.freshRack) return "-" + full;
+  if (kept) {
+    const rest = full.split("");
+    for (const ch of kept) { const j = rest.indexOf(ch); if (j >= 0) rest.splice(j, 1); }
+    return kept + "+" + rest.join("");
+  }
+  return full;
+}
+function partieToText(p) {
+  const M = p.moves || [];
+  // Partie non transcrite (Vision IA en échec) : on édite directement le texte brut.
+  if (!M.length && p.rawText) return String(p.rawText).trim();
+  const lines = [];
+  for (let i = 0; i < M.length; i++) {
+    const m = M[i];
+    if (i === 0) lines.push(`${m.moveNo} ${_rackToStr(m)}`);
+    else { const prev = M[i - 1]; lines.push(`${m.moveNo} ${_rackToStr(m)} ${_wordToStr(prev.top)} ${prev.top.pos} ${prev.top.score}`); }
+  }
+  if (M.length) { const last = M[M.length - 1]; lines.push(`${_wordToStr(last.top)} ${last.top.pos} ${last.top.score}`); }
+  return lines.join("\n");
+}
+function partiesToText(parties) {
+  // Chaque partie commence par « 1 … » → textToParties re-découpe automatiquement.
+  return (parties || []).map(partieToText).join("\n\n");
+}
+// Ajoute sous le tableau un éditeur texte pour corriger l'import à la main.
+function appendImportEditor(bodyEl, data, id, statusEl) {
+  const det = document.createElement("details");
+  det.className = "import-editor"; det.style.marginTop = "10px";
+  det.innerHTML = `
+    <summary style="cursor:pointer;font-size:.85rem;color:var(--petrol)">✏️ Corriger l'import (texte)</summary>
+    <p class="muted" style="font-size:.78rem;margin:6px 0">Une ligne par coup : <code>N tirage MOT position score</code> (joker entre parenthèses, ex <code>CUI(V)RAGE</code>). Chaque partie commence par une ligne « 1 … ». Corrige puis « Appliquer ».</p>
+    <textarea class="import-edit-ta" style="width:100%;min-height:200px;font-family:monospace;font-size:.8rem;white-space:pre"></textarea>
+    <div style="display:flex;gap:8px;align-items:center;margin-top:6px">
+      <button class="btn primary small import-apply">Appliquer</button>
+      <span class="muted import-edit-status" style="font-size:.8rem"></span>
+    </div>`;
+  const ta = det.querySelector(".import-edit-ta");
+  ta.value = partiesToText(data.parties);
+  const st = det.querySelector(".import-edit-status");
+  det.querySelector(".import-apply").onclick = async () => {
+    const np = textToParties(ta.value);
+    if (!np.length) { st.textContent = "❌ Aucune partie reconnue — vérifie le format."; return; }
+    np.forEach((p, i) => { p.numero = i + 1; });
+    // On conserve les infos non liées aux coups (player, tournoi, etc.).
+    data.parties = np;
+    _ffscDataCache[id] = data;
+    try { await persistFavData(id, data); } catch (e) {}
+    st.textContent = `✅ ${np.length} partie(s) enregistrée(s).`;
+    renderFfscParties(data, bodyEl, statusEl);   // reconstruit le tableau
+  };
+  bodyEl.appendChild(det);
+}
+
 function renderFfscParties(data, bodyEl, statusEl) {
   const parties = (data && data.parties || []).filter(Boolean);
   const id = String(data._id || "");
@@ -897,6 +1006,7 @@ function renderFfscParties(data, bodyEl, statusEl) {
           }).join("")}
         </tbody>
       </table></div>`;
+    appendImportEditor(bodyEl, data, id, statusEl);
     return;
   }
 
@@ -922,6 +1032,7 @@ function renderFfscParties(data, bodyEl, statusEl) {
         }).join("")}
       </tbody>
     </table></div>`;
+  appendImportEditor(bodyEl, data, id, statusEl);
 }
 
 window.reviewFfscPartie = function(tournoiId, idx) {
@@ -1265,7 +1376,7 @@ async function loadMyStats() {
   const pid = +state.currentPlayerId;
 
   body.innerHTML = `<p class="muted">⏳ Calcul…</p>`;
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=287");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=288");
 
   // 1) Toutes mes parties tournoi (avec détails)
   const { data: tour } = await sb.from("prepared_game_results")
@@ -2053,7 +2164,7 @@ async function loadTournamentDetail(tournamentId) {
     });
   }
 
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=287");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=288");
   const btnStyle = "text-decoration:none;padding:5px 10px;border-radius:6px;font-weight:600;font-size:.85rem";
   const admin = isAdmin();
   $("#pgBody").innerHTML = (games || []).length === 0
@@ -2062,18 +2173,77 @@ async function loadTournamentDetail(tournamentId) {
         const played = playedIds.has(g.id);
         const action = played
           ? `<a style="${btnStyle};background:var(--soft);color:var(--petrol)" href="scrabble/game.html?review=${g.id}&tid=${currentTournamentId}">👁 Revoir</a>`
-          : `<button style="${btnStyle};background:var(--yellow);color:var(--petrol-dark);border:none;cursor:pointer" onclick="ensureFreshAndNavigate('scrabble/game.html?prepared=${g.id}&tid=${currentTournamentId}')">▶ Jouer</button>`;
+          : admin
+            // L'admin ne joue pas les parties (il les génère / les administre).
+            ? `<button style="${btnStyle};background:var(--soft);color:var(--ink-soft);border:none;opacity:.5;cursor:not-allowed" disabled title="L'admin ne joue pas les parties">▶ Jouer</button>`
+            : `<button style="${btnStyle};background:var(--yellow);color:var(--petrol-dark);border:none;cursor:pointer" onclick="ensureFreshAndNavigate('scrabble/game.html?prepared=${g.id}&tid=${currentTournamentId}')">▶ Jouer</button>`;
         const del = admin ? `<button class="danger" onclick="delPreparedGame(${g.id})" title="Supprimer">🗑</button>` : "";
+        // Classement accessible seulement si on a joué la partie (admin compris).
+        const podium = played
+          ? `<button class="btn ghost small" onclick="showGamePodium(${g.id}, '${escapeHtml(g.name).replace(/'/g, "\\'")}')" title="Classement de cette partie">🥇</button>`
+          : `<button class="btn ghost small" disabled title="Joue d'abord cette partie pour voir le classement" style="opacity:.4;cursor:not-allowed">🥇</button>`;
         return `<div class="pg-mini">
           <div class="pg-name">${escapeHtml(g.name)}</div>
           <div class="pg-meta">${modeDisplayName(g.mode, g.with_joker)} · ${g.time_per_move ? g.time_per_move + 's' : 'illimité'}</div>
-          <div class="pg-actions">${action} ${del}</div>
+          <div class="pg-actions">${action} ${podium} ${del}</div>
         </div>`;
       }).join("")}</div>`;
 
   loadTournamentStats(tournamentId, games || []);
   loadTournamentLeaderboard(tournamentId, games || [], t.name, modeDisplayName);
 }
+
+// Classement d'UNE partie : modale listant les joueurs ayant déjà joué cette
+// partie, triés par négatif (meilleur d'abord), avec score et temps.
+window.showGamePodium = async function(gameId, gameName) {
+  let modal = document.getElementById("gamePodiumModal");
+  if (!modal) {
+    modal = document.createElement("div");
+    modal.id = "gamePodiumModal";
+    modal.className = "modal";
+    modal.innerHTML = `<div class="modal-backdrop" onclick="document.getElementById('gamePodiumModal').hidden=true"></div>
+      <div class="modal-content" style="max-width:460px">
+        <button class="close" onclick="document.getElementById('gamePodiumModal').hidden=true">×</button>
+        <h2 id="gamePodiumTitle" style="margin-top:0;font-size:1.15rem"></h2>
+        <div id="gamePodiumBody"></div>
+      </div>`;
+    document.body.appendChild(modal);
+  }
+  $("#gamePodiumTitle").textContent = `🥇 Classement — ${gameName || "partie"}`;
+  const body = $("#gamePodiumBody");
+  body.innerHTML = `<p class="muted">Chargement…</p>`;
+  modal.hidden = false;
+
+  const { data: rowsRaw } = await sb.from("prepared_game_results")
+    .select("player_id, sum_neg, total_score, total_time_seconds, details, played_on_mobile, players(name)")
+    .eq("prepared_game_id", gameId);
+  const rows = excludeAdminRows(rowsRaw || []);
+  if (!rows.length) { body.innerHTML = `<p class="muted">Personne n'a encore joué cette partie.</p>`; return; }
+
+  // Tri : négatif décroissant (0 = meilleur), puis temps croissant.
+  rows.sort((a, b) => (b.sum_neg || 0) - (a.sum_neg || 0) || (a.total_time_seconds || 0) - (b.total_time_seconds || 0));
+  const fmtT = (s) => !s ? "—" : `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+  const medal = (i) => i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `${i + 1}.`;
+  const me = +state.currentPlayerId || 0;
+  body.innerHTML = `<div class="table-wrap"><table style="width:100%;border-collapse:collapse;font-size:.9rem">
+    <thead><tr style="background:var(--petrol);color:#fff">
+      <th style="padding:5px 8px;text-align:left">#</th>
+      <th style="padding:5px 8px;text-align:left">Joueur</th>
+      <th style="padding:5px 8px;text-align:right">Négatif</th>
+      <th style="padding:5px 8px;text-align:right">Temps</th>
+    </tr></thead>
+    <tbody>${rows.map((r, i) => {
+      const mob = r.played_on_mobile ? ` <span title="Jouée sur mobile" style="font-size:.85em">📱</span>` : "";
+      return `<tr${r.player_id === me ? ' style="background:#fff3cd"' : ''}>
+        <td style="padding:5px 8px">${medal(i)}</td>
+        <td style="padding:5px 8px">${escapeHtml(r.players?.name || "#" + r.player_id)}</td>
+        <td style="padding:5px 8px;text-align:right" class="${(r.sum_neg || 0) < 0 ? 'neg' : ''}">${r.sum_neg ?? 0}</td>
+        <td style="padding:5px 8px;text-align:right">${fmtT(r.total_time_seconds)}${mob}</td>
+      </tr>`;
+    }).join("")}</tbody>
+  </table></div>
+  <p class="muted" style="font-size:.78rem;margin-top:8px">${rows.length} joueur(s) · classé par négatif (0 = top parfait), puis par temps.</p>`;
+};
 
 // ===== Classement complet par tournoi (Std / Blitz / Originales) =====
 function categorize(g) {
@@ -2574,7 +2744,7 @@ async function loadTournamentStats(tournamentId, games) {
   // On détermine « le top est un scrabble » en REjouant le plateau coup par coup
   // (nombre de NOUVELLES tuiles posées par le top == clé de prime du mode), ce qui
   // est fiable même sur d'anciennes parties (le hadBonus stocké est non fiable).
-  const { emptyBoard, applyMove, GAME_MODES } = await import("./scrabble/engine.js?v=287");
+  const { emptyBoard, applyMove, GAME_MODES } = await import("./scrabble/engine.js?v=288");
   const gameById = {};
   for (const g of games) gameById[g.id] = g;
   const bonusesOf = (gid) => (GAME_MODES[gameById[gid]?.mode] || GAME_MODES.duplicate).bonuses || { 7: 50 };
@@ -2759,9 +2929,9 @@ $("#pgCreate").onclick = async () => {
     let mods;
     try {
       mods = await Promise.all([
-        import("./scrabble/dictionary.js?v=287"),
-        import("./scrabble/generator.js?v=287"),
-        import("./scrabble/engine.js?v=287"),
+        import("./scrabble/dictionary.js?v=288"),
+        import("./scrabble/generator.js?v=288"),
+        import("./scrabble/engine.js?v=288"),
       ]);
     } catch (e) {
       $("#pgStatus").innerHTML = `<span style="color:#a02525">Échec de chargement des modules : ${escapeHtml(e.message)}</span>`;
@@ -2827,7 +2997,7 @@ window.recomputeAllNeg = async function(force = false) {
 
   let recomputeResult;
   try {
-    ({ recomputeResult } = await import("./scrabble/recompute.js?v=287"));
+    ({ recomputeResult } = await import("./scrabble/recompute.js?v=288"));
   } catch (e) {
     statusEl.textContent = "❌ Impossible de charger recompute.js : " + e.message;
     return;
@@ -3079,7 +3249,7 @@ window.recomputeAllJokerNeg = async function() {
 
   let recomputeResult;
   try {
-    ({ recomputeResult } = await import("./scrabble/recompute.js?v=287"));
+    ({ recomputeResult } = await import("./scrabble/recompute.js?v=288"));
   } catch (e) {
     statusEl.textContent = "❌ Impossible de charger recompute.js : " + e.message;
     return;

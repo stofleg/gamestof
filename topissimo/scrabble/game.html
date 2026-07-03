@@ -7,9 +7,9 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fraunces:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="game.css?v=287">
-<link rel="stylesheet" href="game-desktop.css?v=287">
-<link rel="stylesheet" href="game-mobile.css?v=287">
+<link rel="stylesheet" href="game.css?v=288">
+<link rel="stylesheet" href="game-desktop.css?v=288">
+<link rel="stylesheet" href="game-mobile.css?v=288">
 </head>
 <body>
 
@@ -67,7 +67,7 @@
           <button class="btn ghost small" id="btnRestart" data-tip="Nouvelle partie (Ctrl/Cmd+N)">
             <span class="ico">🔄</span><span class="lbl">Nouvelle partie</span>
           </button>
-          <button class="btn ghost small" id="btnPause" hidden data-tip="Pause (Maj)">
+          <button class="btn ghost small" id="btnPause" hidden data-tip="Pause (F8)">
             <span class="ico">⏸</span><span class="lbl">Pause</span>
           </button>
           <button class="btn ghost small" id="btnGiveUp" data-tip="Voir le top (−20 s)">
@@ -157,6 +157,13 @@
         <div class="bag-tiles" id="bagTiles"></div>
       </div>
 
+      <!-- Sélection manuelle du top (mode duplicate) — sous le sac, n'apparaît
+           qu'en cas d'isotop (plusieurs placements au même score top). -->
+      <div class="dup-top-picker" id="dupTopPicker" hidden>
+        <div class="dtp-head">Isotops — clique un mot · <kbd>Entrée</kbd> valide</div>
+        <div class="dtp-list"></div>
+      </div>
+
       <div class="dict-panel" id="dictPanel" hidden>
         <div class="dict-header">
           <span class="dict-word" id="dictWord"></span>
@@ -183,7 +190,8 @@
     <button class="close" onclick="closeSettings()">×</button>
     <h2>Paramètres</h2>
 
-    <h3 class="settings-section">Préférences personnelles <span class="muted">(liées à ton compte)</span></h3>
+    <details class="settings-group" open>
+    <summary class="settings-section">Préférences personnelles <span class="muted">(liées à ton compte)</span></summary>
     <div class="setting">
       <label for="optRackPos">Position du chevalet</label>
       <select id="optRackPos">
@@ -218,10 +226,25 @@
       </select>
     </div>
 
-    <h3 class="settings-section">Paramètres de jeu</h3>
+    </details>
+
+    <details class="settings-group" open>
+    <summary class="settings-section">Paramètres de jeu</summary>
     <p id="settingsLock" class="settings-lock" hidden>
       🔒 Partie en cours : les paramètres de jeu sont verrouillés. Termine ou abandonne la partie pour les modifier.
     </p>
+    <div class="setting" style="display:block">
+      <label for="optPlayMode" style="margin-bottom:6px">Mode de jeu</label>
+      <select id="optPlayMode" style="width:100%">
+        <option value="topping">Topping — on enchaîne dès le top trouvé</option>
+        <option value="duplicate">Duplicate — on attend la fin du chrono</option>
+        <!-- Éditeur en sourdine (à retravailler : supertop trop lent). Réactiver l'option ci-dessous quand prêt.
+        <option value="editor">Éditeur — construire une partie</option> -->
+      </select>
+    </div>
+    <div class="setting" id="rowAutoDraw"><label for="optAutoDraw">Tirage automatique</label><input type="checkbox" id="optAutoDraw"></div>
+    <div class="setting" id="rowAutoTop"><label for="optAutoTop">Sélection automatique du top (fin de chrono)</label><input type="checkbox" id="optAutoTop"></div>
+    <div class="setting" id="rowSignalZeros"><label for="optSignalZeros">Signalement des zéros (avertir si mot faux)</label><input type="checkbox" id="optSignalZeros"></div>
     <div class="setting" style="display:block">
       <label for="optGameMode" style="margin-bottom:6px">Mode de partie</label>
       <select id="optGameMode" style="width:100%">
@@ -240,8 +263,9 @@
       <input type="number" id="optTimePerMove" min="0" max="600" step="5" value="120" style="width:80px"> s
     </div>
     <div class="setting">
-      <button class="btn secondary" onclick="restartGame()">Nouvelle partie</button>
+      <button class="btn secondary" id="btnNewOrStop" onclick="restartGame()">Nouvelle partie</button>
     </div>
+    </details>
 
     <details class="kbd-shortcuts kbd-desktop">
       <summary>⌨️ Raccourcis clavier</summary>
@@ -253,7 +277,7 @@
         <tr><td><kbd>Espace</kbd></td><td>Basculer le sens du curseur (H / V)</td></tr>
         <tr><td><kbd>F1</kbd></td><td>Voir le top (−20 s)</td></tr>
         <tr><td><kbd>F2</kbd></td><td>Abandonner (entraînement)</td></tr>
-        <tr><td><kbd>Maj</kbd></td><td>Pause / Reprendre (entraînement)</td></tr>
+        <tr><td><kbd>F8</kbd></td><td>Pause / Reprendre (entraînement)</td></tr>
         <tr><td><kbd>Ctrl</kbd>+<kbd>N</kbd></td><td>Nouvelle partie (<kbd>Cmd</kbd>+<kbd>N</kbd> sur Mac)</td></tr>
         <tr><td><kbd>Ctrl</kbd>+<kbd>F</kbd></td><td>Feuille de route (<kbd>Cmd</kbd>+<kbd>F</kbd> sur Mac)</td></tr>
         <tr><td><kbd>Ctrl</kbd>+<kbd>P</kbd></td><td>Partager (<kbd>Cmd</kbd>+<kbd>P</kbd> sur Mac)</td></tr>
@@ -336,6 +360,6 @@
   </div>
 </div>
 
-<script type="module" src="game.js?v=287"></script>
+<script type="module" src="game.js?v=288"></script>
 </body>
 </html>

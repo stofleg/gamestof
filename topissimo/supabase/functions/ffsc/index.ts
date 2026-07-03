@@ -367,27 +367,59 @@ Règles :
 - Mot retenu : mets la/les lettre(s) posée(s) avec un joker entre parenthèses, ex CUI(V)RAGE.
 - Position : ex « H4 » ou « 5E ».
 - La toute dernière ligne (mot final, sans numéro) : recopie-la telle quelle.
-Ne renvoie QUE ces lignes, sans titre, sans commentaire, sans la colonne « arbitrage ».`;
+Ne renvoie QUE ces lignes, sans titre, sans commentaire, sans la colonne « arbitrage ».
+Enfin, ajoute UNE dernière ligne de contrôle, exactement sous cette forme :
+#META coups=<nombre total de coups numérotés du tableau> cumul=<somme de la colonne score>
+(coups = compte toutes les lignes numérotées ; cumul = additionne toute la colonne score.)`;
 
-async function claudeOcr(key: string, b64: string): Promise<string> {
+// Ligne de contrôle « #META coups=.. cumul=.. » renvoyée par l'OCR, pour vérifier
+// que toutes les lignes ont bien été transcrites (sinon on relance).
+function parseOcrMeta(txt: string): { coups?: number; cumul?: number } {
+  const c = /coups\s*=\s*(\d+)/i.exec(txt);
+  const k = /cumul\s*=\s*(\d+)/i.exec(txt);
+  return { coups: c ? +c[1] : undefined, cumul: k ? +k[1] : undefined };
+}
+
+async function claudeOcr(key: string, b64: string, mediaType = "image/png"): Promise<string> {
   const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json" },
     body: JSON.stringify({
       model: "claude-haiku-4-5-20251001",
-      max_tokens: 2000,
+      max_tokens: 4000,
       messages: [{
         role: "user",
         content: [
-          { type: "image", source: { type: "base64", media_type: "image/png", data: b64 } },
+          { type: "image", source: { type: "base64", media_type: mediaType, data: b64 } },
           { type: "text", text: OCR_PROMPT },
         ],
       }],
     }),
   });
-  if (!res.ok) throw new Error(`Claude ${res.status}`);
+  if (!res.ok) throw new Error(`Claude ${res.status}: ${(await res.text()).slice(0, 200)}`);
   const j = await res.json();
   return (j.content && j.content[0] && j.content[0].text) || "";
+}
+
+// Espacement des appels Vision IA pour respecter le rate limit de l'organisation
+// Anthropic (palier bas = 5 requêtes/minute). On laisse ~12,5 s entre 2 appels et
+// on réessaie avec backoff en cas de 429.
+const _sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+let _lastOcrCall = 0;
+async function pacedOcr(key: string, b64: string, mediaType: string): Promise<string> {
+  const GAP = 12500;
+  for (let tri = 0; tri < 4; tri++) {
+    const wait = _lastOcrCall ? Math.max(0, GAP - (Date.now() - _lastOcrCall)) : 0;
+    if (wait) await _sleep(wait);
+    _lastOcrCall = Date.now();
+    try { return await claudeOcr(key, b64, mediaType); }
+    catch (e) {
+      const msg = String((e as any)?.message || e);
+      if (msg.includes("429") && tri < 3) { await _sleep(20000); continue; }   // rate limit → on patiente
+      throw e;
+    }
+  }
+  throw new Error("Rate limit Anthropic persistant (429)");
 }
 
 // ---------- Page des scores : table ↔ joueur ----------
@@ -518,15 +550,60 @@ export default {
       let body: any;
       try { body = await req.json(); } catch { return json({ error: "corps JSON requis (POST)" }, 400); }
       const images = Array.isArray(body.images) ? body.images : [];
+      // 1 seul essai par page : avec un rate limit de 5 req/min, multiplier les
+      // relances rendrait l'import interminable. La cohérence est vérifiée et
+      // signalée (bandeau + éditeur) plutôt que re-tentée automatiquement.
+      const MAX_TRIES = 1;
       const parties = [];
+      const rawPages: string[] = [];   // texte brut OCR par page (diagnostic + édition manuelle)
       for (const img of images) {
+        const mt = /^data:(image\/[^;]+);base64,/.exec(String(img));
+        const mediaType = mt ? mt[1] : "image/png";
         const b64 = String(img).replace(/^data:image\/[^;]+;base64,/, "");
-        let txt = "";
-        try { txt = await claudeOcr(key, b64); } catch (e) { /* page illisible → ignorée */ }
-        const r = parseSimuPartie(txt);
-        if (r.moves.length) parties.push({ numero: parties.length + 1, meta: r.meta, moves: r.moves, topTotal: r.moves.reduce((s, m) => s + (m.top.score || 0), 0) });
+        // On relance la Vision IA jusqu'à ce que la transcription soit COHÉRENTE :
+        //   • numéros de coups consécutifs (aucun coup manquant) ;
+        //   • nombre de coups transcrits = nombre annoncé par l'IA (#META coups) ;
+        //   • somme des scores = cumul annoncé (#META cumul).
+        // On garde le meilleur essai (le plus de coups) si aucun n'est parfait.
+        let best: any = null, lastTxt = "", lastErr = "";
+        for (let attempt = 0; attempt < MAX_TRIES; attempt++) {
+          let txt = "";
+          try { txt = await pacedOcr(key, b64, mediaType); } catch (e) { lastErr = String((e as any)?.message || e); continue; }
+          if (txt) lastTxt = txt;
+          const r = parseSimuPartie(txt);
+          if (!r.moves.length) continue;
+          const chk = parseOcrMeta(txt);
+          const sum = r.moves.reduce((s, m) => s + (m.top.score || 0), 0);
+          const lastNo = r.moves[r.moves.length - 1].moveNo;
+          const consecutive = lastNo === r.moves.length;            // aucun trou dans la numérotation
+          const countOK = chk.coups ? (r.moves.length === chk.coups) : consecutive;
+          const cumulOK = chk.cumul ? (sum === chk.cumul) : true;
+          const ok = consecutive && countOK && cumulOK;
+          const cand = { meta: r.meta, moves: r.moves, topTotal: sum, chk, ok, txt };
+          // Meilleur = celui qui est OK, sinon celui qui a le plus de coups.
+          if (!best || (cand.ok && !best.ok) || (cand.ok === best.ok && cand.moves.length > best.moves.length)) best = cand;
+          if (ok) break;
+        }
+        const rawTxt = (best && best.txt) || lastTxt || (lastErr ? `[OCR échec] ${lastErr}` : "");
+        rawPages.push(rawTxt || "");
+        if (best && best.moves.length) {
+          parties.push({
+            numero: parties.length + 1, meta: best.meta, moves: best.moves, topTotal: best.topTotal, rawText: rawTxt,
+            ocrCheck: { ok: best.ok, coups: best.moves.length, attendus: best.chk?.coups ?? null, cumul: best.topTotal, cumulAttendu: best.chk?.cumul ?? null },
+          });
+        } else if ((rawTxt.match(/^\s*\d+\s+[A-Z?]{4,}/gim) || []).length >= 5) {
+          // Page qui RESSEMBLE à un tableau de partie (≥5 lignes « n TIRAGE… »)
+          // mais que l'IA n'a pas su transcrire proprement : on la remonte quand
+          // même, avec son texte brut, pour correction manuelle. On EXCLUT ainsi
+          // les pages de texte (circulaires, communications) qui n'ont pas ce motif.
+          parties.push({
+            numero: parties.length + 1, meta: { mode: "duplicate", withJoker: false },
+            moves: [], topTotal: 0, rawText: rawTxt,
+            ocrCheck: { ok: false, coups: 0, attendus: null, cumul: 0, cumulAttendu: null },
+          });
+        }
       }
-      return json({ id: body.id || null, parties });
+      return json({ id: body.id || null, parties, rawPages });
     }
 
     // Liste datée des tournois d'une année (tournois.php) → matching par date.

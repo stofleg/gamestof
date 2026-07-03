@@ -27,9 +27,9 @@ import {
   emptyBoard, BOARD_BONUSES, BOARD_SIZE, CENTER, LETTER_VALUE, LETTER_BAG,
   VOWELS, drawForDuplicate, scoreMove, applyMove,
   bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName, randomBoardLayout, snakeEndpointsAfter,
-} from "./engine.js?v=287";
-import { Dictionary } from "./dictionary.js?v=287";
-import { findTop, findTopRanked, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=287";
+} from "./engine.js?v=288";
+import { Dictionary } from "./dictionary.js?v=288";
+import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=288";
 
 // État du mode review (parcours coup par coup)
 const review = {
@@ -59,7 +59,7 @@ const FFSC_REVIEW = URL_PARAMS.get("ffscreview");  // revoir une partie FFSC imp
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v287";
+const BUILD_VERSION = "garenna-v288";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -231,6 +231,14 @@ function loadSettings() {
     colorTheme: "classic",
     chronoType: "challenge",
     highlightTop: true,
+    // Axe « Mode de jeu » (entraînement) : orthogonal à la formule (gameMode).
+    //   topping   : on enchaîne dès que le top est trouvé (comportement historique) ;
+    //   duplicate : on attend la fin du chrono, puis le top est sélectionné ;
+    //   editor    : on ne joue pas, on construit une partie (pose libre + supertop).
+    playMode: "topping",
+    autoDraw: true,      // duplicate : tirage automatique (sinon saisi à la main)
+    autoTop: true,       // duplicate : sélection automatique du top en fin de chrono
+    signalZeros: false,  // duplicate : prévenir quand le mot validé est faux (zéro)
   };
   try {
     const local = JSON.parse(localStorage.getItem("scrabbleSettings") || "{}");
@@ -784,19 +792,39 @@ function restoreRackSort() {
 function renderInfo() {
   const moveNoEl = document.getElementById("moveNo");
   if (moveNoEl) moveNoEl.textContent = state.moveNo;
+  const prevNoEl = document.getElementById("prevMoveNo");
+  const prevNegEl = document.getElementById("prevNeg");
+  const prevTimeEl = document.getElementById("prevTime");
+  // ===== Mode éditeur : on n'affiche que CUMUL (somme des tops) et COUP. =====
+  if (editorActive()) {
+    $("#totalScore").textContent = state.totalScore || 0;
+    $("#sumNeg").textContent = "—";
+    const coup = (state._coups ? state._coups.length : 0) + 1;
+    if (prevNoEl) prevNoEl.textContent = coup;        // « Coup » = coup en cours
+    if (prevNegEl) prevNegEl.textContent = "—";
+    if (prevTimeEl) prevTimeEl.textContent = "—";
+    setInfoLabel("prevMoveNo", "Coup");
+    renderChrono(); renderMoveTimer(); renderBag();
+    return;
+  }
   $("#totalScore").textContent = state.totalScore;
   $("#sumNeg").textContent = state.sumNeg;
   // Section "coup précédent"
   const last = state.history?.[state.history.length - 1];
-  const prevNoEl = document.getElementById("prevMoveNo");
-  const prevNegEl = document.getElementById("prevNeg");
-  const prevTimeEl = document.getElementById("prevTime");
+  const noTime = playMode() === "duplicate";   // temps non pertinent
   if (prevNoEl)   prevNoEl.textContent   = last ? last.moveNo : "—";
   if (prevNegEl)  prevNegEl.textContent  = last ? last.neg : "—";
-  if (prevTimeEl) prevTimeEl.textContent = last ? fmtChrono(Math.round((last.timeMs || 0) / 1000)) : "—";
+  if (prevTimeEl) prevTimeEl.textContent = noTime ? "—" : (last ? fmtChrono(Math.round((last.timeMs || 0) / 1000)) : "—");
   renderChrono();
   renderMoveTimer();
   renderBag();
+}
+// Met à jour le libellé (.label) au-dessus d'une valeur de l'info-bar.
+function setInfoLabel(valueId, text) {
+  const v = document.getElementById(valueId);
+  const item = v && v.closest(".item");
+  const lbl = item && item.querySelector(".label");
+  if (lbl) lbl.textContent = text;
 }
 
 const VOYELLES_SET = ["A","E","I","O","U","Y"];
@@ -849,13 +877,21 @@ function renderBag() {
   const ordered = [...VOYELLES_SET, ...consonnes, "?"];
   const total = Object.values(counts).reduce((a, n) => a + (n > 0 ? n : 0), 0);
   $("#bagCount").textContent = total;
+  const picking = !!state._drawPhase;   // tirage manuel : les jetons du sac sont cliquables
   $("#bagTiles").innerHTML = ordered.map(l => {
     const n = counts[l] || 0;
     if (n <= 0) return "";   // jamais de compteur négatif (double-décompte transitoire)
     const cls = ["bag-chip"];
     if (l === "?") cls.push("joker");
-    return `<span class="${cls.join(" ")}">${l}<span class="ct">${n}</span></span>`;
+    if (picking) cls.push("pickable");
+    const attr = picking ? ` data-pick="${l}" role="button" tabindex="0"` : "";
+    return `<span class="${cls.join(" ")}"${attr}>${l}<span class="ct">${n}</span></span>`;
   }).join("");
+  if (picking) {
+    $("#bagTiles").querySelectorAll("[data-pick]").forEach(ch => {
+      ch.onclick = () => drawPickLetter(ch.dataset.pick);
+    });
+  }
 }
 
 // Case où placer le badge de score (rightmost en H, bottommost en V, sinon dernière posée).
@@ -877,6 +913,7 @@ function renderMoveTimer() {
   const el = $("#moveTimer");
   const label = $("#moveTimerLabel");
   if (!el || !chip) return;
+  if (editorActive()) { chip.style.display = "none"; return; }   // pas de minuteur en éditeur
   if (label) label.textContent = `Coup ${state.moveNo}`;
   if (state.settings.timePerMove > 0 && state.started && !state.chronoFinal) {
     el.textContent = `${state.moveTimeLeft}s`;
@@ -884,6 +921,11 @@ function renderMoveTimer() {
     // Chrono Zen : pas de changement de couleur, même apparence du début à la fin.
     const zen = state.settings.chronoType === "zen";
     chip.classList.toggle("danger", !zen && state.moveTimeLeft <= 10);
+    chip.style.display = "";
+  } else if (playMode() === "duplicate" && state.started) {
+    // Duplicate sans temps par coup → « — » plutôt que de masquer la chip.
+    el.textContent = "—";
+    chip.classList.remove("danger");
     chip.style.display = "";
   } else {
     chip.style.display = "none";
@@ -903,6 +945,11 @@ function fmtChrono(s) {
 }
 
 function renderChrono() {
+  // En duplicate et en éditeur, le temps général n'est pas pertinent → « — ».
+  if (playMode() === "duplicate" || editorActive()) {
+    $("#chrono").textContent = "—";
+    return;
+  }
   $("#chrono").textContent = fmtChrono(elapsedSeconds());
 }
 
@@ -934,6 +981,8 @@ function startMoveTimer() {
         timeoutAdvance();
       }
     }, 1000);
+  } else {
+    renderMoveTimer();   // affiche « — » en duplicate sans temps, masque sinon
   }
 }
 function stopMoveTimer() {
@@ -944,6 +993,8 @@ function stopMoveTimer() {
 // Coup non trouvé dans le temps : on révèle le top sans pénalité supplémentaire
 function timeoutAdvance() {
   if (!state.started) return;
+  // Mode duplicate : fin de chrono → sélection du top puis coup suivant.
+  if (playMode() === "duplicate") { duplicateChronoEnd(); return; }
   ensureTopReady();
   // Si le top reste introuvable (dictionnaire vraiment indisponible), on ne fige
   // PAS la partie : on relance le minuteur pour laisser une chance au dico de se
@@ -1152,6 +1203,16 @@ function clearTopHighlight() {
 function handleBoardClick(r, c) {
   if (review.active) return;
   if (state.annotTool) { annotateCell(r, c); return; }
+  // En éditeur : clic = placer le curseur (même sur une case occupée). 2e clic
+  // sur la même case = bascule H↔V. On annule d'abord un éventuel aperçu.
+  if (editorActive()) {
+    editorRestoreBoard();
+    if (state.cursor && state.cursor.row === r && state.cursor.col === c)
+      state.cursor.dir = state.cursor.dir === "H" ? "V" : "H";
+    else state.cursor = { row: r, col: c, dir: state.cursor?.dir || "H" };
+    renderBoard();
+    return;
+  }
   // Flash "mot faux" en cours → on l'annule pour que le clic agisse tout de
   // suite (les cases redeviennent libres, les lettres reviennent au chevalet).
   if (clearInvalidFlash()) renderRack();
@@ -1198,6 +1259,13 @@ function handleBoardClick(r, c) {
 function handleBoardRightClick(r, c) {
   if (review.active) return;
   if (state.annotTool) return;
+  // En éditeur : clic droit = curseur vertical sur la case (même occupée).
+  if (editorActive()) {
+    editorRestoreBoard();
+    state.cursor = { row: r, col: c, dir: "V" };
+    renderBoard();
+    return;
+  }
   if (state.board[r][c]) return;
   if (state.pending.length > 0) {
     const clickedOnPending = state.pending.some(p => p.row === r && p.col === c);
@@ -1475,6 +1543,51 @@ function handleKey(e) {
     return;
   }
 
+  // ===== Tirage manuel en cours : la frappe compose le chevalet =====
+  if (state._drawPhase) {
+    if (e.key === "Enter") { e.preventDefault(); confirmManualDraw(); return; }
+    if (e.key === "-" || e.key === "Subtract") { e.preventDefault(); rejectManualDraw(); return; }
+    if (e.key === "Backspace") { e.preventDefault(); drawPopLast(); return; }
+    if (e.key === "?") { e.preventDefault(); drawPickLetter("?"); return; }
+    if (e.key.length === 1 && /[a-zA-ZàâäéèêëîïôöùûüçÀÂÄÉÈÊËÎÏÔÖÙÛÜÇ]/.test(e.key)) {
+      e.preventDefault();
+      const L = e.key.toUpperCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+      drawPickLetter(L);
+    }
+    return;   // pendant le tirage, rien d'autre n'agit
+  }
+
+  // ===== Sélection manuelle du top en cours (mode duplicate) =====
+  if (state._dupSols) {
+    if (e.key === "Enter") { e.preventDefault(); dupConfirmSelection(); return; }
+    if (e.key === "ArrowDown") { e.preventDefault(); dupMoveSelection(1); return; }
+    if (e.key === "ArrowUp") { e.preventDefault(); dupMoveSelection(-1); return; }
+    return;   // pendant la sélection, rien d'autre n'agit
+  }
+
+  // ===== Mode ÉDITEUR : pose libre directe sur la grille =====
+  if (state._editor) {
+    if (e.key === "Enter") { e.preventDefault(); editorCommitSelected(); return; }
+    if (e.key === "Escape") { e.preventDefault(); editorRestoreBoard(); return; }
+    if (e.key === "Backspace") { e.preventDefault(); editorEraseAtCursor(); return; }
+    if (e.key === " ") {
+      e.preventDefault();
+      if (state.cursor) { state.cursor.dir = state.cursor.dir === "H" ? "V" : "H"; renderBoard(); }
+      return;
+    }
+    if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(e.key)) {
+      e.preventDefault(); editorMoveCursor(e.key); return;
+    }
+    if (e.key === "?") { e.preventDefault(); editorPlaceJokerPrompt(!e.shiftKey); return; }
+    if (e.key.length === 1 && /[a-zA-ZàâäéèêëîïôöùûüçÀÂÄÉÈÊËÎÏÔÖÙÛÜÇ]/.test(e.key)) {
+      e.preventDefault();
+      const L = e.key.toUpperCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+      editorPlace(L, !e.shiftKey, false);   // Maj = jeton hors sac
+      return;
+    }
+    return;
+  }
+
   if (e.key === "Enter") { e.preventDefault(); validate(); return; }
   if (e.key === "Escape") {
     e.preventDefault();
@@ -1729,7 +1842,181 @@ function handleDualValidate(move, result) {
   showFeedback("miss", msg, état);
 }
 
+// ============================================================
+//  Mode DUPLICATE (entraînement)
+// ============================================================
+// Le joueur saisit des mots ; chaque mot LÉGAL validé devient son « dernier mot
+// validé » (remplace le précédent). On ne révèle pas le top et on n'enchaîne pas :
+// on attend la fin du chrono. À l'échéance, le top est sélectionné (auto ou par
+// le joueur) et le négatif est calculé depuis le dernier mot validé.
+function validateDuplicate(move, mode) {
+  const opts = { bonuses: mode.bonuses, jokerPays: mode.jokerPays, layout: state.boardLayout };
+  const result = bestJokerVariant(state.board, move, state.dict, opts);
+  const wait = state.settings.timePerMove > 0 ? " · en attente de la fin du chrono" : "";
+  if (result.errors.length) {
+    if (state.settings.signalZeros) {
+      // Signalement des zéros activé → on prévient (flash rouge), le joueur corrige.
+      flashInvalidWord(result.errors.join("<br>"), result.invalidCells);
+      return;
+    }
+    // Signalement DÉSACTIVÉ : le mot faux est retenu et présenté COMME S'IL ÉTAIT
+    // BON (on affiche son score brut). Il vaudra en réalité 0, révélé en fin de
+    // chrono. Les jetons restent posés, comme pour un mot valide.
+    const raw = scoreMove(state.board, move, state.dict, { ...opts, raw: true });
+    state._dupLast = { word: move.word, score: 0, move: null, invalid: true };
+    state.moveMaxPlaced = Math.max(state.moveMaxPlaced, result.placed?.length || state.pending.length);
+    renderBoard(); renderRack();
+    showFeedback("info", `<strong>${wLink(move.word)}</strong> — ${raw.score} pts retenu${wait}`, "");
+    return;
+  }
+  if (result.placed.length > mode.maxPlayed) {
+    showTransientError(`Trop de lettres posées (max ${mode.maxPlayed})`,
+      `Le mode ${mode.label} limite à ${mode.maxPlayed} lettres jouées par coup.`);
+    return;
+  }
+  // Mot légal retenu (remplace le précédent). Les jetons restent visibles ; le
+  // joueur peut annuler (Échap / ✕) pour proposer un autre mot.
+  state._dupLast = { word: move.word, score: result.score, move, invalid: false };
+  state.moveMaxPlaced = Math.max(state.moveMaxPlaced, result.placed.length);
+  renderBoard(); renderRack();
+  showFeedback("info", `<strong>${wLink(move.word)}</strong> — ${result.score} pts retenu${wait}`, "");
+}
+
+// Solutions au TOP (isotops), CLASSÉES par pertinence Topissimo (mêmes critères
+// que findTopRanked). Le 1er élément est le choix qu'aurait fait le logiciel.
+// Dédupliquées par mot + position.
+function topSolutions() {
+  const mode = currentMode();
+  const rackLetters = state.rack.map(t => t.letter);
+  const ranked = rankIsotops(state.board, rackLetters, state.dict, state.bag, {
+    maxTilesUsed: mode.maxPlayed, bonuses: mode.bonuses,
+    jokerPays: mode.jokerPays, layout: state.boardLayout,
+    preserveJoker: effJoker() && state.spareJokers > 0,
+  });
+  const seen = new Set();
+  const out = [];
+  for (const c of ranked) {
+    const key = `${c.move.word}@${c.move.row},${c.move.col},${c.move.dir}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(c);
+  }
+  return out;
+}
+
+// Le coup choisi par le logiciel (1er du classement = celui de findTopRanked).
+function isSameMove(a, b) {
+  return a && b && a.word === b.word && a.row === b.row && a.col === b.col && a.dir === b.dir;
+}
+
+// Fin de chrono en mode duplicate : sélection du top (auto ou manuelle) puis
+// passage au coup suivant.
+function duplicateChronoEnd() {
+  ensureTopReady();
+  if (!state.topMove) {
+    if (!state.dict) { startMoveTimer(); return; }   // dico pas prêt → on patiente
+    endGame();
+    return;
+  }
+  if (state.settings.autoTop) {
+    finishDuplicateMove(state.topMove.move);
+  } else {
+    showTopSelection();
+  }
+}
+
+// Pose le top choisi (chosenMove) et enchaîne. Le négatif est calculé depuis le
+// dernier mot validé par le joueur.
+function finishDuplicateMove(chosenMove) {
+  if (chosenMove) state.topMove.move = chosenMove;
+  const topScore = state.topMove.score;
+  const last = state._dupLast || {};
+  const playerScore = last.score || 0;
+  const playedWord = last.word || null;
+  const playedMove = last.move || null;
+  const wasInvalid = !!last.invalid;
+  clearPending();
+  recordMove({ status: playerScore === topScore ? "top" : "timeout", playerScore, playedWord, playedMove });
+  hideTopFeedback();
+  // 3e argument = score AFFICHÉ pour le mot du joueur (pas le score du top).
+  placeTopAndAdvance(playerScore, playedWord, playerScore, playedMove);
+  state._dupLast = null;
+  nextMove();
+  // Révélation en fin de chrono : si le dernier mot validé était faux → 0 pt.
+  // Fenêtre en ROUGE (kind "error") pour bien marquer le zéro.
+  if (wasInvalid && playedWord) {
+    showFeedback("error", `⚠️ Dernier mot validé « ${escapeHtmlS(playedWord)} » non valide → 0 pt`, "");
+  }
+}
+
+// Sélection MANUELLE du top, à la manière de la review : panneau listant les
+// solutions au top ; cliquer une ligne POSE le mot sur la grille (aperçu) ;
+// Entrée valide la sélection et enchaîne sur le coup suivant.
+function showTopSelection() {
+  const sols = topSolutions();
+  // Aucune ou UNE seule solution au top (pas d'isotop) → on pose directement,
+  // sans ouvrir la fenêtre de sélection.
+  if (sols.length <= 1) { finishDuplicateMove(sols[0]?.move || state.topMove.move); return; }
+  clearPending();                                   // retirer la réponse du joueur de la grille
+  renderRack();
+  state._dupBaseBoard = state.board.map(r => r.slice());   // plateau AVANT pose du top
+  state._dupSols = sols;
+  state._dupSel = 0;
+  const panel = document.getElementById("dupTopPicker");
+  if (!panel) { finishDuplicateMove(sols[0].move); return; }   // sécurité
+  const list = panel.querySelector(".dtp-list");
+  // Le choix Topissimo (1er du classement = celui du logiciel) est marqué en vert.
+  list.innerHTML = `<table><thead><tr><th>Mot</th><th>Place</th><th>Score</th></tr></thead><tbody>${
+    sols.map((s, i) => {
+      const isPick = i === 0 || isSameMove(s.move, state.topMove?.move);
+      return `<tr data-i="${i}" class="${isPick ? "tps-pick" : ""}"><td>${wLink(s.move.word)}${isPick ? " ✓" : ""}</td><td>${posLabel(s.move)}</td><td>${s.score}</td></tr>`;
+    }).join("")
+  }</tbody></table>`;
+  list.querySelectorAll("tr[data-i]").forEach(tr => {
+    // Simple clic : aperçu / sélection. Double clic (ou Entrée) : valide.
+    tr.onclick = () => dupPreviewSolution(+tr.dataset.i);
+    tr.ondblclick = () => { dupPreviewSolution(+tr.dataset.i); dupConfirmSelection(); };
+  });
+  panel.hidden = false;
+  dupPreviewSolution(0);
+}
+
+// Aperçu d'une solution sur la grille (à la place du top), + sélection de la ligne.
+function dupPreviewSolution(i) {
+  const sols = state._dupSols; if (!sols || !sols[i]) return;
+  state._dupSel = i;
+  state.board = applyMove(state._dupBaseBoard.map(r => r.slice()), sols[i].move);
+  state.lastPlaced = computeLastPlacedCells(state._dupBaseBoard, sols[i].move);
+  renderBoard();
+  const panel = document.getElementById("dupTopPicker");
+  if (panel) panel.querySelectorAll("tr[data-i]").forEach(tr =>
+    tr.classList.toggle("selected", +tr.dataset.i === i));
+}
+
+// Déplacement clavier de la sélection (↑/↓).
+function dupMoveSelection(delta) {
+  if (!state._dupSols) return;
+  const n = state._dupSols.length;
+  dupPreviewSolution((state._dupSel + delta + n) % n);
+  // Garder la ligne visible.
+  const tr = document.querySelector(`#dupTopPicker tr[data-i="${state._dupSel}"]`);
+  if (tr) tr.scrollIntoView({ block: "nearest" });
+}
+
+// Validation de la sélection (Entrée) : on pose le top choisi et on enchaîne.
+function dupConfirmSelection() {
+  if (!state._dupSols) return;
+  const chosen = state._dupSols[state._dupSel].move;
+  state.board = state._dupBaseBoard.map(r => r.slice());   // restaurer avant pose officielle
+  state._dupSols = null; state._dupBaseBoard = null;
+  const panel = document.getElementById("dupTopPicker");
+  if (panel) panel.hidden = true;
+  finishDuplicateMove(chosen);
+}
+
 function validate() {
+  // Tirage manuel en cours : « ✓ » valide le tirage (et lance le chrono).
+  if (state._drawPhase) { confirmManualDraw(); return; }
   ensureTopReady();
   if (!state.pending.length) {
     showTransientError("Rien à valider", "Place d'abord des lettres sur la grille.");
@@ -1754,6 +2041,10 @@ function validate() {
       return;
     }
   }
+  // ===== Mode DUPLICATE : on ne révèle PAS le top, on ne valide PAS le coup
+  // immédiatement. On retient le dernier mot validé (son score réel à l'endroit
+  // posé) ; le passage au coup suivant se fait à la fin du chrono. =====
+  if (playMode() === "duplicate") { validateDuplicate(move, mode); return; }
   const topMv = state.topMove?.move;
   // ===== Premier coup : valorisation INDÉPENDANTE de la position =====
   // Au 1er coup, le plateau est vide : n'importe quel mot valide peut être placé
@@ -2166,6 +2457,9 @@ function revealTop() {
     flashFeedback("error", "Partie non démarrée", "Appuie sur ✓ ou « Démarrer » pour lancer la partie.");
     return;
   }
+  // En duplicate, « Voir le top » termine le coup (sélection du top puis suivant),
+  // sans pénalité de temps — utile notamment si le chrono est illimité.
+  if (playMode() === "duplicate") { stopMoveTimer(); duplicateChronoEnd(); return; }
   ensureTopReady();
   if (!state.topMove) return;
   state.chronoPenalty += 20;
@@ -2404,6 +2698,11 @@ function nextMove() {
     if (jokersInPool === 0 && ysInPool === 0) { endGame(); return; }
   }
 
+  // ===== Tirage MANUEL (duplicate sans tirage auto) =====
+  // Le joueur compose lui-même le chevalet en cliquant dans le sac ; on n'enchaîne
+  // (chrono + calcul du top) qu'à la validation du tirage.
+  if (manualDrawActive()) { beginManualDraw(); return; }
+
   // Compléter le chevalet selon le mode de partie
   const mode = currentMode();
   const targetSize = mode.rackSize;
@@ -2433,6 +2732,7 @@ function nextMove() {
   // Log de la règle appliquée si elle a été relâchée
   if (result.minApplied !== undefined && result.minApplied < (state.moveNo >= 15 ? 1 : 2)) {
   }
+  state._dupLast = null;   // duplicate : remise à zéro du « dernier mot validé » du coup
   renderRack();
   renderBoard();
   renderBag();           // afficher le sac dès le nouveau tirage (entraînement)
@@ -2539,10 +2839,647 @@ function computeTop() {
 // Joker effectif : mode joker classique OU joker payant (qui est aussi une partie joker).
 function effJoker() { return state.settings.withJoker || !!currentMode().jokerPays; }
 
+// Axe « mode de jeu ». N'a de sens qu'en ENTRAÎNEMENT : en tournoi/puzzle/review,
+// on reste en logique topping historique.
+function playMode() {
+  if (state.prepared || state.isPuzzle || review.active) return "topping";
+  const pm = state.settings.playMode || "topping";
+  // Éditeur en sourdine pour le moment (à retravailler) → on le ramène à topping,
+  // même si un ancien réglage « editor » traîne en mémoire.
+  if (pm === "editor") return "topping";
+  return pm;
+}
+
+// Libellé du bouton « Voir le top » : en duplicate, pas de pénalité de temps
+// (le dernier mot validé est retenu, puis on passe au coup suivant) → on retire
+// la mention « (−20s) ».
+function updateGiveUpLabel() {
+  const btn = document.getElementById("btnGiveUp");
+  if (!btn) return;
+  const dup = playMode() === "duplicate";
+  const lbl = btn.querySelector(".lbl");
+  if (lbl) lbl.textContent = dup ? "Voir le top" : "Voir le top (−20s)";
+  btn.setAttribute("data-tip", dup ? "Voir le top" : "Voir le top (−20 s)");
+}
+
+// Tirage manuel actif : duplicate avec « tirage automatique » décoché, OU éditeur.
+function manualDrawActive() {
+  const pm = playMode();
+  return (pm === "duplicate" && state.settings.autoDraw === false) || pm === "editor";
+}
+
+// ===== Tirage manuel : le joueur compose le chevalet via une MODALE =====
+// (Le sac inline est masqué sur mobile : on utilise une modale dédiée, qui
+//  fonctionne aussi bien sur téléphone que sur ordinateur.)
+function beginManualDraw() {
+  state._drawPhase = true;
+  state.currentRackFresh = false;
+  state.currentKept = state.rack.map(t => t.letter).join("");
+  for (const t of state.rack) t.used = false;
+  renderRack(); renderBoard(); renderBag();
+  openDrawModal();
+}
+
+function ensureDrawModal() {
+  let m = document.getElementById("drawModal");
+  if (!m) {
+    m = document.createElement("div");
+    m.id = "drawModal";
+    m.className = "modal";
+    m.innerHTML = `<div class="backdrop"></div><div class="content draw-modal">
+      <button class="close" id="drawClose" title="Fermer">×</button>
+      <h2>Compose ton tirage</h2>
+      <p class="muted" style="margin:0 0 8px;font-size:.85rem">Clique les lettres du sac (ou tape-les au clavier). « – » remet tout au sac · Backspace retire la dernière. <kbd>Entrée</kbd> ou « Valider » lance le chrono.</p>
+      <div class="draw-sel" id="drawSel"></div>
+      <div class="draw-bag" id="drawBag"></div>
+      <div class="draw-actions">
+        <button class="btn ghost" id="drawAuto">🎲 Automatique</button>
+        <button class="btn ghost" id="drawReset">– Tout remettre</button>
+        <button class="btn primary" id="drawValidate">Valider ▶</button>
+      </div></div>`;
+    document.body.appendChild(m);
+    m.querySelector("#drawAuto").onclick = () => drawAuto();
+    m.querySelector("#drawReset").onclick = () => rejectManualDraw();
+    m.querySelector("#drawValidate").onclick = () => confirmManualDraw();
+    m.querySelector("#drawClose").onclick = () => closeDrawModal();
+  }
+  return m;
+}
+
+function openDrawModal() {
+  const m = ensureDrawModal();
+  m.hidden = false;
+  const re = document.getElementById("drawReopen"); if (re) re.hidden = true;
+  renderDrawModal();
+}
+
+// Ferme la modale sans valider. Le tirage reste en cours : un bouton flottant
+// « 🎲 Composer le tirage » permet de la rouvrir (utile pour regarder le plateau).
+function closeDrawModal() {
+  const m = document.getElementById("drawModal"); if (m) m.hidden = true;
+  if (!state._drawPhase) return;
+  let re = document.getElementById("drawReopen");
+  if (!re) {
+    re = document.createElement("button");
+    re.id = "drawReopen";
+    re.className = "btn primary draw-reopen";
+    re.textContent = "🎲 Composer le tirage";
+    re.onclick = () => openDrawModal();
+    // Placé juste sous le sac de lettres (dans la colonne de droite).
+    const bag = document.getElementById("bagDisplay");
+    if (bag && bag.parentNode) bag.insertAdjacentElement("afterend", re);
+    else document.body.appendChild(re);
+  }
+  re.hidden = false;
+}
+
+function renderDrawModal() {
+  const m = document.getElementById("drawModal");
+  if (!m || m.hidden) return;
+  const max = currentMode().rackSize || 7;
+  const sel = m.querySelector("#drawSel");
+  sel.innerHTML = `<div class="draw-sel-tiles">${
+    state.rack.length
+      ? state.rack.map(t => `<span class="tile draw-tile">${t.letter === "?" ? "" : t.letter}</span>`).join("")
+      : `<span class="muted">Aucune lettre choisie</span>`
+  }</div><div class="muted" style="font-size:.78rem;margin-top:4px">${state.rack.length}/${max} lettre(s)</div>`;
+  const counts = { ...state.bag };
+  if (effJoker() && state.spareJokers > 0) counts["?"] = (counts["?"] || 0) + state.spareJokers;
+  const allLetters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
+  const consonnes = allLetters.filter(l => !VOYELLES_SET.includes(l));
+  const ordered = [...VOYELLES_SET, ...consonnes, "?"];
+  const bag = m.querySelector("#drawBag");
+  bag.innerHTML = ordered.map(l => {
+    const n = counts[l] || 0; if (n <= 0) return "";
+    const cls = ["bag-chip", "pickable"]; if (l === "?") cls.push("joker");
+    return `<span class="${cls.join(" ")}" data-pick="${l}">${l}<span class="ct">${n}</span></span>`;
+  }).join("");
+  bag.querySelectorAll("[data-pick]").forEach(ch => ch.onclick = () => drawPickLetter(ch.dataset.pick));
+}
+
+// Pioche une lettre du sac vers le chevalet pendant le tirage manuel.
+function drawPickLetter(L) {
+  if (!state._drawPhase) return;
+  const max = currentMode().rackSize || 7;
+  if (state.rack.length >= max) { flashFeedback("error", "Chevalet plein", `Maximum ${max} lettres.`); return; }
+  if (L === "?") {
+    if ((state.spareJokers || 0) <= 0) { flashFeedback("error", "Plus de joker disponible", ""); return; }
+    state.spareJokers--;
+    state.rack.push({ letter: "?", used: false, id: nextTileId() });
+  } else {
+    if ((state.bag[L] || 0) <= 0) { flashFeedback("error", `Plus de « ${L} » dans le sac`, ""); return; }
+    state.bag[L]--;
+    state.rack.push({ letter: L, used: false, id: nextTileId() });
+  }
+  renderRack(); renderBag(); renderDrawModal();
+}
+
+// Retire le DERNIER jeton pioché (Backspace) → le remet au sac.
+function drawPopLast() {
+  if (!state._drawPhase || !state.rack.length) return;
+  const t = state.rack.pop();
+  if (t.letter === "?") state.spareJokers = (state.spareJokers || 0) + 1;
+  else state.bag[t.letter] = (state.bag[t.letter] || 0) + 1;
+  renderRack(); renderBag(); renderDrawModal();
+}
+
+// Génère un tirage ALÉATOIRE équilibré (remplit le chevalet depuis le sac).
+function drawAuto() {
+  if (!state._drawPhase) return;
+  rejectManualDraw();   // remet d'abord le chevalet courant au sac
+  const mode = currentMode();
+  const target = mode.rackSize || 7;
+  const forceJoker = effJoker() && (state.spareJokers || 0) > 0;
+  const regularTarget = forceJoker ? target - 1 : target;
+  const result = drawForDuplicate(state.bag, [], state.moveNo, regularTarget, { minVowels: mode.minVowels });
+  if (result.failed) { flashFeedback("error", "Tirage impossible", "Le sac ne permet plus un tirage complet."); return; }
+  state.bag = result.bag;
+  for (const L of (result.drawn || [])) state.rack.push({ letter: L, used: false, id: nextTileId() });
+  if (forceJoker) { state.spareJokers--; state.rack.push({ letter: "?", used: false, id: nextTileId() }); }
+  renderRack(); renderBag(); renderDrawModal();
+}
+
+// Rejette le tirage (touche « – ») : tout le chevalet retourne au sac.
+function rejectManualDraw() {
+  if (!state._drawPhase) return;
+  for (const t of state.rack) {
+    if (t.letter === "?") state.spareJokers = (state.spareJokers || 0) + 1;
+    else state.bag[t.letter] = (state.bag[t.letter] || 0) + 1;
+  }
+  state.rack = [];
+  renderRack(); renderBag(); renderDrawModal();
+}
+
+// Valide le tirage manuel → ferme la modale, démarre le coup (chrono + top).
+function confirmManualDraw() {
+  if (!state._drawPhase) return;
+  if (!state.rack.length) { flashFeedback("error", "Tirage vide", "Choisis au moins une lettre."); return; }
+  state._drawPhase = false;
+  { const m = document.getElementById("drawModal"); if (m) m.hidden = true; }
+  { const re = document.getElementById("drawReopen"); if (re) re.hidden = true; }
+  state.currentKept = "";   // tirage entièrement composé à la main
+  for (const t of state.rack) t.used = false;
+  renderRack(); renderBoard(); renderBag();
+  state._dupLast = null;
+  // ===== Mode ÉDITEUR : pas de chrono ni de boucle de jeu — on entre en mode
+  // construction (pose libre + solutions live + supertop). =====
+  if (playMode() === "editor") { enterEditorMode(); return; }
+  startMoveTimer();
+  ensureCursorOnFreeCell();
+  state._topPending = true;
+  setTimeout(() => { if (state._topPending && computeTop()) state._topPending = false; }, 0);
+  hideFeedback();
+}
+
+// ============================================================
+//  Mode ÉDITEUR : construction libre d'une partie
+// ============================================================
+function editorActive() { return state._editor === true; }
+
+function enterEditorMode() {
+  const fresh = !state._editor;
+  state._editor = true;
+  if (fresh) { state._coups = []; state.totalScore = 0; }
+  hideFeedback();
+  ensureCursorOnFreeCell();
+  showEditorToolbar();
+  editorRefreshSolutions();
+  renderInfo();
+}
+
+// Retire du chevalet les lettres NOUVELLEMENT posées par `move` (cases vides sur
+// `base`). Les jokers (blanks) retirent un « ? ».
+function removeMoveLettersFromRack(move, base) {
+  const dr = move.dir === "V" ? 1 : 0, dc = move.dir === "H" ? 1 : 0;
+  for (let i = 0; i < move.word.length; i++) {
+    const r = move.row + i * dr, c = move.col + i * dc;
+    if (base[r] && base[r][c]) continue;                 // déjà sur le plateau
+    const isBlank = (move.blanks || []).includes(i);
+    let idx = isBlank ? state.rack.findIndex(t => t.letter === "?")
+                      : state.rack.findIndex(t => t.letter === move.word[i]);
+    if (idx === -1 && !isBlank) idx = state.rack.findIndex(t => t.letter === "?");
+    if (idx !== -1) state.rack.splice(idx, 1);
+  }
+}
+
+// Pose le coup choisi : enregistre l'état AVANT (pour le retour arrière), applique
+// le mot, retire les lettres du chevalet, met à jour CUMUL/COUP, puis enchaîne sur
+// la composition du tirage suivant (sauf si silent, pour « Générer »).
+function editorCommitCoup(move, score, silent) {
+  if (!editorActive() || !move) return;
+  editorRestoreBoard();
+  const base = state.board.map(r => r.slice());
+  state._coups.push({
+    board: base, bag: { ...state.bag }, rack: state.rack.map(t => t.letter),
+    spareJokers: state.spareJokers || 0, move, score: score || 0,
+  });
+  state.totalScore = (state.totalScore || 0) + (score || 0);
+  state.board = applyMove(state.board, move);
+  removeMoveLettersFromRack(move, base);
+  state.cursor = null;
+  state._editorSel = null;
+  renderBoard(); renderRack(); renderBag(); renderInfo();
+  if (!silent) startNextEditorDraw();
+}
+
+// Pose le coup actuellement prévisualisé (sélection dans la liste).
+function editorCommitSelected() {
+  if (!state._editorSols || state._editorSel == null) {
+    flashFeedback("info", "Aucun coup sélectionné", "Clique d'abord un mot dans la liste.");
+    return;
+  }
+  const s = state._editorSols[state._editorSel];
+  if (s) editorCommitCoup(s.move, s.score, false);
+}
+
+// Compose le tirage du coup suivant (reliquat conservé).
+function startNextEditorDraw() {
+  state._drawPhase = true;
+  for (const t of state.rack) t.used = false;
+  openDrawModal();
+}
+
+// Retour au coup précédent : restaure l'état complet d'avant le dernier coup.
+function editorUndoCoup() {
+  if (!editorActive()) return;
+  if (state._drawPhase) { state._drawPhase = false; const m = document.getElementById("drawModal"); if (m) m.hidden = true; const re = document.getElementById("drawReopen"); if (re) re.hidden = true; }
+  if (!state._coups.length) { flashFeedback("info", "Début de partie", "Aucun coup à annuler."); return; }
+  const c = state._coups.pop();
+  state.board = c.board.map(r => r.slice());
+  state.bag = { ...c.bag };
+  state.spareJokers = c.spareJokers;
+  state.rack = c.rack.map(L => ({ letter: L, used: false, id: nextTileId() }));
+  state.totalScore = state._coups.reduce((a, x) => a + (x.score || 0), 0);
+  state.cursor = null; state._editorSel = null;
+  renderBoard(); renderRack(); renderBag(); renderInfo();
+  editorRefreshSolutions();
+}
+
+// Complète le chevalet par un tirage automatique équilibré. false si fin de partie.
+function editorAutoFill() {
+  const mode = currentMode();
+  const remain = state.rack.filter(t => !t.used).map(t => t.letter);
+  let v = bagTotalVowels(state.bag), c = bagTotalConsonants(state.bag);
+  for (const L of remain) { if (L === "?") continue; if (VOWELS.has(L)) v++; else c++; }
+  if (v === 0 || c === 0) {
+    const jok = (state.bag["?"] || 0) + remain.filter(l => l === "?").length;
+    const ys = (state.bag["Y"] || 0) + remain.filter(l => l === "Y").length;
+    if (jok === 0 && ys === 0) return false;
+  }
+  const target = mode.rackSize;
+  const jokerInRack = state.rack.some(t => t.letter === "?");
+  const forceJoker = effJoker() && state.spareJokers > 0 && !jokerInRack;
+  const regularTarget = forceJoker ? target - 1 : target;
+  const kept = state.rack.map(t => t.letter);
+  const result = drawForDuplicate(state.bag, kept, state._coups.length + 1, regularTarget, { minVowels: mode.minVowels });
+  if (result.failed) return false;
+  state.bag = result.bag;
+  if (result.fresh) state.rack = state.rack.filter(t => t.letter === "?");
+  for (const L of (result.drawn || [])) state.rack.push({ letter: L, used: false, id: nextTileId() });
+  if (forceJoker) { state.spareJokers--; state.rack.push({ letter: "?", used: false, id: nextTileId() }); }
+  for (const t of state.rack) t.used = false;
+  return true;
+}
+
+// Génère automatiquement la suite de la partie jusqu'à la fin (tops du moteur).
+function editorGenerateRest() {
+  if (!editorActive()) return;
+  if (state._drawPhase) { state._drawPhase = false; const m = document.getElementById("drawModal"); if (m) m.hidden = true; const re = document.getElementById("drawReopen"); if (re) re.hidden = true; }
+  editorRestoreBoard();
+  const mode = currentMode();
+  let guard = 0;
+  while (guard++ < 300) {
+    if (!editorAutoFill()) break;
+    const rackLetters = state.rack.map(t => t.letter);
+    const top = findTopRanked(state.board, rackLetters, state.dict, state.bag, {
+      maxTilesUsed: mode.maxPlayed, bonuses: mode.bonuses,
+      preserveJoker: effJoker() && state.spareJokers > 0, layout: state.boardLayout,
+    });
+    if (!top || !top.move) break;
+    editorCommitCoup(top.move, top.score, true);   // silencieux
+  }
+  renderBoard(); renderRack(); renderBag(); renderInfo();
+  editorRefreshSolutions();
+  flashFeedback("info", "Partie générée", `${state._coups.length} coup(s) — cumul ${state.totalScore}.`);
+}
+
+// Pose libre d'un jeton sur la grille (commit direct, pas un coup).
+//   fromBag = true  → jeton tiré du sac (décrémente le sac) ;
+//   fromBag = false → jeton SUPPLÉMENTAIRE (hors sac) ;
+//   isBlank = true  → joker (la lettre n'est qu'un affichage).
+function editorPlace(letter, fromBag, isBlank) {
+  if (!editorActive() || !state.cursor) return;
+  let { row, col } = state.cursor;
+  // Avancer jusqu'à une case libre dans le sens du curseur.
+  while (row < BOARD_SIZE && col < BOARD_SIZE && state.board[row][col]) {
+    row += state.cursor.dir === "V" ? 1 : 0;
+    col += state.cursor.dir === "H" ? 1 : 0;
+  }
+  if (row >= BOARD_SIZE || col >= BOARD_SIZE) { flashFeedback("error", "Bord du plateau atteint", ""); return; }
+  if (fromBag) {
+    if (isBlank) {
+      if ((state.spareJokers || 0) <= 0 && (state.bag["?"] || 0) <= 0) { flashFeedback("error", "Plus de joker dans le sac", ""); return; }
+      if (state.spareJokers > 0) state.spareJokers--; else state.bag["?"]--;
+    } else {
+      if ((state.bag[letter] || 0) <= 0) { flashFeedback("error", `Plus de « ${letter} » dans le sac`, ""); return; }
+      state.bag[letter]--;
+    }
+  }
+  state.board[row][col] = { letter, isBlank: !!isBlank };
+  state.cursor = { row, col, dir: state.cursor.dir };
+  advanceCursor();
+  renderBoard(); renderBag();
+  editorRefreshSolutions();
+}
+
+// Retire le jeton sous le curseur (ou la case précédente) et le rend au sac si
+// c'était un jeton du sac (heuristique : on rend toujours au sac, sauf joker → spareJokers).
+function editorEraseAtCursor() {
+  if (!editorActive() || !state.cursor) return;
+  let { row, col } = state.cursor;
+  if (!state.board[row][col]) {
+    // reculer d'une case
+    row -= state.cursor.dir === "V" ? 1 : 0;
+    col -= state.cursor.dir === "H" ? 1 : 0;
+    if (row < 0 || col < 0 || !state.board[row][col]) return;
+  }
+  const cell = state.board[row][col];
+  if (cell.isBlank) state.spareJokers = (state.spareJokers || 0) + 1;
+  else state.bag[cell.letter] = (state.bag[cell.letter] || 0) + 1;
+  state.board[row][col] = null;
+  state.cursor = { row, col, dir: state.cursor.dir };
+  renderBoard(); renderBag();
+  editorRefreshSolutions();
+}
+
+// Recalcule et affiche les solutions (top en vert, isotops + sous-tops en orange).
+function editorRefreshSolutions() {
+  if (!editorActive()) return;
+  const mode = currentMode();
+  const rackLetters = state.rack.map(t => t.letter);
+  const opts = { maxTilesUsed: mode.maxPlayed, bonuses: mode.bonuses, jokerPays: mode.jokerPays, layout: state.boardLayout };
+  const all = (findTop(state.board, rackLetters, state.dict, { all: true, ...opts }) || []);
+  const topScore = all.length ? all[0].score : 0;
+  // Groupe au TOP (isotops) classé par pertinence Topissimo : vert (1er) puis orange.
+  const ranked = rankIsotops(state.board, rackLetters, state.dict, state.bag, {
+    ...opts, preserveJoker: effJoker() && state.spareJokers > 0,
+  });
+  const dedup = (arr, out, seen) => {
+    for (const c of arr) {
+      const k = `${c.move.word}@${c.move.row},${c.move.col},${c.move.dir}`;
+      if (seen.has(k)) continue; seen.add(k); out.push(c);
+    }
+  };
+  const seen = new Set();
+  const sols = [];
+  dedup(ranked, sols, seen);                                   // top + isotops, classés
+  dedup(all.filter(c => c.score < topScore), sols, seen);      // reste (noir), score décroissant
+  state._editorSols = sols.slice(0, 200);
+  state._editorSel = null;
+  state._editorBase = state.board.map(r => r.slice());
+  renderEditorSolutions(sols[0]?.move || null);                // le 1er classé = choix Topissimo (vert)
+}
+
+function renderEditorSolutions(pick) {
+  renderSolutionList(state._editorSols || [], pick,
+    `Solutions — top <span style="color:#2c9a45">vert</span>, isotops <span style="color:#c47a16">orange</span>, reste en noir`);
+}
+
+// Affiche une liste de solutions dans le panneau sous le sac. Vert = `pick`
+// (ou meilleur score si pick null), orange = même score que le meilleur, noir = reste.
+function renderSolutionList(sols, pick, headHtml, emptyMsg) {
+  const panel = document.getElementById("dupTopPicker");
+  if (!panel) return;
+  const head = panel.querySelector(".dtp-head");
+  if (head) head.innerHTML = headHtml;
+  const list = panel.querySelector(".dtp-list");
+  const topScore = sols.length ? sols[0].score : 0;
+  const pickMove = pick || sols[0]?.move || null;
+  list.innerHTML = sols.length
+    ? `<table><thead><tr><th>Mot</th><th>Place</th><th>Score</th></tr></thead><tbody>${
+      sols.map((s, i) => {
+        const isPick = isSameMove(s.move, pickMove);
+        const cls = isPick ? "tps-pick" : (s.score === topScore ? "tps-other" : "");
+        return `<tr data-i="${i}" class="${cls}"><td>${wLink(s.move.word)}</td><td>${posLabel(s.move)}</td><td>${s.score}</td></tr>`;
+      }).join("")
+    }</tbody></table>`
+    : `<div style="padding:14px;text-align:center;color:#888">${emptyMsg || "Aucun coup possible avec ce tirage / ce plateau."}</div>`;
+  list.querySelectorAll("tr[data-i]").forEach(tr => {
+    tr.onclick = () => editorPreview(+tr.dataset.i);
+    // Double-clic = poser ce coup (ou ce supertop) directement.
+    tr.ondblclick = () => {
+      const i = +tr.dataset.i; const s = state._editorSols?.[i];
+      if (s) editorCommitCoup(s.move, s.score, false);
+    };
+  });
+  panel.hidden = false;
+}
+
+// Aperçu d'une solution sur la grille (restaurée au clic suivant / Échap).
+function editorPreview(i) {
+  const s = state._editorSols?.[i]; if (!s) return;
+  state._editorSel = i;
+  state.board = applyMove(state._editorBase.map(r => r.slice()), s.move);
+  state.lastPlaced = computeLastPlacedCells(state._editorBase, s.move);
+  renderBoard();
+  const panel = document.getElementById("dupTopPicker");
+  if (panel) panel.querySelectorAll("tr[data-i]").forEach(tr => tr.classList.toggle("selected", +tr.dataset.i === i));
+}
+
+// Restaure le plateau édité (annule l'aperçu).
+function editorRestoreBoard() {
+  if (!editorActive() || !state._editorBase) return;
+  state.board = state._editorBase.map(r => r.slice());
+  state.lastPlaced = [];
+  renderBoard();
+}
+
+// Déplacement du curseur d'UNE case (sans enjamber les cases occupées : en
+// éditeur on veut pouvoir cibler n'importe quelle case, occupée ou non).
+function editorMoveCursor(key) {
+  if (!state.cursor) { state.cursor = { row: CENTER, col: CENTER, dir: "H" }; renderBoard(); return; }
+  const d = { ArrowLeft: [0, -1], ArrowRight: [0, 1], ArrowUp: [-1, 0], ArrowDown: [1, 0] }[key];
+  if (!d) return;
+  const r = Math.max(0, Math.min(BOARD_SIZE - 1, state.cursor.row + d[0]));
+  const c = Math.max(0, Math.min(BOARD_SIZE - 1, state.cursor.col + d[1]));
+  state.cursor = { row: r, col: c, dir: state.cursor.dir };
+  renderBoard();
+}
+
+// Joker en éditeur : demander la lettre représentée puis poser.
+function editorPlaceJokerPrompt(fromBag) {
+  const raw = (prompt("Joker — lettre représentée :") || "").trim().toUpperCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+  if (!/^[A-Z]$/.test(raw)) return;
+  editorPlace(raw, fromBag, true);
+}
+
+function showEditorToolbar() {
+  let bar = document.getElementById("editorToolbar");
+  if (!bar) {
+    bar = document.createElement("div");
+    bar.id = "editorToolbar";
+    bar.className = "editor-toolbar";
+    bar.innerHTML = `
+      <div class="et-legend">✏️ Éditeur — <b>lettre</b> = sac · <b>Maj+lettre</b> = hors sac · <b>?</b> = joker · <b>Maj+?</b> = joker sup. · <b>Backspace</b> = effacer</div>
+      <div class="et-btns">
+        <button class="btn ghost small" id="etPlace">✏️ Placement libre</button>
+        <button class="btn ghost small" id="etSupertop">🔎 Supertop</button>
+        <button class="btn ghost small" id="etCommit">✅ Poser le coup</button>
+        <button class="btn ghost small" id="etGenerate">⚙️ Générer la suite</button>
+        <button class="btn ghost small" id="etUndo">◀ Coup précédent</button>
+      </div>`;
+    const bag = document.getElementById("bagDisplay");
+    if (bag && bag.parentNode) bag.insertAdjacentElement("beforebegin", bar);
+    else document.body.appendChild(bar);
+    bar.querySelector("#etSupertop").onclick = () => startSupertopSelection();
+    bar.querySelector("#etCommit").onclick = () => editorCommitSelected();
+    bar.querySelector("#etGenerate").onclick = () => editorGenerateRest();
+    bar.querySelector("#etUndo").onclick = () => editorUndoCoup();
+    // « Placement libre » : annule une sélection/aperçu de supertop et revient à
+    // l'édition (curseur + solutions live du tirage courant).
+    bar.querySelector("#etPlace").onclick = () => {
+      if (state._stCleanup) { state._stCleanup(); state._stCleanup = null; }
+      editorRestoreBoard();
+      ensureCursorOnFreeCell();
+      editorRefreshSolutions();
+      hideFeedback();
+    };
+  }
+  bar.hidden = false;
+}
+function hideEditorToolbar() { const b = document.getElementById("editorToolbar"); if (b) b.hidden = true; }
+
+// ===== Supertop : sélection d'une zone à la souris → 100 meilleurs mots =====
+function startSupertopSelection() {
+  const board = $("#board");
+  if (!board) return;
+  // Annuler une sélection de supertop précédente (re-clic = nouvelle zone).
+  if (state._stCleanup) { state._stCleanup(); state._stCleanup = null; }
+  editorRestoreBoard();
+  flashFeedback("info", "Supertop — sélectionne une zone",
+    "Glisse la souris sur la grille. Maj = sans le sac · Ctrl = sans le reliquat · Ctrl+Maj = ni l'un ni l'autre.");
+  let startCell = null, mods = {};
+  const cellOf = (ev) => {
+    const t = ev.target.closest && ev.target.closest("td[data-r]");
+    return t ? { r: +t.dataset.r, c: +t.dataset.c } : null;
+  };
+  const clearHL = () => board.querySelectorAll("td.zone-sel").forEach(td => td.classList.remove("zone-sel"));
+  const hl = (a, b) => {
+    clearHL();
+    const r0 = Math.min(a.r, b.r), r1 = Math.max(a.r, b.r), c0 = Math.min(a.c, b.c), c1 = Math.max(a.c, b.c);
+    for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) {
+      const td = board.querySelector(`td[data-r="${r}"][data-c="${c}"]`);
+      if (td) td.classList.add("zone-sel");
+    }
+  };
+  const onMove = (ev) => { const cell = cellOf(ev); if (cell && startCell) hl(startCell, cell); };
+  const onDown = (ev) => {
+    const cell = cellOf(ev); if (!cell) return;
+    ev.preventDefault();
+    startCell = cell;
+    mods = { ignoreBag: !!ev.shiftKey, ignoreRack: !!(ev.ctrlKey || ev.metaKey) };
+    hl(cell, cell);
+    board.addEventListener("pointermove", onMove);
+  };
+  const onUp = (ev) => {
+    board.removeEventListener("pointerdown", onDown);
+    board.removeEventListener("pointermove", onMove);
+    board.removeEventListener("pointerup", onUp);
+    state._stCleanup = null;
+    state._supertopSel = false;
+    const cell = cellOf(ev) || startCell;
+    clearHL();
+    if (startCell && cell) {
+      const zone = {
+        r0: Math.min(startCell.r, cell.r), r1: Math.max(startCell.r, cell.r),
+        c0: Math.min(startCell.c, cell.c), c1: Math.max(startCell.c, cell.c),
+      };
+      computeSupertop(zone, mods);
+    }
+  };
+  state._supertopSel = true;
+  board.addEventListener("pointerdown", onDown);
+  board.addEventListener("pointerup", onUp);
+  // Permet d'annuler proprement cette sélection si on reclique sur Supertop.
+  state._stCleanup = () => {
+    board.removeEventListener("pointerdown", onDown);
+    board.removeEventListener("pointermove", onMove);
+    board.removeEventListener("pointerup", onUp);
+    clearHL();
+    state._supertopSel = false;
+  };
+}
+
+// Calcule jusqu'à 100 meilleurs mots tenant DANS la zone, puis remplit le panneau.
+function computeSupertop(zone, mods) {
+  const mode = currentMode();
+  const base = state.board.map(r => r.slice());
+  state._editorBase = base;
+  const zoneLen = Math.max(zone.r1 - zone.r0, zone.c1 - zone.c0) + 1;
+  // Longueur de mot bornée par la zone (la recherche est confinée à la zone).
+  const maxTiles = Math.min(15, Math.max(2, zoneLen));
+  // Pool de lettres. La recherche étant désormais CONFINÉE à la zone (opts.zone),
+  // on peut garder le joker. On plafonne juste le nombre d'exemplaires par lettre
+  // (inutile d'en avoir plus que la zone ne peut en accueillir) et les jokers à 2.
+  const counts = {};
+  const add = (L, n) => { if (!n) return; const cap = L === "?" ? 2 : maxTiles; counts[L] = Math.min(cap, (counts[L] || 0) + n); };
+  if (!mods.ignoreRack) for (const t of state.rack) add(t.letter, 1);
+  const bagSrc = mods.ignoreBag ? LETTER_BAG : state.bag;
+  for (const [L, n] of Object.entries(bagSrc)) add(L, n || 0);
+  if (!mods.ignoreBag) add("?", state.spareJokers || 0);
+  const pool = [];
+  for (const [L, n] of Object.entries(counts)) for (let k = 0; k < n; k++) pool.push(L);
+  renderSolutionList([], null, "Supertop — ⏳ calcul…", "Calcul en cours…");
+  setTimeout(() => {
+    const all = findTop(base, pool, state.dict, {
+      all: true, maxTilesUsed: maxTiles, bonuses: mode.bonuses,
+      jokerPays: mode.jokerPays, layout: state.boardLayout, zone,
+    }) || [];
+    const within = (r, c) => r >= zone.r0 && r <= zone.r1 && c >= zone.c0 && c <= zone.c1;
+    const inZone = all.filter(s => {
+      const dr = s.move.dir === "V" ? 1 : 0, dc = s.move.dir === "H" ? 1 : 0;
+      let anyNew = false;
+      for (let i = 0; i < s.move.word.length; i++) {
+        const r = s.move.row + i * dr, c = s.move.col + i * dc;
+        if (!within(r, c)) return false;          // tout le mot doit tenir dans la zone
+        if (!base[r][c]) anyNew = true;            // au moins une lettre nouvelle
+      }
+      return anyNew;
+    });
+    const seen = new Set(); const out = [];
+    for (const s of inZone) {
+      const k = `${s.move.word}@${s.move.row},${s.move.col},${s.move.dir}`;
+      if (seen.has(k)) continue; seen.add(k); out.push(s);
+      if (out.length >= 100) break;
+    }
+    state._editorSols = out;
+    const modLabel = `${mods.ignoreBag ? " · sans sac" : ""}${mods.ignoreRack ? " · sans reliquat" : ""}`;
+    renderSolutionList(out, out[0]?.move || null,
+      `Supertop (${out.length})${modLabel} — clique pour aperçu`,
+      "Aucun mot ne tient dans cette zone.");
+    hideFeedback();
+  }, 30);
+}
+
 // ============================================================
 //  Settings modal
 // ============================================================
+// Affiche les sous-options pertinentes selon le mode de jeu choisi dans le menu.
+function syncPlayModeRows() {
+  const pm = $("#optPlayMode")?.value || "topping";
+  const show = (id, on) => { const el = $(id); if (el) el.style.display = on ? "" : "none"; };
+  // Duplicate : tirage auto + sélection auto du top + signalement des zéros.
+  show("#rowAutoDraw", pm === "duplicate");
+  show("#rowAutoTop", pm === "duplicate");
+  show("#rowSignalZeros", pm === "duplicate");
+}
 window.openSettings = () => {
+  $("#optPlayMode").value = state.settings.playMode || "topping";
+  $("#optAutoDraw").checked = state.settings.autoDraw !== false;
+  $("#optAutoTop").checked = state.settings.autoTop !== false;
+  $("#optSignalZeros").checked = !!state.settings.signalZeros;
+  $("#optPlayMode").onchange = syncPlayModeRows;
+  syncPlayModeRows();
   $("#optGameMode").value = state.settings.gameMode;
   $("#optWithJoker").checked = state.settings.withJoker;
   $("#optRackPos").value = state.settings.rackPos;
@@ -2558,14 +3495,54 @@ window.openSettings = () => {
   $("#optGameMode").disabled    = inGame;
   $("#optWithJoker").disabled   = inGame;
   $("#optTimePerMove").disabled = inGame;
+  $("#optPlayMode").disabled    = inGame;
+  $("#optAutoDraw").disabled    = inGame;
   // Indication visuelle
   const lockMsg = $("#settingsLock");
   if (lockMsg) lockMsg.hidden = !inGame;
+  // Bouton « Nouvelle partie » ↔ « Arrêter la partie » selon l'état.
+  const nb = $("#btnNewOrStop");
+  if (nb) {
+    nb.textContent = inGame ? "⏹ Arrêter la partie" : "Nouvelle partie";
+    nb.onclick = inGame ? stopGameFromSettings : () => restartGame();
+  }
   $("#settings").hidden = false;
 };
+
+// « Arrêter la partie » depuis les paramètres : stoppe net la partie en cours
+// (sans révéler les coups restants comme « Abandonner ») et RÉACTIVE aussitôt
+// les paramètres de jeu, sans quitter la fenêtre.
+function stopGameFromSettings() {
+  stopChrono();
+  stopMoveTimer();
+  if (topWordTimer) { clearTimeout(topWordTimer); topWordTimer = null; }
+  state.started = false;
+  state.chronoFinal = null;
+  state._drawPhase = false;
+  state._dupLast = null;
+  state._dupSols = null;
+  state._dupBaseBoard = null;
+  state.pending = [];
+  { const m = document.getElementById("drawModal"); if (m) m.hidden = true; }
+  { const re = document.getElementById("drawReopen"); if (re) re.hidden = true; }
+  { const p = document.getElementById("dupTopPicker"); if (p) p.hidden = true; }
+  // Revenir à l'écran pré-démarrage en arrière-plan.
+  $("#actionRowPreStart").hidden = false;
+  $("#actionRowInGame").hidden = true;
+  hideFeedback();
+  renderBoard(); renderRack(); renderBag();
+  // Rouvrir/rafraîchir les paramètres : les contrôles redeviennent modifiables.
+  openSettings();
+}
 window.closeSettings = () => {
   const oldMode = state.settings.gameMode;
   const oldJoker = state.settings.withJoker;
+  const oldPlayMode = state.settings.playMode;
+  const oldAutoDraw = state.settings.autoDraw;
+  state.settings.playMode = $("#optPlayMode").value || "topping";
+  state.settings.autoDraw = $("#optAutoDraw").checked;
+  state.settings.autoTop = $("#optAutoTop").checked;
+  state.settings.signalZeros = $("#optSignalZeros").checked;
   state.settings.gameMode = $("#optGameMode").value;
   state.settings.withJoker = $("#optWithJoker").checked;
   state.settings.rackPos = $("#optRackPos").value;
@@ -2584,8 +3561,9 @@ window.closeSettings = () => {
   renderMoveTimer();
   renderGameTitle();
   $("#settings").hidden = true;
-  // Si on a changé le mode ou le joker, proposer de relancer
-  if (oldMode !== state.settings.gameMode || oldJoker !== state.settings.withJoker) {
+  // Si on a changé le mode (partie OU jeu) ou le joker, proposer de relancer
+  if (oldMode !== state.settings.gameMode || oldJoker !== state.settings.withJoker ||
+      oldPlayMode !== state.settings.playMode || oldAutoDraw !== state.settings.autoDraw) {
     if (state.started && !state.chronoFinal) {
       if (confirm("Mode de partie changé. Relancer une nouvelle partie ?")) restartGame();
     } else if (!state.started) {
@@ -2596,6 +3574,13 @@ window.closeSettings = () => {
 window.restartGame = () => {
   closeSettings();
   initGame();
+  // En éditeur (et duplicate), l'écran « pré-démarrage » n'a pas de sens : on
+  // relance directement une nouvelle session dans le même mode de jeu.
+  if (state.settings.playMode === "editor") {
+    // initGame est async (chargement dico) ; on attend qu'il soit prêt.
+    const go = () => { if (state.dict) startGame(); else setTimeout(go, 50); };
+    go();
+  }
 };
 
 // ============================================================
@@ -2745,6 +3730,20 @@ async function initGame() {
   state.rack = [];
   state.pending = [];
   state.cursor = null;
+  state._drawPhase = false;
+  state._dupLast = null;
+  state._dupSols = null;
+  state._dupBaseBoard = null;
+  { const p = document.getElementById("dupTopPicker"); if (p) p.hidden = true; }
+  { const d = document.getElementById("drawModal"); if (d) d.hidden = true; }
+  { const re = document.getElementById("drawReopen"); if (re) re.hidden = true; }
+  state._editor = false;
+  state._editorSols = null;
+  state._editorBase = null;
+  state._editorSel = null;
+  state._coups = [];
+  if (state._stCleanup) { state._stCleanup(); state._stCleanup = null; }
+  hideEditorToolbar();
   state.moveNo = 1;
   state.totalScore = 0;
   state.sumNeg = 0;
@@ -3885,6 +4884,7 @@ function startGame() {
   if (isTraining) clearSavedTraining();
   // Bouton Revoir : masqué pendant la partie (tout mode), visible seulement en fin
   if (_btnReview) { _btnReview.hidden = true; _btnReview.disabled = true; _btnReview.classList.remove("active"); }
+  updateGiveUpLabel();
   updateTournamentNavButtons();
   startChrono();
   nextMove();
@@ -4364,6 +5364,9 @@ function rackDisplay(h) {
 
 window.openSheet = () => {
   const clickable = review.active;   // permettre le saut à un coup en mode review
+  // En mode duplicate, le statut (top/abandon/temps) et le temps par coup n'ont
+  // pas de sens (on attend toujours la fin du chrono) → colonnes masquées.
+  const dup = playMode() === "duplicate";
   const rows = state.history.map((h, i) => {
     const time = h.timeMs ? (h.timeMs / 1000).toFixed(2) + "s" : "—";
     // Surbrillance des tops non-trouvés (timeout = temps écoulé OU abandon)
@@ -4398,8 +5401,8 @@ window.openSheet = () => {
       <td style="padding-right:26px">${topCell}</td>
       <td>${playedCell}</td>
       <td style="text-align:center;padding:6px 4px" class="${h.neg < 0 ? 'neg' : ''}">${h.neg < 0 ? h.neg : ''}</td>
-      <td>${statusIcon} <span style="color:#888;font-size:.85em">${statusLabel}</span></td>
-      <td style="text-align:right">${time}</td>
+      ${dup ? "" : `<td>${statusIcon} <span style="color:#888;font-size:.85em">${statusLabel}</span></td>
+      <td style="text-align:right">${time}</td>`}
     </tr>`;
   }).join("");
 
@@ -4416,8 +5419,8 @@ window.openSheet = () => {
         <th style="padding:6px 26px 6px 8px;text-align:left">Top</th>
         <th style="padding:6px 8px;text-align:left">Joué</th>
         <th style="padding:6px 4px;text-align:center">Nég.</th>
-        <th style="padding:6px 8px;text-align:left">Statut</th>
-        <th style="padding:6px 8px;text-align:right">Temps</th>
+        ${dup ? "" : `<th style="padding:6px 8px;text-align:left">Statut</th>
+        <th style="padding:6px 8px;text-align:right">Temps</th>`}
       </tr></thead>
       <tbody>${rows}</tbody>
     </table>
@@ -4444,22 +5447,12 @@ document.addEventListener("keydown", handleKey);
 
 // --- Raccourcis supplémentaires ---
 
-// Touche Shift seule (tap) : Pause / Reprendre. Détecté via paire keydown/keyup
-// SANS autre touche intermédiaire, pour ne pas se déclencher quand on tape une
-// majuscule (Shift + lettre).
-let shiftAloneFlag = false;
+// Touche F8 : Pause / Reprendre. (Auparavant Shift seul, mais ça créait un conflit
+// avec les touches 1 et 2 quand on maintenait Maj → abandonné.)
 document.addEventListener("keydown", (e) => {
   if (e.target.tagName === "INPUT" || e.target.tagName === "SELECT" || e.target.tagName === "TEXTAREA") return;
-  if (e.key === "Shift") {
-    if (!e.repeat) shiftAloneFlag = true;
-  } else {
-    shiftAloneFlag = false;   // une autre touche est tombée → Shift sert de modificateur
-  }
-});
-document.addEventListener("keyup", (e) => {
-  if (e.target.tagName === "INPUT" || e.target.tagName === "SELECT" || e.target.tagName === "TEXTAREA") return;
-  if (e.key === "Shift" && shiftAloneFlag) {
-    shiftAloneFlag = false;
+  if (e.key === "F8") {
+    e.preventDefault();
     // Partie démarrée non terminée (entraînement ou tournoi, pas puzzle)
     if (state.started && !state.isPuzzle && state.chronoFinal == null) {
       if (state.paused) resumeGame(); else pauseGame();
