@@ -282,12 +282,12 @@
     min-width: 0;
     overflow: hidden;
   }
-  /* Pictos ouverts : ⌫ et ✓ rétrécissent pour laisser la place au centre */
+  /* Menu « Actions » ouvert : on MASQUE ⌫, ✕ et ✓ (accessibles seulement menu
+     fermé) → tout l'espace va aux pictos d'action. */
   body.pictos-open #actionRowInGame .btn-backspace,
-  body.pictos-open #actionRowInGame .btn-validate {
-    flex: 0 0 auto !important;
-    width: 44px !important;
-    min-width: 44px !important;
+  body.pictos-open #actionRowInGame .btn-validate,
+  body.pictos-open #actionRowInGame .btn-cancel {
+    display: none !important;
   }
   /* Chaque bouton picto : prend une part égale, se réduit si écran petit */
   #actionRowInGame .btn, #actionRowInGame .btn[hidden] {

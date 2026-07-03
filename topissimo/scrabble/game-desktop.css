@@ -5,6 +5,9 @@
 /* Bloc Pictogrammes : caché sur desktop (PC = clavier, donc Raccourcis) */
 @media (min-width: 701px) {
   .kbd-shortcuts.kbd-mobile { display: none !important; }
+  /* Bouton « Actions » réservé au mobile — masqué sur PC (le `.title-row .btn`
+     de game.css le ré-affichait par ordre de cascade). */
+  .title-row .shortcut-toggle { display: none !important; }
 }
 
 @media (min-width: 701px) {
