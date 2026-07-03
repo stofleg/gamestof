@@ -188,7 +188,7 @@ let myGamesSort = {
 async function loadMyGames() {
   if (!state.currentPlayerId) return;
   const pid = +state.currentPlayerId;
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=290");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=291");
 
   // Tournoi : prepared_game_results jointes avec prepared_games
   const { data: tour } = await sb.from("prepared_game_results")
@@ -1376,7 +1376,7 @@ async function loadMyStats() {
   const pid = +state.currentPlayerId;
 
   body.innerHTML = `<p class="muted">⏳ Calcul…</p>`;
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=290");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=291");
 
   // 1) Toutes mes parties tournoi (avec détails)
   const { data: tour } = await sb.from("prepared_game_results")
@@ -2164,7 +2164,7 @@ async function loadTournamentDetail(tournamentId) {
     });
   }
 
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=290");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=291");
   const btnStyle = "text-decoration:none;padding:5px 10px;border-radius:6px;font-weight:600;font-size:.85rem";
   const admin = isAdmin();
   $("#pgBody").innerHTML = (games || []).length === 0
@@ -2285,7 +2285,9 @@ window.showPodiumSheet = function(playerId) {
   const rows = p.details.map(h => {
     const topCell = h.top ? `<strong>${escapeHtml(h.top.word)}</strong> ${coord(h.top.pos)} ${h.top.score}` : "—";
     const playedCell = h.played ? `<strong>${escapeHtml(h.played)}</strong>${h.playedPos ? " " + coord(h.playedPos) : ""} ${h.playerScore}` : "<em>—</em>";
-    return `<tr>
+    // Coup raté = top non trouvé (négatif < 0) ou abandon / temps écoulé → surbrillance.
+    const missed = (h.neg || 0) < 0 || h.status === "giveup" || h.status === "timeout";
+    return `<tr${missed ? ' style="background:#ffecec"' : ''}>
       <td style="padding:3px 6px">${h.moveNo}</td>
       <td style="padding:3px 6px"><code>${escapeHtml(rackD(h))}</code></td>
       <td style="padding:3px 6px">${topCell}</td>
@@ -2801,7 +2803,7 @@ async function loadTournamentStats(tournamentId, games) {
   // On détermine « le top est un scrabble » en REjouant le plateau coup par coup
   // (nombre de NOUVELLES tuiles posées par le top == clé de prime du mode), ce qui
   // est fiable même sur d'anciennes parties (le hadBonus stocké est non fiable).
-  const { emptyBoard, applyMove, GAME_MODES } = await import("./scrabble/engine.js?v=290");
+  const { emptyBoard, applyMove, GAME_MODES } = await import("./scrabble/engine.js?v=291");
   const gameById = {};
   for (const g of games) gameById[g.id] = g;
   const bonusesOf = (gid) => (GAME_MODES[gameById[gid]?.mode] || GAME_MODES.duplicate).bonuses || { 7: 50 };
@@ -2986,9 +2988,9 @@ $("#pgCreate").onclick = async () => {
     let mods;
     try {
       mods = await Promise.all([
-        import("./scrabble/dictionary.js?v=290"),
-        import("./scrabble/generator.js?v=290"),
-        import("./scrabble/engine.js?v=290"),
+        import("./scrabble/dictionary.js?v=291"),
+        import("./scrabble/generator.js?v=291"),
+        import("./scrabble/engine.js?v=291"),
       ]);
     } catch (e) {
       $("#pgStatus").innerHTML = `<span style="color:#a02525">Échec de chargement des modules : ${escapeHtml(e.message)}</span>`;
@@ -3054,7 +3056,7 @@ window.recomputeAllNeg = async function(force = false) {
 
   let recomputeResult;
   try {
-    ({ recomputeResult } = await import("./scrabble/recompute.js?v=290"));
+    ({ recomputeResult } = await import("./scrabble/recompute.js?v=291"));
   } catch (e) {
     statusEl.textContent = "❌ Impossible de charger recompute.js : " + e.message;
     return;
@@ -3306,7 +3308,7 @@ window.recomputeAllJokerNeg = async function() {
 
   let recomputeResult;
   try {
-    ({ recomputeResult } = await import("./scrabble/recompute.js?v=290"));
+    ({ recomputeResult } = await import("./scrabble/recompute.js?v=291"));
   } catch (e) {
     statusEl.textContent = "❌ Impossible de charger recompute.js : " + e.message;
     return;
@@ -3722,7 +3724,8 @@ window.openPlayerGameSheet = function(playerId, gameId) {
   };
 
   const rows = r.details.map(h => {
-    const isMiss = h.status === "giveup" || h.status === "timeout";
+    // Coup raté = top non trouvé (négatif < 0) ou abandon / temps écoulé.
+    const isMiss = (h.neg || 0) < 0 || h.status === "giveup" || h.status === "timeout";
     const rowClass = isMiss ? "sheet-miss" : "";
     const statusIcon = { top: "🏆", giveup: "🏳️", timeout: "⏱" }[h.status] || "";
     const statusLabel = { top: "top", giveup: "abandon", timeout: "temps écoulé" }[h.status] || (h.status || "");

@@ -27,9 +27,9 @@ import {
   emptyBoard, BOARD_BONUSES, BOARD_SIZE, CENTER, LETTER_VALUE, LETTER_BAG,
   VOWELS, drawForDuplicate, scoreMove, applyMove,
   bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName, randomBoardLayout, snakeEndpointsAfter,
-} from "./engine.js?v=290";
-import { Dictionary } from "./dictionary.js?v=290";
-import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=290";
+} from "./engine.js?v=291";
+import { Dictionary } from "./dictionary.js?v=291";
+import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=291";
 
 // État du mode review (parcours coup par coup)
 const review = {
@@ -59,7 +59,7 @@ const FFSC_REVIEW = URL_PARAMS.get("ffscreview");  // revoir une partie FFSC imp
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v290";
+const BUILD_VERSION = "garenna-v291";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -5369,8 +5369,8 @@ window.openSheet = () => {
   const dup = playMode() === "duplicate";
   const rows = state.history.map((h, i) => {
     const time = h.timeMs ? (h.timeMs / 1000).toFixed(2) + "s" : "—";
-    // Surbrillance des tops non-trouvés (timeout = temps écoulé OU abandon)
-    const isMiss = h.status === "giveup" || h.status === "timeout";
+    // Surbrillance des coups ratés : top non trouvé (négatif < 0) OU abandon / temps écoulé.
+    const isMiss = (h.neg || 0) < 0 || h.status === "giveup" || h.status === "timeout";
     const rowClass = isMiss ? "sheet-miss" : "";
     // Icônes distinctes : timeout = ⏱ chrono · giveup (voir le coup / abandon) = 🏳️ drapeau blanc
     const statusIcon = { top: "🏆", giveup: "🏳️", timeout: "⏱" }[h.status] || "";
