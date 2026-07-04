@@ -27,9 +27,9 @@ import {
   emptyBoard, BOARD_BONUSES, BOARD_SIZE, CENTER, LETTER_VALUE, LETTER_BAG,
   VOWELS, drawForDuplicate, scoreMove, applyMove,
   bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName, randomBoardLayout, snakeEndpointsAfter,
-} from "./engine.js?v=292";
-import { Dictionary } from "./dictionary.js?v=292";
-import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=292";
+} from "./engine.js?v=293";
+import { Dictionary } from "./dictionary.js?v=293";
+import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=293";
 
 // État du mode review (parcours coup par coup)
 const review = {
@@ -59,7 +59,7 @@ const FFSC_REVIEW = URL_PARAMS.get("ffscreview");  // revoir une partie FFSC imp
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v292";
+const BUILD_VERSION = "garenna-v293";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -2623,7 +2623,14 @@ function nextMove() {
     }
     renderBoard();
     renderBag();           // sac affiché aussi en partie pré-tirée/tournoi
-    computeTop();
+    // Si le dictionnaire n'est pas encore chargé, computeTop() échoue et topMove
+    // resterait null → le mot joué ne serait pas reconnu comme top. On garde le
+    // drapeau « à recalculer » ; ensureTopReady (validation / fin de chargement du
+    // dico) réessaiera dès que possible.
+    if (!computeTop()) {
+      state._topPending = true;
+      setTimeout(() => { if (state._topPending && computeTop()) { state._topPending = false; showLastTopFeedback(); } }, 0);
+    }
     startMoveTimer();
     showLastTopFeedback();
     ensureCursorOnFreeCell();
@@ -4859,11 +4866,21 @@ async function loadSupabaseClient() {
 }
 
 function startGame() {
-  // Filet de sécurité anti « 1er tirage erroné » : en mode tournoi, ne JAMAIS
-  // démarrer tant que la partie pré-tirée n'est pas chargée. Sinon nextMove()
-  // tomberait dans le tirage aléatoire de l'entraînement (state.prepared null).
-  if (PREPARED_ID && !state.prepared) {
+  if (state.started) return;   // déjà lancée (anti double-clic pendant l'attente)
+  // GARDE-FOU AVANT LANCEMENT : on ne démarre pas tant que
+  //   • la partie pré-tirée n'est pas chargée (sinon tirage aléatoire par erreur) ;
+  //   • OU le dictionnaire n'est pas chargé (sinon le top n'est pas calculé et un
+  //     mot correct — voire le top — serait compté comme raté).
+  // Dans ces deux cas on affiche « Chargement de la partie… » et on relance
+  // AUTOMATIQUEMENT dès que tout est prêt.
+  if ((PREPARED_ID && !state.prepared) || !state.dict) {
     showFeedback("", "Chargement de la partie…", "Un instant, la partie se prépare.");
+    const waitReady = () => {
+      if (state.started) return;
+      if ((!PREPARED_ID || state.prepared) && state.dict) { startGame(); }
+      else setTimeout(waitReady, 80);
+    };
+    setTimeout(waitReady, 80);
     return;
   }
   state.started = true;
