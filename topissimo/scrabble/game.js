@@ -27,9 +27,9 @@ import {
   emptyBoard, BOARD_BONUSES, BOARD_SIZE, CENTER, LETTER_VALUE, LETTER_BAG,
   VOWELS, drawForDuplicate, scoreMove, applyMove,
   bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName, randomBoardLayout, snakeEndpointsAfter,
-} from "./engine.js?v=291";
-import { Dictionary } from "./dictionary.js?v=291";
-import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=291";
+} from "./engine.js?v=292";
+import { Dictionary } from "./dictionary.js?v=292";
+import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=292";
 
 // État du mode review (parcours coup par coup)
 const review = {
@@ -59,7 +59,7 @@ const FFSC_REVIEW = URL_PARAMS.get("ffscreview");  // revoir une partie FFSC imp
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v291";
+const BUILD_VERSION = "garenna-v292";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -1766,9 +1766,10 @@ let topWordTimer = null;   // efface la surbrillance bleue du mot top après 3s
 function flashFeedback(kind, title, detail) {
   showFeedback(kind, title, detail);
   clearTimeout(flashTimer);
-  flashTimer = setTimeout(() => {
-    // Ne pas écraser le feedback : on laisse le message d'erreur visible.
-  }, 1500);
+  // Message TRANSITOIRE : après un court délai on restaure l'info persistante
+  // (meilleur essai du coup, sinon repère du coup précédent) → un message du type
+  // « Pas de I dans le chevalet » ne masque plus durablement le meilleur essai.
+  flashTimer = setTimeout(() => restorePersistentFeedback(), 1600);
 }
 
 // ============================================================
