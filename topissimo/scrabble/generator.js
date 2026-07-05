@@ -10,8 +10,8 @@
 import {
   emptyBoard, LETTER_BAG, drawForDuplicate, applyMove,
   bagTotalVowels, bagTotalConsonants, GAME_MODES, randomBoardLayout, snakeEndpointsAfter,
-} from "./engine.js?v=294";
-import { findTopRanked, findTop, snakeBestTop } from "./topfinder.js?v=294";
+} from "./engine.js?v=295";
+import { findTopRanked, findTop, snakeBestTop } from "./topfinder.js?v=295";
 
 const VOWELS_GEN = new Set(["A", "E", "I", "O", "U", "Y"]);
 

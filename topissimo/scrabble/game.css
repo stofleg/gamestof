@@ -467,14 +467,16 @@ body.theme-duplijeu .board tr:last-child td.coord { height: calc(var(--cell-size
    case, qui pointe dans le sens du curseur (droite en H, bas en V).
    Comme la forme est interne, elle ne masque jamais les jetons voisins. */
 .board td.cursor::before {
-  content: "";
+  /* !important : bat `.has-tile::before { content: none }` (qui retire l'étoile)
+     pour que le curseur reste visible même quand il est sur un jeton posé. */
+  content: "" !important;
   position: absolute;
   inset: 0;
   background-repeat: no-repeat;
   background-position: center;
   background-size: 100% 100%;
   pointer-events: none;
-  z-index: 12;
+  z-index: 20;
 }
 .board td.cursor.dir-h::before {
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><polygon points='7,7 58,7 93,50 58,93 7,93' fill='none' stroke='%23000000' stroke-width='11' stroke-linejoin='round'/></svg>");
