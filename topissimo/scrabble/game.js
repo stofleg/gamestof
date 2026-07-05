@@ -27,9 +27,9 @@ import {
   emptyBoard, BOARD_BONUSES, BOARD_SIZE, CENTER, LETTER_VALUE, LETTER_BAG,
   VOWELS, drawForDuplicate, scoreMove, applyMove,
   bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName, randomBoardLayout, snakeEndpointsAfter,
-} from "./engine.js?v=295";
-import { Dictionary } from "./dictionary.js?v=295";
-import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=295";
+} from "./engine.js?v=296";
+import { Dictionary } from "./dictionary.js?v=296";
+import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=296";
 
 // État du mode review (parcours coup par coup)
 const review = {
@@ -59,7 +59,7 @@ const FFSC_REVIEW = URL_PARAMS.get("ffscreview");  // revoir une partie FFSC imp
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v295";
+const BUILD_VERSION = "garenna-v296";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -1290,6 +1290,30 @@ function clearPending() {
 // (ordre de pose), en libérant leurs cases. Sert à re-cliquer sur une case déjà
 // occupée par un jeton qu'on vient de saisir pour y replacer le curseur.
 // Renvoie true si un jeton en cours s'y trouvait.
+// Repose les jetons en cours de saisie dans l'autre sens, en conservant la MÊME
+// case de départ (la 1ʳᵉ lettre du mot). Les lettres gardent leur ordre ; on les
+// place sur des cases libres consécutives dans le nouveau sens. Le curseur se
+// place juste après la dernière lettre.
+function relayPendingInDirection(newDir) {
+  const oldDir = state.cursor.dir;
+  const ps = state.pending.slice().sort((a, b) => oldDir === "H" ? a.col - b.col : a.row - b.row);
+  if (!ps.length) { state.cursor.dir = newDir; return; }
+  const dr = newDir === "V" ? 1 : 0, dc = newDir === "H" ? 1 : 0;
+  let r = ps[0].row, c = ps[0].col;   // même case de départ que le mot d'origine
+  for (const p of ps) {
+    // prochaine case libre (non occupée par un jeton DÉJÀ validé) dans le nouveau sens
+    while (r < BOARD_SIZE && c < BOARD_SIZE && state.board[r][c]) { r += dr; c += dc; }
+    if (r >= BOARD_SIZE || c >= BOARD_SIZE) break;
+    p.row = r; p.col = c;
+    r += dr; c += dc;
+  }
+  // Curseur après la dernière lettre, sur une case libre.
+  while (r < BOARD_SIZE && c < BOARD_SIZE && state.board[r][c]) { r += dr; c += dc; }
+  state.cursor = (r < BOARD_SIZE && c < BOARD_SIZE)
+    ? { row: r, col: c, dir: newDir }
+    : { row: ps[0].row, col: ps[0].col, dir: newDir };
+}
+
 function clearPendingFrom(r, c) {
   const idx = state.pending.findIndex(p => p.row === r && p.col === c);
   if (idx < 0) return false;
@@ -1624,21 +1648,16 @@ function handleKey(e) {
       return;
     }
   }
-  // Barre espace : bascule le sens du curseur (H ↔ V), même après avoir commencé
-  // à taper. Si des lettres sont déjà posées, on repositionne le curseur pour
-  // CONTINUER dans le nouveau sens depuis la dernière lettre posée.
-  //   Ex. : on pose une lettre en H4 (le curseur file en H5, horizontal) ;
-  //   un appui sur Espace rend le mot vertical et place le curseur en I4.
+  // Barre espace : bascule le sens du mot (H ↔ V). Si des lettres sont déjà
+  // posées, on REPOSE tout le mot dans l'autre sens en gardant la MÊME case de
+  // départ (1ʳᵉ lettre inchangée).
+  //   Ex. : ACE tapé en I8 (horizontal) → Espace → ACE en I8 vertical (vers le bas).
   if (state.cursor && e.key === " ") {
     if (state._invalidFlash) { clearInvalidFlash(); renderRack(); }
     e.preventDefault();
-    state.cursor.dir = state.cursor.dir === "H" ? "V" : "H";
-    if (state.pending.length > 0) {
-      const last = state.pending[state.pending.length - 1];
-      state.cursor.row = last.row;
-      state.cursor.col = last.col;
-      advanceCursor();   // avance d'une case dans le NOUVEAU sens
-    }
+    const newDir = state.cursor.dir === "H" ? "V" : "H";
+    if (state.pending.length > 0) relayPendingInDirection(newDir);
+    else state.cursor.dir = newDir;
     renderBoard();
     return;
   }
