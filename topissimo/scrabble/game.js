@@ -27,9 +27,9 @@ import {
   emptyBoard, BOARD_BONUSES, BOARD_SIZE, CENTER, LETTER_VALUE, LETTER_BAG,
   VOWELS, drawForDuplicate, scoreMove, applyMove,
   bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName, randomBoardLayout, snakeEndpointsAfter,
-} from "./engine.js?v=293";
-import { Dictionary } from "./dictionary.js?v=293";
-import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=293";
+} from "./engine.js?v=294";
+import { Dictionary } from "./dictionary.js?v=294";
+import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=294";
 
 // État du mode review (parcours coup par coup)
 const review = {
@@ -59,7 +59,7 @@ const FFSC_REVIEW = URL_PARAMS.get("ffscreview");  // revoir une partie FFSC imp
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v293";
+const BUILD_VERSION = "garenna-v294";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -1307,16 +1307,10 @@ function moveCursorKey(key) {
     ArrowLeft: [0, -1], ArrowRight: [0, 1], ArrowUp: [-1, 0], ArrowDown: [1, 0],
   }[key];
   if (!delta) return;
-  let row = state.cursor.row, col = state.cursor.col;
-  // On avance dans la direction en ENJAMBANT les cases déjà occupées : le
-  // curseur se pose sur la 1ʳᵉ case LIBRE rencontrée (ex. mot en H4-H8 → de H3,
-  // flèche droite, le curseur saute directement en H9).
-  let guard = 0;
-  do {
-    row = (row + delta[0] + BOARD_SIZE) % BOARD_SIZE;
-    col = (col + delta[1] + BOARD_SIZE) % BOARD_SIZE;
-    guard++;
-  } while (isOccupied(row, col) && guard < BOARD_SIZE);
+  // Déplacement d'UNE case (le curseur n'enjambe plus les jetons : il passe
+  // par-dessus toutes les cases, occupées ou non).
+  const row = (state.cursor.row + delta[0] + BOARD_SIZE) % BOARD_SIZE;
+  const col = (state.cursor.col + delta[1] + BOARD_SIZE) % BOARD_SIZE;
   state.cursor.row = row;
   state.cursor.col = col;
   renderBoard();
@@ -5624,7 +5618,55 @@ function updateTournamentNavButtons() {
   const endModalNextGame = $("#endModalNextGame");
   if (endModalRestart) endModalRestart.hidden = isTournament;
   if (endModalNextGame) { endModalNextGame.hidden = !isTournament; endModalNextGame.disabled = !hasNext; }
+  const endModalResults = $("#endModalResults");
+  if (endModalResults) endModalResults.hidden = !isTournament;   // classement : tournoi uniquement
 }
+
+// Modale « Résultats » de la partie de tournoi en cours (classement des joueurs
+// ayant déjà joué cette partie). Autonome (le classement de l'accueil est sur une
+// autre page).
+window.showTournamentResults = async function() {
+  if (!PREPARED_ID) return;
+  if (!window._sb) await loadSupabaseClient();
+  let modal = document.getElementById("resultsModal");
+  if (!modal) {
+    modal = document.createElement("div");
+    modal.id = "resultsModal";
+    modal.className = "modal";
+    modal.innerHTML = `<div class="backdrop" onclick="document.getElementById('resultsModal').hidden=true"></div>
+      <div class="content" style="max-width:460px">
+        <button class="close" onclick="document.getElementById('resultsModal').hidden=true">×</button>
+        <h2 style="margin-top:0;font-size:1.15rem">🥇 Classement de la partie</h2>
+        <div id="resultsModalBody"></div>
+      </div>`;
+    document.body.appendChild(modal);
+  }
+  const body = modal.querySelector("#resultsModalBody");
+  body.innerHTML = `<p class="muted">Chargement…</p>`;
+  modal.hidden = false;
+  const { data: rowsRaw } = await window._sb.from("prepared_game_results")
+    .select("player_id, sum_neg, total_time_seconds, played_on_mobile, players(name)")
+    .eq("prepared_game_id", PREPARED_ID);
+  const rows = (rowsRaw || []).filter(r => (r.players?.name || "").toLowerCase() !== "admin");
+  if (!rows.length) { body.innerHTML = `<p class="muted">Personne d'autre n'a encore joué cette partie.</p>`; return; }
+  rows.sort((a, b) => (b.sum_neg || 0) - (a.sum_neg || 0) || (a.total_time_seconds || 0) - (b.total_time_seconds || 0));
+  const fmtT = (s) => !s ? "—" : `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+  const medal = (i) => i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `${i + 1}.`;
+  const me = +(localStorage.getItem("currentPlayerId") || 0);
+  body.innerHTML = `<div style="overflow:auto"><table style="width:100%;border-collapse:collapse;font-size:.9rem">
+    <thead><tr style="background:var(--petrol);color:#fff">
+      <th style="padding:5px 8px;text-align:left">#</th><th style="padding:5px 8px;text-align:left">Joueur</th>
+      <th style="padding:5px 8px;text-align:right">Négatif</th><th style="padding:5px 8px;text-align:right">Temps</th>
+    </tr></thead><tbody>${rows.map((r, i) => {
+      const mob = r.played_on_mobile ? `<span title="Jouée sur mobile" style="font-size:.85em">📱</span> ` : "";
+      return `<tr${r.player_id === me ? ' style="background:#fff3cd"' : ''}>
+        <td style="padding:5px 8px">${medal(i)}</td>
+        <td style="padding:5px 8px">${escapeHtmlS(r.players?.name || "#" + r.player_id)}</td>
+        <td style="padding:5px 8px;text-align:right">${r.sum_neg ?? 0}</td>
+        <td style="padding:5px 8px;text-align:right;white-space:nowrap">${mob}${fmtT(r.total_time_seconds)}</td>
+      </tr>`;
+    }).join("")}</tbody></table></div>`;
+};
 $("#btnRestart").onclick = () => {
   if (confirm("Démarrer une nouvelle partie ? La partie en cours sera perdue.")) restartGame();
 };
