@@ -27,9 +27,9 @@ import {
   emptyBoard, BOARD_BONUSES, BOARD_SIZE, CENTER, LETTER_VALUE, LETTER_BAG,
   VOWELS, drawForDuplicate, scoreMove, applyMove,
   bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName, randomBoardLayout, snakeEndpointsAfter,
-} from "./engine.js?v=298";
-import { Dictionary } from "./dictionary.js?v=298";
-import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=298";
+} from "./engine.js?v=299";
+import { Dictionary } from "./dictionary.js?v=299";
+import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=299";
 
 // État du mode review (parcours coup par coup)
 const review = {
@@ -59,7 +59,7 @@ const FFSC_REVIEW = URL_PARAMS.get("ffscreview");  // revoir une partie FFSC imp
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v298";
+const BUILD_VERSION = "garenna-v299";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -3976,10 +3976,12 @@ async function enterPuzzleMode(gameId, moveNo) {
   renderGameTitle();
   renderBoard();
   hideFeedback();
-  // Le bouton « retour » doit ramener au TOURNOI d'où vient le solo (pas l'accueil).
+  // Le bouton « retour » doit ramener au TOURNOI d'où vient le solo, et s'appeler
+  // « ← Tournoi ». On masque « ← Accueil » et on affiche le bouton dédié.
   if (TOURNAMENT_ID) {
     const btnHome = $("#btnHome");
-    if (btnHome) btnHome.setAttribute("href", `../index.html#tid=${encodeURIComponent(TOURNAMENT_ID)}`);
+    if (btnHome) btnHome.hidden = true;
+    if (_btnBackToTournament) _btnBackToTournament.hidden = false;
   }
   // On lance directement le coup (pas d'écran « Appuie sur Entrée »).
   startGame();
@@ -5617,7 +5619,9 @@ if (_btnShortcuts) {
 const _btnBackToTournament = $("#btnBackToTournament");
 if (_btnBackToTournament) {
   _btnBackToTournament.onclick = () => {
-    const gameInProgress = state.prepared && state.started && state.chronoFinal == null;
+    // Confirmation d'abandon seulement pour une vraie partie de tournoi en cours
+    // (pas pour un solo / puzzle, non compté).
+    const gameInProgress = state.prepared && state.started && state.chronoFinal == null && !state.isPuzzle;
     goBackToTournament(gameInProgress);
   };
 }
