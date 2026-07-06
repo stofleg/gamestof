@@ -188,7 +188,7 @@ let myGamesSort = {
 async function loadMyGames() {
   if (!state.currentPlayerId) return;
   const pid = +state.currentPlayerId;
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=297");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=298");
 
   // Tournoi : prepared_game_results jointes avec prepared_games
   const { data: tour } = await sb.from("prepared_game_results")
@@ -1376,7 +1376,7 @@ async function loadMyStats() {
   const pid = +state.currentPlayerId;
 
   body.innerHTML = `<p class="muted">⏳ Calcul…</p>`;
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=297");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=298");
 
   // 1) Toutes mes parties tournoi (avec détails)
   const { data: tour } = await sb.from("prepared_game_results")
@@ -2164,7 +2164,7 @@ async function loadTournamentDetail(tournamentId) {
     });
   }
 
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=297");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=298");
   const btnStyle = "text-decoration:none;padding:5px 10px;border-radius:6px;font-weight:600;font-size:.85rem";
   const admin = isAdmin();
   $("#pgBody").innerHTML = (games || []).length === 0
@@ -2287,12 +2287,14 @@ window.showPodiumSheet = function(playerId) {
     const playedCell = h.played ? `<strong>${escapeHtml(h.played)}</strong>${h.playedPos ? " " + coord(h.playedPos) : ""} ${h.playerScore}` : "<em>—</em>";
     // Coup raté = top non trouvé (négatif < 0) ou abandon / temps écoulé → surbrillance.
     const missed = (h.neg || 0) < 0 || h.status === "giveup" || h.status === "timeout";
+    const t = h.timeMs ? (h.timeMs / 1000).toFixed(1) + "s" : "—";
     return `<tr${missed ? ' style="background:#ffecec"' : ''}>
       <td style="padding:3px 6px">${h.moveNo}</td>
       <td style="padding:3px 6px"><code>${escapeHtml(rackD(h))}</code></td>
       <td style="padding:3px 6px">${topCell}</td>
       <td style="padding:3px 6px">${playedCell}</td>
       <td style="padding:3px 6px;text-align:center" class="${(h.neg || 0) < 0 ? 'neg' : ''}">${(h.neg || 0) < 0 ? h.neg : ''}</td>
+      <td style="padding:3px 6px;text-align:right">${t}</td>
     </tr>`;
   }).join("");
   $("#podiumSheetBody").innerHTML = `<div class="table-wrap"><table style="width:100%;border-collapse:collapse;font-size:.85rem;white-space:nowrap">
@@ -2300,6 +2302,7 @@ window.showPodiumSheet = function(playerId) {
       <th style="padding:4px 6px;text-align:left">#</th><th style="padding:4px 6px;text-align:left">Tirage</th>
       <th style="padding:4px 6px;text-align:left">Top</th><th style="padding:4px 6px;text-align:left">Joué</th>
       <th style="padding:4px 6px;text-align:center">Nég.</th>
+      <th style="padding:4px 6px;text-align:right">Temps</th>
     </tr></thead><tbody>${rows}</tbody></table></div>`;
   modal.hidden = false;
 };
@@ -2803,7 +2806,7 @@ async function loadTournamentStats(tournamentId, games) {
   // On détermine « le top est un scrabble » en REjouant le plateau coup par coup
   // (nombre de NOUVELLES tuiles posées par le top == clé de prime du mode), ce qui
   // est fiable même sur d'anciennes parties (le hadBonus stocké est non fiable).
-  const { emptyBoard, applyMove, GAME_MODES } = await import("./scrabble/engine.js?v=297");
+  const { emptyBoard, applyMove, GAME_MODES } = await import("./scrabble/engine.js?v=298");
   const gameById = {};
   for (const g of games) gameById[g.id] = g;
   const bonusesOf = (gid) => (GAME_MODES[gameById[gid]?.mode] || GAME_MODES.duplicate).bonuses || { 7: 50 };
@@ -2988,9 +2991,9 @@ $("#pgCreate").onclick = async () => {
     let mods;
     try {
       mods = await Promise.all([
-        import("./scrabble/dictionary.js?v=297"),
-        import("./scrabble/generator.js?v=297"),
-        import("./scrabble/engine.js?v=297"),
+        import("./scrabble/dictionary.js?v=298"),
+        import("./scrabble/generator.js?v=298"),
+        import("./scrabble/engine.js?v=298"),
       ]);
     } catch (e) {
       $("#pgStatus").innerHTML = `<span style="color:#a02525">Échec de chargement des modules : ${escapeHtml(e.message)}</span>`;
@@ -3056,7 +3059,7 @@ window.recomputeAllNeg = async function(force = false) {
 
   let recomputeResult;
   try {
-    ({ recomputeResult } = await import("./scrabble/recompute.js?v=297"));
+    ({ recomputeResult } = await import("./scrabble/recompute.js?v=298"));
   } catch (e) {
     statusEl.textContent = "❌ Impossible de charger recompute.js : " + e.message;
     return;
@@ -3308,7 +3311,7 @@ window.recomputeAllJokerNeg = async function() {
 
   let recomputeResult;
   try {
-    ({ recomputeResult } = await import("./scrabble/recompute.js?v=297"));
+    ({ recomputeResult } = await import("./scrabble/recompute.js?v=298"));
   } catch (e) {
     statusEl.textContent = "❌ Impossible de charger recompute.js : " + e.message;
     return;

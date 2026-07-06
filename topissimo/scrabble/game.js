@@ -27,9 +27,9 @@ import {
   emptyBoard, BOARD_BONUSES, BOARD_SIZE, CENTER, LETTER_VALUE, LETTER_BAG,
   VOWELS, drawForDuplicate, scoreMove, applyMove,
   bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName, randomBoardLayout, snakeEndpointsAfter,
-} from "./engine.js?v=297";
-import { Dictionary } from "./dictionary.js?v=297";
-import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=297";
+} from "./engine.js?v=298";
+import { Dictionary } from "./dictionary.js?v=298";
+import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=298";
 
 // État du mode review (parcours coup par coup)
 const review = {
@@ -59,7 +59,7 @@ const FFSC_REVIEW = URL_PARAMS.get("ffscreview");  // revoir une partie FFSC imp
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v297";
+const BUILD_VERSION = "garenna-v298";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -3895,6 +3895,9 @@ async function initGame() {
   }
   // (Le chargement de la partie pré-tirée a déjà été fait plus haut, AVANT le
   // dictionnaire — voir « ORDRE CRITIQUE ».)
+  // Partie de TOURNOI mise en pause puis rechargée (retour d'une autre appli, même
+  // des heures après) → on la restaure au coup exact, en pause.
+  if (PREPARED_ID && restorePausedPrepared(PREPARED_ID)) return;
   // Si aucune URL spéciale, et qu'on a un entraînement en pause sauvegardé → restaurer
   if (!PREPARED_ID && !TRAINING_ID && !PUZZLE_GAME_ID && !REVIEW_ID) {
     if (restorePausedTraining()) return;
@@ -3973,8 +3976,13 @@ async function enterPuzzleMode(gameId, moveNo) {
   renderGameTitle();
   renderBoard();
   hideFeedback();
-  showFeedback("", `🧩 Puzzle — ${g.name} · coup ${moveNo}`,
-    `Appuie sur <kbd>Entrée</kbd> pour démarrer. Trouve le top !`);
+  // Le bouton « retour » doit ramener au TOURNOI d'où vient le solo (pas l'accueil).
+  if (TOURNAMENT_ID) {
+    const btnHome = $("#btnHome");
+    if (btnHome) btnHome.setAttribute("href", `../index.html#tid=${encodeURIComponent(TOURNAMENT_ID)}`);
+  }
+  // On lance directement le coup (pas d'écran « Appuie sur Entrée »).
+  startGame();
 }
 
 async function enterTrainingReviewMode(id) {
@@ -4927,13 +4935,13 @@ state.paused = false;
 state._pauseInfo = null;
 
 function saveTrainingState() {
-  if (state.prepared || state.isPuzzle) return;
+  if (state.isPuzzle) return;   // puzzles non persistés ; entraînement ET tournoi le sont
   try {
     const snapshot = {
       playerId: +(localStorage.getItem("currentPlayerId") || 0),
       bag: state.bag,
       board: state.board,
-      rack: state.rack.map(t => ({ letter: t.letter })),
+      rack: state.rack.map(t => ({ letter: t.letter, isBlank: !!t.isBlank })),
       moveNo: state.moveNo,
       totalScore: state.totalScore,
       sumNeg: state.sumNeg,
@@ -4945,6 +4953,11 @@ function saveTrainingState() {
       chronoElapsed: state._pauseInfo?.elapsed ?? elapsedSeconds(),
       chronoPenalty: state.chronoPenalty,
       moveTimeLeft: state._pauseInfo?.moveTimeLeft ?? state.moveTimeLeft,
+      // Contexte tournoi (partie pré-tirée) : pour restaurer au bon coup à la reprise.
+      isPrepared: !!state.prepared,
+      preparedId: state.prepared ? state.prepared.id : null,
+      preparedIdx: state.preparedIdx,
+      tid: TOURNAMENT_ID || null,
       savedAt: Date.now(),
     };
     localStorage.setItem(TRAINING_STORAGE_KEY, JSON.stringify(snapshot));
@@ -4960,6 +4973,9 @@ function restorePausedTraining() {
   if (!raw) return false;
   try {
     const s = JSON.parse(raw);
+    // Snapshot d'une partie de TOURNOI → pas ici (restauré par restorePausedPrepared
+    // sur la page de la partie pré-tirée). On ne le supprime pas.
+    if (s.isPrepared) return false;
     // Ne pas restaurer une partie appartenant à un autre joueur
     const currentPid = +(localStorage.getItem("currentPlayerId") || 0);
     if (s.playerId && currentPid && s.playerId !== currentPid) {
@@ -5002,10 +5018,49 @@ function restorePausedTraining() {
   }
 }
 
+// Restaure une partie de TOURNOI mise en pause (après rechargement / retour d'une
+// autre appli). Ne restaure que si le snapshot correspond à CETTE partie pré-tirée.
+function restorePausedPrepared(preparedId) {
+  const raw = localStorage.getItem(TRAINING_STORAGE_KEY);
+  if (!raw) return false;
+  try {
+    const s = JSON.parse(raw);
+    if (!s.isPrepared || String(s.preparedId) !== String(preparedId)) return false;
+    const currentPid = +(localStorage.getItem("currentPlayerId") || 0);
+    if (s.playerId && currentPid && s.playerId !== currentPid) return false;
+    state.bag = s.bag;
+    state.board = s.board;
+    state.rack = (s.rack || []).map(t => ({ letter: t.letter, isBlank: !!t.isBlank, used: false, id: nextTileId() }));
+    state.moveNo = s.moveNo;
+    state.preparedIdx = s.preparedIdx || 0;
+    state.totalScore = s.totalScore;
+    state.sumNeg = s.sumNeg;
+    state.spareJokers = s.spareJokers || 0;
+    state.history = s.history || [];
+    state.lastPlaced = s.lastPlaced || [];
+    state.bestAttempt = s.bestAttempt || null;
+    state.chronoPenalty = s.chronoPenalty || 0;
+    state.started = true;
+    state.paused = true;
+    state._pauseInfo = { elapsed: s.chronoElapsed || 0, moveTimeLeft: s.moveTimeLeft || 0 };
+    state.chronoFinal = null;
+    $("#actionRowPreStart").hidden = true;
+    $("#actionRowInGame").hidden = false;
+    $("#btnPause").hidden = false;
+    renderInfo(); renderRack(); renderBoard(); renderGameTitle();
+    if (!computeTop()) state._topPending = true;   // dico pas encore prêt → recalcul différé
+    $("#pauseModal").hidden = false;
+    return true;
+  } catch (e) {
+    console.error("Restore prepared failed:", e);
+    return false;
+  }
+}
+
 function pauseGame({ showModal = true } = {}) {
-  // Pause autorisée en entraînement et en tournoi (pas en puzzle). En tournoi, la
-  // pause n'est pas persistée (saveTrainingState ne s'applique qu'à l'entraînement)
-  // mais le rechargement est de toute façon protégé par le garde beforeunload.
+  // Pause autorisée en entraînement ET en tournoi (pas en puzzle). L'état est
+  // persisté (saveTrainingState) → au rechargement / retour d'une autre appli,
+  // on se retrouve au coup exact (restorePausedTraining / restorePausedPrepared).
   if (!state.started || state.chronoFinal != null || state.isPuzzle) return;
   if (state.paused) {
     if (showModal) $("#pauseModal").hidden = false;
