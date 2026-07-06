@@ -27,9 +27,9 @@ import {
   emptyBoard, BOARD_BONUSES, BOARD_SIZE, CENTER, LETTER_VALUE, LETTER_BAG,
   VOWELS, drawForDuplicate, scoreMove, applyMove,
   bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName, randomBoardLayout, snakeEndpointsAfter,
-} from "./engine.js?v=299";
-import { Dictionary } from "./dictionary.js?v=299";
-import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=299";
+} from "./engine.js?v=300";
+import { Dictionary } from "./dictionary.js?v=300";
+import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=300";
 
 // État du mode review (parcours coup par coup)
 const review = {
@@ -59,7 +59,7 @@ const FFSC_REVIEW = URL_PARAMS.get("ffscreview");  // revoir une partie FFSC imp
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v299";
+const BUILD_VERSION = "garenna-v300";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -3928,6 +3928,9 @@ async function enterPuzzleMode(gameId, moveNo) {
     throw new Error(`Cette partie (id ${gameId}) n'existe plus en base — elle a sans doute été régénérée. Le rejeu de ce solo n'est plus disponible.`);
   }
   const g = rows[0];
+  // Tournoi d'origine du solo (depuis la base), pour router le bouton retour même
+  // si l'URL ne portait pas de tid (solo lancé depuis les stats/records).
+  state._soloTid = g.tournament_id || TOURNAMENT_ID || null;
 
   if (!Array.isArray(g.moves) || g.moves.length === 0) {
     console.error("[enterPuzzleMode] g.moves invalide:", g.moves);
@@ -3977,8 +3980,9 @@ async function enterPuzzleMode(gameId, moveNo) {
   renderBoard();
   hideFeedback();
   // Le bouton « retour » doit ramener au TOURNOI d'où vient le solo, et s'appeler
-  // « ← Tournoi ». On masque « ← Accueil » et on affiche le bouton dédié.
-  if (TOURNAMENT_ID) {
+  // « ← Tournoi ». On masque « ← Accueil » et on affiche le bouton dédié (dès qu'on
+  // connaît le tournoi, via l'URL ou via la base).
+  if (state._soloTid) {
     const btnHome = $("#btnHome");
     if (btnHome) btnHome.hidden = true;
     if (_btnBackToTournament) _btnBackToTournament.hidden = false;
@@ -5602,8 +5606,9 @@ window.goBackToTournament = function(withWarning = false) {
   if (withWarning) {
     if (!confirm("Retourner au tournoi ? La partie en cours sera abandonnée et ton score sera 0.")) return;
   }
-  window.location.href = TOURNAMENT_ID
-    ? `../index.html#tid=${TOURNAMENT_ID}`
+  const tid = state._soloTid || TOURNAMENT_ID;
+  window.location.href = tid
+    ? `../index.html#tid=${tid}`
     : "../index.html#tab=prepared";
 };
 
