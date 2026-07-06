@@ -27,9 +27,9 @@ import {
   emptyBoard, BOARD_BONUSES, BOARD_SIZE, CENTER, LETTER_VALUE, LETTER_BAG,
   VOWELS, drawForDuplicate, scoreMove, applyMove,
   bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName, randomBoardLayout, snakeEndpointsAfter,
-} from "./engine.js?v=300";
-import { Dictionary } from "./dictionary.js?v=300";
-import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=300";
+} from "./engine.js?v=301";
+import { Dictionary } from "./dictionary.js?v=301";
+import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=301";
 
 // État du mode review (parcours coup par coup)
 const review = {
@@ -59,7 +59,7 @@ const FFSC_REVIEW = URL_PARAMS.get("ffscreview");  // revoir une partie FFSC imp
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v300";
+const BUILD_VERSION = "garenna-v301";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -5688,10 +5688,12 @@ function updateTournamentNavButtons() {
   const gameOver = state.chronoFinal != null;
   // Classe CSS — source de vérité unique pour les deux boutons principaux
   document.body.classList.toggle("mode-tournament", isTournament);
-  // Accueil / ← Tournoi
+  // Accueil / ← Tournoi : on affiche « ← Tournoi » pour une partie de tournoi
+  // ET pour un solo rattaché à un tournoi (state._soloTid).
+  const backToTournament = isTournament || (state.isPuzzle && !!state._soloTid);
   const btnHome = $("#btnHome");
-  if (btnHome) btnHome.hidden = isTournament;
-  if (_btnBackToTournament) _btnBackToTournament.hidden = !isTournament;
+  if (btnHome) btnHome.hidden = backToTournament;
+  if (_btnBackToTournament) _btnBackToTournament.hidden = !backToTournament;
   // Partie suivante : active seulement quand la partie est terminée ET qu'une
   // partie suivante existe dans le tournoi (sinon grisée).
   const hasNext = !!state._nextGameId;
