@@ -27,9 +27,9 @@ import {
   emptyBoard, BOARD_BONUSES, BOARD_SIZE, CENTER, LETTER_VALUE, LETTER_BAG,
   VOWELS, drawForDuplicate, scoreMove, applyMove,
   bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName, randomBoardLayout, snakeEndpointsAfter,
-} from "./engine.js?v=305";
-import { Dictionary } from "./dictionary.js?v=305";
-import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=305";
+} from "./engine.js?v=306";
+import { Dictionary } from "./dictionary.js?v=306";
+import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=306";
 
 // État du mode review (parcours coup par coup)
 const review = {
@@ -59,7 +59,7 @@ const FFSC_REVIEW = URL_PARAMS.get("ffscreview");  // revoir une partie FFSC imp
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v305";
+const BUILD_VERSION = "garenna-v306";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -3956,6 +3956,11 @@ async function enterPuzzleMode(gameId, moveNo) {
     }
   }
   state.board = board;
+  // Contexte des coups précédents (coups 1..idx-1), conservé pour la review du
+  // solo : sans lui, Revoir reconstruirait le plateau depuis le vide et
+  // n'afficherait que le top isolé (et calculerait les « autres solutions » sur
+  // une grille vide). On en garde une copie profonde.
+  state._puzzleBaseBoard = board.map(r => r.slice());
   // Préparer un faux "prepared" mono-coup pour réutiliser tout le moteur
   state.prepared = {
     id: g.id,
@@ -4160,6 +4165,12 @@ async function enterReviewMode(id) {
   renderReviewStep();
 }
 
+// Plateau de départ pour la review : vide en général, mais en review d'un SOLO
+// (puzzle) on part du contexte des coups précédents pour afficher toute la grille.
+function reviewBaseBoard() {
+  return (state.isPuzzle && review._puzzleBase) ? review._puzzleBase.map(r => r.slice()) : emptyBoard();
+}
+
 function renderReviewStep() {
   const moves = review.game.moves;
   const total = moves.length;
@@ -4183,18 +4194,18 @@ function renderReviewStep() {
 
   if (replay) {
     // Mode replay : plateau AVANT le coup courant (sans le top)
-    let board = emptyBoard();
+    let board = reviewBaseBoard();
     for (let i = 0; i < idx; i++) board = applyMove(board, moves[i].top);
     state.board = board;
     state.lastPlaced = [];
     state.lastTopCells = [];
   } else {
     // Mode normal : plateau APRÈS application des coups 1..step (incluant le coup courant)
-    let board = emptyBoard();
+    let board = reviewBaseBoard();
     for (let i = 0; i < review.step; i++) board = applyMove(board, moves[i].top);
     state.board = board;
     // Mettre en surbrillance le coup courant (lastPlaced + toutes les cases du mot)
-    const boardBefore = moves.slice(0, idx).reduce((b, mv) => applyMove(b, mv.top), emptyBoard());
+    const boardBefore = moves.slice(0, idx).reduce((b, mv) => applyMove(b, mv.top), reviewBaseBoard());
     state.lastPlaced = computeLastPlacedCells(boardBefore, m.top);
     const dr = m.top.dir === "V" ? 1 : 0, dc = m.top.dir === "H" ? 1 : 0;
     state.lastTopCells = Array.from({ length: m.top.word.length }, (_, i) => ({
@@ -4557,7 +4568,7 @@ function renderSnapshotToBlob(board, rack, opts = {}) {
 function renderReviewSolutions(idx) {
   const div = $("#rvSolutions");
   const moves = review.game.moves;
-  let boardBefore = emptyBoard();
+  let boardBefore = reviewBaseBoard();
   for (let i = 0; i < idx; i++) boardBefore = applyMove(boardBefore, moves[i].top);
   const rackLetters = moves[idx].rack.split("");
   const topMv = moves[idx].top;
@@ -4575,8 +4586,10 @@ function renderReviewSolutions(idx) {
       jokerPays: !!GAME_MODES[review.game.mode]?.jokerPays,
       layout: state.boardLayout,
     }) || [];
-    // Au 1er coup, on ne joue jamais verticalement en duplicate
-    if (idx === 0) all = all.filter(s => s.move.dir === "H");
+    // Au 1er coup, on ne joue jamais verticalement en duplicate. (En review d'un
+    // solo, le plateau n'est pas vide même si idx===0 : on se base sur le vrai
+    // n° de coup.)
+    if (moves[idx].moveNo === 1 && !review._puzzleBase) all = all.filter(s => s.move.dir === "H");
     review._solutions = all.slice(0, 200);
     const isFfsc = !!review._ffscKey;   // saisie « mon coup » réservée aux reviews FFSC
     const pick = review.userPicks?.[moves[idx].moveNo];
@@ -5219,12 +5232,14 @@ function endGame() {
     <div>Score total : <strong>${state.totalScore}</strong> pts</div>
     <div>Négatif : <strong>${state.sumNeg}</strong></div>
     <div>Temps : <strong>${time}</strong>${state.chronoPenalty ? ` (dont ${state.chronoPenalty}s de pénalités)` : ""}</div>`;
-  $("#endModal").hidden = false;
   // Rendre le bouton Revoir accessible (partie terminée)
   if (_btnReview) { _btnReview.hidden = false; _btnReview.disabled = false; _btnReview.classList.remove("active"); }
   updateTournamentNavButtons();
-  // Pas de sauvegarde en mode puzzle (rejouer d'un solo)
-  if (state.isPuzzle) return;
+  // Solo (rejeu d'un coup) : pas de modale de fin (elle n'a pas de sens ici) ni de
+  // sauvegarde. On révèle le top puis on ouvre directement « Revoir » pour montrer
+  // toute la grille (contexte des coups précédents inclus) et les solutions.
+  if (state.isPuzzle) { enterLocalReview(); return; }
+  $("#endModal").hidden = false;
   // Si c'est une partie pré-tirée → sauvegarder le résultat
   if (state.prepared) saveResultIfPrepared().catch(e => console.error("Sauvegarde KO:", e));
   // Si c'est un entraînement → sauvegarder l'historique perso
@@ -5323,6 +5338,8 @@ window.enterLocalReview = function() {
   review.active = true;
   document.body.classList.add("in-review");
   $("#bagDisplay") && ($("#bagDisplay").hidden = true);   // pas de sac en review
+  // Solo : conserver le contexte des coups précédents pour afficher toute la grille.
+  review._puzzleBase = state.isPuzzle ? (state._puzzleBaseBoard || null) : null;
   review.game = fakeGame;
   review.result = fakeResult;
   review.historyByMove = {};
