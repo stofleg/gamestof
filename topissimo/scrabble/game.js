@@ -27,9 +27,9 @@ import {
   emptyBoard, BOARD_BONUSES, BOARD_SIZE, CENTER, LETTER_VALUE, LETTER_BAG,
   VOWELS, drawForDuplicate, scoreMove, applyMove,
   bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName, randomBoardLayout, snakeEndpointsAfter,
-} from "./engine.js?v=315";
-import { Dictionary } from "./dictionary.js?v=315";
-import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=315";
+} from "./engine.js?v=316";
+import { Dictionary } from "./dictionary.js?v=316";
+import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=316";
 
 // État du mode review (parcours coup par coup)
 const review = {
@@ -59,7 +59,7 @@ const FFSC_REVIEW = URL_PARAMS.get("ffscreview");  // revoir une partie FFSC imp
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v315";
+const BUILD_VERSION = "garenna-v316";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -4642,6 +4642,11 @@ function previewSolution(i) {
   const board = applyMove(review._boardBefore.map(r => r.slice()), sol.move);
   state.board = board;
   state.lastPlaced = computeLastPlacedCells(review._boardBefore, sol.move);
+  // Le contour doit épouser le mot sélectionné (et pas rester sur le top initial).
+  const dr = sol.move.dir === "V" ? 1 : 0, dc = sol.move.dir === "H" ? 1 : 0;
+  state.lastTopCells = Array.from({ length: sol.move.word.length }, (_, k) => ({
+    row: sol.move.row + k * dr, col: sol.move.col + k * dc,
+  }));
   renderBoard();
   // Marquer visuellement la ligne sélectionnée
   $$("#rvSolutions tr").forEach(tr => tr.classList.remove("selected"));
