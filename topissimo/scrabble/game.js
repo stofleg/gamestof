@@ -1614,7 +1614,7 @@ function handleKey(e) {
     return;
   }
   if (e.key === "Backspace") { e.preventDefault(); backspace(); return; }
-  // F1 : Voir le top (−20 s)  [anciennement touche "1"]
+  // F1 : Voir le top (consomme le temps restant du coup)  [anciennement touche "1"]
   if (e.key === "F1") {
     e.preventDefault();
     if (state.started && state.chronoFinal == null) revealTop();
@@ -2476,7 +2476,12 @@ function revealTop() {
   if (playMode() === "duplicate") { stopMoveTimer(); duplicateChronoEnd(); return; }
   ensureTopReady();
   if (!state.topMove) return;
-  state.chronoPenalty += 20;
+  // Nouveau principe : révéler le top « coûte » le temps restant du coup, comme si
+  // le joueur avait attendu la fin du minuteur. Ex. 120 s/coup, clic à 30 s → +90 s ;
+  // clic à 117 s → +3 s. Temps illimité (timePerMove = 0) → aucune pénalité.
+  if (state.settings.timePerMove > 0) {
+    state.chronoPenalty += Math.max(0, state.moveTimeLeft || 0);
+  }
   // Évaluer le pending courant
   let pendingScore = 0;
   let pendingWord = null;
@@ -2872,15 +2877,18 @@ function playMode() {
 }
 
 // Libellé du bouton « Voir le top » : en duplicate, pas de pénalité de temps
-// (le dernier mot validé est retenu, puis on passe au coup suivant) → on retire
-// la mention « (−20s) ».
+// (le dernier mot validé est retenu, puis on passe au coup suivant). Sinon,
+// révéler le top consomme tout le temps restant du coup.
 function updateGiveUpLabel() {
   const btn = document.getElementById("btnGiveUp");
   if (!btn) return;
   const dup = playMode() === "duplicate";
+  const timed = !dup && state.settings.timePerMove > 0;
   const lbl = btn.querySelector(".lbl");
-  if (lbl) lbl.textContent = dup ? "Voir le top" : "Voir le top (−20s)";
-  btn.setAttribute("data-tip", dup ? "Voir le top" : "Voir le top (−20 s)");
+  if (lbl) lbl.textContent = "Voir le top";
+  btn.setAttribute("data-tip", timed
+    ? "Voir le top (consomme le temps restant du coup)"
+    : "Voir le top");
 }
 
 // Tirage manuel actif : duplicate avec « tirage automatique » décoché, OU éditeur.
