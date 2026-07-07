@@ -762,7 +762,7 @@ input:disabled, select:disabled {
 }
 /* Mots (top / mot joué) : en gras, sans soulignement « hyperlien » permanent —
    celui-ci n'apparaît qu'au survol pour indiquer que c'est cliquable. */
-.feedback .word-link { border-bottom: none; text-decoration: none; font-weight: 700; }
+.feedback .word-link { border-bottom: none; text-decoration: none; font-weight: 700; font-family: 'Inter', system-ui, sans-serif; }
 .feedback .word-link:hover { border-bottom: 1px dotted currentColor; text-decoration: none; }
 .feedback.miss .word-link { text-decoration: none; }
 .feedback.miss .word-link:hover { text-decoration: none; border-bottom: 1px dotted currentColor; }
