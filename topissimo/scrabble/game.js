@@ -27,9 +27,9 @@ import {
   emptyBoard, BOARD_BONUSES, BOARD_SIZE, CENTER, LETTER_VALUE, LETTER_BAG,
   VOWELS, drawForDuplicate, scoreMove, applyMove,
   bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName, randomBoardLayout, snakeEndpointsAfter,
-} from "./engine.js?v=327";
-import { Dictionary } from "./dictionary.js?v=327";
-import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=327";
+} from "./engine.js?v=328";
+import { Dictionary } from "./dictionary.js?v=328";
+import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=328";
 
 // État du mode review (parcours coup par coup)
 const review = {
@@ -59,7 +59,7 @@ const FFSC_REVIEW = URL_PARAMS.get("ffscreview");  // revoir une partie FFSC imp
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v327";
+const BUILD_VERSION = "garenna-v328";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -1140,12 +1140,14 @@ function showTransientError(title, detail = "", ms = 1600) {
   state._errorTimeout = setTimeout(() => restorePersistentFeedback(), ms);
 }
 
-// HTML du "meilleur essai" courant (ex. "NI — 9 pts"). Pas de position ni de
-// mention « meilleur essai » : la fenêtre orange EST le meilleur essai.
+// HTML du "meilleur essai" courant (ex. "NI — 9 pts en B12"). La position est
+// celle du meilleur placement (optimum au 1er coup) ; pas de mention « meilleur
+// essai » : la fenêtre orange EST le meilleur essai.
 function bestAttemptHTML() {
   const b = state.bestAttempt;
   if (!b) return null;
-  return `<strong>${wLink(b.word)}</strong> — <strong>${b.score}</strong> pts`;
+  const pos = b.move ? ` en ${posLabel(b.move)}` : "";
+  return `<strong>${wLink(b.word)}</strong> — <strong>${b.score}</strong> pts${pos}`;
 }
 
 // Réaffiche l'information persistante de la fenêtre orange : meilleur essai du
@@ -2112,10 +2114,11 @@ function validate() {
       renderBoard();
       renderRack();
       const b = state.bestAttempt;
+      const optPos = posLabel(best.move);   // placement optimum (indépendant de la saisie)
       const isNewBest = b.word === move.word && b.score === best.score;
       const line = isNewBest
-        ? `<strong>${wLink(move.word)}</strong> — <strong>${best.score}</strong> pts`
-        : `<strong>${wLink(move.word)}</strong> — ${best.score} pts<br>${bestAttemptHTML()}`;
+        ? `<strong>${wLink(move.word)}</strong> — <strong>${best.score}</strong> pts en ${optPos}`
+        : `<strong>${wLink(move.word)}</strong> — ${best.score} pts en ${optPos}<br>${bestAttemptHTML()}`;
       hideTopFeedback();
       showFeedback("miss", line, "");
       return;
@@ -2188,10 +2191,11 @@ function validate() {
     renderBoard();
     renderRack();
     const best = state.bestAttempt;
+    const curPos = ` en ${posLabel(move)}`;
     const isNewBest = best.word === move.word && best.score === result.score;
     const bestLine = isNewBest
-      ? `<strong>${wLink(move.word)}</strong> — <strong>${result.score}</strong> pts`
-      : `<strong>${wLink(move.word)}</strong> — ${result.score} pts<br>${bestAttemptHTML()}`;
+      ? `<strong>${wLink(move.word)}</strong> — <strong>${result.score}</strong> pts${curPos}`
+      : `<strong>${wLink(move.word)}</strong> — ${result.score} pts${curPos}<br>${bestAttemptHTML()}`;
     hideTopFeedback();  // efface le top du coup précédent dès validation
     showFeedback("miss", bestLine, "");
   }
