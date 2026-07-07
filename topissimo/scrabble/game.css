@@ -67,7 +67,7 @@ header {
 }
 header h1 {
   margin: 0;
-  font-family: 'Fraunces', Georgia, serif;
+  font-family: 'Lora', Georgia, serif;
   font-size: 1.3rem;
   color: var(--yellow);
   letter-spacing: .05em;
@@ -85,7 +85,7 @@ header .logo {
   filter: drop-shadow(0 2px 4px rgba(0,0,0,.2));
 }
 header .brand-fallback {
-  font-family: 'Fraunces', serif;
+  font-family: 'Lora', serif;
   color: var(--yellow);
   font-size: 1.2rem;
   font-weight: 700;
@@ -191,7 +191,7 @@ body.show-coords .right-col {
 
 /* ---------- TITRE PARTIE ---------- */
 .game-title {
-  font-family: 'Fraunces', serif;
+  font-family: 'Lora', serif;
   font-weight: 600;
   font-size: 1.05rem;
   color: var(--petrol-dark);
@@ -230,7 +230,7 @@ body.show-coords .right-col {
 }
 .info-bar .item { display: flex; flex-direction: column; gap: 2px; }
 .info-bar .item .label { font-size: .65rem; color: #5a6a73; text-transform: uppercase; letter-spacing: .08em; }
-.info-bar .item .value { font-family: 'Fraunces', serif; font-weight: 700; font-size: 1.2rem; color: var(--petrol); }
+.info-bar .item .value { font-family: 'Lora', serif; font-weight: 700; font-size: 1.2rem; color: var(--petrol); }
 .info-bar .grow { flex: 1; }
 .info-bar .btn { margin-left: auto; }
 
@@ -577,7 +577,7 @@ body.theme-duplijeu .board tr:last-child td.coord { height: calc(var(--cell-size
 .move-timer {
   font-variant-numeric: tabular-nums;
   font-weight: 700;
-  font-family: 'Fraunces', serif;
+  font-family: 'Lora', serif;
   font-size: 1.7rem;
   color: #fff;
 }
@@ -752,7 +752,7 @@ input:disabled, select:disabled {
 
 .feedback .title {
   flex: 1 1 auto;
-  font-family: 'Fraunces', serif;
+  font-family: 'Lora', serif;
   font-weight: 600;
   font-size: .95rem;
   overflow: hidden;
@@ -799,7 +799,7 @@ input:disabled, select:disabled {
 }
 .dict-word {
   flex: 1 1 auto;
-  font-family: 'Fraunces', serif;
+  font-family: 'Lora', serif;
   font-weight: 700;
   font-size: 1rem;
   letter-spacing: .04em;
@@ -869,7 +869,7 @@ input:disabled, select:disabled {
    lettres pendant l'arrêt du chrono. */
 #pauseModal .backdrop { background: rgba(0,30,45,.62); backdrop-filter: blur(22px); -webkit-backdrop-filter: blur(22px); }
 .modal .content { position: relative; background: #fff; border-radius: 14px; padding: 24px; max-width: 420px; width: 100%; box-shadow: 0 20px 60px -10px rgba(0,30,45,.4); max-height: calc(100vh - 40px); overflow-y: auto; overscroll-behavior: contain; }
-.modal h2 { margin-top: 0; font-family: 'Fraunces', serif; color: var(--petrol); font-size: 1.4rem; }
+.modal h2 { margin-top: 0; font-family: 'Lora', serif; color: var(--petrol); font-size: 1.4rem; }
 .modal .close { position: absolute; top: 12px; right: 12px; background: none; border: none; font-size: 1.5rem; cursor: pointer; width: 32px; height: 32px; border-radius: 50%; color: #5a6a73; }
 .modal .close:hover { background: var(--normal); }
 
@@ -912,7 +912,7 @@ input:disabled, select:disabled {
 /* Décaler le ✕ du modal dans le coin du volet dict */
 .sheet-content.with-dict > .close { right: calc(510px + 12px); }
 .settings-section {
-  font-family: 'Fraunces', serif;
+  font-family: 'Lora', serif;
   font-weight: 600;
   font-size: .95rem;
   color: var(--petrol-dark);
@@ -953,7 +953,7 @@ input:disabled, select:disabled {
 }
 .kbd-shortcuts summary {
   cursor: pointer;
-  font-family: 'Fraunces', serif;
+  font-family: 'Lora', serif;
   font-weight: 600;
   font-size: .95rem;
   color: var(--petrol-dark);
@@ -1157,7 +1157,7 @@ input:disabled, select:disabled {
 }
 #settings .setting > button.btn:hover { transform: translateY(-1px); }
 .settings-section {
-  font-family: 'Fraunces', serif;
+  font-family: 'Lora', serif;
   font-weight: 600;
   font-size: .95rem;
   color: var(--petrol-dark);
@@ -1222,7 +1222,7 @@ input:disabled, select:disabled {
   box-shadow: 0 1px 4px rgba(0,46,68,.08);
 }
 .bag-title {
-  font-family: 'Fraunces', serif;
+  font-family: 'Lora', serif;
   font-weight: 600;
   font-size: .9rem;
   color: var(--petrol-dark);
@@ -1474,7 +1474,7 @@ input:disabled, select:disabled {
   min-height: 0;
 }
 .review-nav { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
-.review-nav .step-label { font-family: 'Fraunces', serif; font-weight: 600; flex: 1; text-align: center; font-size: 1.1rem; color: var(--petrol-dark); }
+.review-nav .step-label { font-family: 'Lora', serif; font-weight: 600; flex: 1; text-align: center; font-size: 1.1rem; color: var(--petrol-dark); }
 .review-nav .btn { padding: 6px 14px; }
 
 .review-line { padding: 6px 0; border-bottom: 1px solid var(--soft); font-size: .92rem; display: flex; gap: 8px; align-items: baseline; }
@@ -1498,6 +1498,9 @@ body.in-review .review-panel {
   min-height: 0;
   max-width: none;
 }
+/* En review, on masque la zone de feedback (bandeau vert « Parcours de … ») :
+   le panneau Revoir s'étend alors jusqu'au pied de la grille. */
+body.in-review .feedback-zone { display: none; }
 .review-split {
   flex: 1 1 auto;
   min-height: 0;
