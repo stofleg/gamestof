@@ -850,6 +850,10 @@ input:disabled, select:disabled {
   text-decoration: underline;
   opacity: .8;
 }
+/* Dans le panneau Revoir, on n'affiche pas le soulignement « hyperlien » en
+   permanence (il se confond avec le soulignement du joker) : seulement au survol. */
+#reviewPanel .word-link { border-bottom: none; }
+#reviewPanel .word-link:hover { border-bottom: 1px dotted currentColor; }
 
 /* ---------- MODAL SETTINGS ---------- */
 .modal { position: fixed; inset: 0; z-index: 100; display: flex; align-items: center; justify-content: center; padding: 20px; }
