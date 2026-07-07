@@ -953,27 +953,11 @@ function renderChrono() {
   $("#chrono").textContent = fmtChrono(elapsedSeconds());
 }
 
-// Un SEUL minuteur pilote toute la partie (chrono général + compte à rebours du
-// coup) : les deux affichages sont donc rafraîchis au MÊME top d'horloge et leurs
-// chiffres changent exactement ensemble (pas de déphasage entre deux intervalles).
 let chronoTimer = null;
-let moveArmed = false;   // le compte à rebours du coup tourne-t-il ?
-function gameTick() {
-  renderChrono();
-  if (moveArmed) {
-    state.moveTimeLeft--;
-    renderMoveTimer();
-    if (state.moveTimeLeft <= 0) {
-      moveArmed = false;
-      timeoutAdvance();
-    }
-  }
-}
 function startChrono() {
   state.chronoStart = Date.now();
   if (chronoTimer) clearInterval(chronoTimer);
-  chronoTimer = setInterval(gameTick, 1000);
-  renderChrono();
+  chronoTimer = setInterval(renderChrono, 1000);
 }
 function stopChrono() {
   state.chronoFinal = elapsedSeconds();
@@ -982,20 +966,27 @@ function stopChrono() {
 }
 
 // ===== Minuteur par coup =====
-// N'a plus d'intervalle propre : il « arme » simplement le compte à rebours, que
-// gameTick fait défiler en même temps que le chrono général.
+let moveTimer = null;
 function startMoveTimer() {
   state.moveStart = performance.now();
+  if (moveTimer) clearInterval(moveTimer);
   if (state.settings.timePerMove > 0) {
     state.moveTimeLeft = state.settings.timePerMove;
-    moveArmed = true;
+    renderMoveTimer();
+    moveTimer = setInterval(() => {
+      state.moveTimeLeft--;
+      renderMoveTimer();
+      if (state.moveTimeLeft <= 0) {
+        clearInterval(moveTimer);
+        timeoutAdvance();
+      }
+    }, 1000);
   } else {
-    moveArmed = false;
+    renderMoveTimer();   // affiche « — » en duplicate sans temps, masque sinon
   }
-  renderMoveTimer();   // affiche « — » en duplicate sans temps, masque sinon
 }
 function stopMoveTimer() {
-  moveArmed = false;
+  if (moveTimer) { clearInterval(moveTimer); moveTimer = null; }
   return state.moveStart ? performance.now() - state.moveStart : 0;
 }
 
@@ -3798,7 +3789,7 @@ async function initGame() {
   state.moveStart = null;
   state.moveTimeLeft = 0;
   if (chronoTimer) { clearInterval(chronoTimer); chronoTimer = null; }
-  moveArmed = false;
+  if (moveTimer) { clearInterval(moveTimer); moveTimer = null; }
   if (topWordTimer) { clearTimeout(topWordTimer); topWordTimer = null; }
   // Reset UI review s'il était activé
   review.active = false;
@@ -5107,9 +5098,8 @@ function pauseGame({ showModal = true } = {}) {
     elapsed: elapsedSeconds(),
     moveTimeLeft: state.moveTimeLeft,
   };
-  // Un seul intervalle à figer : le compte à rebours du coup (moveArmed) est gelé
-  // de fait puisqu'il ne défile que via gameTick. On garde moveArmed pour reprendre.
   if (chronoTimer) { clearInterval(chronoTimer); chronoTimer = null; }
+  if (moveTimer)   { clearInterval(moveTimer);   moveTimer = null; }
   saveTrainingState();
   if (showModal) $("#pauseModal").hidden = false;
 }
@@ -5119,13 +5109,19 @@ function resumeGame() {
   // Repartir le chrono à partir de l'élapsed acquis
   state.chronoStart = Date.now() - (state._pauseInfo.elapsed - state.chronoPenalty) * 1000;
   if (chronoTimer) clearInterval(chronoTimer);
-  chronoTimer = setInterval(gameTick, 1000);
-  // Reprendre le compte à rebours du coup s'il était actif (il redéfile via gameTick).
+  chronoTimer = setInterval(renderChrono, 1000);
+  // Reprendre le minuteur de coup si actif
   if (state.settings.timePerMove > 0 && state._pauseInfo.moveTimeLeft > 0) {
     state.moveTimeLeft = state._pauseInfo.moveTimeLeft;
-    moveArmed = true;
-  } else {
-    moveArmed = false;
+    if (moveTimer) clearInterval(moveTimer);
+    moveTimer = setInterval(() => {
+      state.moveTimeLeft--;
+      renderMoveTimer();
+      if (state.moveTimeLeft <= 0) {
+        clearInterval(moveTimer);
+        timeoutAdvance();
+      }
+    }, 1000);
   }
   state._pauseInfo = null;
   $("#pauseModal").hidden = true;
