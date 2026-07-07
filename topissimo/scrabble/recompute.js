@@ -11,7 +11,7 @@
 //  produire des négatifs fidèles (toujours ≤ 0).
 // ============================================================
 
-import { emptyBoard, applyMove, scoreMove, GAME_MODES } from "./engine.js?v=319";
+import { emptyBoard, applyMove, scoreMove, GAME_MODES } from "./engine.js?v=320";
 
 // Parse une étiquette de position FFSC en {row, col, dir}.
 //   horizontal "H8"  → lettre (ligne) puis nombre (colonne+1)

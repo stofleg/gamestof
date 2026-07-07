@@ -27,9 +27,9 @@ import {
   emptyBoard, BOARD_BONUSES, BOARD_SIZE, CENTER, LETTER_VALUE, LETTER_BAG,
   VOWELS, drawForDuplicate, scoreMove, applyMove,
   bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName, randomBoardLayout, snakeEndpointsAfter,
-} from "./engine.js?v=319";
-import { Dictionary } from "./dictionary.js?v=319";
-import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=319";
+} from "./engine.js?v=320";
+import { Dictionary } from "./dictionary.js?v=320";
+import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=320";
 
 // État du mode review (parcours coup par coup)
 const review = {
@@ -59,7 +59,7 @@ const FFSC_REVIEW = URL_PARAMS.get("ffscreview");  // revoir une partie FFSC imp
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v319";
+const BUILD_VERSION = "garenna-v320";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -4601,6 +4601,7 @@ function renderReviewSolutions(idx) {
   const _ph = review.historyByMove[moves[idx].moveNo];
   const playedMv = _ph?.played;
   const playedPos = _ph?.playedPos;
+  const playedScore = _ph?.playerScore;
   review._boardBefore = boardBefore;
 
   div.innerHTML = `<div style="padding:20px;text-align:center;color:#888">⏳ Calcul des solutions…</div>`;
@@ -4625,11 +4626,14 @@ function renderReviewSolutions(idx) {
     const dual = _ph?.dual;
     const myTopWord = dual?.topWord, mySubWord = dual?.subWord;
     const rows = review._solutions.map((s, i) => {
-      const isTop = s.move.word === topMv.word && s.move.row === topMv.row && s.move.col === topMv.col && s.move.dir === topMv.dir;
+      // On exige aussi l'égalité du SCORE : deux fois le même mot au même endroit
+      // avec le joker placé différemment (donc scores différents) ne sont PAS le
+      // même coup — seule l'instance au score du top/joué est surlignée.
+      const isTop = s.move.word === topMv.word && s.move.row === topMv.row && s.move.col === topMv.col && s.move.dir === topMv.dir && s.score === topMv.score;
       const isSub = subMv && subWords.includes(s.move.word) && s.score === subMv.score;
       const isPlayed = dual
         ? (myTopWord && myTopWord !== topMv.word && s.move.word === myTopWord)
-        : (playedMv && s.move.word === playedMv && (!playedPos || posLabelMove(s.move) === playedPos));
+        : (playedMv && s.move.word === playedMv && (!playedPos || posLabelMove(s.move) === playedPos) && (playedScore == null || s.score === playedScore));
       const isPlayedSub = dual && mySubWord && (!subMv || mySubWord !== subMv.word) && s.move.word === mySubWord;
       const isMine = pick && !pick.zero && s.move.word === pick.word && posLabelMove(s.move) === pick.pos;
       const cls = [isTop ? "is-top" : "", isSub ? "is-subtop" : "", isPlayed ? "is-played" : "", isPlayedSub ? "is-played-sub" : "", isMine ? "is-mine" : ""].join(" ").trim();
