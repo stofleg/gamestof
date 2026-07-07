@@ -27,9 +27,9 @@ import {
   emptyBoard, BOARD_BONUSES, BOARD_SIZE, CENTER, LETTER_VALUE, LETTER_BAG,
   VOWELS, drawForDuplicate, scoreMove, applyMove,
   bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName, randomBoardLayout, snakeEndpointsAfter,
-} from "./engine.js?v=321";
-import { Dictionary } from "./dictionary.js?v=321";
-import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=321";
+} from "./engine.js?v=322";
+import { Dictionary } from "./dictionary.js?v=322";
+import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=322";
 
 // État du mode review (parcours coup par coup)
 const review = {
@@ -59,7 +59,7 @@ const FFSC_REVIEW = URL_PARAMS.get("ffscreview");  // revoir une partie FFSC imp
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v321";
+const BUILD_VERSION = "garenna-v322";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -4622,7 +4622,7 @@ function renderReviewSolutions(idx) {
     // vraie lettre → blanks vidé à la génération), si bien que par défaut on ne
     // voit plus où le joker avait été posé. On retrouve sa position d'origine via
     // la solution top fraîche (findTop) et on marque la case en rouge sur la grille.
-    if (state.settings.withJoker && !review.replayMode) {
+    if (review.active && state.settings.withJoker && !review.replayMode) {
       const topSol = all.find(s => s.move.word === topMv.word && s.move.row === topMv.row
         && s.move.col === topMv.col && s.move.dir === topMv.dir && s.score === topMv.score);
       const tb = topSol?.move.blanks || [];
