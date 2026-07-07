@@ -188,7 +188,7 @@ let myGamesSort = {
 async function loadMyGames() {
   if (!state.currentPlayerId) return;
   const pid = +state.currentPlayerId;
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=304");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=305");
 
   // Tournoi : prepared_game_results jointes avec prepared_games
   const { data: tour } = await sb.from("prepared_game_results")
@@ -1376,7 +1376,7 @@ async function loadMyStats() {
   const pid = +state.currentPlayerId;
 
   body.innerHTML = `<p class="muted">⏳ Calcul…</p>`;
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=304");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=305");
 
   // 1) Toutes mes parties tournoi (avec détails)
   const { data: tour } = await sb.from("prepared_game_results")
@@ -2164,7 +2164,7 @@ async function loadTournamentDetail(tournamentId) {
     });
   }
 
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=304");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=305");
   const btnStyle = "text-decoration:none;padding:5px 10px;border-radius:6px;font-weight:600;font-size:.85rem";
   const admin = isAdmin();
   $("#pgBody").innerHTML = (games || []).length === 0
@@ -2456,10 +2456,13 @@ async function loadTournamentLeaderboard(tournamentId, games, tournamentName, mo
     return list;
   };
 
-  const expandHtml = (p) => {
+  // onlyCat : dans un sous-classement (Blitz, Originales…), on ne détaille que
+  // les parties de CETTE catégorie ; dans le général, on affiche tout.
+  const expandHtml = (p, onlyCat = null) => {
+    const catsToShow = onlyCat ? [onlyCat] : orderedCats;
     let html = `<div class="expand-inner"><table>
       <thead><tr><th>Catégorie</th><th>Partie</th><th>Négatif</th><th>Temps</th><th>Loupés</th><th></th></tr></thead><tbody>`;
-    for (const c of orderedCats) cats[c].forEach((g) => {
+    for (const c of catsToShow) cats[c].forEach((g) => {
       const r = p.perGame[g.id];
       // Picto 📱 si la partie a été jouée sur mobile.
       const mobileIcon = r && r.mobile ? ` <span title="Jouée sur mobile" style="font-size:.9em">📱</span>` : "";
@@ -2509,7 +2512,7 @@ async function loadTournamentLeaderboard(tournamentId, games, tournamentName, mo
       <td class="player-name"><span class="player-name-link">${escapeHtml(p.name)}</span></td>
       <td><strong>${played ? cd.neg : "—"}</strong></td>
       <td>${played ? fmtT(cd.time) : "—"}</td></tr>
-      <tr class="expand-row" hidden><td colspan="4">${expandHtml(p)}</td></tr>`;
+      <tr class="expand-row" hidden><td colspan="4">${expandHtml(p, c)}</td></tr>`;
   };
 
   // ===== En-têtes triables (data-sort) =====
@@ -2806,7 +2809,7 @@ async function loadTournamentStats(tournamentId, games) {
   // On détermine « le top est un scrabble » en REjouant le plateau coup par coup
   // (nombre de NOUVELLES tuiles posées par le top == clé de prime du mode), ce qui
   // est fiable même sur d'anciennes parties (le hadBonus stocké est non fiable).
-  const { emptyBoard, applyMove, GAME_MODES } = await import("./scrabble/engine.js?v=304");
+  const { emptyBoard, applyMove, GAME_MODES } = await import("./scrabble/engine.js?v=305");
   const gameById = {};
   for (const g of games) gameById[g.id] = g;
   const bonusesOf = (gid) => (GAME_MODES[gameById[gid]?.mode] || GAME_MODES.duplicate).bonuses || { 7: 50 };
@@ -2991,9 +2994,9 @@ $("#pgCreate").onclick = async () => {
     let mods;
     try {
       mods = await Promise.all([
-        import("./scrabble/dictionary.js?v=304"),
-        import("./scrabble/generator.js?v=304"),
-        import("./scrabble/engine.js?v=304"),
+        import("./scrabble/dictionary.js?v=305"),
+        import("./scrabble/generator.js?v=305"),
+        import("./scrabble/engine.js?v=305"),
       ]);
     } catch (e) {
       $("#pgStatus").innerHTML = `<span style="color:#a02525">Échec de chargement des modules : ${escapeHtml(e.message)}</span>`;
@@ -3059,7 +3062,7 @@ window.recomputeAllNeg = async function(force = false) {
 
   let recomputeResult;
   try {
-    ({ recomputeResult } = await import("./scrabble/recompute.js?v=304"));
+    ({ recomputeResult } = await import("./scrabble/recompute.js?v=305"));
   } catch (e) {
     statusEl.textContent = "❌ Impossible de charger recompute.js : " + e.message;
     return;
@@ -3311,7 +3314,7 @@ window.recomputeAllJokerNeg = async function() {
 
   let recomputeResult;
   try {
-    ({ recomputeResult } = await import("./scrabble/recompute.js?v=304"));
+    ({ recomputeResult } = await import("./scrabble/recompute.js?v=305"));
   } catch (e) {
     statusEl.textContent = "❌ Impossible de charger recompute.js : " + e.message;
     return;
