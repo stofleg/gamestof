@@ -1052,6 +1052,14 @@ input:disabled, select:disabled {
   from { opacity: 0; transform: translateX(-50%) translateY(3px); }
   to   { opacity: 1; transform: translateX(-50%) translateY(0); }
 }
+/* Bouton « Rejouer » (🫣) tout à droite : bulle ancrée à droite (évite le
+   débordement hors fenêtre et les barres de défilement). */
+#rvReplay[data-tip].show-tip::after {
+  left: auto;
+  right: 0;
+  transform: none;
+  animation: none;
+}
 
 /* PC (souris) : info-bulle au survol — uniquement sur devices avec hover réel
    (les mobiles ont (hover: none) donc cette règle ne s'applique pas pour eux). */
@@ -1078,6 +1086,15 @@ input:disabled, select:disabled {
     box-shadow: 0 2px 8px rgba(0,30,45,.35);
   }
   [data-tip]:hover { position: relative; }
+  /* Bouton « Rejouer » (🫣) : dernier de la barre, tout à droite du panneau. Sa
+     bulle (texte long, nowrap) débordait du bord droit de la fenêtre et faisait
+     apparaître les barres de défilement. On l'ancre à droite → elle s'étend vers
+     la gauche et reste dans le cadre. */
+  #rvReplay[data-tip]:hover::after {
+    left: auto;
+    right: 0;
+    transform: none;
+  }
 }
 
 #settings .setting {
