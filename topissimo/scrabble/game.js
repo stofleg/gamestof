@@ -27,9 +27,9 @@ import {
   emptyBoard, BOARD_BONUSES, BOARD_SIZE, CENTER, LETTER_VALUE, LETTER_BAG,
   VOWELS, drawForDuplicate, scoreMove, applyMove,
   bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName, randomBoardLayout, snakeEndpointsAfter,
-} from "./engine.js?v=316";
-import { Dictionary } from "./dictionary.js?v=316";
-import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=316";
+} from "./engine.js?v=317";
+import { Dictionary } from "./dictionary.js?v=317";
+import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=317";
 
 // État du mode review (parcours coup par coup)
 const review = {
@@ -59,7 +59,7 @@ const FFSC_REVIEW = URL_PARAMS.get("ffscreview");  // revoir une partie FFSC imp
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v316";
+const BUILD_VERSION = "garenna-v317";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -1047,6 +1047,18 @@ function dictUrl(word) {
 function wLink(word) {
   if (!word) return word;
   return `<a href="${dictUrl(word)}" class="word-link" onclick="event.preventDefault();event.stopPropagation();openDictPanel('${word}')">${word}</a>`;
+}
+// Comme wLink mais souligne (soulignement solide) les lettres jouées avec un
+// joker, d'après move.blanks. Permet de distinguer deux mots identiques au même
+// endroit dont seul le placement du joker (donc le score) diffère.
+function wLinkB(move) {
+  if (!move || !move.word) return move?.word || "";
+  const word = move.word;
+  const blanks = move.blanks || [];
+  const disp = blanks.length
+    ? word.split("").map((ch, i) => blanks.includes(i) ? `<u>${ch}</u>` : ch).join("")
+    : word;
+  return `<a href="${dictUrl(word)}" class="word-link" onclick="event.preventDefault();event.stopPropagation();openDictPanel('${word}')">${disp}</a>`;
 }
 
 window.openDictPanel = function(word) {
@@ -4249,8 +4261,8 @@ function renderReviewStep() {
 
   if (!replay) {
     // Top joué
-    $("#rvTop").innerHTML = `${wLink(m.top.word)} — ${m.top.score} pts en ${posLabelMove(m.top)}`
-      + (m.subTop ? ` <span class="muted">· sous-top ${wLink(m.subTop.word)} — ${m.subTop.score} pts en ${posLabelMove(m.subTop)}</span>` : "");
+    $("#rvTop").innerHTML = `${wLinkB(m.top)} — ${m.top.score} pts en ${posLabelMove(m.top)}`
+      + (m.subTop ? ` <span class="muted">· sous-top ${wLinkB(m.subTop)} — ${m.subTop.score} pts en ${posLabelMove(m.subTop)}</span>` : "");
     renderReviewPlayed(m);
     // Autres solutions valides (calcul à la volée)
     renderReviewSolutions(idx);
@@ -4621,7 +4633,7 @@ function renderReviewSolutions(idx) {
       const isPlayedSub = dual && mySubWord && (!subMv || mySubWord !== subMv.word) && s.move.word === mySubWord;
       const isMine = pick && !pick.zero && s.move.word === pick.word && posLabelMove(s.move) === pick.pos;
       const cls = [isTop ? "is-top" : "", isSub ? "is-subtop" : "", isPlayed ? "is-played" : "", isPlayedSub ? "is-played-sub" : "", isMine ? "is-mine" : ""].join(" ").trim();
-      return `<tr class="${cls}" data-i="${i}"><td>${wLink(s.move.word)}</td><td>${posLabelMove(s.move)}</td><td>${s.score}</td>` +
+      return `<tr class="${cls}" data-i="${i}"><td>${wLinkB(s.move)}</td><td>${posLabelMove(s.move)}</td><td>${s.score}</td>` +
         (isFfsc ? `<td><button class="btn small rv-pick-btn" title="C'est le mot que j'ai joué" onclick="event.stopPropagation();setReviewMyMove(${i})">${isMine ? "✅" : "C'est mon coup"}</button></td>` : "") + `</tr>`;
     }).join("");
     div.innerHTML = `<table>
