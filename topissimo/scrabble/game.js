@@ -5612,6 +5612,17 @@ $("#btnStart").onclick = startGame;
 $("#btnGiveUp").onclick = revealTop;
 $("#btnPause").onclick = pauseGame;
 $("#btnResume").onclick = resumeGame;
+// « Arrêter la partie » depuis la pause : même effet que dans les paramètres
+// (stoppe net sans révéler les coups, revient à l'écran pré-démarrage), en
+// levant d'abord l'état de pause et sa sauvegarde.
+const _btnStopFromPause = $("#btnStopFromPause");
+if (_btnStopFromPause) _btnStopFromPause.onclick = () => {
+  state.paused = false;
+  state._pauseInfo = null;
+  clearSavedTraining();
+  $("#pauseModal").hidden = true;
+  stopGameFromSettings();
+};
 // Intercepter le clic sur Accueil : en entraînement actif, on met en pause au lieu
 // de quitter directement. Le joueur peut alors choisir Reprendre ou Quitter.
 // Intercepte le lien Accueil du header : pause silencieuse + nav
