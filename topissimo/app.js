@@ -188,7 +188,7 @@ let myGamesSort = {
 async function loadMyGames() {
   if (!state.currentPlayerId) return;
   const pid = +state.currentPlayerId;
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=309");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=310");
 
   // Tournoi : prepared_game_results jointes avec prepared_games
   const { data: tour } = await sb.from("prepared_game_results")
@@ -1376,7 +1376,7 @@ async function loadMyStats() {
   const pid = +state.currentPlayerId;
 
   body.innerHTML = `<p class="muted">⏳ Calcul…</p>`;
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=309");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=310");
 
   // 1) Toutes mes parties tournoi (avec détails)
   const { data: tour } = await sb.from("prepared_game_results")
@@ -2164,7 +2164,7 @@ async function loadTournamentDetail(tournamentId) {
     });
   }
 
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=309");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=310");
   const btnStyle = "text-decoration:none;padding:5px 10px;border-radius:6px;font-weight:600;font-size:.85rem";
   const admin = isAdmin();
   $("#pgBody").innerHTML = (games || []).length === 0
@@ -2478,7 +2478,7 @@ async function loadTournamentLeaderboard(tournamentId, games, tournamentName, mo
           sheetBtn = `<span class="muted" style="font-size:.78rem" title="Joue d'abord cette partie pour voir sa feuille de route">🔒</span>`;
         }
       }
-      html += `<tr><td>${cat.labelOf(c)}</td><td>${escapeHtml(g.name)}</td><td class="neg">${r ? r.neg : "—"}</td><td style="white-space:nowrap"><span style="display:flex;justify-content:space-between;gap:6px"><span>${mobileIcon}</span><span>${r ? fmtT(r.time) : "—"}</span></span></td><td>${r ? r.missed : "—"}</td><td style="text-align:right">${sheetBtn}</td></tr>`;
+      html += `<tr><td>${cat.labelOf(c)}</td><td>${escapeHtml(g.name)}</td><td class="neg">${r ? r.neg : "—"}</td><td style="white-space:nowrap"><span style="display:flex;justify-content:flex-end;gap:2em"><span>${mobileIcon}</span><span>${r ? fmtT(r.time) : "—"}</span></span></td><td>${r ? r.missed : "—"}</td><td style="text-align:right">${sheetBtn}</td></tr>`;
     });
     html += `</tbody></table></div>`;
     return html;
@@ -2810,7 +2810,7 @@ async function loadTournamentStats(tournamentId, games) {
   // On détermine « le top est un scrabble » en REjouant le plateau coup par coup
   // (nombre de NOUVELLES tuiles posées par le top == clé de prime du mode), ce qui
   // est fiable même sur d'anciennes parties (le hadBonus stocké est non fiable).
-  const { emptyBoard, applyMove, GAME_MODES } = await import("./scrabble/engine.js?v=309");
+  const { emptyBoard, applyMove, GAME_MODES } = await import("./scrabble/engine.js?v=310");
   const gameById = {};
   for (const g of games) gameById[g.id] = g;
   const bonusesOf = (gid) => (GAME_MODES[gameById[gid]?.mode] || GAME_MODES.duplicate).bonuses || { 7: 50 };
@@ -2995,9 +2995,9 @@ $("#pgCreate").onclick = async () => {
     let mods;
     try {
       mods = await Promise.all([
-        import("./scrabble/dictionary.js?v=309"),
-        import("./scrabble/generator.js?v=309"),
-        import("./scrabble/engine.js?v=309"),
+        import("./scrabble/dictionary.js?v=310"),
+        import("./scrabble/generator.js?v=310"),
+        import("./scrabble/engine.js?v=310"),
       ]);
     } catch (e) {
       $("#pgStatus").innerHTML = `<span style="color:#a02525">Échec de chargement des modules : ${escapeHtml(e.message)}</span>`;
@@ -3063,7 +3063,7 @@ window.recomputeAllNeg = async function(force = false) {
 
   let recomputeResult;
   try {
-    ({ recomputeResult } = await import("./scrabble/recompute.js?v=309"));
+    ({ recomputeResult } = await import("./scrabble/recompute.js?v=310"));
   } catch (e) {
     statusEl.textContent = "❌ Impossible de charger recompute.js : " + e.message;
     return;
@@ -3315,7 +3315,7 @@ window.recomputeAllJokerNeg = async function() {
 
   let recomputeResult;
   try {
-    ({ recomputeResult } = await import("./scrabble/recompute.js?v=309"));
+    ({ recomputeResult } = await import("./scrabble/recompute.js?v=310"));
   } catch (e) {
     statusEl.textContent = "❌ Impossible de charger recompute.js : " + e.message;
     return;
