@@ -27,9 +27,9 @@ import {
   emptyBoard, BOARD_BONUSES, BOARD_SIZE, CENTER, LETTER_VALUE, LETTER_BAG,
   VOWELS, drawForDuplicate, scoreMove, applyMove,
   bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName, randomBoardLayout, snakeEndpointsAfter,
-} from "./engine.js?v=311";
-import { Dictionary } from "./dictionary.js?v=311";
-import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=311";
+} from "./engine.js?v=312";
+import { Dictionary } from "./dictionary.js?v=312";
+import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=312";
 
 // État du mode review (parcours coup par coup)
 const review = {
@@ -59,7 +59,7 @@ const FFSC_REVIEW = URL_PARAMS.get("ffscreview");  // revoir une partie FFSC imp
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v311";
+const BUILD_VERSION = "garenna-v312";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -5490,9 +5490,6 @@ window.openSheet = () => {
     // Surbrillance des coups ratés : top non trouvé (négatif < 0) OU abandon / temps écoulé.
     const isMiss = (h.neg || 0) < 0 || h.status === "giveup" || h.status === "timeout";
     const rowClass = isMiss ? "sheet-miss" : "";
-    // Icônes distinctes : timeout = ⏱ chrono · giveup (voir le coup / abandon) = 🏳️ drapeau blanc
-    const statusIcon = { top: "🏆", giveup: "🏳️", timeout: "⏱" }[h.status] || "";
-    const statusLabel = { top: "top", giveup: "abandon", timeout: "temps écoulé" }[h.status] || h.status;
     const coord = pos => `<span style="font-size:.75em;color:#888;vertical-align:.1em">${pos}</span>`;
     let topCell, playedCell;
     if (h.subTop || h.dual) {
@@ -5519,8 +5516,7 @@ window.openSheet = () => {
       <td style="padding-right:26px">${topCell}</td>
       <td>${playedCell}</td>
       <td style="text-align:center;padding:6px 4px" class="${h.neg < 0 ? 'neg' : ''}">${h.neg < 0 ? h.neg : ''}</td>
-      ${dup ? "" : `<td>${statusIcon} <span style="color:#888;font-size:.85em">${statusLabel}</span></td>
-      <td style="text-align:right">${time}</td>`}
+      ${dup ? "" : `<td style="text-align:right">${time}</td>`}
     </tr>`;
   }).join("");
 
@@ -5536,9 +5532,8 @@ window.openSheet = () => {
         <th style="padding:6px 26px 6px 8px;text-align:left">Tirage</th>
         <th style="padding:6px 26px 6px 8px;text-align:left">Top</th>
         <th style="padding:6px 8px;text-align:left">Joué</th>
-        <th style="padding:6px 4px;text-align:center">Nég.</th>
-        ${dup ? "" : `<th style="padding:6px 8px;text-align:left">Statut</th>
-        <th style="padding:6px 8px;text-align:right">Temps</th>`}
+        <th style="padding:6px 4px;text-align:center">Négatif</th>
+        ${dup ? "" : `<th style="padding:6px 8px;text-align:right">Temps</th>`}
       </tr></thead>
       <tbody>${rows}</tbody>
     </table>
