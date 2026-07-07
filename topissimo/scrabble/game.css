@@ -754,12 +754,18 @@ input:disabled, select:disabled {
   flex: 1 1 auto;
   font-family: 'Lora', serif;
   font-weight: 600;
-  font-size: .95rem;
+  font-size: 1.08rem;   /* +1,5 pt (~2px) par rapport à .95rem */
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   margin: 0;
 }
+/* Mots (top / mot joué) : en gras, sans soulignement « hyperlien » permanent —
+   celui-ci n'apparaît qu'au survol pour indiquer que c'est cliquable. */
+.feedback .word-link { border-bottom: none; text-decoration: none; font-weight: 700; }
+.feedback .word-link:hover { border-bottom: 1px dotted currentColor; text-decoration: none; }
+.feedback.miss .word-link { text-decoration: none; }
+.feedback.miss .word-link:hover { text-decoration: none; border-bottom: 1px dotted currentColor; }
 .feedback .detail    { display: none; }
 .feedback .top-reveal { display: none; }
 /* Les messages d'ERREUR doivent montrer leur détail (raison de l'échec) :
