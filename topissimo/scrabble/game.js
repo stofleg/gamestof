@@ -27,9 +27,9 @@ import {
   emptyBoard, BOARD_BONUSES, BOARD_SIZE, CENTER, LETTER_VALUE, LETTER_BAG,
   VOWELS, drawForDuplicate, scoreMove, applyMove,
   bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName, randomBoardLayout, snakeEndpointsAfter,
-} from "./engine.js?v=313";
-import { Dictionary } from "./dictionary.js?v=313";
-import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=313";
+} from "./engine.js?v=314";
+import { Dictionary } from "./dictionary.js?v=314";
+import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=314";
 
 // État du mode review (parcours coup par coup)
 const review = {
@@ -59,7 +59,7 @@ const FFSC_REVIEW = URL_PARAMS.get("ffscreview");  // revoir une partie FFSC imp
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v313";
+const BUILD_VERSION = "garenna-v314";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -2515,7 +2515,13 @@ function revealTop() {
 // Enregistre un coup dans l'historique (pour la feuille de route)
 function recordMove({ status, playerScore, playedWord = null, playedMove = null, dual = null }) {
   const tm = state.topMove;
-  const timeMs = stopMoveTimer();
+  let timeMs = stopMoveTimer();
+  // Le temps d'un coup ne peut pas dépasser le temps max imparti : on plafonne
+  // (le minuteur peut se déclencher un poil en retard, ou l'appareil se mettre en
+  // veille → performance.now() continue d'avancer). Ex. 120 s/coup → 120,00 s max.
+  if (state.settings.timePerMove > 0) {
+    timeMs = Math.min(timeMs, state.settings.timePerMove * 1000);
+  }
   // Mode Top/sous-top : référence = top + sous-top ; on stocke le détail (pour la review).
   const st = state.subTop;
   const refScore = (currentMode().dualTop && st) ? (tm?.score || 0) + st.score : (tm?.score || 0);
@@ -5097,6 +5103,9 @@ function pauseGame({ showModal = true } = {}) {
   state._pauseInfo = {
     elapsed: elapsedSeconds(),
     moveTimeLeft: state.moveTimeLeft,
+    // Temps DÉJÀ écoulé sur le coup en cours : on le fige pour que la durée de la
+    // pause (et la mise en veille de l'appareil) ne gonfle pas le temps du coup.
+    moveElapsedMs: state.moveStart ? (performance.now() - state.moveStart) : 0,
   };
   if (chronoTimer) { clearInterval(chronoTimer); chronoTimer = null; }
   if (moveTimer)   { clearInterval(moveTimer);   moveTimer = null; }
@@ -5113,6 +5122,14 @@ function resumeGame() {
   // Reprendre le minuteur de coup si actif
   if (state.settings.timePerMove > 0 && state._pauseInfo.moveTimeLeft > 0) {
     state.moveTimeLeft = state._pauseInfo.moveTimeLeft;
+    // Recaler moveStart pour que le temps du coup exclue la durée de pause :
+    // temps écoulé conservé, mais l'intervalle de pause est retiré. Si la pause
+    // vient d'une restauration (pas de moveElapsedMs mémorisé), on le déduit du
+    // temps restant (temps max − restant).
+    const moveElapsedMs = state._pauseInfo.moveElapsedMs != null
+      ? state._pauseInfo.moveElapsedMs
+      : Math.max(0, (state.settings.timePerMove - state._pauseInfo.moveTimeLeft) * 1000);
+    state.moveStart = performance.now() - moveElapsedMs;
     if (moveTimer) clearInterval(moveTimer);
     moveTimer = setInterval(() => {
       state.moveTimeLeft--;
