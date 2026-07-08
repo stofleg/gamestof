@@ -188,7 +188,7 @@ let myGamesSort = {
 async function loadMyGames() {
   if (!state.currentPlayerId) return;
   const pid = +state.currentPlayerId;
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=330");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=331");
 
   // Tournoi : prepared_game_results jointes avec prepared_games
   const { data: tour } = await sb.from("prepared_game_results")
@@ -1376,7 +1376,7 @@ async function loadMyStats() {
   const pid = +state.currentPlayerId;
 
   body.innerHTML = `<p class="muted">⏳ Calcul…</p>`;
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=330");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=331");
 
   // 1) Toutes mes parties tournoi (avec détails)
   const { data: tour } = await sb.from("prepared_game_results")
@@ -2164,7 +2164,7 @@ async function loadTournamentDetail(tournamentId) {
     });
   }
 
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=330");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=331");
   const btnStyle = "text-decoration:none;padding:5px 10px;border-radius:6px;font-weight:600;font-size:.85rem";
   const admin = isAdmin();
   $("#pgBody").innerHTML = (games || []).length === 0
@@ -2347,7 +2347,10 @@ function makeCategorizer(games, byType, modeDisplayName) {
 
 async function loadTournamentLeaderboard(tournamentId, games, tournamentName, modeDisplayName) {
   const body = $("#tournamentLeaderboardBody");
-  if (!games.length) { body.innerHTML = `<p class="muted">Pas encore de partie.</p>`; return; }
+  // Garde anti-course (cf. loadTournamentStats) : n'écrire que si ce tournoi est
+  // toujours celui affiché, pour ne pas se faire écraser par un calcul en vol.
+  const stale = () => currentTournamentId !== tournamentId;
+  if (!games.length) { if (!stale()) body.innerHTML = `<p class="muted">Pas encore de partie.</p>`; return; }
 
   // Classement par type de partie pour les tournois « En route vers les ICE ».
   const byType = /en route|ICE/i.test(tournamentName || "");
@@ -2369,7 +2372,7 @@ async function loadTournamentLeaderboard(tournamentId, games, tournamentName, mo
     .select("player_id, prepared_game_id, total_score, sum_neg, total_time_seconds, details, played_on_mobile, players(name)")
     .in("prepared_game_id", gameIds);
   const results = excludeAdminRows(resultsRaw);
-  if (!results || results.length === 0) { body.innerHTML = `<p class="muted">Aucun résultat enregistré.</p>`; return; }
+  if (!results || results.length === 0) { if (!stale()) body.innerHTML = `<p class="muted">Aucun résultat enregistré.</p>`; return; }
 
   // Index resultats : player_id -> game_id -> result
   const byPlayer = {};
@@ -2565,6 +2568,7 @@ async function loadTournamentLeaderboard(tournamentId, games, tournamentName, mo
   const tabBase = "padding:7px 13px;border:none;border-bottom:2px solid transparent;background:transparent;color:var(--ink-soft);font-weight:600;font-size:.85rem;cursor:pointer";
   const tabActive = "padding:7px 13px;border:none;border-bottom:2px solid var(--petrol);background:transparent;color:var(--petrol);font-weight:700;font-size:.85rem;cursor:pointer";
 
+  if (stale()) return;   // tournoi changé pendant le calcul → on n'écrase pas
   body.innerHTML = `
     <div style="display:flex;flex-wrap:wrap;gap:2px;border-bottom:1px solid rgba(0,0,0,.08);margin-bottom:10px">${
       panels.map((pn, i) => `<button data-lbtab="${pn.k}" style="${i === 0 ? tabActive : tabBase}">${pn.label}</button>`).join("")
@@ -2617,7 +2621,16 @@ window.toggleLbRow = function(tr) {
 // ===== Stats agrégées par tournoi (Phase F) =====
 async function loadTournamentStats(tournamentId, games) {
   const body = $("#tournamentStatsBody");
-  if (!games.length) { body.innerHTML = `<p class="muted">Pas encore de partie dans ce tournoi.</p>`; return; }
+  // Garde anti-course : cette fonction fait des appels async (requête + import +
+  // rejeu de plateau) et peut se terminer APRÈS qu'on a changé de tournoi. On
+  // n'écrit dans le DOM que si le tournoi affiché est toujours celui-ci (sinon on
+  // écraserait les stats d'un tournoi par celles d'un autre).
+  const stale = () => currentTournamentId !== tournamentId;
+  const shameEl = () => $("#tournamentShameBody");
+  if (!games.length) {
+    if (!stale()) { body.innerHTML = `<p class="muted">Pas encore de partie dans ce tournoi.</p>`; if (shameEl()) shameEl().innerHTML = ""; }
+    return;
+  }
 
   const gameIds = games.map(g => g.id);
   const { data: resultsRaw } = await sb.from("prepared_game_results")
@@ -2625,7 +2638,7 @@ async function loadTournamentStats(tournamentId, games) {
   const results = excludeAdminRows(resultsRaw);
 
   if (!results || results.length === 0) {
-    body.innerHTML = `<p class="muted">Aucun joueur n'a encore terminé une partie de ce tournoi.</p>`;
+    if (!stale()) { body.innerHTML = `<p class="muted">Aucun joueur n'a encore terminé une partie de ce tournoi.</p>`; if (shameEl()) shameEl().innerHTML = ""; }
     return;
   }
 
@@ -2811,7 +2824,7 @@ async function loadTournamentStats(tournamentId, games) {
   // On détermine « le top est un scrabble » en REjouant le plateau coup par coup
   // (nombre de NOUVELLES tuiles posées par le top == clé de prime du mode), ce qui
   // est fiable même sur d'anciennes parties (le hadBonus stocké est non fiable).
-  const { emptyBoard, applyMove, GAME_MODES } = await import("./scrabble/engine.js?v=330");
+  const { emptyBoard, applyMove, GAME_MODES } = await import("./scrabble/engine.js?v=331");
   const gameById = {};
   for (const g of games) gameById[g.id] = g;
   const bonusesOf = (gid) => (GAME_MODES[gameById[gid]?.mode] || GAME_MODES.duplicate).bonuses || { 7: 50 };
@@ -2874,6 +2887,8 @@ async function loadTournamentStats(tournamentId, games) {
       <div><h4>😤 Scrabbles ratés</h4><ol>${[...players].sort((a,b)=>b.missedScrabbles-a.missedScrabbles).filter(p=>p.missedScrabbles>0).slice(0,5).map(p=>shRow(p,p.missedScrabbles+' scrabble'+(p.missedScrabbles>1?'s':''))).join('')||'<li class="muted">—</li>'}</ol></div>
     </div>`;
 
+  // Toujours actif ? Sinon on abandonne l'écriture (course entre deux tournois).
+  if (stale()) return;
   body.innerHTML = `
     <div class="tournament-stats-grid">
       <div class="t-stat-card">${cardSolos}</div>
@@ -2996,9 +3011,9 @@ $("#pgCreate").onclick = async () => {
     let mods;
     try {
       mods = await Promise.all([
-        import("./scrabble/dictionary.js?v=330"),
-        import("./scrabble/generator.js?v=330"),
-        import("./scrabble/engine.js?v=330"),
+        import("./scrabble/dictionary.js?v=331"),
+        import("./scrabble/generator.js?v=331"),
+        import("./scrabble/engine.js?v=331"),
       ]);
     } catch (e) {
       $("#pgStatus").innerHTML = `<span style="color:#a02525">Échec de chargement des modules : ${escapeHtml(e.message)}</span>`;
@@ -3064,7 +3079,7 @@ window.recomputeAllNeg = async function(force = false) {
 
   let recomputeResult;
   try {
-    ({ recomputeResult } = await import("./scrabble/recompute.js?v=330"));
+    ({ recomputeResult } = await import("./scrabble/recompute.js?v=331"));
   } catch (e) {
     statusEl.textContent = "❌ Impossible de charger recompute.js : " + e.message;
     return;
@@ -3316,7 +3331,7 @@ window.recomputeAllJokerNeg = async function() {
 
   let recomputeResult;
   try {
-    ({ recomputeResult } = await import("./scrabble/recompute.js?v=330"));
+    ({ recomputeResult } = await import("./scrabble/recompute.js?v=331"));
   } catch (e) {
     statusEl.textContent = "❌ Impossible de charger recompute.js : " + e.message;
     return;
