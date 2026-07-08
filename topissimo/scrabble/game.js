@@ -27,9 +27,9 @@ import {
   emptyBoard, BOARD_BONUSES, BOARD_SIZE, CENTER, LETTER_VALUE, LETTER_BAG,
   VOWELS, drawForDuplicate, scoreMove, applyMove,
   bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName, randomBoardLayout, snakeEndpointsAfter,
-} from "./engine.js?v=329";
-import { Dictionary } from "./dictionary.js?v=329";
-import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=329";
+} from "./engine.js?v=330";
+import { Dictionary } from "./dictionary.js?v=330";
+import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=330";
 
 // État du mode review (parcours coup par coup)
 const review = {
@@ -59,7 +59,7 @@ const FFSC_REVIEW = URL_PARAMS.get("ffscreview");  // revoir une partie FFSC imp
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v329";
+const BUILD_VERSION = "garenna-v330";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -3558,30 +3558,54 @@ window.openSettings = () => {
   $("#settings").hidden = false;
 };
 
-// « Arrêter la partie » depuis les paramètres : stoppe net la partie en cours
-// (sans révéler les coups restants comme « Abandonner ») et RÉACTIVE aussitôt
-// les paramètres de jeu, sans quitter la fenêtre.
-function stopGameFromSettings() {
-  stopChrono();
+// « Arrêter la partie » (depuis les paramètres OU la modale de pause).
+// Règle anti-triche : une fois arrêtée, la partie est TERMINÉE — pas de relance
+// (sinon on pourrait recommencer en connaissant les tops entrevus).
+//   • TOURNOI  : on enregistre le résultat EN L'ÉTAT (coups joués), sans révéler
+//                les tops restants, puis on quitte → partie verrouillée (non
+//                rejouable, elle apparaît comme jouée au classement).
+//   • ENTRAÎNEMENT : on CONSERVE la partie inachevée (une seule en mémoire) et on
+//                quitte ; au prochain lancement d'entraînement, on propose de la
+//                reprendre. (« Nouvelle partie » écrase cette sauvegarde.)
+//   • SOLO (puzzle) : on quitte simplement (rien à enregistrer).
+async function stopGameFromSettings() {
+  const wasPrepared = !!state.prepared && !state.isPuzzle;
+  const wasTraining = !state.prepared && !state.isPuzzle;
+  // Figer le chrono. Si on arrête DEPUIS la pause, on reprend le temps figé au
+  // moment de la pause (sinon stopChrono() rajouterait la durée de la pause).
+  if (state.paused && state._pauseInfo && state._pauseInfo.elapsed != null) {
+    if (chronoTimer) { clearInterval(chronoTimer); chronoTimer = null; }
+    state.chronoFinal = state._pauseInfo.elapsed;
+  } else {
+    stopChrono();     // chronoFinal ≠ null → pas d'alerte beforeunload
+  }
   stopMoveTimer();
   if (topWordTimer) { clearTimeout(topWordTimer); topWordTimer = null; }
-  state.started = false;
-  state.chronoFinal = null;
-  state._drawPhase = false;
-  state._dupLast = null;
-  state._dupSols = null;
-  state._dupBaseBoard = null;
   state.pending = [];
   { const m = document.getElementById("drawModal"); if (m) m.hidden = true; }
   { const re = document.getElementById("drawReopen"); if (re) re.hidden = true; }
   { const p = document.getElementById("dupTopPicker"); if (p) p.hidden = true; }
-  // Revenir à l'écran pré-démarrage en arrière-plan.
-  $("#actionRowPreStart").hidden = false;
-  $("#actionRowInGame").hidden = true;
-  hideFeedback();
-  renderBoard(); renderRack(); renderBag();
-  // Rouvrir/rafraîchir les paramètres : les contrôles redeviennent modifiables.
-  openSettings();
+  { const s = document.getElementById("settings"); if (s) s.hidden = true; }
+  { const pm = document.getElementById("pauseModal"); if (pm) pm.hidden = true; }
+  state.paused = false;
+
+  if (wasPrepared) {
+    // Verrouiller : enregistrer en l'état (pas de reprise possible) sans révéler.
+    clearSavedTraining();
+    try { await saveResultIfPrepared(); }
+    catch (e) { console.error("Arrêt tournoi — sauvegarde KO:", e); }
+    const tid = state._soloTid || TOURNAMENT_ID;
+    window.location.href = tid ? `../index.html#tid=${tid}` : "../index.html#tab=prepared";
+    return;
+  }
+  if (wasTraining) {
+    // Conserver la partie inachevée pour une reprise ultérieure.
+    saveTrainingState();
+    window.location.href = "../index.html";
+    return;
+  }
+  // Solo / autre : quitter sans enregistrer.
+  window.location.href = "../index.html";
 }
 window.closeSettings = () => {
   const oldMode = state.settings.gameMode;
@@ -5672,13 +5696,7 @@ $("#btnResume").onclick = resumeGame;
 // (stoppe net sans révéler les coups, revient à l'écran pré-démarrage), en
 // levant d'abord l'état de pause et sa sauvegarde.
 const _btnStopFromPause = $("#btnStopFromPause");
-if (_btnStopFromPause) _btnStopFromPause.onclick = () => {
-  state.paused = false;
-  state._pauseInfo = null;
-  clearSavedTraining();
-  $("#pauseModal").hidden = true;
-  stopGameFromSettings();
-};
+if (_btnStopFromPause) _btnStopFromPause.onclick = () => stopGameFromSettings();
 // Intercepter le clic sur Accueil : en entraînement actif, on met en pause au lieu
 // de quitter directement. Le joueur peut alors choisir Reprendre ou Quitter.
 // Intercepte le lien Accueil du header : pause silencieuse + nav
