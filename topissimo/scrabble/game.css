@@ -584,12 +584,24 @@ body.theme-duplijeu .board tr:last-child td.coord { height: calc(var(--cell-size
 .move-timer-chip.danger {
   background: linear-gradient(135deg, #c8202a, #8a1620);
   border-color: #ffb3b3;
-  animation: pulse 1s ease-in-out infinite;
+  /* Halo pulsé UNIQUEMENT (pas de scale sur la puce pleine largeur, sinon elle
+     déborde la colonne et fait clignoter les barres de défilement). */
+  animation: pulse-glow 1s ease-in-out infinite;
 }
 .move-timer-chip.danger .label { color: #ffd6d6; }
-@keyframes pulse {
-  0%, 100% { transform: scale(1); box-shadow: 0 4px 12px rgba(200,32,42,.4); }
-  50% { transform: scale(1.05); box-shadow: 0 6px 18px rgba(200,32,42,.6); }
+/* Le « bump » est porté par le NOMBRE (inline-block), qui grossit dans la puce
+   sans en changer la largeur. */
+.move-timer-chip.danger .move-timer {
+  display: inline-block;
+  animation: pulse-bump 1s ease-in-out infinite;
+}
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 4px 12px rgba(200,32,42,.4); }
+  50%      { box-shadow: 0 6px 18px rgba(200,32,42,.6); }
+}
+@keyframes pulse-bump {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.12); }
 }
 
 /* ---------- TUILE (jeton) ---------- */
