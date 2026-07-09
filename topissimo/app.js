@@ -2086,11 +2086,11 @@ async function loadSolosAndStreaks() {
     </li>`;
   const fmtNeg = v => (v > 0 ? "+" : "") + v.toFixed(1);
   const ol5 = (arr, fn) => `<ol>${arr.slice(0, 5).map(fn).join("") || '<li class="muted">—</li>'}</ol>`;
-  // Carte scindée verticalement : haut (fond neutre) / bas (rouge).
-  const vSplit = (topTitle, topOl, botTitle, botOl) => `
-    <div class="t-stat-card" style="padding:0;overflow:hidden">
-      <div style="padding:14px 16px"><h3 style="margin:0 0 6px">${topTitle}</h3>${topOl}</div>
-      <div style="padding:14px 16px;background:#fbe6e6;border-top:1px solid rgba(0,46,68,.06)"><h3 style="margin:0 0 6px">${botTitle}</h3>${botOl}</div>
+  // Bloc « duo » : deux mini-cartes solidaires (la 2e = variante rouge « neg-card »).
+  const duo = (t1, o1, t2, o2) => `
+    <div class="duo-card">
+      <div class="t-stat-card"><h3>${t1}</h3>${o1}</div>
+      <div class="t-stat-card neg-card"><h3>${t2}</h3>${o2}</div>
     </div>`;
   const tb = "padding:3px 11px;border:1px solid rgba(0,46,68,.12);border-radius:999px;background:#eef2f4;color:var(--ink-soft);font-weight:600;font-size:.75rem;cursor:pointer";
   const ta = "padding:3px 11px;border:1px solid var(--petrol);border-radius:999px;background:var(--petrol);color:#fff;font-weight:700;font-size:.75rem;cursor:pointer";
@@ -2099,10 +2099,10 @@ async function loadSolosAndStreaks() {
     (negRankByCat[k] || []).slice(0, 5).map(r => renderRow(r, fmtNeg(r.v))).join("") || '<li class="muted">—</li>'}</ol>`).join("");
 
   $("#recordsGrid").innerHTML = `
-    <div class="t-stat-card"><h3>🎯 Meilleurs solistes</h3>
-      ${ol5(soloRecs, r => renderRow(r, `${r.solos} solo${r.solos>1?'s':''}`))}</div>
-    <div class="t-stat-card neg-card"><h3>🫣 Meilleurs antisolistes</h3>
-      ${ol5(antiSoloRecs, r => renderRow(r, `${r.anti} anti-solo${r.anti>1?'s':''}`))}</div>
+    ${duo(
+      "🎯 Meilleurs solistes", ol5(soloRecs, r => renderRow(r, `${r.solos} solo${r.solos>1?'s':''}`)),
+      "🫣 Meilleurs antisolistes", ol5(antiSoloRecs, r => renderRow(r, `${r.anti} anti-solo${r.anti>1?'s':''}`))
+    )}
     <div class="t-stat-card"><h3>🏆 Meilleurs topeurs</h3>
       <ol>${topers.slice(0, 5).map(p => renderRow(p, `${p.pct.toFixed(2)}% (${p.topGames}/${p.playedGames})`)).join("") || '<li class="muted">—</li>'}</ol></div>
     <div class="t-stat-card"><h3>✅ Meilleur % de coups au top</h3>
@@ -2112,10 +2112,10 @@ async function loadSolosAndStreaks() {
       ${negLists}</div>
     <div class="t-stat-card"><h3>🔥 Plus longue série de tops</h3>
       <ol>${streaks.slice(0, 5).map(s => renderRow(s, `${s.length} coup${s.length>1?'s':''}`)).join("") || '<li class="muted">—</li>'}</ol></div>
-    <div class="t-stat-card"><h3>🐇 Les plus rapides</h3>
-      ${ol5(fastest, r => renderRow(r, fmtT(r.time)))}</div>
-    <div class="t-stat-card neg-card"><h3>🐢 Les plus lents</h3>
-      ${ol5(slowest, r => renderRow(r, fmtT(r.time)))}</div>`;
+    ${duo(
+      "🐇 Les plus rapides", ol5(fastest, r => renderRow(r, fmtT(r.time))),
+      "🐢 Les plus lents", ol5(slowest, r => renderRow(r, fmtT(r.time)))
+    )}`;
 
   // Onglets par type de partie du classement « négatif moyen »
   const grid = $("#recordsGrid");

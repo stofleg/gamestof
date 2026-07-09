@@ -635,15 +635,21 @@ tbody tr.me:hover { background: rgba(255,221,0,.22); }
   grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
   gap: 12px;
 }
-/* Palmarès du club : grille classique (ordre de lecture gauche→droite, haut→bas
-   respecté). Les cartes ont des hauteurs proches → peu de vide. align-items:start
-   pour ne pas étirer une carte à la hauteur de sa voisine. */
+/* Palmarès du club : disposition « masonry » en colonnes (dense, sans vide à
+   droite). Les paires solistes/antisolistes et rapides/lents sont regroupées dans
+   un .duo-card (deux mini-cartes) pour rester solidaires et dans le bon ordre. */
 #recordsGrid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-  gap: 14px;
-  align-items: start;
+  display: block;
+  columns: 250px;
+  column-gap: 14px;
 }
+#recordsGrid > * {
+  break-inside: avoid;
+  -webkit-column-break-inside: avoid;
+  width: 100%;
+  margin: 0 0 14px;
+}
+.duo-card { display: flex; flex-direction: column; gap: 14px; }
 
 .t-stat-card {
   background: #fff;
