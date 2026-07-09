@@ -188,7 +188,7 @@ let myGamesSort = {
 async function loadMyGames() {
   if (!state.currentPlayerId) return;
   const pid = +state.currentPlayerId;
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=331");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=332");
 
   // Tournoi : prepared_game_results jointes avec prepared_games
   const { data: tour } = await sb.from("prepared_game_results")
@@ -1376,7 +1376,7 @@ async function loadMyStats() {
   const pid = +state.currentPlayerId;
 
   body.innerHTML = `<p class="muted">⏳ Calcul…</p>`;
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=331");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=332");
 
   // 1) Toutes mes parties tournoi (avec détails)
   const { data: tour } = await sb.from("prepared_game_results")
@@ -1450,93 +1450,112 @@ async function loadMyStats() {
     const byGame = {};
     for (const r of allResults || []) (byGame[r.prepared_game_id] ||= []).push(r);
     for (const rs of Object.values(byGame)) {
-      const topsByMove = {};
+      // Un « solo » = je suis le SEUL à avoir topé un coup, PARMI AU MOINS 2 joueurs
+      // ayant joué ce coup (être « seul » quand on est seul à jouer ne compte pas).
+      const playedBy = {};   // moveNo -> Set des joueurs ayant joué ce coup
+      const toppedBy = {};   // moveNo -> liste des joueurs ayant topé ce coup
       for (const r of rs) for (const h of (r.details || [])) {
-        if (h.status === "top") (topsByMove[h.moveNo] ||= []).push(r.player_id);
+        (playedBy[h.moveNo] ||= new Set()).add(r.player_id);
+        if (h.status === "top") (toppedBy[h.moveNo] ||= []).push(r.player_id);
       }
-      for (const ids of Object.values(topsByMove)) {
-        if (ids.length === 1 && ids[0] === pid) mySolos++;
+      for (const [mv, ids] of Object.entries(toppedBy)) {
+        if (ids.length === 1 && ids[0] === pid && (playedBy[mv]?.size || 0) >= 2) mySolos++;
       }
     }
   }
-
-  // ===== Coups au top sur l'ensemble =====
-  let topsCount = 0, allMoves = 0;
-  for (const r of tour || []) {
-    for (const m of (r.details || [])) {
-      allMoves++;
-      if (m.status === "top") topsCount++;
-    }
-  }
-  for (const t of train || []) {
-    for (const m of (t.history || [])) {
-      allMoves++;
-      if (m.status === "top") topsCount++;
-    }
-  }
-  const topsPct = allMoves ? (topsCount / allMoves * 100).toFixed(1) : "—";
-
-  // ===== Meilleurs scores sur 1 partie =====
-  const bestTourScore = Math.max(0, ...(tour || []).map(r => r.total_score));
-  const bestTrainScore = Math.max(0, ...(train || []).map(r => r.total_score));
 
   const fmtT = (s) => !isFinite(s) || !s ? "—" : `${Math.floor(s/60)}:${String(s%60).padStart(2,"0")}`;
-  const fmtTLong = (s) => !s ? "—" : `${Math.floor(s/60)} min`;
+
+  // ===== Catégorisation (Normal 120s / Blitz / Joker / 7 et 8 joker / …) =====
+  const catOf = (mode, joker, tpm) => {
+    const m = mode || "duplicate";
+    if (m === "blitz") return { key: "blitz", label: "Blitz" };
+    if (m === "duplicate" && !joker) return Number(tpm) === 60
+      ? { key: "blitz", label: "Blitz" }
+      : { key: "normal", label: "Normal (120s)" };
+    return { key: (joker ? "j_" : "") + m, label: modeDisplayName(m, joker) };
+  };
+  const mkRec = (sumNeg, time, moves, mode, joker, tpm) => {
+    const ab = isAbandoned(moves);
+    return { neg: sumNeg || 0, time: time || 0, cat: catOf(mode, joker, tpm),
+             abandoned: ab, isTop: (sumNeg || 0) === 0 && !ab };
+  };
+  const tourRecs  = (tour  || []).map(r => mkRec(r.sum_neg, r.total_time_seconds, r.details, r.prepared_games?.mode, r.prepared_games?.with_joker, r.prepared_games?.time_per_move));
+  const trainRecs = (train || []).map(t => mkRec(t.sum_neg, t.total_time_seconds, t.history, t.mode, t.with_joker, t.time_per_move));
+
+  // ===== Série de tops (chronologique) =====
+  const streakOf = (sorted, getMoves) => {
+    let cur = 0, max = 0;
+    for (const g of sorted) for (const m of (getMoves(g) || []).slice().sort((a, b) => a.moveNo - b.moveNo)) {
+      if (m.status === "top") { cur++; if (cur > max) max = cur; } else cur = 0;
+    }
+    return max;
+  };
+  const trainSorted = [...(train || [])].sort((a, b) => (a.created_at || "").localeCompare(b.created_at || ""));
+  const trainStreak = streakOf(trainSorted, g => g.history);
+  // (tour : maxStreak déjà calculé plus haut sur tourSorted)
+
+  // ===== Agrégats par colonne =====
+  const V = "margin:0;font-size:1.5rem;font-weight:700;color:var(--petrol-dark)";
+  const fmtNeg = v => v == null ? "—" : (v > 0 ? "+" : "") + v.toFixed(1);
+  const tabBase   = "padding:4px 9px;border:none;border-radius:6px;background:transparent;color:var(--ink-soft);font-weight:600;font-size:.78rem;cursor:pointer";
+  const tabActive = "padding:4px 9px;border:none;border-radius:6px;background:var(--petrol);color:#fff;font-weight:700;font-size:.78rem;cursor:pointer";
+
+  const colStats = (recs) => {
+    const jouees = recs.length;
+    const auTop = recs.filter(r => r.isTop).length;
+    const pct = jouees ? Math.round(auTop / jouees * 100) : null;
+    const nonAb = recs.filter(r => !r.abandoned);
+    const best = Math.min(Infinity, ...nonAb.filter(r => r.time > 0).map(r => r.time));
+    const byCat = {};
+    for (const r of nonAb) (byCat[r.cat.key] ||= { label: r.cat.label, negs: [] }).negs.push(r.neg);
+    const avg = arr => arr.length ? arr.reduce((s, x) => s + x, 0) / arr.length : null;
+    const order = k => (k === "normal" ? 0 : k === "blitz" ? 1 : 9);
+    const keys = Object.keys(byCat).sort((a, b) => order(a) - order(b) || byCat[a].label.localeCompare(byCat[b].label));
+    const tabs = [{ label: "Général", v: avg(nonAb.map(r => r.neg)) },
+      ...keys.map(k => ({ label: byCat[k].label, v: avg(byCat[k].negs) }))];
+    return { jouees, auTop, pct, best, tabs };
+  };
+  const sTour = colStats(tourRecs);
+  const sTrain = colStats(trainRecs);
+
+  const negCard = (prefix, tabs) => {
+    const btns = tabs.map((t, i) => `<button class="negtab-btn" data-neg="${prefix}" data-negv="${t.v == null ? "" : fmtNeg(t.v)}" style="${i === 0 ? tabActive : tabBase}">${escapeHtml(t.label)}</button>`).join("");
+    return `<div class="t-stat-card"><h3>Négatif moyen / partie</h3>
+      <div style="display:flex;flex-wrap:wrap;gap:4px;margin:6px 0 10px">${btns}</div>
+      <p class="neg" style="margin:0;font-size:1.5rem;font-weight:700" id="${prefix}-negval">${fmtNeg(tabs[0].v)}</p></div>`;
+  };
+  const colHTML = (emoji, title, s, streak, prefix, extra) => `
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <h2 style="margin:0">${emoji} ${title}</h2>
+      <div class="t-stat-card"><h3>Parties jouées</h3><p style="${V}">${s.jouees}</p></div>
+      <div class="t-stat-card"><h3>Parties au top</h3><p style="${V}">${s.auTop}</p></div>
+      <div class="t-stat-card"><h3>% de tops trouvés</h3><p style="${V}">${s.pct == null ? "—" : s.pct + "%"}</p>
+        <p class="muted" style="margin:4px 0 0;font-size:.75rem">parties au top / parties jouées</p></div>
+      ${negCard(prefix, s.tabs)}
+      ${extra || ""}
+      <div class="t-stat-card"><h3>⏱ Meilleur temps</h3><p style="${V}">${fmtT(s.best)}</p></div>
+      <div class="t-stat-card"><h3>🔥 Plus longue série de tops</h3><p style="${V}">${streak} coup${streak > 1 ? "s" : ""}</p></div>
+    </div>`;
+
+  const soloExtra = `<div class="t-stat-card"><h3>Solos</h3><p style="${V}">${mySolos}</p>
+    <p class="muted" style="margin:4px 0 0;font-size:.75rem">coups topés par toi seul (≥ 2 joueurs sur le coup)</p></div>`;
 
   body.innerHTML = `
-    <div class="stat-row">
-      <div class="stat"><div class="label">Parties tournoi</div><div class="value">${tourGames}</div></div>
-      <div class="stat"><div class="label">Entraînements</div><div class="value">${trainGames}</div></div>
-      <div class="stat"><div class="label">% de tops trouvés</div><div class="value">${topsPct}%</div></div>
-      <div class="stat"><div class="label">Solos en tournoi</div><div class="value">${mySolos}</div></div>
-    </div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:20px;align-items:start">
+      ${colHTML("🏆", "Tournoi", sTour, maxStreak, "negt", soloExtra)}
+      ${colHTML("🎯", "Entraînement", sTrain, trainStreak, "nege", "")}
+    </div>`;
 
-    <h2 style="margin-top:20px">🏆 Tournois</h2>
-    <div class="tournament-stats-grid">
-      <div class="t-stat-card">
-        <h3>Score total</h3>
-        <p style="margin:0;font-size:1.4rem;font-weight:700;color:var(--petrol-dark)">${tourScore}</p>
-      </div>
-      <div class="t-stat-card">
-        <h3>Σ négatifs cumulés</h3>
-        <p style="margin:0;font-size:1.4rem;font-weight:700" class="neg">${tourNeg}</p>
-      </div>
-      <div class="t-stat-card">
-        <h3>Meilleure partie</h3>
-        <p style="margin:0;font-size:1.4rem;font-weight:700;color:var(--petrol-dark)">${bestTourScore}</p>
-      </div>
-      <div class="t-stat-card">
-        <h3>⏱ Meilleur temps</h3>
-        <p style="margin:0;font-size:1.4rem;font-weight:700;color:var(--petrol-dark)">${fmtT(bestTourTime)}</p>
-      </div>
-    </div>
-
-    <h2 style="margin-top:20px">🔥 Plus longue série de tops</h2>
-    <p style="font-size:1.6rem;font-family:'Lora',serif;font-weight:700;color:var(--petrol-dark);margin:6px 0">
-      ${maxStreak} coup${maxStreak > 1 ? 's' : ''} consécutif${maxStreak > 1 ? 's' : ''}
-    </p>
-    <p class="muted" style="margin-top:-4px">Calculé en continu sur toutes tes parties tournoi (du plus ancien au plus récent).</p>
-
-    <h2 style="margin-top:20px">🎯 Entraînement</h2>
-    <div class="tournament-stats-grid">
-      <div class="t-stat-card">
-        <h3>Score total</h3>
-        <p style="margin:0;font-size:1.4rem;font-weight:700;color:var(--petrol-dark)">${trainScore}</p>
-      </div>
-      <div class="t-stat-card">
-        <h3>Σ négatifs cumulés</h3>
-        <p style="margin:0;font-size:1.4rem;font-weight:700" class="neg">${trainNeg}</p>
-      </div>
-      <div class="t-stat-card">
-        <h3>Meilleure partie</h3>
-        <p style="margin:0;font-size:1.4rem;font-weight:700;color:var(--petrol-dark)">${bestTrainScore}</p>
-      </div>
-      <div class="t-stat-card">
-        <h3>⏱ Meilleur temps</h3>
-        <p style="margin:0;font-size:1.4rem;font-weight:700;color:var(--petrol-dark)">${fmtT(bestTrainTime)}</p>
-      </div>
-    </div>
-  `;
+  // Bascule des onglets « négatif moyen »
+  body.querySelectorAll(".negtab-btn").forEach(btn => {
+    btn.onclick = () => {
+      const prefix = btn.dataset.neg;
+      body.querySelectorAll(`.negtab-btn[data-neg="${prefix}"]`).forEach(b => b.setAttribute("style", b === btn ? tabActive : tabBase));
+      const val = $(`#${prefix}-negval`);
+      if (val) val.textContent = btn.dataset.negv || "—";
+    };
+  });
 }
 
 // ============================================================
@@ -1817,7 +1836,7 @@ async function loadClubStats() {
 
 async function loadSolosAndStreaks() {
   const { data: detailedRaw } = await sb.from("prepared_game_results")
-    .select("player_id, prepared_game_id, total_time_seconds, finished_at, details, players(name), prepared_games(id,name,mode,with_joker,time_per_move,created_at)")
+    .select("player_id, prepared_game_id, total_time_seconds, finished_at, details, players(name), prepared_games(id,name,mode,with_joker,time_per_move,created_at,tournament_id)")
     .limit(5000);
   const detailed = excludeAdminRows(detailedRaw);
   if (!detailed || detailed.length === 0) {
@@ -1832,12 +1851,41 @@ async function loadSolosAndStreaks() {
   // Solo joueur = un coup topé par UN SEUL joueur, parmi un coup réellement joué
   // par ≥2 joueurs (le filtre ≥2 écarte les coups orphelins d'une partie
   // régénérée plus courte, qui ne subsistent que dans une fiche périmée).
+  // De plus, on ne comptabilise QUE les tournois ENTIÈREMENT complétés par ≥ 5
+  // joueurs (un solo n'entre au « top solos » du club qu'à cette condition).
+  const { data: allGames } = await sb.from("prepared_games").select("id, tournament_id");
+  const gameToTour = {};        // gid  → tid
+  const tourGamesCount = {};    // tid  → nb de parties du tournoi
+  for (const g of allGames || []) {
+    if (g.tournament_id == null) continue;
+    gameToTour[g.id] = g.tournament_id;
+    tourGamesCount[g.tournament_id] = (tourGamesCount[g.tournament_id] || 0) + 1;
+  }
+  const donePerTourPlayer = {};   // `${tid}|${pid}` → Set(gid réellement joués)
+  for (const r of detailed) {
+    const tid = gameToTour[r.prepared_game_id];
+    if (tid == null) continue;
+    if (!(Array.isArray(r.details) && r.details.length)) continue;   // partie réellement jouée
+    (donePerTourPlayer[`${tid}|${r.player_id}`] ||= new Set()).add(r.prepared_game_id);
+  }
+  const completersByTour = {};    // tid → nb de joueurs ayant TOUT complété
+  for (const [k, set] of Object.entries(donePerTourPlayer)) {
+    const tid = k.split("|")[0];
+    if (tourGamesCount[tid] && set.size >= tourGamesCount[tid]) completersByTour[tid] = (completersByTour[tid] || 0) + 1;
+  }
+  const qualifyingTour = new Set(
+    Object.entries(completersByTour).filter(([, n]) => n >= 5).map(([tid]) => tid)
+  );
+
   const byGameSolo = {};
   for (const r of detailed) (byGameSolo[r.prepared_game_id] ||= []).push(r);
   const soloCount = {};   // player_id → nb de solos
   const soloName = {};
   for (const r of detailed) soloName[r.player_id] = r.players?.name || "?";
-  for (const rs of Object.values(byGameSolo)) {
+  for (const [gid, rs] of Object.entries(byGameSolo)) {
+    const tid = gameToTour[gid];
+    // Tournoi non complété par ≥5 joueurs (ou partie hors tournoi) → pas de solo club.
+    if (tid == null || !qualifyingTour.has(String(tid))) continue;
     const topsByMove = {};
     const playedByMove = {};
     for (const r of rs) {
@@ -2164,7 +2212,7 @@ async function loadTournamentDetail(tournamentId) {
     });
   }
 
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=331");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=332");
   const btnStyle = "text-decoration:none;padding:5px 10px;border-radius:6px;font-weight:600;font-size:.85rem";
   const admin = isAdmin();
   $("#pgBody").innerHTML = (games || []).length === 0
@@ -2824,7 +2872,7 @@ async function loadTournamentStats(tournamentId, games) {
   // On détermine « le top est un scrabble » en REjouant le plateau coup par coup
   // (nombre de NOUVELLES tuiles posées par le top == clé de prime du mode), ce qui
   // est fiable même sur d'anciennes parties (le hadBonus stocké est non fiable).
-  const { emptyBoard, applyMove, GAME_MODES } = await import("./scrabble/engine.js?v=331");
+  const { emptyBoard, applyMove, GAME_MODES } = await import("./scrabble/engine.js?v=332");
   const gameById = {};
   for (const g of games) gameById[g.id] = g;
   const bonusesOf = (gid) => (GAME_MODES[gameById[gid]?.mode] || GAME_MODES.duplicate).bonuses || { 7: 50 };
@@ -3011,9 +3059,9 @@ $("#pgCreate").onclick = async () => {
     let mods;
     try {
       mods = await Promise.all([
-        import("./scrabble/dictionary.js?v=331"),
-        import("./scrabble/generator.js?v=331"),
-        import("./scrabble/engine.js?v=331"),
+        import("./scrabble/dictionary.js?v=332"),
+        import("./scrabble/generator.js?v=332"),
+        import("./scrabble/engine.js?v=332"),
       ]);
     } catch (e) {
       $("#pgStatus").innerHTML = `<span style="color:#a02525">Échec de chargement des modules : ${escapeHtml(e.message)}</span>`;
@@ -3079,7 +3127,7 @@ window.recomputeAllNeg = async function(force = false) {
 
   let recomputeResult;
   try {
-    ({ recomputeResult } = await import("./scrabble/recompute.js?v=331"));
+    ({ recomputeResult } = await import("./scrabble/recompute.js?v=332"));
   } catch (e) {
     statusEl.textContent = "❌ Impossible de charger recompute.js : " + e.message;
     return;
@@ -3331,7 +3379,7 @@ window.recomputeAllJokerNeg = async function() {
 
   let recomputeResult;
   try {
-    ({ recomputeResult } = await import("./scrabble/recompute.js?v=331"));
+    ({ recomputeResult } = await import("./scrabble/recompute.js?v=332"));
   } catch (e) {
     statusEl.textContent = "❌ Impossible de charger recompute.js : " + e.message;
     return;
