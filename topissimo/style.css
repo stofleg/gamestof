@@ -720,6 +720,10 @@ tbody tr.me:hover { background: rgba(255,221,0,.22); }
   border-radius: 999px;
 }
 .t-stat-card ol li:nth-child(1) > span { background: rgba(240,180,0,.22); color: #8a6a00; }
+/* Cartes « négatives » (antisolistes, plus lents) : bordurette du haut en rouge
+   et surlignement du 1er en rouge (au lieu du jaune/or). */
+.t-stat-card.neg-card { border-top-color: #c8202a; }
+.t-stat-card.neg-card ol li:nth-child(1) > span { background: rgba(200,32,42,.15); color: #c8202a; }
 .t-stat-card ol li.me { color: var(--petrol); }
 .t-stat-card ol li.me > strong { font-weight: 700; }
 .t-stat-card ol li.me > strong::after { content: " (toi)"; font-weight: 400; color: var(--ink-soft); font-size: .8em; }

@@ -2099,10 +2099,10 @@ async function loadSolosAndStreaks() {
     (negRankByCat[k] || []).slice(0, 5).map(r => renderRow(r, fmtNeg(r.v))).join("") || '<li class="muted">—</li>'}</ol>`).join("");
 
   $("#recordsGrid").innerHTML = `
-    ${vSplit(
-      "🎯 Meilleurs solistes", ol5(soloRecs, r => renderRow(r, `${r.solos} solo${r.solos>1?'s':''}`)),
-      "🫣 Meilleurs antisolistes", ol5(antiSoloRecs, r => renderRow(r, `${r.anti} anti-solo${r.anti>1?'s':''}`))
-    )}
+    <div class="t-stat-card"><h3>🎯 Meilleurs solistes</h3>
+      ${ol5(soloRecs, r => renderRow(r, `${r.solos} solo${r.solos>1?'s':''}`))}</div>
+    <div class="t-stat-card neg-card"><h3>🫣 Meilleurs antisolistes</h3>
+      ${ol5(antiSoloRecs, r => renderRow(r, `${r.anti} anti-solo${r.anti>1?'s':''}`))}</div>
     <div class="t-stat-card"><h3>🏆 Meilleurs topeurs</h3>
       <ol>${topers.slice(0, 5).map(p => renderRow(p, `${p.pct.toFixed(2)}% (${p.topGames}/${p.playedGames})`)).join("") || '<li class="muted">—</li>'}</ol></div>
     <div class="t-stat-card"><h3>✅ Meilleur % de coups au top</h3>
@@ -2112,10 +2112,10 @@ async function loadSolosAndStreaks() {
       ${negLists}</div>
     <div class="t-stat-card"><h3>🔥 Plus longue série de tops</h3>
       <ol>${streaks.slice(0, 5).map(s => renderRow(s, `${s.length} coup${s.length>1?'s':''}`)).join("") || '<li class="muted">—</li>'}</ol></div>
-    ${vSplit(
-      "🐇 Les plus rapides", ol5(fastest, r => renderRow(r, fmtT(r.time))),
-      "🐢 Les plus lents", ol5(slowest, r => renderRow(r, fmtT(r.time)))
-    )}`;
+    <div class="t-stat-card"><h3>🐇 Les plus rapides</h3>
+      ${ol5(fastest, r => renderRow(r, fmtT(r.time)))}</div>
+    <div class="t-stat-card neg-card"><h3>🐢 Les plus lents</h3>
+      ${ol5(slowest, r => renderRow(r, fmtT(r.time)))}</div>`;
 
   // Onglets par type de partie du classement « négatif moyen »
   const grid = $("#recordsGrid");
