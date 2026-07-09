@@ -206,7 +206,7 @@ let myGamesSort = {
 async function loadMyGames() {
   if (!state.currentPlayerId) return;
   const pid = +state.currentPlayerId;
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=336");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=337");
 
   // Tournoi : prepared_game_results jointes avec prepared_games
   const { data: tour } = await sb.from("prepared_game_results")
@@ -1399,7 +1399,7 @@ async function loadMyStats() {
   const pid = +state.currentPlayerId;
 
   body.innerHTML = `<p class="muted">⏳ Calcul…</p>`;
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=336");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=337");
 
   // 1) Toutes mes parties tournoi (avec détails)
   const { data: tour } = await sb.from("prepared_game_results")
@@ -1998,7 +1998,7 @@ async function loadSolosAndStreaks() {
   const slowRecs = [...timeRecs].sort((a, b) => b.time - a.time);
 
   // ===== Agrégats par joueur : parties au top, % coups au top, négatif moyen/cat =====
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=336");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=337");
   const catOf = (mode, joker, tpm) => {
     const m = mode || "duplicate";
     if (m === "blitz") return { key: "blitz", label: "Blitz" };
@@ -2019,7 +2019,10 @@ async function loadSolosAndStreaks() {
     (p.negByCat.__gen ||= { label: "Général", negs: [] }).negs.push(r.sum_neg || 0);
   }
   const players = Object.values(P);
-  const mostTop = players.filter(p => p.topGames > 0).sort((a, b) => b.topGames - a.topGames);
+  const MIN_TOP_GAMES = 3;   // min de parties jouées pour le classement des topeurs
+  const topers = players.filter(p => p.playedGames >= MIN_TOP_GAMES)
+    .map(p => ({ player_id: p.id, name: p.name, topGames: p.topGames, playedGames: p.playedGames, pct: p.topGames / p.playedGames * 100 }))
+    .sort((a, b) => b.pct - a.pct || b.playedGames - a.playedGames);
   const MIN_MOVES = 20;   // seuil pour un % de tops significatif
   const bestPct = players.filter(p => p.totalMoves >= MIN_MOVES)
     .map(p => ({ player_id: p.id, name: p.name, pct: p.topMoves / p.totalMoves * 100 }))
@@ -2054,22 +2057,22 @@ async function loadSolosAndStreaks() {
     (negRankByCat[k] || []).slice(0, 5).map(r => renderRow(r, fmtNeg(r.v))).join("") || '<li class="muted">—</li>'}</ol>`).join("");
 
   $("#recordsGrid").innerHTML = `
-    <div class="t-stat-card"><h3>🎯 Top solos (tous tournois)</h3>
+    <div class="t-stat-card"><h3>🎯 Meilleurs solistes</h3>
       <ol>${soloRecs.slice(0, 5).map(r => renderRow(r, `${r.solos} solo${r.solos>1?'s':''}`)).join("") || '<li class="muted">—</li>'}</ol></div>
-    <div class="t-stat-card"><h3>🫣 Top anti-solos</h3>
+    <div class="t-stat-card"><h3>🫣 Meilleurs antisolistes</h3>
       <ol>${antiSoloRecs.slice(0, 5).map(r => renderRow(r, `${r.anti} anti-solo${r.anti>1?'s':''}`)).join("") || '<li class="muted">—</li>'}</ol></div>
-    <div class="t-stat-card"><h3>🏆 Plus de parties au top</h3>
-      <ol>${mostTop.slice(0, 5).map(p => renderRow(p, `${p.topGames} partie${p.topGames>1?'s':''}`)).join("") || '<li class="muted">—</li>'}</ol></div>
+    <div class="t-stat-card"><h3>🏆 Meilleurs topeurs</h3>
+      <ol>${topers.slice(0, 5).map(p => renderRow(p, `${p.pct.toFixed(2)}% (${p.topGames}/${p.playedGames})`)).join("") || '<li class="muted">—</li>'}</ol></div>
     <div class="t-stat-card"><h3>✅ Meilleur % de coups au top</h3>
-      <ol>${bestPct.slice(0, 5).map(p => renderRow(p, `${Math.round(p.pct)}%`)).join("") || '<li class="muted">—</li>'}</ol></div>
-    <div class="t-stat-card"><h3>📉 Meilleur négatif moyen / partie</h3>
+      <ol>${bestPct.slice(0, 5).map(p => renderRow(p, `${p.pct.toFixed(2)}%`)).join("") || '<li class="muted">—</li>'}</ol></div>
+    <div class="t-stat-card"><h3>📉 Meilleur négatif moyen</h3>
       <div style="display:flex;flex-wrap:wrap;gap:4px;margin:6px 0 8px">${negBtns}</div>
       ${negLists}</div>
     <div class="t-stat-card"><h3>🔥 Plus longue série de coups au top</h3>
       <ol>${streaks.slice(0, 5).map(s => renderRow(s, `${s.length} coup${s.length>1?'s':''}`)).join("") || '<li class="muted">—</li>'}</ol></div>
-    <div class="t-stat-card"><h3>⏱ Partie la plus rapide</h3>
+    <div class="t-stat-card"><h3>🐇 Les plus rapides</h3>
       <ol>${timeRecs.slice(0, 5).map(r => renderRow(r, fmtT(r.time))).join("") || '<li class="muted">—</li>'}</ol></div>
-    <div class="t-stat-card"><h3>🐢 Partie la plus lente</h3>
+    <div class="t-stat-card"><h3>🐢 Les plus lents</h3>
       <ol>${slowRecs.slice(0, 5).map(r => renderRow(r, fmtT(r.time))).join("") || '<li class="muted">—</li>'}</ol></div>`;
 
   // Onglets par type de partie du classement « négatif moyen »
@@ -2330,7 +2333,7 @@ async function loadTournamentDetail(tournamentId) {
     });
   }
 
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=336");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=337");
   const btnStyle = "text-decoration:none;padding:5px 10px;border-radius:6px;font-weight:600;font-size:.85rem";
   const admin = isAdmin();
   $("#pgBody").innerHTML = (games || []).length === 0
@@ -2990,7 +2993,7 @@ async function loadTournamentStats(tournamentId, games) {
   // On détermine « le top est un scrabble » en REjouant le plateau coup par coup
   // (nombre de NOUVELLES tuiles posées par le top == clé de prime du mode), ce qui
   // est fiable même sur d'anciennes parties (le hadBonus stocké est non fiable).
-  const { emptyBoard, applyMove, GAME_MODES } = await import("./scrabble/engine.js?v=336");
+  const { emptyBoard, applyMove, GAME_MODES } = await import("./scrabble/engine.js?v=337");
   const gameById = {};
   for (const g of games) gameById[g.id] = g;
   const bonusesOf = (gid) => (GAME_MODES[gameById[gid]?.mode] || GAME_MODES.duplicate).bonuses || { 7: 50 };
@@ -3177,9 +3180,9 @@ $("#pgCreate").onclick = async () => {
     let mods;
     try {
       mods = await Promise.all([
-        import("./scrabble/dictionary.js?v=336"),
-        import("./scrabble/generator.js?v=336"),
-        import("./scrabble/engine.js?v=336"),
+        import("./scrabble/dictionary.js?v=337"),
+        import("./scrabble/generator.js?v=337"),
+        import("./scrabble/engine.js?v=337"),
       ]);
     } catch (e) {
       $("#pgStatus").innerHTML = `<span style="color:#a02525">Échec de chargement des modules : ${escapeHtml(e.message)}</span>`;
@@ -3245,7 +3248,7 @@ window.recomputeAllNeg = async function(force = false) {
 
   let recomputeResult;
   try {
-    ({ recomputeResult } = await import("./scrabble/recompute.js?v=336"));
+    ({ recomputeResult } = await import("./scrabble/recompute.js?v=337"));
   } catch (e) {
     statusEl.textContent = "❌ Impossible de charger recompute.js : " + e.message;
     return;
@@ -3497,7 +3500,7 @@ window.recomputeAllJokerNeg = async function() {
 
   let recomputeResult;
   try {
-    ({ recomputeResult } = await import("./scrabble/recompute.js?v=336"));
+    ({ recomputeResult } = await import("./scrabble/recompute.js?v=337"));
   } catch (e) {
     statusEl.textContent = "❌ Impossible de charger recompute.js : " + e.message;
     return;
