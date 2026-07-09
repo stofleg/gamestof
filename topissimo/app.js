@@ -206,7 +206,7 @@ let myGamesSort = {
 async function loadMyGames() {
   if (!state.currentPlayerId) return;
   const pid = +state.currentPlayerId;
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=335");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=336");
 
   // Tournoi : prepared_game_results jointes avec prepared_games
   const { data: tour } = await sb.from("prepared_game_results")
@@ -1399,7 +1399,7 @@ async function loadMyStats() {
   const pid = +state.currentPlayerId;
 
   body.innerHTML = `<p class="muted">⏳ Calcul…</p>`;
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=335");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=336");
 
   // 1) Toutes mes parties tournoi (avec détails)
   const { data: tour } = await sb.from("prepared_game_results")
@@ -1880,7 +1880,7 @@ async function loadClubStats() {
 
 async function loadSolosAndStreaks() {
   const { data: detailedRaw } = await sb.from("prepared_game_results")
-    .select("player_id, prepared_game_id, total_time_seconds, finished_at, details, players(name), prepared_games(id,name,mode,with_joker,time_per_move,created_at,tournament_id)")
+    .select("player_id, prepared_game_id, total_time_seconds, sum_neg, finished_at, details, players(name), prepared_games(id,name,mode,with_joker,time_per_move,created_at,tournament_id)")
     .limit(5000);
   const detailed = excludeAdminRows(detailedRaw);
   if (!detailed || detailed.length === 0) {
@@ -1923,30 +1923,36 @@ async function loadSolosAndStreaks() {
 
   const byGameSolo = {};
   for (const r of detailed) (byGameSolo[r.prepared_game_id] ||= []).push(r);
-  const soloCount = {};   // player_id → nb de solos
+  const soloCount = {};       // player_id → nb de solos
+  const antiSoloCount = {};   // player_id → nb d'anti-solos
   const soloName = {};
   for (const r of detailed) soloName[r.player_id] = r.players?.name || "?";
   for (const [gid, rs] of Object.entries(byGameSolo)) {
     const tid = gameToTour[gid];
-    // Tournoi non complété par ≥5 joueurs (ou partie hors tournoi) → pas de solo club.
+    // Tournoi non complété par ≥5 joueurs (ou partie hors tournoi) → ni solo ni anti-solo.
     if (tid == null || !qualifyingTour.has(String(tid))) continue;
-    const topsByMove = {};
-    const playedByMove = {};
-    for (const r of rs) {
-      for (const h of (r.details || [])) {
-        (playedByMove[h.moveNo] ||= new Set()).add(r.player_id);
-        if (h.status === "top") (topsByMove[h.moveNo] ||= []).push(r.player_id);
-      }
+    const playedByMove = {};   // moveNo → Set des joueurs ayant joué ce coup
+    const toppedByMove = {};   // moveNo → Set des joueurs ayant topé ce coup
+    for (const r of rs) for (const h of (r.details || [])) {
+      (playedByMove[h.moveNo] ||= new Set()).add(r.player_id);
+      if (h.status === "top") (toppedByMove[h.moveNo] ||= new Set()).add(r.player_id);
     }
-    for (const [moveNo, list] of Object.entries(topsByMove)) {
-      if (list.length === 1 && (playedByMove[moveNo]?.size || 0) >= 2) {
-        soloCount[list[0]] = (soloCount[list[0]] || 0) + 1;
+    for (const [mv, played] of Object.entries(playedByMove)) {
+      if (played.size < 2) continue;
+      const topped = toppedByMove[mv] || new Set();
+      // Solo : un seul topeur. Anti-solo : un seul NON-topeur (tous topent sauf un).
+      if (topped.size === 1) { const [only] = topped; soloCount[only] = (soloCount[only] || 0) + 1; }
+      if (topped.size === played.size - 1) {
+        for (const pidp of played) if (!topped.has(pidp)) antiSoloCount[pidp] = (antiSoloCount[pidp] || 0) + 1;
       }
     }
   }
   const soloRecs = Object.entries(soloCount)
     .map(([pid, n]) => ({ player_id: +pid, name: soloName[+pid] || "?", solos: n }))
     .sort((a, b) => b.solos - a.solos);
+  const antiSoloRecs = Object.entries(antiSoloCount)
+    .map(([pid, n]) => ({ player_id: +pid, name: soloName[+pid] || "?", anti: n }))
+    .sort((a, b) => b.anti - a.anti);
 
   // ===== STREAK INTER-PARTIES =====
   // Pour chaque joueur : concaténer tous ses coups dans l'ordre chronologique (par created_at de la partie puis moveNo),
@@ -1988,25 +1994,93 @@ async function loadSolosAndStreaks() {
     }))
     .sort((a, b) => a.time - b.time);
 
-  // ===== Affichage Records all-time (top 5 par catégorie) =====
+  // ===== Partie la plus lente (symétrique de la plus rapide) =====
+  const slowRecs = [...timeRecs].sort((a, b) => b.time - a.time);
+
+  // ===== Agrégats par joueur : parties au top, % coups au top, négatif moyen/cat =====
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=336");
+  const catOf = (mode, joker, tpm) => {
+    const m = mode || "duplicate";
+    if (m === "blitz") return { key: "blitz", label: "Blitz" };
+    if (m === "duplicate" && !joker) return Number(tpm) === 60 ? { key: "blitz", label: "Blitz" } : { key: "normal", label: "Normal (120s)" };
+    return { key: (joker ? "j_" : "") + m, label: modeDisplayName(m, joker) };
+  };
+  const P = {};   // pid → { name, id, topGames, playedGames, topMoves, totalMoves, negByCat }
+  for (const r of detailed) {
+    if (isAbandoned(r.details)) continue;
+    const moves = r.details || [];
+    if (!moves.length) continue;
+    const p = (P[r.player_id] ||= { name: r.players?.name || "?", id: r.player_id, topGames: 0, playedGames: 0, topMoves: 0, totalMoves: 0, negByCat: {} });
+    p.playedGames++;
+    if (moves.every(m => m.status === "top")) p.topGames++;
+    for (const m of moves) { p.totalMoves++; if (m.status === "top") p.topMoves++; }
+    const c = catOf(r.prepared_games?.mode, r.prepared_games?.with_joker, r.prepared_games?.time_per_move);
+    (p.negByCat[c.key] ||= { label: c.label, negs: [] }).negs.push(r.sum_neg || 0);
+    (p.negByCat.__gen ||= { label: "Général", negs: [] }).negs.push(r.sum_neg || 0);
+  }
+  const players = Object.values(P);
+  const mostTop = players.filter(p => p.topGames > 0).sort((a, b) => b.topGames - a.topGames);
+  const MIN_MOVES = 20;   // seuil pour un % de tops significatif
+  const bestPct = players.filter(p => p.totalMoves >= MIN_MOVES)
+    .map(p => ({ player_id: p.id, name: p.name, pct: p.topMoves / p.totalMoves * 100 }))
+    .sort((a, b) => b.pct - a.pct);
+
+  const avg = arr => arr.reduce((s, x) => s + x, 0) / arr.length;
+  const catOrder = k => (k === "__gen" ? -1 : k === "normal" ? 0 : k === "blitz" ? 1 : 9);
+  const catLabels = { __gen: "Général" };
+  const allCatKeys = new Set();
+  for (const p of players) for (const [k, v] of Object.entries(p.negByCat)) { allCatKeys.add(k); catLabels[k] = v.label; }
+  const MIN_GAMES_CAT = 2;   // au moins 2 parties dans la catégorie pour être classé
+  const negRankByCat = {};
+  for (const k of allCatKeys) {
+    negRankByCat[k] = players
+      .filter(p => p.negByCat[k] && p.negByCat[k].negs.length >= MIN_GAMES_CAT)
+      .map(p => ({ player_id: p.id, name: p.name, v: avg(p.negByCat[k].negs) }))
+      .sort((a, b) => b.v - a.v);   // le moins négatif d'abord (v ≤ 0)
+  }
+  const negTabKeys = [...allCatKeys].sort((a, b) => catOrder(a) - catOrder(b) || catLabels[a].localeCompare(catLabels[b]));
+
+  // ===== Affichage Records all-time =====
   const renderRow = (p, val) => `
     <li class="${p.player_id === me ? 'me' : ''}">
       <strong onclick="openPlayerModal(${p.player_id})" style="cursor:pointer">${escapeHtml(p.name)}</strong>
       <span style="float:right">${val}</span>
     </li>`;
+  const fmtNeg = v => (v > 0 ? "+" : "") + v.toFixed(1);
+  const tb = "padding:3px 8px;border:none;border-radius:6px;background:transparent;color:var(--ink-soft);font-weight:600;font-size:.75rem;cursor:pointer";
+  const ta = "padding:3px 8px;border:none;border-radius:6px;background:var(--petrol);color:#fff;font-weight:700;font-size:.75rem;cursor:pointer";
+  const negBtns = negTabKeys.map((k, i) => `<button class="crank-btn" data-crank="${k}" style="${i ? tb : ta}">${escapeHtml(catLabels[k])}</button>`).join("");
+  const negLists = negTabKeys.map((k, i) => `<ol data-negrank="${k}" style="display:${i ? "none" : "block"}">${
+    (negRankByCat[k] || []).slice(0, 5).map(r => renderRow(r, fmtNeg(r.v))).join("") || '<li class="muted">—</li>'}</ol>`).join("");
+
   $("#recordsGrid").innerHTML = `
-    <div class="t-stat-card">
-      <h3>🎯 Top solos (tous tournois)</h3>
-      <ol>${soloRecs.slice(0, 5).map(r => renderRow(r, `${r.solos} solo${r.solos>1?'s':''}`)).join("") || '<li class="muted">—</li>'}</ol>
-    </div>
-    <div class="t-stat-card">
-      <h3>🔥 Plus longue série de coups au top</h3>
-      <ol>${streaks.slice(0, 5).map(s => renderRow(s, `${s.length} coup${s.length>1?'s':''}`)).join("") || '<li class="muted">—</li>'}</ol>
-    </div>
-    <div class="t-stat-card">
-      <h3>⏱ Partie la plus rapide</h3>
-      <ol>${timeRecs.slice(0, 5).map(r => renderRow(r, fmtT(r.time))).join("") || '<li class="muted">—</li>'}</ol>
-    </div>`;
+    <div class="t-stat-card"><h3>🎯 Top solos (tous tournois)</h3>
+      <ol>${soloRecs.slice(0, 5).map(r => renderRow(r, `${r.solos} solo${r.solos>1?'s':''}`)).join("") || '<li class="muted">—</li>'}</ol></div>
+    <div class="t-stat-card"><h3>🫣 Top anti-solos</h3>
+      <ol>${antiSoloRecs.slice(0, 5).map(r => renderRow(r, `${r.anti} anti-solo${r.anti>1?'s':''}`)).join("") || '<li class="muted">—</li>'}</ol></div>
+    <div class="t-stat-card"><h3>🏆 Plus de parties au top</h3>
+      <ol>${mostTop.slice(0, 5).map(p => renderRow(p, `${p.topGames} partie${p.topGames>1?'s':''}`)).join("") || '<li class="muted">—</li>'}</ol></div>
+    <div class="t-stat-card"><h3>✅ Meilleur % de coups au top</h3>
+      <ol>${bestPct.slice(0, 5).map(p => renderRow(p, `${Math.round(p.pct)}%`)).join("") || '<li class="muted">—</li>'}</ol></div>
+    <div class="t-stat-card"><h3>📉 Meilleur négatif moyen / partie</h3>
+      <div style="display:flex;flex-wrap:wrap;gap:4px;margin:6px 0 8px">${negBtns}</div>
+      ${negLists}</div>
+    <div class="t-stat-card"><h3>🔥 Plus longue série de coups au top</h3>
+      <ol>${streaks.slice(0, 5).map(s => renderRow(s, `${s.length} coup${s.length>1?'s':''}`)).join("") || '<li class="muted">—</li>'}</ol></div>
+    <div class="t-stat-card"><h3>⏱ Partie la plus rapide</h3>
+      <ol>${timeRecs.slice(0, 5).map(r => renderRow(r, fmtT(r.time))).join("") || '<li class="muted">—</li>'}</ol></div>
+    <div class="t-stat-card"><h3>🐢 Partie la plus lente</h3>
+      <ol>${slowRecs.slice(0, 5).map(r => renderRow(r, fmtT(r.time))).join("") || '<li class="muted">—</li>'}</ol></div>`;
+
+  // Onglets par type de partie du classement « négatif moyen »
+  const grid = $("#recordsGrid");
+  grid.querySelectorAll(".crank-btn").forEach(btn => {
+    btn.onclick = () => {
+      const k = btn.dataset.crank;
+      grid.querySelectorAll(".crank-btn").forEach(b => b.setAttribute("style", b === btn ? ta : tb));
+      grid.querySelectorAll("[data-negrank]").forEach(ol => ol.style.display = ol.dataset.negrank === k ? "block" : "none");
+    };
+  });
 }
 
 // ============================================================
@@ -2256,7 +2330,7 @@ async function loadTournamentDetail(tournamentId) {
     });
   }
 
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=335");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=336");
   const btnStyle = "text-decoration:none;padding:5px 10px;border-radius:6px;font-weight:600;font-size:.85rem";
   const admin = isAdmin();
   $("#pgBody").innerHTML = (games || []).length === 0
@@ -2916,7 +2990,7 @@ async function loadTournamentStats(tournamentId, games) {
   // On détermine « le top est un scrabble » en REjouant le plateau coup par coup
   // (nombre de NOUVELLES tuiles posées par le top == clé de prime du mode), ce qui
   // est fiable même sur d'anciennes parties (le hadBonus stocké est non fiable).
-  const { emptyBoard, applyMove, GAME_MODES } = await import("./scrabble/engine.js?v=335");
+  const { emptyBoard, applyMove, GAME_MODES } = await import("./scrabble/engine.js?v=336");
   const gameById = {};
   for (const g of games) gameById[g.id] = g;
   const bonusesOf = (gid) => (GAME_MODES[gameById[gid]?.mode] || GAME_MODES.duplicate).bonuses || { 7: 50 };
@@ -3103,9 +3177,9 @@ $("#pgCreate").onclick = async () => {
     let mods;
     try {
       mods = await Promise.all([
-        import("./scrabble/dictionary.js?v=335"),
-        import("./scrabble/generator.js?v=335"),
-        import("./scrabble/engine.js?v=335"),
+        import("./scrabble/dictionary.js?v=336"),
+        import("./scrabble/generator.js?v=336"),
+        import("./scrabble/engine.js?v=336"),
       ]);
     } catch (e) {
       $("#pgStatus").innerHTML = `<span style="color:#a02525">Échec de chargement des modules : ${escapeHtml(e.message)}</span>`;
@@ -3171,7 +3245,7 @@ window.recomputeAllNeg = async function(force = false) {
 
   let recomputeResult;
   try {
-    ({ recomputeResult } = await import("./scrabble/recompute.js?v=335"));
+    ({ recomputeResult } = await import("./scrabble/recompute.js?v=336"));
   } catch (e) {
     statusEl.textContent = "❌ Impossible de charger recompute.js : " + e.message;
     return;
@@ -3423,7 +3497,7 @@ window.recomputeAllJokerNeg = async function() {
 
   let recomputeResult;
   try {
-    ({ recomputeResult } = await import("./scrabble/recompute.js?v=335"));
+    ({ recomputeResult } = await import("./scrabble/recompute.js?v=336"));
   } catch (e) {
     statusEl.textContent = "❌ Impossible de charger recompute.js : " + e.message;
     return;
