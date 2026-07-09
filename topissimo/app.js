@@ -2105,11 +2105,11 @@ async function loadSolosAndStreaks() {
     )}
     <div class="t-stat-card"><h3>🏆 Meilleurs topeurs</h3>
       <ol>${topers.slice(0, 5).map(p => renderRow(p, `${p.pct.toFixed(2)}% (${p.topGames}/${p.playedGames})`)).join("") || '<li class="muted">—</li>'}</ol></div>
-    <div class="t-stat-card"><h3>✅ Meilleur % de coups au top</h3>
-      <ol>${bestPct.slice(0, 5).map(p => renderRow(p, `${p.pct.toFixed(2)}%`)).join("") || '<li class="muted">—</li>'}</ol></div>
     <div class="t-stat-card"><h3>📉 Meilleur négatif moyen</h3>
       <div style="display:flex;flex-wrap:wrap;gap:4px;margin:6px 0 8px">${negBtns}</div>
       ${negLists}</div>
+    <div class="t-stat-card"><h3>✅ Meilleur % de coups au top</h3>
+      <ol>${bestPct.slice(0, 5).map(p => renderRow(p, `${p.pct.toFixed(2)}%`)).join("") || '<li class="muted">—</li>'}</ol></div>
     <div class="t-stat-card"><h3>🔥 Plus longue série de tops</h3>
       <ol>${streaks.slice(0, 5).map(s => renderRow(s, `${s.length} coup${s.length>1?'s':''}`)).join("") || '<li class="muted">—</li>'}</ol></div>
     ${duo(
