@@ -206,7 +206,7 @@ let myGamesSort = {
 async function loadMyGames() {
   if (!state.currentPlayerId) return;
   const pid = +state.currentPlayerId;
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=340");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=341");
 
   // Tournoi : prepared_game_results jointes avec prepared_games
   const { data: tour } = await sb.from("prepared_game_results")
@@ -1399,7 +1399,7 @@ async function loadMyStats() {
   const pid = +state.currentPlayerId;
 
   body.innerHTML = `<p class="muted">⏳ Calcul…</p>`;
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=340");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=341");
 
   // 1) Toutes mes parties tournoi (avec détails)
   const { data: tour } = await sb.from("prepared_game_results")
@@ -1507,6 +1507,17 @@ async function loadMyStats() {
              abandoned: ab, isTop: (sumNeg || 0) === 0 && !ab };
   };
   const tourRecs  = (tour  || []).map(r => mkRec(r.sum_neg, r.total_time_seconds, r.details, r.prepared_games?.mode, r.prepared_games?.with_joker, r.prepared_games?.time_per_move));
+
+  // DIAGNOSTIC (temporaire) : d'où viennent les parties tournoi comptées ?
+  // On sépare terminées / abandonnées / sans coups, et on liste les anormales.
+  const tourHasMoves = r => Array.isArray(r.details) && r.details.length > 0;
+  const diagAbandoned = (tour || []).filter(r => isAbandoned(r.details));
+  const diagEmpty = (tour || []).filter(r => !isAbandoned(r.details) && !tourHasMoves(r));
+  const diagCompleted = (tour || []).filter(r => !isAbandoned(r.details) && tourHasMoves(r));
+  console.log(`[Mes stats] Tournoi : total=${(tour||[]).length} · terminées=${diagCompleted.length} · abandonnées=${diagAbandoned.length} · sans coups=${diagEmpty.length}`);
+  if (diagAbandoned.length) console.log("  Abandonnées :", diagAbandoned.map(r => r.prepared_games?.name || r.prepared_game_id));
+  if (diagEmpty.length) console.log("  Sans coups :", diagEmpty.map(r => r.prepared_games?.name || r.prepared_game_id));
+  const tourDiag = `${diagCompleted.length} terminées · ${diagAbandoned.length} abandon(s) · ${diagEmpty.length} sans coup`;
   const trainRecs = (train || []).map(t => mkRec(t.sum_neg, t.total_time_seconds, t.history, t.mode, t.with_joker, t.time_per_move));
 
   // ===== Série de tops (chronologique) =====
@@ -1571,10 +1582,10 @@ async function loadMyStats() {
         <h3 style="margin:0 0 4px">${rLab}</h3>
         <p style="margin:0;font-size:1.5rem;font-weight:700;color:#c8202a">${rVal}</p></div>
     </div>`;
-  const colHTML = (emoji, title, s, streak, prefix, topsPct, soloSplit) => `
+  const colHTML = (emoji, title, s, streak, prefix, topsPct, soloSplit, jouesNote) => `
     <div style="display:flex;flex-direction:column;gap:12px">
       <h2 style="margin:0">${emoji} ${title}</h2>
-      <div class="t-stat-card"><h3>Parties jouées</h3><p style="${V}">${s.jouees}</p></div>
+      <div class="t-stat-card"><h3>Parties jouées</h3><p style="${V}">${s.jouees}</p>${jouesNote ? `<p class="muted" style="margin:4px 0 0;font-size:.75rem">${jouesNote}</p>` : ""}</div>
       <div class="t-stat-card"><h3>Parties au top</h3><p style="${V}">${s.auTop}</p></div>
       <div class="t-stat-card"><h3>% de tops trouvés</h3><p style="${V}">${topsPct == null ? "—" : topsPct + "%"}</p></div>
       ${negCard(prefix, s.tabs)}
@@ -1587,8 +1598,8 @@ async function loadMyStats() {
 
   body.innerHTML = `
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:20px;align-items:start">
-      ${colHTML("🏆", "Tournoi", sTour, maxStreak, "negt", tourTopsPct, soloSplit)}
-      ${colHTML("🎯", "Entraînement", sTrain, trainStreak, "nege", trainTopsPct, "")}
+      ${colHTML("🏆", "Tournoi", sTour, maxStreak, "negt", tourTopsPct, soloSplit, tourDiag)}
+      ${colHTML("🎯", "Entraînement", sTrain, trainStreak, "nege", trainTopsPct, "", "")}
     </div>`;
 
   // Bascule des onglets « négatif moyen »
@@ -2005,7 +2016,7 @@ async function loadSolosAndStreaks() {
   const slowest = Object.values(worstByPid).sort((a, b) => b.time - a.time);
 
   // ===== Agrégats par joueur : parties au top, % coups au top, négatif moyen/cat =====
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=340");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=341");
   const catOf = (mode, joker, tpm) => {
     const m = mode || "duplicate";
     if (m === "blitz") return { key: "blitz", label: "Blitz" };
@@ -2352,7 +2363,7 @@ async function loadTournamentDetail(tournamentId) {
     });
   }
 
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=340");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=341");
   const btnStyle = "text-decoration:none;padding:5px 10px;border-radius:6px;font-weight:600;font-size:.85rem";
   const admin = isAdmin();
   $("#pgBody").innerHTML = (games || []).length === 0
@@ -3012,7 +3023,7 @@ async function loadTournamentStats(tournamentId, games) {
   // On détermine « le top est un scrabble » en REjouant le plateau coup par coup
   // (nombre de NOUVELLES tuiles posées par le top == clé de prime du mode), ce qui
   // est fiable même sur d'anciennes parties (le hadBonus stocké est non fiable).
-  const { emptyBoard, applyMove, GAME_MODES } = await import("./scrabble/engine.js?v=340");
+  const { emptyBoard, applyMove, GAME_MODES } = await import("./scrabble/engine.js?v=341");
   const gameById = {};
   for (const g of games) gameById[g.id] = g;
   const bonusesOf = (gid) => (GAME_MODES[gameById[gid]?.mode] || GAME_MODES.duplicate).bonuses || { 7: 50 };
@@ -3199,9 +3210,9 @@ $("#pgCreate").onclick = async () => {
     let mods;
     try {
       mods = await Promise.all([
-        import("./scrabble/dictionary.js?v=340"),
-        import("./scrabble/generator.js?v=340"),
-        import("./scrabble/engine.js?v=340"),
+        import("./scrabble/dictionary.js?v=341"),
+        import("./scrabble/generator.js?v=341"),
+        import("./scrabble/engine.js?v=341"),
       ]);
     } catch (e) {
       $("#pgStatus").innerHTML = `<span style="color:#a02525">Échec de chargement des modules : ${escapeHtml(e.message)}</span>`;
@@ -3267,7 +3278,7 @@ window.recomputeAllNeg = async function(force = false) {
 
   let recomputeResult;
   try {
-    ({ recomputeResult } = await import("./scrabble/recompute.js?v=340"));
+    ({ recomputeResult } = await import("./scrabble/recompute.js?v=341"));
   } catch (e) {
     statusEl.textContent = "❌ Impossible de charger recompute.js : " + e.message;
     return;
@@ -3519,7 +3530,7 @@ window.recomputeAllJokerNeg = async function() {
 
   let recomputeResult;
   try {
-    ({ recomputeResult } = await import("./scrabble/recompute.js?v=340"));
+    ({ recomputeResult } = await import("./scrabble/recompute.js?v=341"));
   } catch (e) {
     statusEl.textContent = "❌ Impossible de charger recompute.js : " + e.message;
     return;
