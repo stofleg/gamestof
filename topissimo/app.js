@@ -2086,11 +2086,11 @@ async function loadSolosAndStreaks() {
     </li>`;
   const fmtNeg = v => (v > 0 ? "+" : "") + v.toFixed(1);
   const ol5 = (arr, fn) => `<ol>${arr.slice(0, 5).map(fn).join("") || '<li class="muted">—</li>'}</ol>`;
-  // Carte scindée verticalement : haut (jaune) / bas (rouge).
+  // Carte scindée verticalement : haut (fond neutre) / bas (rouge).
   const vSplit = (topTitle, topOl, botTitle, botOl) => `
     <div class="t-stat-card" style="padding:0;overflow:hidden">
-      <div style="padding:14px 16px;background:#fdf7db"><h3 style="margin:0 0 6px">${topTitle}</h3>${topOl}</div>
-      <div style="padding:14px 16px;background:#fbe6e6"><h3 style="margin:0 0 6px">${botTitle}</h3>${botOl}</div>
+      <div style="padding:14px 16px"><h3 style="margin:0 0 6px">${topTitle}</h3>${topOl}</div>
+      <div style="padding:14px 16px;background:#fbe6e6;border-top:1px solid rgba(0,46,68,.06)"><h3 style="margin:0 0 6px">${botTitle}</h3>${botOl}</div>
     </div>`;
   const tb = "padding:3px 11px;border:1px solid rgba(0,46,68,.12);border-radius:999px;background:#eef2f4;color:var(--ink-soft);font-weight:600;font-size:.75rem;cursor:pointer";
   const ta = "padding:3px 11px;border:1px solid var(--petrol);border-radius:999px;background:var(--petrol);color:#fff;font-weight:700;font-size:.75rem;cursor:pointer";
