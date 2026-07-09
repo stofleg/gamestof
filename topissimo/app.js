@@ -206,7 +206,7 @@ let myGamesSort = {
 async function loadMyGames() {
   if (!state.currentPlayerId) return;
   const pid = +state.currentPlayerId;
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=338");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=339");
 
   // Tournoi : prepared_game_results jointes avec prepared_games
   const { data: tour } = await sb.from("prepared_game_results")
@@ -1399,7 +1399,7 @@ async function loadMyStats() {
   const pid = +state.currentPlayerId;
 
   body.innerHTML = `<p class="muted">⏳ Calcul…</p>`;
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=338");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=339");
 
   // 1) Toutes mes parties tournoi (avec détails)
   const { data: tour } = await sb.from("prepared_game_results")
@@ -1994,11 +1994,18 @@ async function loadSolosAndStreaks() {
     }))
     .sort((a, b) => a.time - b.time);
 
-  // ===== Partie la plus lente (symétrique de la plus rapide) =====
-  const slowRecs = [...timeRecs].sort((a, b) => b.time - a.time);
+  // ===== Temps : un pseudo n'apparaît qu'UNE fois par classement =====
+  // Rapides : on retient le MEILLEUR temps de chaque joueur ; lents : son PIRE.
+  const bestByPid = {}, worstByPid = {};
+  for (const r of timeRecs) {
+    if (!bestByPid[r.player_id] || r.time < bestByPid[r.player_id].time) bestByPid[r.player_id] = r;
+    if (!worstByPid[r.player_id] || r.time > worstByPid[r.player_id].time) worstByPid[r.player_id] = r;
+  }
+  const fastest = Object.values(bestByPid).sort((a, b) => a.time - b.time);
+  const slowest = Object.values(worstByPid).sort((a, b) => b.time - a.time);
 
   // ===== Agrégats par joueur : parties au top, % coups au top, négatif moyen/cat =====
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=338");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=339");
   const catOf = (mode, joker, tpm) => {
     const m = mode || "duplicate";
     if (m === "blitz") return { key: "blitz", label: "Blitz" };
@@ -2078,8 +2085,8 @@ async function loadSolosAndStreaks() {
     <div class="t-stat-card"><h3>🔥 Plus longue série de coups au top</h3>
       <ol>${streaks.slice(0, 5).map(s => renderRow(s, `${s.length} coup${s.length>1?'s':''}`)).join("") || '<li class="muted">—</li>'}</ol></div>
     ${vSplit(
-      "🐇 Les plus rapides", ol5(timeRecs, r => renderRow(r, fmtT(r.time))),
-      "🐢 Les plus lents", ol5(slowRecs, r => renderRow(r, fmtT(r.time)))
+      "🐇 Les plus rapides", ol5(fastest, r => renderRow(r, fmtT(r.time))),
+      "🐢 Les plus lents", ol5(slowest, r => renderRow(r, fmtT(r.time)))
     )}`;
 
   // Onglets par type de partie du classement « négatif moyen »
@@ -2340,7 +2347,7 @@ async function loadTournamentDetail(tournamentId) {
     });
   }
 
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=338");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=339");
   const btnStyle = "text-decoration:none;padding:5px 10px;border-radius:6px;font-weight:600;font-size:.85rem";
   const admin = isAdmin();
   $("#pgBody").innerHTML = (games || []).length === 0
@@ -3000,7 +3007,7 @@ async function loadTournamentStats(tournamentId, games) {
   // On détermine « le top est un scrabble » en REjouant le plateau coup par coup
   // (nombre de NOUVELLES tuiles posées par le top == clé de prime du mode), ce qui
   // est fiable même sur d'anciennes parties (le hadBonus stocké est non fiable).
-  const { emptyBoard, applyMove, GAME_MODES } = await import("./scrabble/engine.js?v=338");
+  const { emptyBoard, applyMove, GAME_MODES } = await import("./scrabble/engine.js?v=339");
   const gameById = {};
   for (const g of games) gameById[g.id] = g;
   const bonusesOf = (gid) => (GAME_MODES[gameById[gid]?.mode] || GAME_MODES.duplicate).bonuses || { 7: 50 };
@@ -3187,9 +3194,9 @@ $("#pgCreate").onclick = async () => {
     let mods;
     try {
       mods = await Promise.all([
-        import("./scrabble/dictionary.js?v=338"),
-        import("./scrabble/generator.js?v=338"),
-        import("./scrabble/engine.js?v=338"),
+        import("./scrabble/dictionary.js?v=339"),
+        import("./scrabble/generator.js?v=339"),
+        import("./scrabble/engine.js?v=339"),
       ]);
     } catch (e) {
       $("#pgStatus").innerHTML = `<span style="color:#a02525">Échec de chargement des modules : ${escapeHtml(e.message)}</span>`;
@@ -3255,7 +3262,7 @@ window.recomputeAllNeg = async function(force = false) {
 
   let recomputeResult;
   try {
-    ({ recomputeResult } = await import("./scrabble/recompute.js?v=338"));
+    ({ recomputeResult } = await import("./scrabble/recompute.js?v=339"));
   } catch (e) {
     statusEl.textContent = "❌ Impossible de charger recompute.js : " + e.message;
     return;
@@ -3507,7 +3514,7 @@ window.recomputeAllJokerNeg = async function() {
 
   let recomputeResult;
   try {
-    ({ recomputeResult } = await import("./scrabble/recompute.js?v=338"));
+    ({ recomputeResult } = await import("./scrabble/recompute.js?v=339"));
   } catch (e) {
     statusEl.textContent = "❌ Impossible de charger recompute.js : " + e.message;
     return;
