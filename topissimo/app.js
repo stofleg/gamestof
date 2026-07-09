@@ -1582,8 +1582,8 @@ async function loadMyStats() {
         <h3 style="margin:0 0 4px">${rLab}</h3>
         <p style="margin:0;font-size:1.5rem;font-weight:700;color:#c8202a">${rVal}</p></div>
     </div>`;
-  const colHTML = (emoji, title, s, streak, prefix, topsPct, soloSplit) => `
-    <div style="display:flex;flex-direction:column;gap:12px">
+  const colHTML = (emoji, title, s, streak, prefix, topsPct, soloSplit, wrapBg) => `
+    <div style="display:flex;flex-direction:column;gap:12px;padding:16px;border-radius:16px;background:${wrapBg}">
       <h2 style="margin:0">${emoji} ${title}</h2>
       <div class="t-stat-card"><h3>Parties jouées</h3><p style="${V}">${s.jouees}</p></div>
       <div class="t-stat-card"><h3>Parties au top</h3><p style="${V}">${s.auTop}</p></div>
@@ -1598,8 +1598,8 @@ async function loadMyStats() {
 
   body.innerHTML = `
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:20px;align-items:start">
-      ${colHTML("🏆", "Tournoi", sTour, maxStreak, "negt", tourTopsPct, soloSplit)}
-      ${colHTML("🎯", "Entraînement", sTrain, trainStreak, "nege", trainTopsPct, "")}
+      ${colHTML("🏆", "Tournoi", sTour, maxStreak, "negt", tourTopsPct, soloSplit, "#e7eff4")}
+      ${colHTML("🎯", "Entraînement", sTrain, trainStreak, "nege", trainTopsPct, "", "#eef3ea")}
     </div>`;
 
   // Bascule des onglets « négatif moyen »
