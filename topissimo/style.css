@@ -636,17 +636,27 @@ tbody tr.me:hover { background: rgba(255,221,0,.22); }
   gap: 12px;
 }
 .t-stat-card {
-  background: var(--cream);
-  border-radius: 10px;
-  padding: 12px 14px;
+  background: #fff;
+  border-radius: 12px;
+  padding: 14px 16px;
+  border: 1px solid rgba(0,46,68,.07);
   border-top: 3px solid var(--yellow);
+  box-shadow: 0 1px 3px rgba(0,46,68,.05);
+  transition: transform .12s ease, box-shadow .12s ease;
+}
+.t-stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(0,46,68,.10);
 }
 .t-stat-card h3 {
-  margin: 0 0 8px 0;
+  margin: 0 0 10px 0;
   font-family: 'Lora', serif;
   font-weight: 600;
-  font-size: .95rem;
+  font-size: .98rem;
   color: var(--petrol-dark);
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 .t-stat-card ol {
   list-style: none;
@@ -656,29 +666,48 @@ tbody tr.me:hover { background: rgba(255,221,0,.22); }
 }
 .t-stat-card ol li {
   display: flex;
-  align-items: baseline;
-  gap: 6px;
-  padding: 3px 0;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 0;
   counter-increment: rank;
+  border-bottom: 1px solid rgba(0,46,68,.05);
 }
+.t-stat-card ol li:last-child { border-bottom: none; }
 .t-stat-card ol li::before {
-  content: counter(rank) ".";
-  flex: 0 0 auto;
+  content: counter(rank);
+  flex: 0 0 1.4em;
+  text-align: center;
   color: var(--ink-soft);
+  font-size: .8em;
+  font-weight: 700;
 }
+/* Podium : médailles pour les trois premiers de chaque liste */
+.t-stat-card ol li:nth-child(1)::before { content: "🥇"; font-size: 1em; }
+.t-stat-card ol li:nth-child(2)::before { content: "🥈"; font-size: 1em; }
+.t-stat-card ol li:nth-child(3)::before { content: "🥉"; font-size: 1em; }
+.t-stat-card ol li:nth-child(1) { font-weight: 600; }
 .t-stat-card ol li > strong {
   flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-weight: inherit;
 }
 .t-stat-card ol li > span {
   flex: 0 0 auto;
   margin-left: auto;
   white-space: nowrap;
+  background: rgba(0,46,68,.06);
+  color: var(--petrol-dark);
+  font-weight: 700;
+  font-size: .82em;
+  padding: 2px 8px;
+  border-radius: 999px;
 }
-.t-stat-card ol li.me { color: var(--petrol); font-weight: 700; }
+.t-stat-card ol li:nth-child(1) > span { background: rgba(240,180,0,.22); color: #8a6a00; }
+.t-stat-card ol li.me { color: var(--petrol); }
+.t-stat-card ol li.me > strong { font-weight: 700; }
 .t-stat-card ol li.me > strong::after { content: " (toi)"; font-weight: 400; color: var(--ink-soft); font-size: .8em; }
 
 /* Hall of Shame */
