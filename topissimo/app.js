@@ -2110,7 +2110,7 @@ async function loadSolosAndStreaks() {
     <div class="t-stat-card"><h3>📉 Meilleur négatif moyen</h3>
       <div style="display:flex;flex-wrap:wrap;gap:4px;margin:6px 0 8px">${negBtns}</div>
       ${negLists}</div>
-    <div class="t-stat-card"><h3>🔥 Plus longue série de coups au top</h3>
+    <div class="t-stat-card"><h3>🔥 Plus longue série de tops</h3>
       <ol>${streaks.slice(0, 5).map(s => renderRow(s, `${s.length} coup${s.length>1?'s':''}`)).join("") || '<li class="muted">—</li>'}</ol></div>
     ${vSplit(
       "🐇 Les plus rapides", ol5(fastest, r => renderRow(r, fmtT(r.time))),

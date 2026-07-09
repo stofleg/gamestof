@@ -635,6 +635,20 @@ tbody tr.me:hover { background: rgba(255,221,0,.22); }
   grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
   gap: 12px;
 }
+/* Palmarès du club : disposition « masonry » en colonnes → les cartes se tassent
+   verticalement et remplissent la largeur (plus de grand vide à droite). */
+#recordsGrid {
+  display: block;
+  columns: 250px;
+  column-gap: 14px;
+}
+#recordsGrid > .t-stat-card {
+  break-inside: avoid;
+  -webkit-column-break-inside: avoid;
+  width: 100%;
+  margin: 0 0 14px;
+}
+
 .t-stat-card {
   background: #fff;
   border-radius: 12px;
