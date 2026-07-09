@@ -1572,13 +1572,13 @@ async function loadMyStats() {
       <div style="display:flex;flex-wrap:wrap;gap:4px;margin:6px 0 10px">${btns}</div>
       <p class="neg" style="margin:0;font-size:1.5rem;font-weight:700" id="${prefix}-negval">${fmtNeg(tabs[0].v)}</p></div>`;
   };
-  // Carte scindée en deux moitiés : gauche (jaune) / droite (rouge).
+  // Carte scindée en deux moitiés : gauche (fond neutre) / droite (rouge).
   const splitCard = (lLab, lVal, rLab, rVal) => `
     <div class="t-stat-card" style="padding:0;overflow:hidden;display:flex">
-      <div style="flex:1;padding:14px 16px;background:#fdf7db">
+      <div style="flex:1;padding:14px 16px">
         <h3 style="margin:0 0 4px">${lLab}</h3>
         <p style="margin:0;font-size:1.5rem;font-weight:700;color:var(--petrol-dark)">${lVal}</p></div>
-      <div style="flex:1;padding:14px 16px;background:#fbe6e6">
+      <div style="flex:1;padding:14px 16px;background:#fbe6e6;border-left:1px solid rgba(0,46,68,.06)">
         <h3 style="margin:0 0 4px">${rLab}</h3>
         <p style="margin:0;font-size:1.5rem;font-weight:700;color:#c8202a">${rVal}</p></div>
     </div>`;
