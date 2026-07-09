@@ -126,6 +126,10 @@ function initials(name) {
 function activateTab(name, persist = true) {
   const b = document.querySelector(`nav button[data-tab="${name}"]`);
   if (!b) return;
+  // Nettoyer un éventuel #tid=/#tab= de l'URL en changeant d'onglet : sinon un
+  // rechargement rouvrirait le tournoi précédent au lieu de l'onglet courant.
+  // (openTournament réécrira #tid= s'il ouvre un tournoi.)
+  if (/^#(tid=|tab=)/.test(location.hash)) history.replaceState(null, "", location.pathname);
   $$("nav button").forEach(x => x.classList.toggle("active", x === b));
   $$(".tab").forEach(s => s.hidden = s.dataset.tab !== name);
   // Quitter le tab "prepared" → oublier le tournoi sélectionné (retour à la liste au retour)
@@ -143,6 +147,20 @@ $$("nav button").forEach(b => b.onclick = () => activateTab(b.dataset.tab));
 // même endroit après un rechargement. Un lien profond (?ffscTournoi=…) a priorité.
 function restoreLastTab() {
   if (new URLSearchParams(location.search).get("ffscTournoi")) return;
+  const h = location.hash || "";
+  // Priorité au lien profond de l'URL (rechargement sur un tournoi/onglet précis).
+  if (h.startsWith("#tid=")) {
+    const tid = h.slice(5);
+    activateTab("prepared", false);
+    if (tid) openTournament(tid).catch(() => {});
+    return;
+  }
+  if (h === "#tab=prepared") {
+    activateTab("prepared", false);
+    history.replaceState(null, "", location.pathname);
+    return;
+  }
+  // Sinon : onglet (et sous-onglet « prepared ») mémorisés → même page après reload.
   let tab = null, ptab = null;
   try { tab = localStorage.getItem("topissimo:tab"); ptab = localStorage.getItem("topissimo:ptab"); } catch (_) {}
   if (tab) activateTab(tab, false);
@@ -188,7 +206,7 @@ let myGamesSort = {
 async function loadMyGames() {
   if (!state.currentPlayerId) return;
   const pid = +state.currentPlayerId;
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=333");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=334");
 
   // Tournoi : prepared_game_results jointes avec prepared_games
   const { data: tour } = await sb.from("prepared_game_results")
@@ -1376,7 +1394,7 @@ async function loadMyStats() {
   const pid = +state.currentPlayerId;
 
   body.innerHTML = `<p class="muted">⏳ Calcul…</p>`;
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=333");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=334");
 
   // 1) Toutes mes parties tournoi (avec détails)
   const { data: tour } = await sb.from("prepared_game_results")
@@ -1440,9 +1458,10 @@ async function loadMyStats() {
     }
   }
 
-  // ===== Solos =====
-  // Mes coups où j'ai topé seul. On a besoin des autres résultats des mêmes games.
-  let mySolos = 0;
+  // ===== Solos & anti-solos =====
+  // Solo    = je suis le SEUL à avoir topé un coup, parmi ≥2 joueurs l'ayant joué.
+  // Anti-solo = je suis le SEUL à NE PAS avoir topé un coup, parmi ≥2 joueurs.
+  let mySolos = 0, myAntiSolos = 0;
   if (tour && tour.length) {
     const gameIds = [...new Set(tour.map(r => r.prepared_game_id))];
     const { data: allResults } = await sb.from("prepared_game_results")
@@ -1450,16 +1469,18 @@ async function loadMyStats() {
     const byGame = {};
     for (const r of allResults || []) (byGame[r.prepared_game_id] ||= []).push(r);
     for (const rs of Object.values(byGame)) {
-      // Un « solo » = je suis le SEUL à avoir topé un coup, PARMI AU MOINS 2 joueurs
-      // ayant joué ce coup (être « seul » quand on est seul à jouer ne compte pas).
       const playedBy = {};   // moveNo -> Set des joueurs ayant joué ce coup
-      const toppedBy = {};   // moveNo -> liste des joueurs ayant topé ce coup
+      const toppedBy = {};   // moveNo -> Set des joueurs ayant topé ce coup
       for (const r of rs) for (const h of (r.details || [])) {
         (playedBy[h.moveNo] ||= new Set()).add(r.player_id);
-        if (h.status === "top") (toppedBy[h.moveNo] ||= []).push(r.player_id);
+        if (h.status === "top") (toppedBy[h.moveNo] ||= new Set()).add(r.player_id);
       }
-      for (const [mv, ids] of Object.entries(toppedBy)) {
-        if (ids.length === 1 && ids[0] === pid && (playedBy[mv]?.size || 0) >= 2) mySolos++;
+      for (const [mv, played] of Object.entries(playedBy)) {
+        if (played.size < 2 || !played.has(pid)) continue;
+        const topped = toppedBy[mv] || new Set();
+        if (topped.size === 1 && topped.has(pid)) mySolos++;
+        // Anti-solo : tout le monde a topé sauf moi (je suis le seul non-topeur).
+        if (!topped.has(pid) && topped.size === played.size - 1) myAntiSolos++;
       }
     }
   }
@@ -1504,9 +1525,10 @@ async function loadMyStats() {
   const colStats = (recs) => {
     const jouees = recs.length;
     const auTop = recs.filter(r => r.isTop).length;
-    const pct = jouees ? Math.round(auTop / jouees * 100) : null;
     const nonAb = recs.filter(r => !r.abandoned);
-    const best = Math.min(Infinity, ...nonAb.filter(r => r.time > 0).map(r => r.time));
+    const times = nonAb.filter(r => r.time > 0).map(r => r.time);
+    const best = times.length ? Math.min(...times) : 0;
+    const worst = times.length ? Math.max(...times) : 0;
     const byCat = {};
     for (const r of nonAb) (byCat[r.cat.key] ||= { label: r.cat.label, negs: [] }).negs.push(r.neg);
     const avg = arr => arr.length ? arr.reduce((s, x) => s + x, 0) / arr.length : null;
@@ -1514,10 +1536,19 @@ async function loadMyStats() {
     const keys = Object.keys(byCat).sort((a, b) => order(a) - order(b) || byCat[a].label.localeCompare(byCat[b].label));
     const tabs = [{ label: "Général", v: avg(nonAb.map(r => r.neg)) },
       ...keys.map(k => ({ label: byCat[k].label, v: avg(byCat[k].negs) }))];
-    return { jouees, auTop, pct, best, tabs };
+    return { jouees, auTop, best, worst, tabs };
   };
   const sTour = colStats(tourRecs);
   const sTrain = colStats(trainRecs);
+
+  // % de tops = coups au top / coups joués (au niveau du COUP, pas de la partie).
+  const topsPctOf = (games, getMoves) => {
+    let tops = 0, total = 0;
+    for (const g of games) for (const m of (getMoves(g) || [])) { total++; if (m.status === "top") tops++; }
+    return total ? Math.round(tops / total * 100) : null;
+  };
+  const tourTopsPct = topsPctOf(tour || [], g => g.details);
+  const trainTopsPct = topsPctOf(train || [], g => g.history);
 
   const negCard = (prefix, tabs) => {
     const btns = tabs.map((t, i) => `<button class="negtab-btn" data-neg="${prefix}" data-negv="${t.v == null ? "" : fmtNeg(t.v)}" style="${i === 0 ? tabActive : tabBase}">${escapeHtml(t.label)}</button>`).join("");
@@ -1525,24 +1556,34 @@ async function loadMyStats() {
       <div style="display:flex;flex-wrap:wrap;gap:4px;margin:6px 0 10px">${btns}</div>
       <p class="neg" style="margin:0;font-size:1.5rem;font-weight:700" id="${prefix}-negval">${fmtNeg(tabs[0].v)}</p></div>`;
   };
-  const colHTML = (emoji, title, s, streak, prefix, extra) => `
+  // Carte scindée en deux moitiés : gauche (jaune) / droite (rouge).
+  const splitCard = (lLab, lVal, rLab, rVal) => `
+    <div class="t-stat-card" style="padding:0;overflow:hidden;display:flex">
+      <div style="flex:1;padding:14px 16px;background:#fdf7db">
+        <h3 style="margin:0 0 4px">${lLab}</h3>
+        <p style="margin:0;font-size:1.5rem;font-weight:700;color:var(--petrol-dark)">${lVal}</p></div>
+      <div style="flex:1;padding:14px 16px;background:#fbe6e6">
+        <h3 style="margin:0 0 4px">${rLab}</h3>
+        <p style="margin:0;font-size:1.5rem;font-weight:700;color:#c8202a">${rVal}</p></div>
+    </div>`;
+  const colHTML = (emoji, title, s, streak, prefix, topsPct, soloSplit) => `
     <div style="display:flex;flex-direction:column;gap:12px">
       <h2 style="margin:0">${emoji} ${title}</h2>
       <div class="t-stat-card"><h3>Parties jouées</h3><p style="${V}">${s.jouees}</p></div>
       <div class="t-stat-card"><h3>Parties au top</h3><p style="${V}">${s.auTop}</p></div>
-      <div class="t-stat-card"><h3>% de tops trouvés</h3><p style="${V}">${s.pct == null ? "—" : s.pct + "%"}</p></div>
+      <div class="t-stat-card"><h3>% de tops trouvés</h3><p style="${V}">${topsPct == null ? "—" : topsPct + "%"}</p></div>
       ${negCard(prefix, s.tabs)}
-      ${extra || ""}
-      <div class="t-stat-card"><h3>⏱ Meilleur temps</h3><p style="${V}">${fmtT(s.best)}</p></div>
+      ${soloSplit || ""}
+      ${splitCard("⏱ Meilleur temps", fmtT(s.best), "🐢 Plus mauvais temps", fmtT(s.worst))}
       <div class="t-stat-card"><h3>🔥 Plus longue série de tops</h3><p style="${V}">${streak} coup${streak > 1 ? "s" : ""}</p></div>
     </div>`;
 
-  const soloExtra = `<div class="t-stat-card"><h3>Solos</h3><p style="${V}">${mySolos}</p></div>`;
+  const soloSplit = splitCard("Solos", mySolos, "Anti-solos", myAntiSolos);
 
   body.innerHTML = `
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:20px;align-items:start">
-      ${colHTML("🏆", "Tournoi", sTour, maxStreak, "negt", soloExtra)}
-      ${colHTML("🎯", "Entraînement", sTrain, trainStreak, "nege", "")}
+      ${colHTML("🏆", "Tournoi", sTour, maxStreak, "negt", tourTopsPct, soloSplit)}
+      ${colHTML("🎯", "Entraînement", sTrain, trainStreak, "nege", trainTopsPct, "")}
     </div>`;
 
   // Bascule des onglets « négatif moyen »
@@ -2210,7 +2251,7 @@ async function loadTournamentDetail(tournamentId) {
     });
   }
 
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=333");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=334");
   const btnStyle = "text-decoration:none;padding:5px 10px;border-radius:6px;font-weight:600;font-size:.85rem";
   const admin = isAdmin();
   $("#pgBody").innerHTML = (games || []).length === 0
@@ -2870,7 +2911,7 @@ async function loadTournamentStats(tournamentId, games) {
   // On détermine « le top est un scrabble » en REjouant le plateau coup par coup
   // (nombre de NOUVELLES tuiles posées par le top == clé de prime du mode), ce qui
   // est fiable même sur d'anciennes parties (le hadBonus stocké est non fiable).
-  const { emptyBoard, applyMove, GAME_MODES } = await import("./scrabble/engine.js?v=333");
+  const { emptyBoard, applyMove, GAME_MODES } = await import("./scrabble/engine.js?v=334");
   const gameById = {};
   for (const g of games) gameById[g.id] = g;
   const bonusesOf = (gid) => (GAME_MODES[gameById[gid]?.mode] || GAME_MODES.duplicate).bonuses || { 7: 50 };
@@ -3057,9 +3098,9 @@ $("#pgCreate").onclick = async () => {
     let mods;
     try {
       mods = await Promise.all([
-        import("./scrabble/dictionary.js?v=333"),
-        import("./scrabble/generator.js?v=333"),
-        import("./scrabble/engine.js?v=333"),
+        import("./scrabble/dictionary.js?v=334"),
+        import("./scrabble/generator.js?v=334"),
+        import("./scrabble/engine.js?v=334"),
       ]);
     } catch (e) {
       $("#pgStatus").innerHTML = `<span style="color:#a02525">Échec de chargement des modules : ${escapeHtml(e.message)}</span>`;
@@ -3125,7 +3166,7 @@ window.recomputeAllNeg = async function(force = false) {
 
   let recomputeResult;
   try {
-    ({ recomputeResult } = await import("./scrabble/recompute.js?v=333"));
+    ({ recomputeResult } = await import("./scrabble/recompute.js?v=334"));
   } catch (e) {
     statusEl.textContent = "❌ Impossible de charger recompute.js : " + e.message;
     return;
@@ -3377,7 +3418,7 @@ window.recomputeAllJokerNeg = async function() {
 
   let recomputeResult;
   try {
-    ({ recomputeResult } = await import("./scrabble/recompute.js?v=333"));
+    ({ recomputeResult } = await import("./scrabble/recompute.js?v=334"));
   } catch (e) {
     statusEl.textContent = "❌ Impossible de charger recompute.js : " + e.message;
     return;
@@ -3596,19 +3637,8 @@ function checkRecoveryHash() {
   if (h.includes("type=recovery") || q.includes("type=recovery")) {
     $("#resetPwModal").hidden = false;
   }
-  // Retour depuis une partie tournoi → activer directement le tab Tournois
-  if (h === "#tab=prepared") {
-    const btn = document.querySelector('nav button[data-tab="prepared"]');
-    if (btn) { btn.click(); history.replaceState(null, "", location.pathname); }
-  }
-  // Retour vers un tournoi spécifique (on CONSERVE le #tid pour que le bouton
-  // "précédent" du navigateur puisse y revenir après un rejeu).
-  if (h.startsWith("#tid=")) {
-    const tid = h.slice(5);
-    const btn = document.querySelector('nav button[data-tab="prepared"]');
-    if (btn) btn.click();
-    if (tid) openTournament(tid).catch(() => {});
-  }
+  // (La restauration d'onglet/tournoi depuis #tab= / #tid= est gérée par
+  // restoreLastTab(), après la connexion, pour éviter les doubles rendus.)
 }
 window.addEventListener("hashchange", checkRecoveryHash);
 window.addEventListener("DOMContentLoaded", checkRecoveryHash);
