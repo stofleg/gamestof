@@ -5922,16 +5922,65 @@ window.showTournamentResults = async function() {
   body.innerHTML = `<div style="overflow:auto"><table style="width:100%;border-collapse:collapse;font-size:.9rem">
     <thead><tr style="background:var(--petrol);color:#fff">
       <th style="padding:5px 8px;text-align:left">#</th><th style="padding:5px 8px;text-align:left">Joueur</th>
-      <th style="padding:5px 8px;text-align:right">Négatif</th><th style="padding:5px 8px;text-align:right">Temps</th>
+      <th style="padding:5px 8px;text-align:right">Négatif</th><th style="padding:5px 8px;text-align:right">Temps</th><th></th>
     </tr></thead><tbody>${rows.map((r, i) => {
       const mob = r.played_on_mobile ? `<span title="Jouée sur mobile" style="font-size:.85em">📱</span> ` : "";
+      const nm = (r.players?.name || "#" + r.player_id);
       return `<tr${r.player_id === me ? ' style="background:#fff3cd"' : ''}>
         <td style="padding:5px 8px">${medal(i)}</td>
-        <td style="padding:5px 8px">${escapeHtmlS(r.players?.name || "#" + r.player_id)}</td>
+        <td style="padding:5px 8px">${escapeHtmlS(nm)}</td>
         <td style="padding:5px 8px;text-align:right">${r.sum_neg ?? 0}</td>
         <td style="padding:5px 8px;text-align:right;white-space:nowrap">${mob}${fmtT(r.total_time_seconds)}</td>
+        <td style="padding:5px 4px;text-align:right"><button class="btn ghost small" title="Feuille de route" onclick="showPlayerSheetGame(${r.player_id}, '${escapeHtmlS(nm).replace(/'/g, "\\'")}')">📋</button></td>
       </tr>`;
     }).join("")}</tbody></table></div>`;
+};
+
+// Feuille de route d'un joueur pour LA partie en cours (depuis la modale Résultats).
+window.showPlayerSheetGame = async function(pid, name) {
+  if (!PREPARED_ID) return;
+  if (!window._sb) await loadSupabaseClient();
+  let modal = document.getElementById("playerSheetGameModal");
+  if (!modal) {
+    modal = document.createElement("div");
+    modal.id = "playerSheetGameModal";
+    modal.className = "modal";
+    modal.innerHTML = `<div class="backdrop" onclick="document.getElementById('playerSheetGameModal').hidden=true"></div>
+      <div class="content" style="max-width:640px">
+        <button class="close" onclick="document.getElementById('playerSheetGameModal').hidden=true">×</button>
+        <h2 id="psgTitle" style="margin-top:0;font-size:1.1rem"></h2>
+        <div id="psgBody"></div>
+      </div>`;
+    document.body.appendChild(modal);
+  }
+  modal.querySelector("#psgTitle").textContent = `📋 Feuille de route — ${name}`;
+  const b = modal.querySelector("#psgBody");
+  b.innerHTML = `<p class="muted">Chargement…</p>`;
+  modal.hidden = false;
+  const { data } = await window._sb.from("prepared_game_results")
+    .select("details").eq("prepared_game_id", PREPARED_ID).eq("player_id", pid).maybeSingle();
+  const details = Array.isArray(data?.details) ? data.details : [];
+  if (!details.length) { b.innerHTML = `<p class="muted">Aucune feuille de route.</p>`; return; }
+  const coord = pos => pos ? `<span style="font-size:.75em;color:#888">${pos}</span>` : "";
+  const t = ms => ms ? (ms / 1000).toFixed(1) + "s" : "—";
+  const rowsHtml = details.map(h => {
+    const top = h.top ? `<strong>${wLink(h.top.word)}</strong> ${coord(h.top.pos)} ${h.top.score}` : "—";
+    const played = h.played ? `<strong>${wLink(h.played)}</strong> ${coord(h.playedPos)} ${h.playerScore}` : "<em>—</em>";
+    const miss = (h.neg || 0) < 0;
+    return `<tr${miss ? ' style="background:#fff4d6"' : ''}>
+      <td style="padding:4px 6px">${h.moveNo}</td>
+      <td style="padding:4px 6px"><code>${escapeHtmlS(h.rack || "")}</code></td>
+      <td style="padding:4px 6px">${top}</td>
+      <td style="padding:4px 6px">${played}</td>
+      <td style="padding:4px 6px;text-align:center">${miss ? h.neg : ""}</td>
+      <td style="padding:4px 6px;text-align:right">${t(h.timeMs)}</td></tr>`;
+  }).join("");
+  b.innerHTML = `<div style="max-height:65vh;overflow:auto"><table style="width:100%;border-collapse:collapse;font-size:.88rem;white-space:nowrap">
+    <thead><tr style="background:var(--petrol);color:#fff;position:sticky;top:0">
+      <th style="padding:5px 6px;text-align:left">#</th><th style="padding:5px 6px;text-align:left">Tirage</th>
+      <th style="padding:5px 6px;text-align:left">Top</th><th style="padding:5px 6px;text-align:left">Joué</th>
+      <th style="padding:5px 6px;text-align:center">Négatif</th><th style="padding:5px 6px;text-align:right">Temps</th>
+    </tr></thead><tbody>${rowsHtml}</tbody></table></div>`;
 };
 $("#btnRestart").onclick = () => {
   if (confirm("Démarrer une nouvelle partie ? La partie en cours sera perdue.")) restartGame();
