@@ -26,7 +26,7 @@
 import {
   emptyBoard, BOARD_BONUSES, BOARD_SIZE, CENTER, LETTER_VALUE, LETTER_BAG,
   VOWELS, drawForDuplicate, scoreMove, applyMove,
-  bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName, randomBoardLayout, snakeEndpointsAfter,
+  bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName, randomBoardLayout, snakeEndpointsAfter, sablierTime,
 } from "./engine.js?v=347";
 import { Dictionary } from "./dictionary.js?v=347";
 import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=347";
@@ -966,12 +966,18 @@ function stopChrono() {
 }
 
 // ===== Minuteur par coup =====
+// Temps imparti au coup courant : en mode Sablier, il DÉCROIT (120, 115, … 5 s) ;
+// sinon c'est le temps fixe du réglage.
+function moveTimeLimit() {
+  const base = state.settings.timePerMove;
+  return currentMode().sablier ? sablierTime(base, state.moveNo) : base;
+}
 let moveTimer = null;
 function startMoveTimer() {
   state.moveStart = performance.now();
   if (moveTimer) clearInterval(moveTimer);
   if (state.settings.timePerMove > 0) {
-    state.moveTimeLeft = state.settings.timePerMove;
+    state.moveTimeLeft = moveTimeLimit();
     renderMoveTimer();
     moveTimer = setInterval(() => {
       state.moveTimeLeft--;

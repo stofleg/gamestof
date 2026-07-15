@@ -64,7 +64,16 @@ export const GAME_MODES = {
   // RETIRÉE des menus (hidden) — jugée peu intéressante ; code conservé au cas où.
   snake: { label: "Snake", rackSize: 7, maxPlayed: 7, bonuses: { 7: 50 },
     defaultTime: 120, stofOnly: true, snake: true, hidden: true },
+  // Sablier : partie normale mais chrono DÉCROISSANT — 120 s au coup 1, puis −5 s
+  // par coup (plancher 5 s), partie limitée à 24 coups.
+  sablier: { label: "Sablier", rackSize: 7, maxPlayed: 7, bonuses: { 7: 50 },
+    defaultTime: 120, stofOnly: true, sablier: true },
 };
+
+// Temps imparti pour un coup en mode Sablier : base − 5 s par coup, plancher 5 s.
+export function sablierTime(base, moveNo) {
+  return Math.max(5, (base || 120) - 5 * ((moveNo || 1) - 1));
+}
 // Nom affiché en combinant mode + joker
 export function modeDisplayName(modeKey, withJoker) {
   const m = GAME_MODES[modeKey] || GAME_MODES.duplicate;

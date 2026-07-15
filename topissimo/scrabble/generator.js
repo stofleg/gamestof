@@ -55,6 +55,8 @@ export function generateGame(dict, options = {}, onProgress = null) {
   const estimatedMoves = 28; // pour le calcul de progress
 
   while (true) {
+    // Sablier : partie limitée à 24 coups (le chrono décroissant atteint 5 s au 24e).
+    if (mode.sablier && moves.length >= 24) break;
     // Double joker infini : la partie s'arrête quand il n'y a plus AUCUNE lettre
     // réelle (ni dans le sac, ni dans le chevalet) — tout a été posé sur la grille.
     if (infJoker) {

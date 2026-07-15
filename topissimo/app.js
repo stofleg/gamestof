@@ -3240,6 +3240,7 @@ const PG_STD_OPTIONS = `
   <option value="789">7, 8 et 9</option>`;
 const PG_SUPER_OPTIONS = `
   <optgroup label="Formules superoriginales">
+    <option value="sablier">Sablier</option>
     <option value="6lettres">6 lettres</option>
     <option value="hyperblitz">Hyperblitz</option>
     <option value="7sur15">7 sur 15</option>
@@ -3249,11 +3250,8 @@ const PG_SUPER_OPTIONS = `
     <option value="infjoker">Double joker infini</option>
     <option value="grillerandom">Grille random</option>
   </optgroup>`;
-// Les superoriginales ne sont proposées qu'au pseudo stof.
-// Formules superoriginales MISES EN VEILLE : retirées du générateur pour tous
-// (admin comme stof). Pour les réactiver, restaurer :
-//   return PG_STD_OPTIONS + (isStof() ? PG_SUPER_OPTIONS : "");
-function pgModeOptions() { return PG_STD_OPTIONS; }
+// Les formules superoriginales ne sont proposées qu'au pseudo « stof ».
+function pgModeOptions() { return PG_STD_OPTIONS + (isStof() ? PG_SUPER_OPTIONS : ""); }
 const PG_STD_MODES = ["duplicate", "blitz", "7sur8", "7et8", "789"];   // modes où le joker est optionnel
 // Temps par défaut (s/coup) par mode — doit refléter GAME_MODES[mode].defaultTime
 // d'engine.js. Sert à préremplir le champ « temps » du générateur (le générateur
@@ -3261,7 +3259,7 @@ const PG_STD_MODES = ["duplicate", "blitz", "7sur8", "7et8", "789"];   // modes 
 const PG_DEFAULT_TIME = {
   duplicate: 120, blitz: 60, "7sur8": 120, "7et8": 120, "789": 120,
   "6lettres": 120, hyperblitz: 30, "7sur15": 240, jokerpayant: 120,
-  horizvert: 120, topsoustop: 180, infjoker: 120, grillerandom: 120,
+  horizvert: 120, topsoustop: 180, infjoker: 120, grillerandom: 120, sablier: 120,
 };
 const pgDefaultTime = (mode) => PG_DEFAULT_TIME[mode] ?? 120;
 
