@@ -2427,16 +2427,17 @@ async function loadTournamentDetail(tournamentId) {
         // En pause : côté serveur (autre appareil possible) OU localStorage (filet
         // de sécurité si l'écriture réseau n'a pas eu le temps de partir).
         const suspended = !played && (suspendedSrv.has(g.id) || suspendedPrepared(g.id));
+        const continuerBtn = `<button style="${btnStyle};background:#ffcf33;color:var(--petrol-dark);border:none;cursor:pointer;font-weight:700" onclick="ensureFreshAndNavigate('scrabble/game.html?prepared=${g.id}&tid=${currentTournamentId}')" title="Reprendre la partie en cours">⏯ Continuer</button>`;
         const action = played
           ? `<a style="${btnStyle};background:var(--soft);color:var(--petrol)" href="scrabble/game.html?review=${g.id}&tid=${currentTournamentId}">👁 Revoir</a>`
-          : admin
-            // Admin : peut TESTER (jouer) une partie déjà jouée par stof ; sinon bloquée.
-            ? (stofPlayed.has(g.id)
-                ? `<button style="${btnStyle};background:var(--yellow);color:var(--petrol-dark);border:none;cursor:pointer" onclick="ensureFreshAndNavigate('scrabble/game.html?prepared=${g.id}&tid=${currentTournamentId}')" title="Tester cette partie (déjà jouée par stof — résultat hors classement)">🧪 Tester</button>`
-                : `<button style="${btnStyle};background:var(--soft);color:var(--ink-soft);border:none;opacity:.5;cursor:not-allowed" disabled title="À tester une fois que stof l'aura jouée">▶ Jouer</button>`)
-            : suspended
-              // Partie en pause quittée → reprendre là où on s'était arrêté.
-              ? `<button style="${btnStyle};background:#ffcf33;color:var(--petrol-dark);border:none;cursor:pointer;font-weight:700" onclick="ensureFreshAndNavigate('scrabble/game.html?prepared=${g.id}&tid=${currentTournamentId}')" title="Reprendre la partie en cours">⏯ Continuer</button>`
+          : suspended
+            // Partie en pause quittée → reprendre là où on s'était arrêté (admin compris).
+            ? continuerBtn
+            : admin
+              // Admin : peut TESTER (jouer) une partie déjà jouée par stof ; sinon bloquée.
+              ? (stofPlayed.has(g.id)
+                  ? `<button style="${btnStyle};background:var(--yellow);color:var(--petrol-dark);border:none;cursor:pointer" onclick="ensureFreshAndNavigate('scrabble/game.html?prepared=${g.id}&tid=${currentTournamentId}')" title="Tester cette partie (déjà jouée par stof — résultat hors classement)">🧪 Tester</button>`
+                  : `<button style="${btnStyle};background:var(--soft);color:var(--ink-soft);border:none;opacity:.5;cursor:not-allowed" disabled title="À tester une fois que stof l'aura jouée">▶ Jouer</button>`)
               : `<button style="${btnStyle};background:var(--yellow);color:var(--petrol-dark);border:none;cursor:pointer" onclick="ensureFreshAndNavigate('scrabble/game.html?prepared=${g.id}&tid=${currentTournamentId}')">▶ Jouer</button>`;
         const del = admin ? `<button class="danger" onclick="delPreparedGame(${g.id})" title="Supprimer">🗑</button>` : "";
         // Classement accessible seulement si on a joué la partie (admin compris).
