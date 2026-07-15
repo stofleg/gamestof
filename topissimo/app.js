@@ -2468,7 +2468,7 @@ async function loadTournamentDetail(tournamentId) {
       <h3 style="margin:0 0 8px;font-size:1rem">👥 Progression des joueurs</h3>
       <div style="display:flex;flex-direction:column;gap:7px">${progList.map(p => `
         <div style="display:flex;align-items:center;gap:10px;font-size:.9rem">
-          <span style="flex:0 0 92px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(p.name)}</span>
+          <span style="flex:0 0 150px;font-weight:600;white-space:nowrap">${escapeHtml(p.name)}</span>
           ${bar(p.done, total, progFill(p.done, total))}
           <span style="flex:0 0 46px;text-align:right;color:var(--ink-soft)">${p.done}/${total}</span>
           <span class="neg" style="flex:0 0 52px;text-align:right;font-weight:700">${p.neg}</span>
