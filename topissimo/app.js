@@ -1425,7 +1425,7 @@ async function loadMyStats() {
   // 1) Mes parties tournoi (hors démo). Colonnes EXPLICITES (pas de `diagnostics`,
   //    gros journal de debug jamais lu → économise beaucoup d'egress).
   const tourRaw = await cachedQuery(`my:tour:${pid}`, () => sb.from("prepared_game_results")
-    .select("player_id, prepared_game_id, sum_neg, total_time_seconds, finished_at, details, prepared_games(id,name,mode,with_joker,created_at,time_per_move,tournament_id)")
+    .select("player_id, prepared_game_id, sum_neg, total_time_seconds, finished_at, summary, prepared_games(id,name,mode,with_joker,created_at,time_per_move,tournament_id)")
     .eq("player_id", pid).then(r => r.data || []));
   const tour = tourRaw.filter(r => !demoIds.has(r.prepared_games?.tournament_id));
 
@@ -1439,38 +1439,13 @@ async function loadMyStats() {
     return;
   }
 
-  // ===== Agrégats tournoi =====
-  const tourGames = (tour || []).length;
-  const tourScore = (tour || []).reduce((a, r) => a + (r.total_score || 0), 0);
-  const tourNeg = (tour || []).reduce((a, r) => a + (r.sum_neg || 0), 0);
-  const tourTime = (tour || []).reduce((a, r) => a + (r.total_time_seconds || 0), 0);
-  // Meilleur temps tournoi : on EXCLUT les parties abandonnées
+  // Résumé compact d'un résultat tournoi (mv=coups joués, tp=coups topés, ab=abandon)
+  // et détection d'abandon d'un entraînement (via son history).
+  const sm = r => (r.summary && typeof r.summary === "object") ? r.summary : { mv: [], tp: [], ab: false };
   const isAbandoned = h => Array.isArray(h) && h.length > 0 && h[0]?.abandonedGame === true;
-  const bestTourTime = Math.min(
-    ...(tour || [])
-      .filter(r => r.total_time_seconds && !isAbandoned(r.details))
-      .map(r => r.total_time_seconds),
-    Infinity
-  );
-
-  // ===== Agrégats entraînement =====
-  const trainGames = (train || []).length;
-  const trainScore = (train || []).reduce((a, r) => a + r.total_score, 0);
-  const trainNeg = (train || []).reduce((a, r) => a + r.sum_neg, 0);
-  const trainTime = (train || []).reduce((a, r) => a + (r.total_time_seconds || 0), 0);
-  // Meilleur temps entraînement : EXCLUT les parties abandonnées
-  const bestTrainTime = Math.min(
-    ...(train || [])
-      .filter(r => r.total_time_seconds && !isAbandoned(r.history))
-      .map(r => r.total_time_seconds),
-    Infinity
-  );
 
   // ===== Streak inter-parties tournoi =====
-  // IMPORTANT : trier dans l'ORDRE OÙ LE JOUEUR A JOUÉ (finished_at d'abord),
-  // identique au calcul des Stats du club. Trier par created_at (date de
-  // génération de la partie) donnerait un ordre différent → une série plus
-  // courte (c'était la cause de l'écart 39 club vs 33 perso).
+  // Ordre chronologique (finished_at d'abord), comme les Stats du club.
   const tourSorted = [...(tour || [])].sort((a, b) => {
     const da = a.finished_at || a.prepared_games?.created_at || "";
     const db = b.finished_at || b.prepared_games?.created_at || "";
@@ -1478,8 +1453,10 @@ async function loadMyStats() {
   });
   let cur = 0, maxStreak = 0;
   for (const r of tourSorted) {
-    for (const m of (r.details || []).sort((a, b) => a.moveNo - b.moveNo)) {
-      if (m.status === "top") { cur++; if (cur > maxStreak) maxStreak = cur; }
+    const s = sm(r);
+    const tpSet = new Set(s.tp || []);
+    for (const n of [...(s.mv || [])].sort((a, b) => a - b)) {
+      if (tpSet.has(n)) { cur++; if (cur > maxStreak) maxStreak = cur; }
       else cur = 0;
     }
   }
@@ -1491,15 +1468,16 @@ async function loadMyStats() {
   if (tour && tour.length) {
     const gameIds = [...new Set(tour.map(r => r.prepared_game_id))];
     const allResults = await cachedQuery(`my:solos:${pid}`, () => sb.from("prepared_game_results")
-      .select("player_id, prepared_game_id, details").in("prepared_game_id", gameIds).then(r => r.data || []));
+      .select("player_id, prepared_game_id, summary").in("prepared_game_id", gameIds).then(r => r.data || []));
     const byGame = {};
     for (const r of allResults || []) (byGame[r.prepared_game_id] ||= []).push(r);
     for (const rs of Object.values(byGame)) {
       const playedBy = {};   // moveNo -> Set des joueurs ayant joué ce coup
       const toppedBy = {};   // moveNo -> Set des joueurs ayant topé ce coup
-      for (const r of rs) for (const h of (r.details || [])) {
-        (playedBy[h.moveNo] ||= new Set()).add(r.player_id);
-        if (h.status === "top") (toppedBy[h.moveNo] ||= new Set()).add(r.player_id);
+      for (const r of rs) {
+        const s = sm(r);
+        for (const n of (s.mv || [])) (playedBy[n] ||= new Set()).add(r.player_id);
+        for (const n of (s.tp || [])) (toppedBy[n] ||= new Set()).add(r.player_id);
       }
       for (const [mv, played] of Object.entries(playedBy)) {
         if (played.size < 2 || !played.has(pid)) continue;
@@ -1522,18 +1500,18 @@ async function loadMyStats() {
       : { key: "normal", label: "Normal (120s)" };
     return { key: (joker ? "j_" : "") + m, label: modeDisplayName(m, joker) };
   };
-  const mkRec = (sumNeg, time, moves, mode, joker, tpm) => {
-    const ab = isAbandoned(moves);
-    return { neg: sumNeg || 0, time: time || 0, cat: catOf(mode, joker, tpm),
-             abandoned: ab, isTop: (sumNeg || 0) === 0 && !ab };
-  };
+  const mkRec = (sumNeg, time, ab, mode, joker, tpm) => ({
+    neg: sumNeg || 0, time: time || 0, cat: catOf(mode, joker, tpm),
+    abandoned: !!ab, isTop: (sumNeg || 0) === 0 && !ab,
+  });
   // On ne compte que les parties RÉELLEMENT jouées (avec des coups) : on écarte les
   // fiches vides (ex. import démo, ou partie ouverte puis quittée sans jouer).
+  // Tournoi : via summary (mv/ab) ; entraînement : via history.
   const hasMoves = a => Array.isArray(a) && a.length > 0;
-  const tourRecs  = (tour  || []).filter(r => hasMoves(r.details))
-    .map(r => mkRec(r.sum_neg, r.total_time_seconds, r.details, r.prepared_games?.mode, r.prepared_games?.with_joker, r.prepared_games?.time_per_move));
+  const tourRecs  = (tour  || []).filter(r => hasMoves(sm(r).mv))
+    .map(r => mkRec(r.sum_neg, r.total_time_seconds, sm(r).ab, r.prepared_games?.mode, r.prepared_games?.with_joker, r.prepared_games?.time_per_move));
   const trainRecs = (train || []).filter(t => hasMoves(t.history))
-    .map(t => mkRec(t.sum_neg, t.total_time_seconds, t.history, t.mode, t.with_joker, t.time_per_move));
+    .map(t => mkRec(t.sum_neg, t.total_time_seconds, isAbandoned(t.history), t.mode, t.with_joker, t.time_per_move));
 
   // ===== Série de tops (chronologique) =====
   const streakOf = (sorted, getMoves) => {
@@ -1573,13 +1551,13 @@ async function loadMyStats() {
   const sTrain = colStats(trainRecs);
 
   // % de tops = coups au top / coups joués (au niveau du COUP, pas de la partie).
-  const topsPctOf = (games, getMoves) => {
-    let tops = 0, total = 0;
-    for (const g of games) for (const m of (getMoves(g) || [])) { total++; if (m.status === "top") tops++; }
-    return total ? Math.round(tops / total * 100) : null;
-  };
-  const tourTopsPct = topsPctOf(tour || [], g => g.details);
-  const trainTopsPct = topsPctOf(train || [], g => g.history);
+  // Tournoi : depuis summary (tp/mv). Entraînement : depuis history (status).
+  let tourTops = 0, tourMoves = 0;
+  for (const r of (tour || [])) { const s = sm(r); tourTops += (s.tp || []).length; tourMoves += (s.mv || []).length; }
+  const tourTopsPct = tourMoves ? Math.round(tourTops / tourMoves * 100) : null;
+  let trainTops = 0, trainMoves = 0;
+  for (const t of (train || [])) for (const m of (t.history || [])) { trainMoves++; if (m.status === "top") trainTops++; }
+  const trainTopsPct = trainMoves ? Math.round(trainTops / trainMoves * 100) : null;
 
   const negCard = (prefix, tabs) => {
     const btns = tabs.map((t, i) => `<button class="negtab-btn" data-neg="${prefix}" data-negv="${t.v == null ? "" : fmtNeg(t.v)}" style="${i === 0 ? tabActive : tabBase}">${escapeHtml(t.label)}</button>`).join("");
@@ -1908,7 +1886,7 @@ async function loadSolosAndStreaks() {
   // Récupérer TOUS les résultats en paginant : PostgREST plafonne à 1000 lignes par
   // requête, or le total dépasse ce seuil (ex. « En route pour les ICE » = 96 parties
   // × plusieurs joueurs) → sans pagination, les classements tronquent (sous-comptage).
-  const SEL = "player_id, prepared_game_id, total_time_seconds, sum_neg, finished_at, details, players(name), prepared_games(id,name,mode,with_joker,time_per_move,created_at,tournament_id)";
+  const SEL = "player_id, prepared_game_id, total_time_seconds, sum_neg, finished_at, summary, players(name), prepared_games(id,name,mode,with_joker,time_per_move,created_at,tournament_id)";
   const detailedRaw = await cachedQuery("club:detailed", async () => {
     const acc = [];
     for (let from = 0; from < 50000; from += 1000) {
@@ -1931,6 +1909,10 @@ async function loadSolosAndStreaks() {
 
   const me = +state.currentPlayerId || 0;
   const fmtT = (s) => !s ? "—" : `${Math.floor(s/60)}:${String(s%60).padStart(2,"0")}`;
+  // Résumé compact d'un résultat (au lieu du gros details) : mv=coups joués,
+  // tp=coups topés, ab=abandon. Tout se calcule à partir de ça + sum_neg + temps.
+  const sm = r => (r.summary && typeof r.summary === "object") ? r.summary : { mv: [], tp: [], ab: false };
+  const hasMovesR = r => (sm(r).mv || []).length > 0;
 
   // ===== TOP SOLOS (cumul sur TOUS les tournois) =====
   // Solo joueur = un coup topé par UN SEUL joueur, parmi un coup réellement joué
@@ -1950,7 +1932,7 @@ async function loadSolosAndStreaks() {
   for (const r of detailed) {
     const tid = gameToTour[r.prepared_game_id];
     if (tid == null) continue;
-    if (!(Array.isArray(r.details) && r.details.length)) continue;   // partie réellement jouée
+    if (!hasMovesR(r)) continue;   // partie réellement jouée (des coups)
     (donePerTourPlayer[`${tid}|${r.player_id}`] ||= new Set()).add(r.prepared_game_id);
   }
   const completersByTour = {};    // tid → nb de joueurs ayant TOUT complété
@@ -1974,9 +1956,10 @@ async function loadSolosAndStreaks() {
     if (tid == null || !qualifyingTour.has(String(tid))) continue;
     const playedByMove = {};   // moveNo → Set des joueurs ayant joué ce coup
     const toppedByMove = {};   // moveNo → Set des joueurs ayant topé ce coup
-    for (const r of rs) for (const h of (r.details || [])) {
-      (playedByMove[h.moveNo] ||= new Set()).add(r.player_id);
-      if (h.status === "top") (toppedByMove[h.moveNo] ||= new Set()).add(r.player_id);
+    for (const r of rs) {
+      const s = sm(r);
+      for (const n of (s.mv || [])) (playedByMove[n] ||= new Set()).add(r.player_id);
+      for (const n of (s.tp || [])) (toppedByMove[n] ||= new Set()).add(r.player_id);
     }
     for (const [mv, played] of Object.entries(playedByMove)) {
       if (played.size < 2) continue;
@@ -2000,11 +1983,14 @@ async function loadSolosAndStreaks() {
   // puis trouver la plus longue série de "top" consécutifs.
   const byPlayer = {};
   for (const r of detailed) {
+    const s = sm(r);
+    const tpSet = new Set(s.tp || []);
+    // Séquence top/non-top des coups, dans l'ordre des n° de coup.
+    const seq = [...(s.mv || [])].sort((a, b) => a - b).map(n => tpSet.has(n));
     (byPlayer[r.player_id] ||= { name: r.players?.name || "?", id: r.player_id, entries: [] })
       .entries.push({
         gameDate: r.finished_at || r.prepared_games?.created_at || "1970-01-01",
-        gameName: r.prepared_games?.name || "?",
-        moves: (r.details || []).sort((a, b) => a.moveNo - b.moveNo),
+        seq,
       });
   }
   const streaks = [];
@@ -2013,8 +1999,8 @@ async function loadSolosAndStreaks() {
     p.entries.sort((a, b) => a.gameDate.localeCompare(b.gameDate));
     let cur = 0, max = 0;
     for (const e of p.entries) {
-      for (const m of e.moves) {
-        if (m.status === "top") { cur++; if (cur > max) max = cur; }
+      for (const isTop of e.seq) {
+        if (isTop) { cur++; if (cur > max) max = cur; }
         else cur = 0;
       }
     }
@@ -2023,11 +2009,10 @@ async function loadSolosAndStreaks() {
   streaks.sort((a, b) => b.length - a.length);
 
   // ===== Meilleurs temps sur une partie =====
-  // On EXCLUT les parties abandonnées (1er coup marqué abandonedGame) : elles ne
-  // doivent pas figurer dans « la partie la plus rapide » (ex. abandon à 0:07).
-  const isAbandoned = h => Array.isArray(h) && h.length > 0 && h[0]?.abandonedGame === true;
+  // On EXCLUT les parties abandonnées (summary.ab) : elles ne doivent pas figurer
+  // dans « la partie la plus rapide » (ex. abandon à 0:07).
   const timeRecs = detailed
-    .filter(r => r.total_time_seconds && !isAbandoned(r.details))
+    .filter(r => r.total_time_seconds && !sm(r).ab)
     .map(r => ({
       player_id: r.player_id, name: r.players?.name || "?",
       time: r.total_time_seconds,
@@ -2055,18 +2040,18 @@ async function loadSolosAndStreaks() {
   };
   const P = {};   // pid → { name, id, topGames, playedGames, topMoves, totalMoves, negByCat }
   for (const r of detailed) {
-    const moves = r.details || [];
-    if (!moves.length) continue;
+    const s = sm(r);
+    const nMoves = (s.mv || []).length;
+    if (!nMoves) continue;
     const p = (P[r.player_id] ||= { name: r.players?.name || "?", id: r.player_id, topGames: 0, playedGames: 0, topMoves: 0, totalMoves: 0, negByCat: {} });
-    // « Parties jouées » = toutes les parties avec des coups (abandons compris),
-    // comme dans « Mes stats ».
+    // « Parties jouées » = toutes les parties avec des coups (abandons compris).
     p.playedGames++;
     // Le reste (au top, % coups, négatif moyen) exclut les parties abandonnées.
-    if (isAbandoned(moves)) continue;
-    // « Au top » = négatif total nul (même définition que « Mes stats »), et non
-    // « statut top à chaque coup » (un top trouvé au temps écoulé compte).
+    if (s.ab) continue;
+    // « Au top » = négatif total nul.
     if ((r.sum_neg || 0) === 0) p.topGames++;
-    for (const m of moves) { p.totalMoves++; if (m.status === "top") p.topMoves++; }
+    p.totalMoves += nMoves;
+    p.topMoves += (s.tp || []).length;
     const c = catOf(r.prepared_games?.mode, r.prepared_games?.with_joker, r.prepared_games?.time_per_move);
     (p.negByCat[c.key] ||= { label: c.label, negs: [] }).negs.push(r.sum_neg || 0);
     (p.negByCat.__gen ||= { label: "Général", negs: [] }).negs.push(r.sum_neg || 0);
