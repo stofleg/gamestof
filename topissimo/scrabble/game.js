@@ -3624,9 +3624,32 @@ async function stopGameFromSettings() {
     return;
   }
   if (wasTraining) {
-    // Conserver la partie inachevée pour une reprise ultérieure.
-    saveTrainingState();
-    window.location.href = "../index.html";
+    // Arrêt explicite d'un entraînement : on abandonne la partie (pas de reprise)
+    // et on RESTE sur la page → grille vidée + écran pré-départ + préférences ouvertes.
+    clearSavedTraining();
+    state.board = emptyBoard();
+    state.rack = [];
+    state.pending = [];
+    state.cursor = null;
+    state.history = [];
+    state.moveNo = 1;
+    state.totalScore = 0;
+    state.sumNeg = 0;
+    state.topMove = null;
+    state.bestAttempt = null;
+    state.lastPlaced = [];
+    state.lastTopCells = [];
+    state.chronoPenalty = 0;
+    state.chronoFinal = null;
+    state.started = false;
+    state.bag = { ...LETTER_BAG };
+    state.spareJokers = 0;
+    $("#actionRowInGame").hidden = true;
+    $("#actionRowPreStart").hidden = false;
+    $("#btnPause").hidden = true;
+    hideFeedback();
+    renderBoard(); renderRack(); renderBag(); renderInfo();
+    openSettings();
     return;
   }
   // Solo / autre : quitter sans enregistrer.
