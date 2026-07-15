@@ -10,6 +10,7 @@
 import {
   emptyBoard, LETTER_BAG, drawForDuplicate, applyMove,
   bagTotalVowels, bagTotalConsonants, GAME_MODES, randomBoardLayout, snakeEndpointsAfter, gigogneRackSize,
+  bagFor, valuesFor, setLetterValues, LETTER_VALUE,
 } from "./engine.js?v=347";
 import { findTopRanked, findTop, snakeBestTop } from "./topfinder.js?v=347";
 
@@ -36,7 +37,9 @@ export function generateGame(dict, options = {}, onProgress = null) {
   // Le joker payant est une partie joker (jokers retirés du sac + recyclés).
   const withJoker = !!options.withJoker || jokerPays;
 
-  let bag = { ...LETTER_BAG };
+  // « À l'anglaise » : sac + valeurs anglais (table active pour le scoring).
+  setLetterValues(valuesFor(modeKey));
+  let bag = { ...bagFor(modeKey) };
   let spareJokers = 0;
   if (withJoker) {
     spareJokers = bag["?"] || 0;
@@ -271,9 +274,11 @@ export function generateGame(dict, options = {}, onProgress = null) {
     if (badMoves.length > 0) {
       const details = badMoves.map(m => `coup ${m.moveNo} : "${m.rack}"`).join(", ");
       console.error(`[generator] partie joker : joker absent du rack — ${details}`);
+      setLetterValues(LETTER_VALUE);   // toujours revenir aux valeurs FR
       return { moves, totalTopScore, finalBag: bag, finalRack, jokerError: details };
     }
   }
 
+  setLetterValues(LETTER_VALUE);   // toujours revenir aux valeurs FR
   return { moves, totalTopScore, finalBag: bag, finalRack };
 }

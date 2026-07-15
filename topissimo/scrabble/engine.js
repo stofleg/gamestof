@@ -18,6 +18,28 @@ export const LETTER_BAG = {
   U: 6, V: 2, W: 1, X: 1, Y: 1, Z: 1, "?": 2,
 };
 
+// ----- Mode « À l'anglaise » : distribution et valeurs du Scrabble anglais -----
+export const LETTER_VALUE_EN = {
+  A: 1, B: 3, C: 3, D: 2, E: 1, F: 4, G: 2, H: 4, I: 1, J: 8,
+  K: 5, L: 1, M: 3, N: 1, O: 1, P: 3, Q: 10, R: 1, S: 1, T: 1,
+  U: 1, V: 4, W: 4, X: 8, Y: 4, Z: 10, "?": 0,
+};
+export const LETTER_BAG_EN = {
+  A: 9, B: 2, C: 2, D: 4, E: 12, F: 2, G: 3, H: 2, I: 9, J: 1,
+  K: 1, L: 4, M: 2, N: 6, O: 8, P: 2, Q: 1, R: 6, S: 4, T: 6,
+  U: 4, V: 2, W: 2, X: 1, Y: 2, Z: 1, "?": 2,
+};
+
+// Table de valeurs ACTIVE (le scoring s'y réfère). On la bascule sur l'anglaise
+// pour le mode « À l'anglaise », française sinon. Binding vivant : les modules qui
+// importent `letterValue` voient la mise à jour.
+let _activeValues = LETTER_VALUE;
+export function setLetterValues(table) { _activeValues = table || LETTER_VALUE; }
+export function letterValue(l) { return _activeValues[l] || 0; }
+// Sac / valeurs selon la formule.
+export function bagFor(modeKey) { return (GAME_MODES[modeKey] && GAME_MODES[modeKey].english) ? LETTER_BAG_EN : LETTER_BAG; }
+export function valuesFor(modeKey) { return (GAME_MODES[modeKey] && GAME_MODES[modeKey].english) ? LETTER_VALUE_EN : LETTER_VALUE; }
+
 export const VOWELS = new Set(["A", "E", "I", "O", "U", "Y"]);
 
 // ============================================================
@@ -74,6 +96,10 @@ export const GAME_MODES = {
   gigogne: { label: "Gigogne", rackSize: 2, maxPlayed: 15,
     bonuses: { 7: 50, 8: 75, 9: 100, 10: 125, 11: 150, 12: 175, 13: 200, 14: 225, 15: 250 },
     defaultTime: 120, stofOnly: true, gigogne: true },
+  // À l'anglaise : règles normales mais distribution + valeurs des lettres du
+  // Scrabble anglais (dictionnaire français inchangé).
+  anglaise: { label: "À l'anglaise", rackSize: 7, maxPlayed: 7, bonuses: { 7: 50 },
+    defaultTime: 120, stofOnly: true, english: true },
 };
 
 // Temps imparti pour un coup en mode Sablier : base − 5 s par coup, plancher 5 s.
@@ -442,8 +468,8 @@ export function scoreMove(board, move, dict, opts = {}) {
       // au moment où il est posé (jeton nouveau). Une fois sur la grille, un mot qui
       // s'appuie dessus le compte 0 (comme un blanc classique). Sinon : 0 (standard).
       let letterScore = cell.isBlank
-        ? ((opts.jokerPays && isNew) ? (LETTER_VALUE[cell.letter] || 0) : 0)
-        : LETTER_VALUE[cell.letter];
+        ? ((opts.jokerPays && isNew) ? (_activeValues[cell.letter] || 0) : 0)
+        : _activeValues[cell.letter];
       if (isNew) {
         // Grille random : disposition des bonus propre à la partie (opts.layout).
         const b = (opts.layout || BOARD_BONUSES)[cell.r][cell.c];

@@ -27,6 +27,7 @@ import {
   emptyBoard, BOARD_BONUSES, BOARD_SIZE, CENTER, LETTER_VALUE, LETTER_BAG,
   VOWELS, drawForDuplicate, scoreMove, applyMove,
   bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName, randomBoardLayout, snakeEndpointsAfter, sablierTime, gigogneRackSize,
+  setLetterValues, letterValue, valuesFor, bagFor,
 } from "./engine.js?v=347";
 import { Dictionary } from "./dictionary.js?v=347";
 import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=347";
@@ -279,7 +280,11 @@ async function saveSettingsToSupabase() {
 }
 
 function currentMode() {
-  return GAME_MODES[state.settings.gameMode] || GAME_MODES.duplicate;
+  const m = GAME_MODES[state.settings.gameMode] || GAME_MODES.duplicate;
+  // « À l'anglaise » : garder la table de valeurs ACTIVE synchronisée sur le mode
+  // (le scoring et l'affichage s'y réfèrent). Appelé partout avant scoring/rendu.
+  setLetterValues(valuesFor(state.settings.gameMode));
+  return m;
 }
 // Taille du tirage au coup courant (Gigogne : grandit ; sinon fixe).
 function rackTargetNow() {
@@ -370,7 +375,7 @@ function renderBoard() {
         if (tile.isBlank) tcls.push("blank");
         if (tile.pending) tcls.push("pending");
         if (tile.invalid || isInvalidCell) tcls.push("invalid");
-        const tval = tile.isBlank ? "" : LETTER_VALUE[tile.letter];
+        const tval = tile.isBlank ? "" : letterValue(tile.letter);
         // Les tuiles "pending" sont draggables (pour les déplacer)
         const dragAttr = tile.pending ? `draggable="true" data-pending-r="${r}" data-pending-c="${c}"` : "";
         tileHtmlStr = `<div class="${tcls.join(" ")}" ${dragAttr}>${tile.letter}<span class="val">${tval ?? ""}</span></div>`;
@@ -480,7 +485,7 @@ function renderRack() {
   // Génère les tuiles draggables
   div.innerHTML = tiles.map(t => {
     const blank = t.letter === "?";
-    const val = blank ? "" : LETTER_VALUE[t.letter];
+    const val = blank ? "" : letterValue(t.letter);
     const cls = ["tile"];
     if (t.used) cls.push("used");
     if (blank) cls.push("blank");
@@ -623,7 +628,7 @@ function onRackTouchMove(e) {
     const tile = state.rack.find(x => x.id === _touchDrag.id);
     const g = document.createElement("div");
     g.className = "tile drag-ghost";
-    const v = tile && tile.letter !== "?" ? (LETTER_VALUE[tile.letter] ?? "") : "";
+    const v = tile && tile.letter !== "?" ? (letterValue(tile.letter) ?? "") : "";
     g.innerHTML = `${tile?.letter || ""}<span class="val">${v}</span>`;
     if (tile?.letter === "?") g.classList.add("blank");
     document.body.appendChild(g);
@@ -3642,7 +3647,7 @@ async function stopGameFromSettings() {
     state.chronoPenalty = 0;
     state.chronoFinal = null;
     state.started = false;
-    state.bag = { ...LETTER_BAG };
+    state.bag = { ...bagFor(state.settings.gameMode) };
     state.spareJokers = 0;
     $("#actionRowInGame").hidden = true;
     $("#actionRowPreStart").hidden = false;
@@ -3829,7 +3834,7 @@ function populateAdminModes() {
 async function initGame() {
   captureSwVersion();   // détecter un éventuel service worker périmé
   populateAdminModes();
-  state.bag = { ...LETTER_BAG };
+  state.bag = { ...bagFor(state.settings.gameMode) };
   state.prepared = null;
   state.isPuzzle = false;
   state.preparedIdx = 0;
@@ -4609,7 +4614,7 @@ function renderSnapshotToBlob(board, rack, opts = {}) {
             ctx.font = `600 10px ${tileFontFamily}`;
             ctx.textAlign = "right";
             ctx.textBaseline = "bottom";
-            ctx.fillText(String(LETTER_VALUE[cell.letter] ?? ""), x + CELL - 6, y + CELL - 4);
+            ctx.fillText(String(letterValue(cell.letter) ?? ""), x + CELL - 6, y + CELL - 4);
           }
         }
       }
@@ -4649,7 +4654,7 @@ function renderSnapshotToBlob(board, rack, opts = {}) {
         ctx.font = `600 11px ${tileFontFamily}`;
         ctx.textAlign = "right";
         ctx.textBaseline = "bottom";
-        ctx.fillText(String(LETTER_VALUE[L] ?? ""), x + TW - 6, y + TH - 5);
+        ctx.fillText(String(letterValue(L) ?? ""), x + TW - 6, y + TH - 5);
       }
     });
     // Filigrane
@@ -5001,7 +5006,7 @@ async function loadPreparedGame(id) {
   state.settings.withJoker = data.with_joker;
   state.settings.timePerMove = data.time_per_move;
   // Re-init du sac/jokers (initGame n'avait pas encore connaissance du mode pré-tiré)
-  state.bag = { ...LETTER_BAG };
+  state.bag = { ...bagFor(state.settings.gameMode) };
   if (state.settings.withJoker) {
     state.spareJokers = state.bag["?"] || 0;
     state.bag["?"] = 0;
