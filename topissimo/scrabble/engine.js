@@ -100,6 +100,11 @@ export const GAME_MODES = {
   // Scrabble anglais (dictionnaire français inchangé).
   anglaise: { label: "À l'anglaise", rackSize: 7, maxPlayed: 7, bonuses: { 7: 50 },
     defaultTime: 120, stofOnly: true, english: true },
+  // Lettre cachée : partie normale, mais après chaque coup un jeton DÉJÀ présent
+  // sur la grille est retourné (masqué à l'affichage). Il reste jouable et garde
+  // sa valeur — seul le joueur ne voit plus la lettre (mémoire).
+  lettrecachee: { label: "Lettre cachée", rackSize: 7, maxPlayed: 7, bonuses: { 7: 50 },
+    defaultTime: 120, stofOnly: true, lettrecachee: true },
 };
 
 // Temps imparti pour un coup en mode Sablier : base − 5 s par coup, plancher 5 s.

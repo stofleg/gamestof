@@ -637,6 +637,18 @@ body.theme-duplijeu .board tr:last-child td.coord { height: calc(var(--cell-size
    !important pour battre les overrides de thème (ex. DupliJeu fixe color: #111). */
 .tile.blank,
 body.theme-duplijeu .tile.blank { color: #c8202a !important; }
+/* Lettre cachée : jeton retourné (dos), la lettre reste en jeu mais masquée. */
+.tile.hidden-letter {
+  background: linear-gradient(135deg, #2a5468 0%, var(--petrol, #0d3a4f) 55%, #06222f 100%);
+  color: #cfe0e8;
+  border-color: rgba(0,0,0,.35);
+}
+.tile.hidden-letter::after {
+  content: "?";
+  font-family: 'Georgia', serif;
+  font-weight: 700;
+  opacity: .5;
+}
 .tile.blank .val { display: none; }
 
 /* Avertissement "paramètres verrouillés" dans la modale Réglages */

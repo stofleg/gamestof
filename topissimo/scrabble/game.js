@@ -375,10 +375,15 @@ function renderBoard() {
         if (tile.isBlank) tcls.push("blank");
         if (tile.pending) tcls.push("pending");
         if (tile.invalid || isInvalidCell) tcls.push("invalid");
+        // Lettre cachée : jeton retourné → on masque lettre + valeur (mais il reste
+        // posé). En REVUE, on révèle tout (plus utile pour apprendre).
+        const hidden = !tile.pending && !review.active && state.hiddenCells && state.hiddenCells.has(`${r},${c}`);
         const tval = tile.isBlank ? "" : letterValue(tile.letter);
         // Les tuiles "pending" sont draggables (pour les déplacer)
         const dragAttr = tile.pending ? `draggable="true" data-pending-r="${r}" data-pending-c="${c}"` : "";
-        tileHtmlStr = `<div class="${tcls.join(" ")}" ${dragAttr}>${tile.letter}<span class="val">${tval ?? ""}</span></div>`;
+        tileHtmlStr = hidden
+          ? `<div class="tile hidden-letter"></div>`
+          : `<div class="${tcls.join(" ")}" ${dragAttr}>${tile.letter}<span class="val">${tval ?? ""}</span></div>`;
       }
       // Badge de score progressif : dans la case calculée (après le mot).
       let badge = "";
@@ -2440,6 +2445,26 @@ function placeTopAndAdvance(playerScore, playedWord = null, playedScore = null, 
   // Appliquer le top au plateau
   state.board = applyMove(state.board, tm.move);
 
+  // Lettre cachée : retourner un jeton DÉJÀ présent (pas ceux posés à ce coup).
+  if (currentMode().lettrecachee) {
+    if (!state.hiddenCells) state.hiddenCells = new Set();
+    if (state.prepared) {
+      // Tournoi : case fixée à la génération (même pour tous).
+      const cur = state.prepared.moves[state.preparedIdx];
+      if (cur && cur.hidden) state.hiddenCells.add(`${cur.hidden.row},${cur.hidden.col}`);
+    } else {
+      // Entraînement : un jeton présent avant ce coup, non encore masqué.
+      const placedNow = new Set(lastPlaced.map(p => `${p.row},${p.col}`));
+      const occ = [];
+      for (let r = 0; r < state.board.length; r++)
+        for (let c = 0; c < state.board[r].length; c++) {
+          const k = `${r},${c}`;
+          if (state.board[r][c] && !placedNow.has(k) && !state.hiddenCells.has(k)) occ.push(k);
+        }
+      if (occ.length) state.hiddenCells.add(occ[Math.floor(Math.random() * occ.length)]);
+    }
+  }
+
   // Mode joker (règle FFSC 3.8.1) : si le top utilise le joker, tenter le
   // remplacement par la lettre adéquate si elle est encore dans le sac.
   // UNIQUEMENT en entraînement (où state.bag est suivi). En pré-tiré (tournoi/puzzle),
@@ -3848,6 +3873,7 @@ async function initGame() {
   // Grille random (entraînement) : disposition des bonus tirée pour cette partie.
   state.boardLayout = currentMode().randomBoard ? randomBoardLayout() : null;
   state.snakeEnds = null;   // mode Snake : extrémités du serpent
+  state.hiddenCells = new Set();   // mode Lettre cachée : cases retournées
 
   state.board = emptyBoard();
   state.rack = [];
@@ -5102,6 +5128,7 @@ function saveTrainingState() {
       spareJokers: state.spareJokers,
       history: state.history,
       lastPlaced: state.lastPlaced || [],
+      hiddenCells: state.hiddenCells ? [...state.hiddenCells] : [],
       bestAttempt: state.bestAttempt,
       settings: state.settings,
       chronoElapsed: state._pauseInfo?.elapsed ?? elapsedSeconds(),
@@ -5166,6 +5193,7 @@ function restorePausedTraining() {
     state.spareJokers = s.spareJokers || 0;
     state.history = s.history || [];
     state.lastPlaced = s.lastPlaced || [];
+    state.hiddenCells = new Set(s.hiddenCells || []);
     state.lastTopCells = s.lastTopCells || [];
     state.bestAttempt = s.bestAttempt || null;
     Object.assign(state.settings, s.settings || {});
@@ -5228,6 +5256,7 @@ async function restorePausedPrepared(preparedId) {
     state.spareJokers = s.spareJokers || 0;
     state.history = s.history || [];
     state.lastPlaced = s.lastPlaced || [];
+    state.hiddenCells = new Set(s.hiddenCells || []);
     state.bestAttempt = s.bestAttempt || null;
     state.chronoPenalty = s.chronoPenalty || 0;
     state.started = true;

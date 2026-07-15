@@ -3243,6 +3243,7 @@ const PG_SUPER_OPTIONS = `
     <option value="sablier">Sablier</option>
     <option value="gigogne">Gigogne</option>
     <option value="anglaise">À l'anglaise</option>
+    <option value="lettrecachee">Lettre cachée</option>
     <option value="6lettres">6 lettres</option>
     <option value="hyperblitz">Hyperblitz</option>
     <option value="7sur15">7 sur 15</option>
@@ -3261,7 +3262,7 @@ const PG_STD_MODES = ["duplicate", "blitz", "7sur8", "7et8", "789"];   // modes 
 const PG_DEFAULT_TIME = {
   duplicate: 120, blitz: 60, "7sur8": 120, "7et8": 120, "789": 120,
   "6lettres": 120, hyperblitz: 30, "7sur15": 240, jokerpayant: 120,
-  horizvert: 120, topsoustop: 180, infjoker: 120, grillerandom: 120, sablier: 120, gigogne: 120, anglaise: 120,
+  horizvert: 120, topsoustop: 180, infjoker: 120, grillerandom: 120, sablier: 120, gigogne: 120, anglaise: 120, lettrecachee: 120,
 };
 const pgDefaultTime = (mode) => PG_DEFAULT_TIME[mode] ?? 120;
 

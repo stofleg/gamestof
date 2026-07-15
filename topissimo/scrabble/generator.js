@@ -54,6 +54,7 @@ export function generateGame(dict, options = {}, onProgress = null) {
   let totalTopScore = 0;
   let moveNo = 1;
   let snakeEnds = null;   // mode Snake : les 2 extrémités du serpent
+  const hiddenSet = new Set();   // mode Lettre cachée : cases déjà retournées
 
   const estimatedMoves = 28; // pour le calcul de progress
 
@@ -174,6 +175,22 @@ export function generateGame(dict, options = {}, onProgress = null) {
       }
     }
 
+    // Lettre cachée : après ce coup, on retourne un jeton DÉJÀ présent (board =
+    // état AVANT ce coup) et pas encore masqué. On le mémorise pour rejouer à
+    // l'identique. (Aucun jeton à masquer au 1er coup : grille vide avant.)
+    let hiddenCell = null;
+    if (mode.lettrecachee) {
+      const occ = [];
+      for (let r = 0; r < board.length; r++)
+        for (let c = 0; c < board[r].length; c++)
+          if (board[r][c] && !hiddenSet.has(r + "," + c)) occ.push([r, c]);
+      if (occ.length) {
+        const [hr, hc] = occ[Math.floor(Math.random() * occ.length)];
+        hiddenCell = { row: hr, col: hc };
+        hiddenSet.add(hr + "," + hc);
+      }
+    }
+
     // Enregistrer le coup
     moves.push({
       moveNo,
@@ -190,6 +207,7 @@ export function generateGame(dict, options = {}, onProgress = null) {
         words: top.words,
       },
       ...(subTop ? { subTop } : {}),
+      ...(hiddenCell ? { hidden: hiddenCell } : {}),
       ...(mode.snake ? { _ends: snakeEnds } : {}),   // extrémités du serpent AVANT ce coup
     });
     totalTopScore += top.score;
