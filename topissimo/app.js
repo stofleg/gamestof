@@ -2381,75 +2381,109 @@ async function loadTournamentDetail(tournamentId) {
   // S'assurer qu'au moins une ligne de formule est présente dans le générateur.
   if (isAdmin() && $("#pgRecipe") && !$("#pgRecipe").children.length) pgAddRecipeLine();
 
-  // Parties déjà jouées par le joueur courant
-  // → "jouée" = result présent ET détail coup par coup non vide (sinon c'est
-  //   un résultat importé sans partie réelle, donc rien à revoir).
-  const playedIds = new Set();
-  const suspendedSrv = new Set();   // parties en pause côté serveur (multi-appareils)
-  if (state.currentPlayerId && (games || []).length) {
-    const gameIds = games.map(g => g.id);
-    // Léger : summary (dit si des coups ont été joués) + paused, filtré sur ce tournoi.
-    const { data: results } = await sb.from("prepared_game_results")
-      .select("prepared_game_id, summary, paused")
-      .eq("player_id", +state.currentPlayerId)
-      .in("prepared_game_id", gameIds);
-    (results || []).forEach(r => {
-      const hasMoves = r.summary && Array.isArray(r.summary.mv) && r.summary.mv.length > 0;
-      if (hasMoves) playedIds.add(r.prepared_game_id);
-      else if (r.paused) suspendedSrv.add(r.prepared_game_id);
-    });
-  }
-
   const { modeDisplayName } = await import("./scrabble/engine.js?v=344");
   const btnStyle = "text-decoration:none;padding:5px 10px;border-radius:6px;font-weight:600;font-size:.85rem";
   const admin = isAdmin();
 
-  // Admin : autoriser à tester (jouer) UNIQUEMENT les parties déjà jouées par
-  // « stof » (pour ne pas se dévoiler une partie non encore jouée). Les résultats
-  // admin sont de toute façon exclus des classements.
-  const stofPlayed = new Set();
-  if (admin && (games || []).length) {
-    const stofId = await cachedQuery("stofId", () => sb.from("players")
-      .select("id").eq("name", "stof").maybeSingle().then(r => r.data?.id || null));
-    if (stofId) {
-      const { data: sres } = await sb.from("prepared_game_results")
-        .select("prepared_game_id, summary")
-        .eq("player_id", stofId).in("prepared_game_id", games.map(g => g.id));
-      (sres || []).forEach(r => {
-        if (r.summary && Array.isArray(r.summary.mv) && r.summary.mv.length > 0) stofPlayed.add(r.prepared_game_id);
-      });
+  // ===== Une seule requête pour ce tournoi (en cache) : état du viewer + stof +
+  // progression de TOUS les joueurs. `summary` dit si des coups ont été joués,
+  // `paused` marque une partie en pause, `sum_neg` donne le négatif en cours. =====
+  const gameIds = (games || []).map(g => g.id);
+  const meId = +state.currentPlayerId || 0;
+  const playedIds = new Set(), suspendedSrv = new Set(), stofPlayed = new Set();
+  const prog = {};   // player_id → { name, done, neg }
+  if (gameIds.length) {
+    const rows = await cachedQuery(`tdetail:${tournamentId}`, () => sb.from("prepared_game_results")
+      .select("player_id, prepared_game_id, sum_neg, summary, paused, players(name)")
+      .in("prepared_game_id", gameIds).then(r => r.data || []));
+    for (const r of rows) {
+      const nm = r.players?.name || "";
+      const isAdminRow = nm.toLowerCase() === "admin";
+      const hasMoves = r.summary && Array.isArray(r.summary.mv) && r.summary.mv.length > 0;
+      if (hasMoves && !isAdminRow) {
+        (prog[r.player_id] ||= { name: nm || ("#" + r.player_id), done: 0, neg: 0 });
+        prog[r.player_id].done++; prog[r.player_id].neg += (r.sum_neg || 0);
+      }
+      if (r.player_id === meId) {
+        if (hasMoves) playedIds.add(r.prepared_game_id);
+        else if (r.paused) suspendedSrv.add(r.prepared_game_id);
+      }
+      if (nm === "stof" && hasMoves) stofPlayed.add(r.prepared_game_id);
     }
   }
-  $("#pgBody").innerHTML = (games || []).length === 0
+
+  // Barre de progression compacte.
+  const bar = (done, tot) => {
+    const pct = tot ? Math.round(done / tot * 100) : 0;
+    return `<span style="flex:1 1 auto;min-width:50px;height:8px;background:#e3e8eb;border-radius:6px;overflow:hidden"><span style="display:block;width:${pct}%;height:100%;background:var(--petrol)"></span></span>`;
+  };
+
+  // Carte d'une partie (action + podium + suppression admin).
+  const makeCard = (g) => {
+    const played = playedIds.has(g.id);
+    const suspended = !played && (suspendedSrv.has(g.id) || suspendedPrepared(g.id));
+    const action = played
+      ? `<a style="${btnStyle};background:var(--soft);color:var(--petrol)" href="scrabble/game.html?review=${g.id}&tid=${currentTournamentId}">👁 Revoir</a>`
+      : suspended
+        ? `<button style="${btnStyle};background:#ffcf33;color:var(--petrol-dark);border:none;cursor:pointer;font-weight:700" onclick="ensureFreshAndNavigate('scrabble/game.html?prepared=${g.id}&tid=${currentTournamentId}')" title="Reprendre la partie en cours">⏯ Continuer</button>`
+        : admin
+          ? (stofPlayed.has(g.id)
+              ? `<button style="${btnStyle};background:var(--yellow);color:var(--petrol-dark);border:none;cursor:pointer" onclick="ensureFreshAndNavigate('scrabble/game.html?prepared=${g.id}&tid=${currentTournamentId}')" title="Tester (déjà jouée par stof — hors classement)">🧪 Tester</button>`
+              : `<button style="${btnStyle};background:var(--soft);color:var(--ink-soft);border:none;opacity:.5;cursor:not-allowed" disabled title="À tester une fois que stof l'aura jouée">▶ Jouer</button>`)
+          : `<button style="${btnStyle};background:var(--yellow);color:var(--petrol-dark);border:none;cursor:pointer" onclick="ensureFreshAndNavigate('scrabble/game.html?prepared=${g.id}&tid=${currentTournamentId}')">▶ Jouer</button>`;
+    const del = admin ? `<button class="danger" onclick="delPreparedGame(${g.id})" title="Supprimer">🗑</button>` : "";
+    const podium = played
+      ? `<button class="btn ghost small" onclick="showGamePodium(${g.id}, '${escapeHtml(g.name).replace(/'/g, "\\'")}')" title="Classement de cette partie">🥇</button>`
+      : `<button class="btn ghost small" disabled title="Joue d'abord cette partie pour voir le classement" style="opacity:.4;cursor:not-allowed">🥇</button>`;
+    return `<div class="pg-mini">
+      <div class="pg-name">${escapeHtml(g.name)}</div>
+      <div class="pg-actions">${action} ${podium} ${del}</div>
+    </div>`;
+  };
+
+  // Regroupement des parties par TYPE (formule + temps).
+  const catKey = g => `${g.mode}|${g.with_joker ? 1 : 0}|${g.time_per_move || 0}`;
+  const catLabel = g => `${modeDisplayName(g.mode, g.with_joker)} · ${g.time_per_move ? g.time_per_move + ' s' : 'illimité'}`;
+  const groups = []; const byKey = {};
+  for (const g of (games || [])) {
+    const k = catKey(g);
+    if (!byKey[k]) { byKey[k] = { label: catLabel(g), games: [] }; groups.push(byKey[k]); }
+    byKey[k].games.push(g);
+  }
+
+  // Panneau : progression de tous les joueurs (barre + fraction + négatif en cours).
+  const total = gameIds.length;
+  const progList = Object.values(prog).sort((a, b) => b.done - a.done || b.neg - a.neg || a.name.localeCompare(b.name, "fr"));
+  const progHTML = progList.length ? `
+    <div style="margin-bottom:16px">
+      <h3 style="margin:0 0 8px;font-size:1rem">👥 Progression des joueurs</h3>
+      <div style="display:flex;flex-direction:column;gap:7px">${progList.map(p => `
+        <div style="display:flex;align-items:center;gap:10px;font-size:.9rem">
+          <span style="flex:0 0 92px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(p.name)}</span>
+          ${bar(p.done, total)}
+          <span style="flex:0 0 46px;text-align:right;color:var(--ink-soft)">${p.done}/${total}</span>
+          <span class="neg" style="flex:0 0 52px;text-align:right;font-weight:700">${p.neg}</span>
+        </div>`).join("")}</div>
+    </div>` : "";
+
+  // Parties groupées par type dans des menus dépliants (utile pour 96 parties).
+  const groupsHTML = (games || []).length === 0
     ? `<p class="muted">${admin ? "Aucune partie. Génère-en une." : "Aucune partie disponible."}</p>`
-    : `<div class="pg-mini-list">${(games || []).map(g => {
-        const played = playedIds.has(g.id);
-        // En pause : côté serveur (autre appareil possible) OU localStorage (filet
-        // de sécurité si l'écriture réseau n'a pas eu le temps de partir).
-        const suspended = !played && (suspendedSrv.has(g.id) || suspendedPrepared(g.id));
-        const continuerBtn = `<button style="${btnStyle};background:#ffcf33;color:var(--petrol-dark);border:none;cursor:pointer;font-weight:700" onclick="ensureFreshAndNavigate('scrabble/game.html?prepared=${g.id}&tid=${currentTournamentId}')" title="Reprendre la partie en cours">⏯ Continuer</button>`;
-        const action = played
-          ? `<a style="${btnStyle};background:var(--soft);color:var(--petrol)" href="scrabble/game.html?review=${g.id}&tid=${currentTournamentId}">👁 Revoir</a>`
-          : suspended
-            // Partie en pause quittée → reprendre là où on s'était arrêté (admin compris).
-            ? continuerBtn
-            : admin
-              // Admin : peut TESTER (jouer) une partie déjà jouée par stof ; sinon bloquée.
-              ? (stofPlayed.has(g.id)
-                  ? `<button style="${btnStyle};background:var(--yellow);color:var(--petrol-dark);border:none;cursor:pointer" onclick="ensureFreshAndNavigate('scrabble/game.html?prepared=${g.id}&tid=${currentTournamentId}')" title="Tester cette partie (déjà jouée par stof — résultat hors classement)">🧪 Tester</button>`
-                  : `<button style="${btnStyle};background:var(--soft);color:var(--ink-soft);border:none;opacity:.5;cursor:not-allowed" disabled title="À tester une fois que stof l'aura jouée">▶ Jouer</button>`)
-              : `<button style="${btnStyle};background:var(--yellow);color:var(--petrol-dark);border:none;cursor:pointer" onclick="ensureFreshAndNavigate('scrabble/game.html?prepared=${g.id}&tid=${currentTournamentId}')">▶ Jouer</button>`;
-        const del = admin ? `<button class="danger" onclick="delPreparedGame(${g.id})" title="Supprimer">🗑</button>` : "";
-        // Classement accessible seulement si on a joué la partie (admin compris).
-        const podium = played
-          ? `<button class="btn ghost small" onclick="showGamePodium(${g.id}, '${escapeHtml(g.name).replace(/'/g, "\\'")}')" title="Classement de cette partie">🥇</button>`
-          : `<button class="btn ghost small" disabled title="Joue d'abord cette partie pour voir le classement" style="opacity:.4;cursor:not-allowed">🥇</button>`;
-        return `<div class="pg-mini">
-          <div class="pg-name">${escapeHtml(g.name)}</div>
-          <div class="pg-meta">${modeDisplayName(g.mode, g.with_joker)} · ${g.time_per_move ? g.time_per_move + 's' : 'illimité'}</div>
-          <div class="pg-actions">${action} ${podium} ${del}</div>
-        </div>`;
-      }).join("")}</div>`;
+    : groups.map((grp, i) => {
+        const done = grp.games.filter(g => playedIds.has(g.id)).length;
+        const tot = grp.games.length;
+        return `<details class="pg-group"${groups.length === 1 ? " open" : ""}>
+          <summary>
+            <span class="caret">▸</span>
+            <span style="flex:0 0 auto">${escapeHtml(grp.label)}</span>
+            ${bar(done, tot)}
+            <span style="flex:0 0 auto;color:var(--ink-soft);font-size:.85rem;font-weight:600">${done}/${tot}</span>
+          </summary>
+          <div class="pg-mini-list" style="margin:10px 2px 18px">${grp.games.map(makeCard).join("")}</div>
+        </details>`;
+      }).join("");
+
+  $("#pgBody").innerHTML = progHTML + groupsHTML;
 
   loadTournamentStats(tournamentId, games || []);
   loadTournamentLeaderboard(tournamentId, games || [], t.name, modeDisplayName);

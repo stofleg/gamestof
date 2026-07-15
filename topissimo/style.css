@@ -555,8 +555,38 @@ tbody tr.me:hover { background: rgba(255,221,0,.22); }
   padding: 8px 10px;
   border-radius: 8px;
   border-left: 3px solid var(--yellow);
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
-.pg-mini .pg-name { font-weight: 600; font-size: .88rem; color: var(--petrol-dark); overflow: hidden; text-overflow: ellipsis; }
+.pg-mini .pg-name { flex: 1 1 auto; min-width: 0; }
+.pg-mini .pg-actions { flex: 0 0 auto; }
+
+/* ===== Parties groupées par type (menus dépliants) ===== */
+.pg-group {
+  border: 1px solid rgba(0,46,68,.08);
+  border-radius: 12px;
+  margin-bottom: 10px;
+  overflow: hidden;
+  background: #fff;
+}
+.pg-group > summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  padding: 11px 14px;
+  font-weight: 600;
+  color: var(--petrol-dark);
+  list-style: none;
+}
+.pg-group > summary::-webkit-details-marker { display: none; }
+.pg-group .caret { flex: 0 0 auto; color: var(--ink-soft); transition: transform .15s; }
+.pg-group[open] .caret { transform: rotate(90deg); }
+.pg-group[open] > summary { border-bottom: 1px solid rgba(0,46,68,.06); }
+.pg-group > .pg-mini-list { padding: 0 14px; }
+
+.pg-mini .pg-name { font-weight: 600; font-size: .88rem; color: var(--petrol-dark); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pg-mini .pg-meta { font-size: .7rem; color: var(--ink-soft); margin: 2px 0 6px; }
 .pg-mini .pg-actions { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
 .pg-mini .pg-actions a, .pg-mini .pg-actions button {
