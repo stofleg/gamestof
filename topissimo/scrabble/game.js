@@ -3592,6 +3592,7 @@ async function stopGameFromSettings() {
   if (wasPrepared) {
     // Verrouiller : enregistrer en l'état (pas de reprise possible) sans révéler.
     clearSavedTraining();
+    if (state.prepared) clearSuspendedPrepared(state.prepared.id);
     try { await saveResultIfPrepared(); }
     catch (e) { console.error("Arrêt tournoi — sauvegarde KO:", e); }
     const tid = state._soloTid || TOURNAMENT_ID;
@@ -5032,6 +5033,9 @@ function startGame() {
 
 // ===== Pause + persistance (uniquement entraînement) =====
 const TRAINING_STORAGE_KEY = "trainingPaused";
+// Une partie de TOURNOI en pause est persistée sous SA PROPRE clé : on peut ainsi
+// avoir PLUSIEURS parties « à reprendre » (de différents tournois) en même temps.
+const preparedKey = id => `topissimo:pg:${id}`;
 state.paused = false;
 state._pauseInfo = null;
 
@@ -5061,12 +5065,19 @@ function saveTrainingState() {
       tid: TOURNAMENT_ID || null,
       savedAt: Date.now(),
     };
-    localStorage.setItem(TRAINING_STORAGE_KEY, JSON.stringify(snapshot));
+    // Tournoi → clé dédiée par partie (plusieurs parties en suspens possibles).
+    // Entraînement → clé unique.
+    const key = state.prepared ? preparedKey(state.prepared.id) : TRAINING_STORAGE_KEY;
+    localStorage.setItem(key, JSON.stringify(snapshot));
   } catch (e) { console.error("Save training state failed:", e); }
 }
 
 function clearSavedTraining() {
   localStorage.removeItem(TRAINING_STORAGE_KEY);
+}
+// Efface la sauvegarde « à reprendre » d'une partie de tournoi (fin/arrêt de partie).
+function clearSuspendedPrepared(id) {
+  try { localStorage.removeItem(preparedKey(id)); } catch {}
 }
 
 function restorePausedTraining() {
@@ -5122,7 +5133,7 @@ function restorePausedTraining() {
 // Restaure une partie de TOURNOI mise en pause (après rechargement / retour d'une
 // autre appli). Ne restaure que si le snapshot correspond à CETTE partie pré-tirée.
 function restorePausedPrepared(preparedId) {
-  const raw = localStorage.getItem(TRAINING_STORAGE_KEY);
+  const raw = localStorage.getItem(preparedKey(preparedId));
   if (!raw) return false;
   try {
     const s = JSON.parse(raw);
@@ -5218,13 +5229,29 @@ function resumeGame() {
 // On avertit donc avant de quitter/recharger tant qu'elle n'est pas terminée.
 // (Pour faire une pause, utiliser le bouton Pause plutôt que recharger.)
 window.addEventListener("beforeunload", (e) => {
-  // Pas d'avertissement pour un solo (puzzle) : il n'y a rien à perdre.
-  if (state.prepared && state.started && state.chronoFinal == null && !state.isPuzzle) {
+  // Pas d'avertissement pour un solo (puzzle). Ni si la partie est déjà en PAUSE :
+  // elle est sauvegardée « à reprendre » (on quitte sans rien perdre).
+  if (state.prepared && state.started && state.chronoFinal == null && !state.isPuzzle && !state.paused) {
     e.preventDefault();
     e.returnValue = "";   // déclenche la confirmation native du navigateur
     return "";
   }
 });
+
+// ===== Auto-pause quand l'appareil se met en veille / l'app passe en arrière-plan =====
+// Empêche le chrono de continuer à tourner (et donc la « triche » par attente), et
+// sauvegarde la partie « à reprendre ». Au retour sur Topissimo, l'écran de pause
+// (flouté) s'affiche ; si on a quitté l'app, la partie apparaît en « Continuer »
+// dans le tournoi.
+function autoPauseIfPlaying(showModal) {
+  if (state.started && state.chronoFinal == null && !state.isPuzzle && !state.paused && !review.active) {
+    pauseGame({ showModal });
+  }
+}
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) autoPauseIfPlaying(true);
+});
+window.addEventListener("pagehide", () => autoPauseIfPlaying(false));
 
 // Bloque les raccourcis de RAFRAÎCHISSEMENT (F5, Ctrl+R, Cmd+R) tant qu'une
 // partie de TOURNOI est en cours : non sauvegardée, un refresh la relancerait
@@ -5333,6 +5360,8 @@ function endGame() {
   // toute la grille (contexte des coups précédents inclus) et les solutions.
   if (state.isPuzzle) { enterLocalReview(); return; }
   $("#endModal").hidden = false;
+  // Partie terminée → plus rien « à reprendre ».
+  if (state.prepared) clearSuspendedPrepared(state.prepared.id); else clearSavedTraining();
   // Si c'est une partie pré-tirée → sauvegarder le résultat
   if (state.prepared) saveResultIfPrepared().catch(e => console.error("Sauvegarde KO:", e));
   // Si c'est un entraînement → sauvegarder l'historique perso

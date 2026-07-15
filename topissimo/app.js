@@ -36,6 +36,19 @@ if (typeof caches !== "undefined" && caches.keys) {
 // Plus de SW à synchroniser → navigation directe vers la page de jeu.
 function ensureFreshAndNavigate(url) { location.href = url; }
 
+// Une partie de tournoi mise en pause puis quittée est sauvegardée localement
+// (clé topissimo:pg:<id>). Si elle appartient au joueur courant, on propose
+// « Continuer » au lieu de « Jouer ».
+function suspendedPrepared(gameId) {
+  try {
+    const raw = localStorage.getItem(`topissimo:pg:${gameId}`);
+    if (!raw) return false;
+    const s = JSON.parse(raw);
+    const meId = +(localStorage.getItem("currentPlayerId") || 0);
+    return !s.playerId || !meId || s.playerId === meId;
+  } catch { return false; }
+}
+
 // Détection mode app (Chrome standalone/fullscreen/minimal-ui, Safari home-screen)
 function detectAppMode() {
   const isStandalone =
@@ -2386,12 +2399,16 @@ async function loadTournamentDetail(tournamentId) {
     ? `<p class="muted">${admin ? "Aucune partie. Génère-en une." : "Aucune partie disponible."}</p>`
     : `<div class="pg-mini-list">${(games || []).map(g => {
         const played = playedIds.has(g.id);
+        const suspended = !played && suspendedPrepared(g.id);
         const action = played
           ? `<a style="${btnStyle};background:var(--soft);color:var(--petrol)" href="scrabble/game.html?review=${g.id}&tid=${currentTournamentId}">👁 Revoir</a>`
           : admin
             // L'admin ne joue pas les parties (il les génère / les administre).
             ? `<button style="${btnStyle};background:var(--soft);color:var(--ink-soft);border:none;opacity:.5;cursor:not-allowed" disabled title="L'admin ne joue pas les parties">▶ Jouer</button>`
-            : `<button style="${btnStyle};background:var(--yellow);color:var(--petrol-dark);border:none;cursor:pointer" onclick="ensureFreshAndNavigate('scrabble/game.html?prepared=${g.id}&tid=${currentTournamentId}')">▶ Jouer</button>`;
+            : suspended
+              // Partie en pause quittée → reprendre là où on s'était arrêté.
+              ? `<button style="${btnStyle};background:#ffcf33;color:var(--petrol-dark);border:none;cursor:pointer;font-weight:700" onclick="ensureFreshAndNavigate('scrabble/game.html?prepared=${g.id}&tid=${currentTournamentId}')" title="Reprendre la partie en cours">⏯ Continuer</button>`
+              : `<button style="${btnStyle};background:var(--yellow);color:var(--petrol-dark);border:none;cursor:pointer" onclick="ensureFreshAndNavigate('scrabble/game.html?prepared=${g.id}&tid=${currentTournamentId}')">▶ Jouer</button>`;
         const del = admin ? `<button class="danger" onclick="delPreparedGame(${g.id})" title="Supprimer">🗑</button>` : "";
         // Classement accessible seulement si on a joué la partie (admin compris).
         const podium = played
