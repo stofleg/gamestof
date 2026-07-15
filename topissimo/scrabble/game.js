@@ -5462,6 +5462,17 @@ function wasPlayedOnMobile() {
   } catch { return false; }
 }
 
+// Mini-résumé d'un résultat, stocké dans la colonne `summary` (jsonb) pour que les
+// stats se calculent SANS relire le gros `details` (économie d'egress) :
+//   mv = n° des coups joués · tp = n° des coups topés · ab = partie abandonnée.
+// Tout le reste (nb coups, nb tops, série, solos, %) se déduit de mv/tp + sum_neg.
+function buildResultSummary(history, abandoned) {
+  const h = Array.isArray(history) ? history : [];
+  const mv = h.map(m => m.moveNo).filter(n => n != null);
+  const tp = h.filter(m => m.status === "top").map(m => m.moveNo).filter(n => n != null);
+  return { v: 1, mv, tp, ab: !!abandoned };
+}
+
 async function saveResultIfPrepared() {
   const pid = +(localStorage.getItem("currentPlayerId") || 0);
   if (!pid) { console.log("Pas de joueur sélectionné — résultat non sauvegardé"); return; }
@@ -5498,6 +5509,7 @@ async function saveResultIfPrepared() {
     sum_neg: state.sumNeg,
     total_time_seconds: totalTime,
     details: detailsToSave,
+    summary: buildResultSummary(detailsToSave, state.abandoned),
     played_on_mobile: wasPlayedOnMobile(),
     diagnostics,
   }, { onConflict: "prepared_game_id,player_id" });
