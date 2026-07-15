@@ -3768,11 +3768,8 @@ if (window.matchMedia("(max-width: 700px)").matches) {
 // Ajoute les formules « superoriginales » au sélecteur d'entraînement, mais
 // UNIQUEMENT pour le pseudo stof (les autres joueurs ne les voient pas).
 function populateAdminModes() {
-  // Formules superoriginales MISES EN VEILLE : on ne les ajoute plus au
-  // sélecteur d'entraînement (ni stof ni admin). Pour les réactiver, retirer ce
-  // return et restaurer le filtre par pseudo « stof » ci-dessous.
-  return;
-  // eslint-disable-next-line no-unreachable
+  // Formules superoriginales dans le sélecteur d'ENTRAÎNEMENT — pour stof
+  // uniquement (permet de tester les formules sans générer de tournoi).
   if ((localStorage.getItem("currentPseudo") || "").toLowerCase() !== "stof") return;
   const sel = $("#optGameMode");
   if (!sel || sel.dataset.adminDone) return;
