@@ -5074,7 +5074,7 @@ function saveTrainingState() {
     // réseau peut ne pas aboutir si l'appareil se verrouille juste après).
     if (state.prepared && window._sb) {
       const pid = +(localStorage.getItem("currentPlayerId") || 0);
-      if (pid) window._sb.from("prepared_game_results").upsert(
+      if (pid) state._pauseSync = window._sb.from("prepared_game_results").upsert(
         // On renseigne aussi score/négatif/temps (au cas où ces colonnes seraient
         // NOT NULL) ; sans `details`, cette ligne reste HORS classement/stats.
         { prepared_game_id: state.prepared.id, player_id: pid, paused: snapshot,
@@ -5768,30 +5768,33 @@ $("#btnResume").onclick = resumeGame;
 // levant d'abord l'état de pause et sa sauvegarde.
 const _btnStopFromPause = $("#btnStopFromPause");
 if (_btnStopFromPause) _btnStopFromPause.onclick = () => stopGameFromSettings();
-// Intercepter le clic sur Accueil : en entraînement actif, on met en pause au lieu
-// de quitter directement. Le joueur peut alors choisir Reprendre ou Quitter.
-// Intercepte le lien Accueil du header : pause silencieuse + nav
+// Quitter une partie en cours via un bouton de navigation (Accueil / Tournoi) :
+// on MET EN PAUSE (sauvegarde « à reprendre »), puis on navigue. Pour un solo
+// (puzzle) rien à sauvegarder → navigation directe.
+async function pauseAndNavigate(url) {
+  const inGame = state.started && state.chronoFinal == null && !state.isPuzzle && !review.active;
+  if (inGame && !state.paused) {
+    pauseGame({ showModal: false });       // fige + sauvegarde (localStorage + serveur)
+    try { await state._pauseSync; } catch {}  // laisser l'écriture serveur aboutir
+  }
+  window.location.href = url;
+}
+
+// Intercepte le lien « ← Accueil » du header : pause + navigation.
 const headerAccueilLink = document.querySelector('.title-row a[href="../index.html"], header a[href="../index.html"]');
 if (headerAccueilLink) {
   headerAccueilLink.addEventListener("click", (e) => {
-    const isTraining = state.started && state.chronoFinal == null && !state.prepared && !state.isPuzzle;
-    if (isTraining && !state.paused) {
+    if (state.started && state.chronoFinal == null && !state.isPuzzle && !state.paused) {
       e.preventDefault();
-      pauseGame({ showModal: false });   // pause + sauvegarde, sans modale
-      setTimeout(() => { window.location.href = headerAccueilLink.href; }, 50);
+      pauseAndNavigate(headerAccueilLink.href);
     }
   }, { capture: true });
 }
 
 // ── Navigation tournoi ──────────────────────────────────────────────────────
-window.goBackToTournament = function(withWarning = false) {
-  if (withWarning) {
-    if (!confirm("Retourner au tournoi ? La partie en cours sera abandonnée et ton score sera 0.")) return;
-  }
+window.goBackToTournament = function() {
   const tid = state._soloTid || TOURNAMENT_ID;
-  window.location.href = tid
-    ? `../index.html#tid=${tid}`
-    : "../index.html#tab=prepared";
+  pauseAndNavigate(tid ? `../index.html#tid=${tid}` : "../index.html#tab=prepared");
 };
 
 // Bouton « ☰ Raccourcis » (mobile) : afficher/cacher les pictos d'action.
@@ -5805,12 +5808,8 @@ if (_btnShortcuts) {
 
 const _btnBackToTournament = $("#btnBackToTournament");
 if (_btnBackToTournament) {
-  _btnBackToTournament.onclick = () => {
-    // Confirmation d'abandon seulement pour une vraie partie de tournoi en cours
-    // (pas pour un solo / puzzle, non compté).
-    const gameInProgress = state.prepared && state.started && state.chronoFinal == null && !state.isPuzzle;
-    goBackToTournament(gameInProgress);
-  };
+  // Retour au tournoi : met la partie en pause (« à reprendre ») puis navigue.
+  _btnBackToTournament.onclick = () => goBackToTournament();
 }
 
 // « Partie suivante » : entre DIRECTEMENT dans la partie suivante du tournoi
