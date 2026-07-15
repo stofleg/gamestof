@@ -2417,8 +2417,15 @@ async function loadTournamentDetail(tournamentId) {
     const pct = tot ? Math.round(done / tot * 100) : 0;
     return `<span class="pbar"><span style="width:${pct}%;background:${fill || "var(--petrol)"}"></span></span>`;
   };
-  // Couleur « logo inversé » : rouge (peu joué) → vert (terminé), selon l'avancement.
-  const progFill = (done, tot) => `hsl(${Math.round((tot ? done / tot : 0) * 130)}, 68%, 45%)`;
+  // Couleur « logo inversé » en 5 paliers : rouge / orange / jaune / jaune-vert
+  // pour les 4 quarts d'avancement, VERT réservé aux joueurs ayant TOUT terminé.
+  // (Ex. sur 96 : 1-23 rouge, 24-47 orange, 48-71 jaune, 72-95 jaune-vert, 96 vert.)
+  const PROG_COLORS = ["#d6402f", "#e5872a", "#e6c02e", "#9cbf2c"];   // R, O, J, JV
+  const progFill = (done, tot) => {
+    if (!tot || done <= 0) return PROG_COLORS[0];
+    if (done >= tot) return "#2fa84f";                                 // vert = terminé
+    return PROG_COLORS[Math.min(3, Math.floor(done / tot * 4))];
+  };
 
   // Carte d'une partie (action + podium + suppression admin).
   const makeCard = (g) => {
@@ -2468,22 +2475,23 @@ async function loadTournamentDetail(tournamentId) {
         </div>`).join("")}</div>
     </div>` : "";
 
-  // Parties groupées par type dans des menus dépliants (utile pour 96 parties).
+  // Parties groupées par type, en grille (≈ 6 cartes sur 2 lignes ; 1 colonne sur
+  // mobile). Chaque carte est un menu dépliant qui montre ses parties au clic.
   const groupsHTML = (games || []).length === 0
     ? `<p class="muted">${admin ? "Aucune partie. Génère-en une." : "Aucune partie disponible."}</p>`
-    : groups.map((grp, i) => {
+    : `<div class="pg-groups">${groups.map((grp) => {
         const done = grp.games.filter(g => playedIds.has(g.id)).length;
         const tot = grp.games.length;
         return `<details class="pg-group"${groups.length === 1 ? " open" : ""}>
           <summary>
             <span class="caret">▸</span>
             <span class="pg-group-label">${escapeHtml(grp.label)}</span>
-            ${bar(done, tot, progFill(done, tot))}
             <span class="pg-group-count">${done}/${tot}</span>
+            ${bar(done, tot, progFill(done, tot))}
           </summary>
-          <div class="pg-mini-list" style="margin:12px 4px 18px">${grp.games.map(makeCard).join("")}</div>
+          <div class="pg-mini-list" style="margin:12px 4px 16px">${grp.games.map(makeCard).join("")}</div>
         </details>`;
-      }).join("");
+      }).join("")}</div>`;
 
   $("#pgBody").innerHTML = progHTML + groupsHTML;
 
