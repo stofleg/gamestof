@@ -2403,6 +2403,23 @@ async function loadTournamentDetail(tournamentId) {
   const { modeDisplayName } = await import("./scrabble/engine.js?v=344");
   const btnStyle = "text-decoration:none;padding:5px 10px;border-radius:6px;font-weight:600;font-size:.85rem";
   const admin = isAdmin();
+
+  // Admin : autoriser à tester (jouer) UNIQUEMENT les parties déjà jouées par
+  // « stof » (pour ne pas se dévoiler une partie non encore jouée). Les résultats
+  // admin sont de toute façon exclus des classements.
+  const stofPlayed = new Set();
+  if (admin && (games || []).length) {
+    const stofId = await cachedQuery("stofId", () => sb.from("players")
+      .select("id").eq("name", "stof").maybeSingle().then(r => r.data?.id || null));
+    if (stofId) {
+      const { data: sres } = await sb.from("prepared_game_results")
+        .select("prepared_game_id, summary")
+        .eq("player_id", stofId).in("prepared_game_id", games.map(g => g.id));
+      (sres || []).forEach(r => {
+        if (r.summary && Array.isArray(r.summary.mv) && r.summary.mv.length > 0) stofPlayed.add(r.prepared_game_id);
+      });
+    }
+  }
   $("#pgBody").innerHTML = (games || []).length === 0
     ? `<p class="muted">${admin ? "Aucune partie. Génère-en une." : "Aucune partie disponible."}</p>`
     : `<div class="pg-mini-list">${(games || []).map(g => {
@@ -2413,8 +2430,10 @@ async function loadTournamentDetail(tournamentId) {
         const action = played
           ? `<a style="${btnStyle};background:var(--soft);color:var(--petrol)" href="scrabble/game.html?review=${g.id}&tid=${currentTournamentId}">👁 Revoir</a>`
           : admin
-            // L'admin ne joue pas les parties (il les génère / les administre).
-            ? `<button style="${btnStyle};background:var(--soft);color:var(--ink-soft);border:none;opacity:.5;cursor:not-allowed" disabled title="L'admin ne joue pas les parties">▶ Jouer</button>`
+            // Admin : peut TESTER (jouer) une partie déjà jouée par stof ; sinon bloquée.
+            ? (stofPlayed.has(g.id)
+                ? `<button style="${btnStyle};background:var(--yellow);color:var(--petrol-dark);border:none;cursor:pointer" onclick="ensureFreshAndNavigate('scrabble/game.html?prepared=${g.id}&tid=${currentTournamentId}')" title="Tester cette partie (déjà jouée par stof — résultat hors classement)">🧪 Tester</button>`
+                : `<button style="${btnStyle};background:var(--soft);color:var(--ink-soft);border:none;opacity:.5;cursor:not-allowed" disabled title="À tester une fois que stof l'aura jouée">▶ Jouer</button>`)
             : suspended
               // Partie en pause quittée → reprendre là où on s'était arrêté.
               ? `<button style="${btnStyle};background:#ffcf33;color:var(--petrol-dark);border:none;cursor:pointer;font-weight:700" onclick="ensureFreshAndNavigate('scrabble/game.html?prepared=${g.id}&tid=${currentTournamentId}')" title="Reprendre la partie en cours">⏯ Continuer</button>`
