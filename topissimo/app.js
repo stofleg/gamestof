@@ -2412,11 +2412,13 @@ async function loadTournamentDetail(tournamentId) {
     }
   }
 
-  // Barre de progression compacte.
-  const bar = (done, tot) => {
+  // Barre de progression. `fill` : couleur du remplissage (défaut petrol).
+  const bar = (done, tot, fill) => {
     const pct = tot ? Math.round(done / tot * 100) : 0;
-    return `<span style="flex:1 1 auto;min-width:50px;height:8px;background:#e3e8eb;border-radius:6px;overflow:hidden"><span style="display:block;width:${pct}%;height:100%;background:var(--petrol)"></span></span>`;
+    return `<span class="pbar"><span style="width:${pct}%;background:${fill || "var(--petrol)"}"></span></span>`;
   };
+  // Couleur « logo inversé » : rouge (peu joué) → vert (terminé), selon l'avancement.
+  const progFill = (done, tot) => `hsl(${Math.round((tot ? done / tot : 0) * 130)}, 68%, 45%)`;
 
   // Carte d'une partie (action + podium + suppression admin).
   const makeCard = (g) => {
@@ -2460,7 +2462,7 @@ async function loadTournamentDetail(tournamentId) {
       <div style="display:flex;flex-direction:column;gap:7px">${progList.map(p => `
         <div style="display:flex;align-items:center;gap:10px;font-size:.9rem">
           <span style="flex:0 0 92px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escapeHtml(p.name)}</span>
-          ${bar(p.done, total)}
+          ${bar(p.done, total, progFill(p.done, total))}
           <span style="flex:0 0 46px;text-align:right;color:var(--ink-soft)">${p.done}/${total}</span>
           <span class="neg" style="flex:0 0 52px;text-align:right;font-weight:700">${p.neg}</span>
         </div>`).join("")}</div>
@@ -2475,11 +2477,11 @@ async function loadTournamentDetail(tournamentId) {
         return `<details class="pg-group"${groups.length === 1 ? " open" : ""}>
           <summary>
             <span class="caret">▸</span>
-            <span style="flex:0 0 auto">${escapeHtml(grp.label)}</span>
-            ${bar(done, tot)}
-            <span style="flex:0 0 auto;color:var(--ink-soft);font-size:.85rem;font-weight:600">${done}/${tot}</span>
+            <span class="pg-group-label">${escapeHtml(grp.label)}</span>
+            ${bar(done, tot, progFill(done, tot))}
+            <span class="pg-group-count">${done}/${tot}</span>
           </summary>
-          <div class="pg-mini-list" style="margin:10px 2px 18px">${grp.games.map(makeCard).join("")}</div>
+          <div class="pg-mini-list" style="margin:12px 4px 18px">${grp.games.map(makeCard).join("")}</div>
         </details>`;
       }).join("");
 
