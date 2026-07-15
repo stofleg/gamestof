@@ -1382,13 +1382,30 @@ window.closeFfscRelier = function() { $("#ffscRelierModal").hidden = true; };
 window.delMyTournoi = async function(resultId) {
   if (!confirm("Supprimer ce résultat de ton historique ? (Ne supprime PAS la partie elle-même ni ton score au classement)")) return;
   await sb.from("prepared_game_results").delete().eq("id", resultId);
+  clearStatsCache();
   loadMyGames();
 };
 window.delMyTraining = async function(id) {
   if (!confirm("Supprimer cet entraînement de ton historique ?")) return;
   await sb.from("training_games").delete().eq("id", id);
+  clearStatsCache();
   loadMyGames();
 };
+
+// ============================================================
+//  Cache d'egress : les grosses lectures (details, historiques) ne changent pas
+//  pendant une session sur l'index (on joue sur game.html, un retour recharge la
+//  page → cache vidé). On mémorise donc les réponses pour ne pas re-télécharger à
+//  chaque bascule d'onglet. Vidé par clearStatsCache() après une action admin.
+// ============================================================
+let _egressCache = {};
+async function cachedQuery(key, fn) {
+  if (key in _egressCache) return _egressCache[key];
+  const v = await fn();
+  _egressCache[key] = v;
+  return v;
+}
+function clearStatsCache() { _egressCache = {}; }
 
 // ============================================================
 //  Mes stats personnelles (Phase H — onglet dédié)
@@ -1401,23 +1418,21 @@ async function loadMyStats() {
   body.innerHTML = `<p class="muted">⏳ Calcul…</p>`;
   const { modeDisplayName } = await import("./scrabble/engine.js?v=344");
 
-  // Tournois « démo » à EXCLURE des stats : ils contiennent des résultats importés
-  // (FFSC) qui ne proviennent pas de Topissimo. On ne garde que les données Topissimo.
-  const { data: _tlist } = await sb.from("tournaments").select("id,name");
-  const demoIds = new Set((_tlist || []).filter(t => /d[ée]mo/i.test(t.name || "")).map(t => t.id));
+  // Tournois « démo » à EXCLURE des stats (résultats importés FFSC, hors Topissimo).
+  const _tlist = await cachedQuery("tournaments", () => sb.from("tournaments").select("id,name").then(r => r.data || []));
+  const demoIds = new Set(_tlist.filter(t => /d[ée]mo/i.test(t.name || "")).map(t => t.id));
 
-  // 1) Toutes mes parties tournoi (avec détails) — hors tournoi démo.
-  const { data: tourRaw } = await sb.from("prepared_game_results")
-    .select("*, prepared_games(id,name,mode,with_joker,created_at,time_per_move,tournament_id)")
-    .eq("player_id", pid);
-  const tour = (tourRaw || []).filter(r => !demoIds.has(r.prepared_games?.tournament_id));
+  // 1) Mes parties tournoi (hors démo). Colonnes EXPLICITES (pas de `diagnostics`,
+  //    gros journal de debug jamais lu → économise beaucoup d'egress).
+  const tourRaw = await cachedQuery(`my:tour:${pid}`, () => sb.from("prepared_game_results")
+    .select("player_id, prepared_game_id, sum_neg, total_time_seconds, finished_at, details, prepared_games(id,name,mode,with_joker,created_at,time_per_move,tournament_id)")
+    .eq("player_id", pid).then(r => r.data || []));
+  const tour = tourRaw.filter(r => !demoIds.has(r.prepared_games?.tournament_id));
 
-  // 2) Tous mes entraînements
-  const { data: train } = await sb.from("training_games").select("*").eq("player_id", pid);
-
-  // 3) Mes résultats championnat (pour cohérence avec le classement)
-  const { data: champ } = await sb.from("results")
-    .select("*, games(top_score)").eq("player_id", pid);
+  // 2) Tous mes entraînements.
+  const train = await cachedQuery(`my:train:${pid}`, () => sb.from("training_games")
+    .select("id, mode, with_joker, time_per_move, sum_neg, total_score, total_time_seconds, created_at, history")
+    .eq("player_id", pid).then(r => r.data || []));
 
   if ((tour || []).length === 0 && (train || []).length === 0) {
     body.innerHTML = `<p class="muted">Aucune partie jouée pour l'instant. Lance une partie ou un entraînement !</p>`;
@@ -1475,8 +1490,8 @@ async function loadMyStats() {
   let mySolos = 0, myAntiSolos = 0;
   if (tour && tour.length) {
     const gameIds = [...new Set(tour.map(r => r.prepared_game_id))];
-    const { data: allResults } = await sb.from("prepared_game_results")
-      .select("player_id, prepared_game_id, details").in("prepared_game_id", gameIds);
+    const allResults = await cachedQuery(`my:solos:${pid}`, () => sb.from("prepared_game_results")
+      .select("player_id, prepared_game_id, details").in("prepared_game_id", gameIds).then(r => r.data || []));
     const byGame = {};
     for (const r of allResults || []) (byGame[r.prepared_game_id] ||= []).push(r);
     for (const rs of Object.values(byGame)) {
@@ -1894,17 +1909,20 @@ async function loadSolosAndStreaks() {
   // requête, or le total dépasse ce seuil (ex. « En route pour les ICE » = 96 parties
   // × plusieurs joueurs) → sans pagination, les classements tronquent (sous-comptage).
   const SEL = "player_id, prepared_game_id, total_time_seconds, sum_neg, finished_at, details, players(name), prepared_games(id,name,mode,with_joker,time_per_move,created_at,tournament_id)";
-  const detailedRaw = [];
-  for (let from = 0; from < 50000; from += 1000) {
-    const { data, error } = await sb.from("prepared_game_results").select(SEL)
-      .order("id", { ascending: true }).range(from, from + 999);
-    if (error || !data || !data.length) break;
-    detailedRaw.push(...data);
-    if (data.length < 1000) break;
-  }
+  const detailedRaw = await cachedQuery("club:detailed", async () => {
+    const acc = [];
+    for (let from = 0; from < 50000; from += 1000) {
+      const { data, error } = await sb.from("prepared_game_results").select(SEL)
+        .order("id", { ascending: true }).range(from, from + 999);
+      if (error || !data || !data.length) break;
+      acc.push(...data);
+      if (data.length < 1000) break;
+    }
+    return acc;
+  });
   // Exclure les tournois « démo » (résultats importés hors Topissimo).
-  const { data: _tlist } = await sb.from("tournaments").select("id,name");
-  const demoIds = new Set((_tlist || []).filter(t => /d[ée]mo/i.test(t.name || "")).map(t => t.id));
+  const _tlist = await cachedQuery("tournaments", () => sb.from("tournaments").select("id,name").then(r => r.data || []));
+  const demoIds = new Set(_tlist.filter(t => /d[ée]mo/i.test(t.name || "")).map(t => t.id));
   const detailed = excludeAdminRows(detailedRaw).filter(r => !demoIds.has(r.prepared_games?.tournament_id));
   if (!detailed || detailed.length === 0) {
     $("#recordsGrid").innerHTML = `<p class="muted">Pas encore de parties tournoi.</p>`;
@@ -1920,7 +1938,7 @@ async function loadSolosAndStreaks() {
   // régénérée plus courte, qui ne subsistent que dans une fiche périmée).
   // De plus, on ne comptabilise QUE les tournois ENTIÈREMENT complétés par ≥ 5
   // joueurs (un solo n'entre au « top solos » du club qu'à cette condition).
-  const { data: allGames } = await sb.from("prepared_games").select("id, tournament_id");
+  const allGames = await cachedQuery("club:allGames", () => sb.from("prepared_games").select("id, tournament_id").then(r => r.data || []));
   const gameToTour = {};        // gid  → tid
   const tourGamesCount = {};    // tid  → nb de parties du tournoi
   for (const g of allGames || []) {
@@ -2287,6 +2305,7 @@ window.purgeTournament = async (id) => {
   const ok1 = confirm("⚠️ Purger ce tournoi DÉFINITIVEMENT ?\n\nToutes les parties, tous les résultats, et leurs scores au classement seront perdus.\n\nUtile pour effacer un tournoi de test sans polluer les statistiques.");
   if (!ok1) return;
   const ok2 = confirm("Vraiment sûr ? Cette action est IRRÉVERSIBLE.");
+  clearStatsCache();
   if (!ok2) return;
 
   // 1) Récupérer les ids des prepared_games du tournoi
@@ -2579,9 +2598,9 @@ async function loadTournamentLeaderboard(tournamentId, games, tournamentName, mo
   }
   const gameIds = games.map(g => g.id);
 
-  const { data: resultsRaw } = await sb.from("prepared_game_results")
+  const { data: resultsRaw } = await cachedQuery(`tlead:${tournamentId}`, () => sb.from("prepared_game_results")
     .select("player_id, prepared_game_id, total_score, sum_neg, total_time_seconds, details, played_on_mobile, players(name)")
-    .in("prepared_game_id", gameIds);
+    .in("prepared_game_id", gameIds).then(r => ({ data: r.data })));
   const results = excludeAdminRows(resultsRaw);
   if (!results || results.length === 0) { if (!stale()) body.innerHTML = `<p class="muted">Aucun résultat enregistré.</p>`; return; }
 
@@ -2844,8 +2863,10 @@ async function loadTournamentStats(tournamentId, games) {
   }
 
   const gameIds = games.map(g => g.id);
-  const { data: resultsRaw } = await sb.from("prepared_game_results")
-    .select("*, players(name)").in("prepared_game_id", gameIds);
+  // Colonnes explicites (pas de `diagnostics`) — économie d'egress.
+  const { data: resultsRaw } = await cachedQuery(`tstats:${tournamentId}`, () => sb.from("prepared_game_results")
+    .select("player_id, prepared_game_id, sum_neg, total_score, total_time_seconds, finished_at, details, played_on_mobile, players(name)")
+    .in("prepared_game_id", gameIds).then(r => ({ data: r.data })));
   const results = excludeAdminRows(resultsRaw);
 
   if (!results || results.length === 0) {
@@ -3197,6 +3218,7 @@ if ($("#pgAddLine")) $("#pgAddLine").onclick = () => pgAddRecipeLine();
 
 window.delPreparedGame = async function(id) {
   if (!confirm("Supprimer cette partie pré-tirée et tous ses résultats ?")) return;
+  clearStatsCache();
   const { error } = await sb.from("prepared_games").delete().eq("id", id);
   if (error) return alert(error.message);
   loadPreparedGames();
@@ -3205,6 +3227,7 @@ window.delPreparedGame = async function(id) {
 $("#pgCreate").onclick = async () => {
   if (!isAdmin()) { alert("Seul l'admin peut créer des parties."); return; }
   if (!currentTournamentId) { alert("Choisis ou crée d'abord un tournoi."); return; }
+  clearStatsCache();
   try {
     // Lire la recette : pour chaque ligne, une formule × une quantité.
     const recipe = [];
@@ -3285,6 +3308,7 @@ $("#pgCreate").onclick = async () => {
 window.recomputeAllNeg = async function(force = false) {
   if (!isAdmin()) return alert("Réservé à l'admin.");
   if (!currentTournamentId) return alert("Ouvre d'abord un tournoi.");
+  clearStatsCache();
   const statusEl = $("#recomputeStatus");
   statusEl.textContent = "⏳ Chargement des modules…";
 
@@ -3482,6 +3506,7 @@ window.adminGiveTop = async function() {
 // réaffiche « ▶ Jouer » au lieu de « 👁 Revoir ».
 window.adminAllowReplay = async function() {
   if (!isAdmin()) return alert("Réservé à l'admin.");
+  clearStatsCache();
   const statusEl = $("#replayStatus");
   if (!currentTournamentId) { statusEl.textContent = "❌ Ouvre d'abord un tournoi."; return; }
 
@@ -3537,6 +3562,7 @@ window.adminAllowReplay = async function() {
 
 window.recomputeAllJokerNeg = async function() {
   if (!isAdmin()) return alert("Réservé à l'admin.");
+  clearStatsCache();
   const statusEl = $("#recomputeStatus");
   statusEl.textContent = "⏳ Chargement des modules…";
 
