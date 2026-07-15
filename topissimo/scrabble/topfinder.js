@@ -12,7 +12,7 @@
 //     aussi les mots croisés) et on garde le maximum.
 // ============================================================
 
-import { BOARD_SIZE, CENTER, scoreMove, applyMove, LETTER_VALUE, VOWELS, isSimplePath, isSnakeMove } from "./engine.js?v=347";
+import { BOARD_SIZE, CENTER, scoreMove, applyMove, LETTER_VALUE, VOWELS, CONSONANTS_FR, isSimplePath, isSnakeMove } from "./engine.js?v=347";
 
 // Un coup PROLONGE le serpent s'il s'accroche à une extrémité (isSnakeMove ; les
 // mots croisés latéraux sont permis), OU s'il garde un chemin simple (extension
@@ -472,12 +472,15 @@ export function findTop(board, rack, dict, opts = {}) {
       let maxOffset = 0;
       {
         let newTilesNeeded = 0;
+        // Voyelles : les consonnes sont « libres » → le budget de tuiles neuves
+        // n'est pas borné par le chevalet (voyelles) mais par maxTilesUsed.
+        const tileBudget = opts.freeCons ? maxTilesUsed : rack.length;
         const physicalMax = dir === "H" ? ac : ar;
         for (let step = 1; step <= physicalMax; step++) {
           const tr = ar - step * dr, tc = ac - step * dc;
           if (!board[tr][tc]) {
             newTilesNeeded++;
-            if (newTilesNeeded > rack.length) break;
+            if (newTilesNeeded > tileBudget) break;
           }
           maxOffset = step;
         }
@@ -506,6 +509,7 @@ export function findTop(board, rack, dict, opts = {}) {
           bonuses,
           jokerPays: opts.jokerPays,
           layout: opts.layout,
+          freeCons: opts.freeCons,
           anchorCovered: false,
           candidates, seenMoves, zone,
         });
@@ -516,6 +520,20 @@ export function findTop(board, rack, dict, opts = {}) {
   if (!candidates.length) return null;
   candidates.sort((a, b) => b.score - a.score);
   return opts.all ? candidates : candidates[0];
+}
+
+// Cross-check (mode Voyelles) : en plaçant L sur (r,c) dans le sens `dir`, le mot
+// PERPENDICULAIRE formé avec les tuiles déjà posées doit être valide. S'il n'y a
+// aucun voisin perpendiculaire, aucune contrainte (true).
+function freeConsCrossOk(board, r, c, L, dir, dict) {
+  const pdr = dir === "H" ? 1 : 0;   // perpendiculaire = vertical si mot horizontal
+  const pdc = dir === "H" ? 0 : 1;
+  let ur = r - pdr, uc = c - pdc, up = "";
+  while (ur >= 0 && uc >= 0 && board[ur][uc]) { up = board[ur][uc].letter + up; ur -= pdr; uc -= pdc; }
+  let dr2 = r + pdr, dc2 = c + pdc, down = "";
+  while (dr2 < BOARD_SIZE && dc2 < BOARD_SIZE && board[dr2][dc2]) { down += board[dr2][dc2].letter; dr2 += pdr; dc2 += pdc; }
+  if (!up && !down) return true;   // pas de voisin perpendiculaire
+  return dict.has(up + L + down);
 }
 
 function findAnchors(board) {
@@ -574,6 +592,44 @@ function extend(ctx) {
 
   // 3.5) Contrainte de tuiles maximum (formules 7sur8, 7et8, 789)
   if (tilesUsed >= maxTilesUsed) return;
+
+  // 4bis) Voyelles : consonnes LIBRES (hors chevalet, non consommées) + voyelles
+  //       issues du chevalet (consommées). Rack = voyelles seules. Élagage fort
+  //       par cross-check : une lettre n'est retenue que si le mot perpendiculaire
+  //       qu'elle formerait (avec les tuiles voisines) est valide (ou inexistant).
+  if (ctx.freeCons) {
+    const triedC = new Set();
+    // Consonnes libres : on ne touche pas au chevalet.
+    for (const L of CONSONANTS_FR) {
+      if (triedC.has(L)) continue;
+      triedC.add(L);
+      if (!freeConsCrossOk(board, r, c, L, dir, dict)) continue;
+      extend({
+        ...ctx,
+        r: r + dr, c: c + dc,
+        currentWord: currentWord + L,
+        tilesUsed: tilesUsed + 1,
+        anchorCovered: anchorCovered || (r === ar && c === ac),
+      });
+    }
+    // Voyelles du chevalet : une par lettre distincte disponible (consommée).
+    for (let i = 0; i < rack.length; i++) {
+      const tile = rack[i];
+      if (triedC.has(tile)) continue;
+      triedC.add(tile);
+      if (!freeConsCrossOk(board, r, c, tile, dir, dict)) continue;
+      const newRack = rack.slice(); newRack.splice(i, 1);
+      extend({
+        ...ctx,
+        rack: newRack,
+        r: r + dr, c: c + dc,
+        currentWord: currentWord + tile,
+        tilesUsed: tilesUsed + 1,
+        anchorCovered: anchorCovered || (r === ar && c === ac),
+      });
+    }
+    return;
+  }
 
   // 4) Case vide : essayer chaque lettre du chevalet (sans répéter)
   const tried = new Set();

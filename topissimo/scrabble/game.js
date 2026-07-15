@@ -28,6 +28,7 @@ import {
   VOWELS, drawForDuplicate, scoreMove, applyMove,
   bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName, randomBoardLayout, snakeEndpointsAfter, sablierTime, gigogneRackSize,
   setLetterValues, letterValue, valuesFor, bagFor, isCrossingCell, wordHiddenCount,
+  drawVowelRack,
 } from "./engine.js?v=347";
 import { Dictionary } from "./dictionary.js?v=347";
 import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=347";
@@ -1740,6 +1741,17 @@ function placeLetter(L, preferTileId = null) {
     row = state.cursor.row; col = state.cursor.col;
   }
 
+  // Mode Voyelles : les consonnes sont « libres » (hors chevalet). Une consonne
+  // tapée est posée directement comme jeton virtuel (à sa vraie valeur), sans
+  // consommer de tuile. Les voyelles, elles, viennent obligatoirement du chevalet.
+  if (currentMode().voyelles && !state.jokerPending && L !== "?" && !VOWELS.has(L)) {
+    state.pending.push({ row, col, letter: L, rackId: null, isBlank: false });
+    advanceCursor();
+    renderBoard();
+    renderRack();
+    return;
+  }
+
   // Trouver tuile à utiliser : préférer celle pointée par preferTileId si valide,
   // sinon la lettre exacte, sinon joker.
   let rackTile;
@@ -2773,6 +2785,29 @@ function nextMove() {
     return;
   }
 
+  // ===== Mode Voyelles (entraînement) =====
+  // Tirage de voyelles seules (consommées du sac) ; consonnes libres à la saisie.
+  // On retente tant qu'aucun coup n'est jouable ; fin quand plus assez de voyelles.
+  if (currentMode().voyelles) {
+    const bagSnap = { ...state.bag };
+    let ok = false;
+    for (let tries = 0; tries < 60; tries++) {
+      state.bag = { ...bagSnap };
+      const drawn = drawVowelRack(state.bag, state.moveNo);
+      if (!drawn) { endGame(); return; }
+      state.rack = drawn.map(L => ({ letter: L, used: false, id: nextTileId() }));
+      state.currentRackFresh = true;
+      state.currentKept = "";
+      if (computeTop() && state.topMove) { ok = true; break; }
+    }
+    if (!ok) { endGame(); return; }
+    state._dupLast = null;
+    renderRack(); renderBoard(); renderBag();
+    startMoveTimer(); showLastTopFeedback(); ensureCursorOnFreeCell();
+    state._topPending = false;
+    return;
+  }
+
   // La partie ne s'arrête que quand IL N'Y A PLUS DE voyelles OU PLUS DE
   // consonnes dans l'UNION du sac ET du chevalet conservé du joueur.
   // → la partie continue même si le tirage est < 7 lettres, tant qu'on
@@ -2907,6 +2942,14 @@ function computeTop() {
     // Snake : le top est le meilleur coup qui prolonge le serpent (depuis ses extrémités).
     state.topMove = snakeBestTop(state.board, rackLetters, state.dict, state.snakeEnds, {
       maxTilesUsed: mode.maxPlayed, bonuses: mode.bonuses, layout,
+    });
+    return true;
+  }
+  if (mode.voyelles) {
+    // Voyelles : top = meilleur mot avec un sous-ensemble des voyelles du tirage +
+    // consonnes libres (freeCons), au plus 7 lettres posées.
+    state.topMove = findTopRanked(state.board, rackLetters, state.dict, state.bag, {
+      maxTilesUsed: mode.maxPlayed, bonuses: mode.bonuses, layout, freeCons: true,
     });
     return true;
   }

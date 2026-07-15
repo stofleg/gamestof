@@ -11,6 +11,7 @@ import {
   emptyBoard, LETTER_BAG, drawForDuplicate, applyMove,
   bagTotalVowels, bagTotalConsonants, GAME_MODES, randomBoardLayout, snakeEndpointsAfter, gigogneRackSize,
   bagFor, valuesFor, setLetterValues, LETTER_VALUE, isCrossingCell, wordHiddenCount,
+  drawVowelRack,
 } from "./engine.js?v=347";
 import { findTopRanked, findTop, snakeBestTop } from "./topfinder.js?v=347";
 
@@ -83,7 +84,7 @@ export function generateGame(dict, options = {}, onProgress = null) {
       if (t.letter === "?") continue;
       if (VOWELS_SET.has(t.letter)) v++; else c++;
     }
-    if (!infJoker && (v === 0 || c === 0)) {
+    if (!infJoker && !mode.voyelles && (v === 0 || c === 0)) {
       // Règle de fin : dernière voyelle OU dernière consonne posée → fin, SAUF s'il
       // reste un joker (qui comble n'importe quel type) ou un Y (qui peut servir de
       // CONSONNE quand c'est la dernière consonne qui manque). La partie continue
@@ -101,7 +102,23 @@ export function generateGame(dict, options = {}, onProgress = null) {
     // Mode Horizontal/Vertical : H au coup 1, V au 2, H au 3, etc.
     const forceDir = alternateDir ? (moveNo % 2 === 1 ? "H" : "V") : undefined;
     let kept = [], freshRack = false, top = null, endNow = false, rackLetters = [];
-    if (infJoker) {
+    if (mode.voyelles) {
+      // Tirage de voyelles seules (consommées du sac). On retente tant qu'aucun
+      // coup n'est jouable ; le top se calcule avec un stock de consonnes libres.
+      const bagSnap = { ...bag };
+      let tries = 60;
+      while (tries-- > 0) {
+        bag = { ...bagSnap };
+        const drawn = drawVowelRack(bag, moveNo);
+        if (!drawn) { endNow = true; break; }
+        rackLetters = drawn.slice();
+        freshRack = true;
+        top = findTopRanked(board, rackLetters, dict, bag, {
+          maxTilesUsed: mode.maxPlayed, bonuses: mode.bonuses, freeCons: true,
+        });
+        if (top) break;
+      }
+    } else if (infJoker) {
       // 5 lettres réelles (reliquat conservé, pioche LIBRE sans règle V/C) + 2 jokers.
       rack = rack.filter(t => t.letter !== "?");
       kept = rack.map(t => t.letter);

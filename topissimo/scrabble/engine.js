@@ -135,7 +135,38 @@ export const GAME_MODES = {
   // sa valeur — seul le joueur ne voit plus la lettre (mémoire).
   lettrecachee: { label: "Lettre cachée", rackSize: 7, maxPlayed: 7, bonuses: { 7: 50 },
     defaultTime: 120, stofOnly: true, lettrecachee: true },
+  // Voyelles : le tirage ne contient QUE des voyelles (2-5 jusqu'au coup 14, puis
+  // 1-6 dès le coup 15). Le joueur complète avec les consonnes de son choix
+  // (illimitées). Max 7 lettres posées par coup. Le top est le meilleur mot
+  // utilisant un sous-ensemble des voyelles du tirage + consonnes libres.
+  voyelles: { label: "Voyelles", rackSize: 5, maxPlayed: 7, bonuses: { 7: 50 },
+    defaultTime: 120, stofOnly: true, voyelles: true },
 };
+
+// Consonnes françaises (hors voyelles A E I O U Y). Utilisé par le mode Voyelles
+// pour composer le « stock illimité » de consonnes lors du calcul du top.
+export const CONSONANTS_FR = ["B","C","D","F","G","H","J","K","L","M","N","P","Q","R","S","T","V","W","X","Z"];
+
+// Mode Voyelles : tire un chevalet de voyelles seules depuis le sac (consommées).
+// 2-5 voyelles jusqu'au coup 14, 1-6 dès le coup 15. Renvoie un tableau de lettres,
+// ou null si le sac ne contient plus assez de voyelles (fin de partie).
+export function drawVowelRack(bag, moveNo) {
+  const min = (moveNo || 1) >= 15 ? 1 : 2;
+  const max = (moveNo || 1) >= 15 ? 6 : 5;
+  const pool = [];
+  for (const v of VOWELS) for (let k = 0; k < (bag[v] || 0); k++) pool.push(v);
+  if (pool.length < min) return null;
+  let want = min + Math.floor(Math.random() * (max - min + 1));
+  want = Math.min(want, pool.length);
+  const drawn = [];
+  for (let k = 0; k < want; k++) {
+    const idx = Math.floor(Math.random() * pool.length);
+    const L = pool.splice(idx, 1)[0];
+    bag[L] = (bag[L] || 0) - 1;
+    drawn.push(L);
+  }
+  return drawn;
+}
 
 // Temps imparti pour un coup en mode Sablier : base − 5 s par coup, plancher 5 s.
 export function sablierTime(base, moveNo) {
