@@ -604,7 +604,14 @@ tbody tr.me:hover { background: rgba(255,221,0,.22); }
 }
 .pg-group .pbar { flex: 0 0 100%; }   /* barre sur sa propre ligne */
 .pg-group[open] > summary { border-bottom: 1px solid rgba(0,46,68,.08); }
-.pg-group > .pg-mini-list { padding: 0 14px; }
+/* Dans une carte de groupe, la liste s'empile en colonne (et NON en grille 5 col
+   du bandeau, qui déborderait et serait coupée par overflow:hidden). */
+.pg-group > .pg-mini-list {
+  display: flex !important;
+  flex-direction: column;
+  grid-template-columns: none !important;
+  padding: 0 14px;
+}
 
 .pg-mini .pg-name { font-weight: 600; font-size: .88rem; color: var(--petrol-dark); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pg-mini .pg-meta { font-size: .7rem; color: var(--ink-soft); margin: 2px 0 6px; }
