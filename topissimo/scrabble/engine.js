@@ -31,39 +31,39 @@ export const GAME_MODES = {
   "789":     { label: "7, 8 et 9", rackSize: 9, maxPlayed: 9, bonuses: { 7: 50, 8: 75, 9: 100 }, defaultTime: 120 },
   // ----- Formules « superoriginales » (génération de tournoi réservée à l'admin) -----
   // 6 lettres : duplicate à 6 jetons, jamais de prime de scrabble.
-  "6lettres":  { label: "6 lettres",  rackSize: 6,  maxPlayed: 6,  bonuses: {}, defaultTime: 120, adminOnly: true },
+  "6lettres":  { label: "6 lettres",  rackSize: 6,  maxPlayed: 6,  bonuses: {}, defaultTime: 120, stofOnly: true },
   // Hyperblitz : blitz à 30 s/coup.
-  hyperblitz:  { label: "Hyperblitz", rackSize: 7,  maxPlayed: 7,  bonuses: { 7: 50 }, defaultTime: 30, adminOnly: true },
+  hyperblitz:  { label: "Hyperblitz", rackSize: 7,  maxPlayed: 7,  bonuses: { 7: 50 }, defaultTime: 30, stofOnly: true },
   // 7 sur 15 : tirage de 15, max 7 jouées (sur le modèle 7 sur 8). Min 4 voyelles.
   "7sur15": { label: "7 sur 15", rackSize: 15, maxPlayed: 7, bonuses: { 7: 50 },
-    defaultTime: 240, minVowels: 4, adminOnly: true },
+    defaultTime: 240, minVowels: 4, stofOnly: true },
   // 15 lettres : tirage de 15, prime dès 7 jouées (+25 par jeton au-delà), min 4 voyelles.
   // CONSERVÉE pour une future généralisation (jouer avec N lettres au choix) mais
   // RETIRÉE des menus pour l'instant (hidden) car jugée trop difficile.
   "15lettres": { label: "15 lettres", rackSize: 15, maxPlayed: 15,
     bonuses: { 7: 50, 8: 75, 9: 100, 10: 125, 11: 150, 12: 175, 13: 200, 14: 225, 15: 250 },
-    defaultTime: 240, minVowels: 4, adminOnly: true, hidden: true },
+    defaultTime: 240, minVowels: 4, stofOnly: true, hidden: true },
   // Joker payant : partie joker classique, mais le joker vaut les points de la
   // lettre qu'il représente (le top est calculé en testant chaque lettre possible).
   jokerpayant: { label: "Joker payant", rackSize: 7, maxPlayed: 7, bonuses: { 7: 50 },
-    defaultTime: 120, adminOnly: true, jokerPays: true },
+    defaultTime: 120, stofOnly: true, jokerPays: true },
   // Horizontal/Vertical : top horizontal imposé au coup 1, vertical au 2, etc.
   horizvert: { label: "Horizontal/Vertical", rackSize: 7, maxPlayed: 7, bonuses: { 7: 50 },
-    defaultTime: 120, adminOnly: true, alternateDir: true },
+    defaultTime: 120, stofOnly: true, alternateDir: true },
   // Top/sous-top : il faut trouver le top ET le sous-top ; score = top + sous-top.
   topsoustop: { label: "Top/sous-top", rackSize: 7, maxPlayed: 7, bonuses: { 7: 50 },
-    defaultTime: 180, adminOnly: true, dualTop: true },
+    defaultTime: 180, stofOnly: true, dualTop: true },
   // Double joker infini : 2 jokers + 5 lettres à chaque tirage, jokers laissés sur
   // la grille (non recyclés), fin quand toutes les lettres réelles sont posées.
   infjoker: { label: "Double joker infini", rackSize: 7, maxPlayed: 7, bonuses: { 7: 50 },
-    defaultTime: 120, adminOnly: true, infJoker: true },
+    defaultTime: 120, stofOnly: true, infJoker: true },
   // Grille random : disposition des bonus mélangée (générée et stockée par partie).
   grillerandom: { label: "Grille random", rackSize: 7, maxPlayed: 7, bonuses: { 7: 50 },
-    defaultTime: 120, adminOnly: true, randomBoard: true },
+    defaultTime: 120, stofOnly: true, randomBoard: true },
   // Snake : chaque coup doit prolonger le serpent (un seul trait continu).
   // RETIRÉE des menus (hidden) — jugée peu intéressante ; code conservé au cas où.
   snake: { label: "Snake", rackSize: 7, maxPlayed: 7, bonuses: { 7: 50 },
-    defaultTime: 120, adminOnly: true, snake: true, hidden: true },
+    defaultTime: 120, stofOnly: true, snake: true, hidden: true },
 };
 // Nom affiché en combinant mode + joker
 export function modeDisplayName(modeKey, withJoker) {

@@ -3773,7 +3773,7 @@ function populateAdminModes() {
   const grp = document.createElement("optgroup");
   grp.label = "Formules superoriginales";
   for (const [key, m] of Object.entries(GAME_MODES)) {
-    if (!m.adminOnly || m.hidden) continue;
+    if (!m.stofOnly || m.hidden) continue;
     const o = document.createElement("option");
     o.value = key; o.textContent = m.label;
     grp.appendChild(o);
