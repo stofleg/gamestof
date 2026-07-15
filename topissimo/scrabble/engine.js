@@ -69,8 +69,10 @@ export const GAME_MODES = {
   sablier: { label: "Sablier", rackSize: 7, maxPlayed: 7, bonuses: { 7: 50 },
     defaultTime: 120, stofOnly: true, sablier: true },
   // Gigogne : le tirage GRANDIT — 2 lettres au coup 1, 3 au coup 2, 4 au coup 3…
-  // (coup n → n+1 lettres). On peut jouer autant de lettres qu'on en a.
-  gigogne: { label: "Gigogne", rackSize: 2, maxPlayed: 15, bonuses: { 7: 50 },
+  // (coup n → n+1 lettres). On peut jouer autant de lettres qu'on en a. Primes de
+  // scrabble progressives : 50 à 7 lettres, +25 par lettre au-delà (75, 100, 125…).
+  gigogne: { label: "Gigogne", rackSize: 2, maxPlayed: 15,
+    bonuses: { 7: 50, 8: 75, 9: 100, 10: 125, 11: 150, 12: 175, 13: 200, 14: 225, 15: 250 },
     defaultTime: 120, stofOnly: true, gigogne: true },
 };
 
