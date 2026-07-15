@@ -68,11 +68,20 @@ export const GAME_MODES = {
   // par coup (plancher 5 s), partie limitée à 24 coups.
   sablier: { label: "Sablier", rackSize: 7, maxPlayed: 7, bonuses: { 7: 50 },
     defaultTime: 120, stofOnly: true, sablier: true },
+  // Gigogne : le tirage GRANDIT — 2 lettres au coup 1, 3 au coup 2, 4 au coup 3…
+  // (coup n → n+1 lettres). On peut jouer autant de lettres qu'on en a.
+  gigogne: { label: "Gigogne", rackSize: 2, maxPlayed: 15, bonuses: { 7: 50 },
+    defaultTime: 120, stofOnly: true, gigogne: true },
 };
 
 // Temps imparti pour un coup en mode Sablier : base − 5 s par coup, plancher 5 s.
 export function sablierTime(base, moveNo) {
   return Math.max(5, (base || 120) - 5 * ((moveNo || 1) - 1));
+}
+
+// Taille du tirage au coup `moveNo` en mode Gigogne (coup n → n+1 lettres).
+export function gigogneRackSize(moveNo) {
+  return (moveNo || 1) + 1;
 }
 // Nom affiché en combinant mode + joker
 export function modeDisplayName(modeKey, withJoker) {

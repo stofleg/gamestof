@@ -9,7 +9,7 @@
 
 import {
   emptyBoard, LETTER_BAG, drawForDuplicate, applyMove,
-  bagTotalVowels, bagTotalConsonants, GAME_MODES, randomBoardLayout, snakeEndpointsAfter,
+  bagTotalVowels, bagTotalConsonants, GAME_MODES, randomBoardLayout, snakeEndpointsAfter, gigogneRackSize,
 } from "./engine.js?v=347";
 import { findTopRanked, findTop, snakeBestTop } from "./topfinder.js?v=347";
 
@@ -90,7 +90,10 @@ export function generateGame(dict, options = {}, onProgress = null) {
     }
 
     // Compléter le chevalet (+ direction imposée éventuelle).
-    const target = mode.rackSize;
+    // Gigogne : le tirage grandit d'un coup à l'autre (coup n → n+1 lettres).
+    const target = mode.gigogne ? gigogneRackSize(moveNo) : mode.rackSize;
+    // Gigogne : on peut poser autant de lettres qu'on en a (jusqu'à la taille du tirage).
+    const maxTiles = mode.gigogne ? target : mode.maxPlayed;
     // Mode Horizontal/Vertical : H au coup 1, V au 2, H au 3, etc.
     const forceDir = alternateDir ? (moveNo % 2 === 1 ? "H" : "V") : undefined;
     let kept = [], freshRack = false, top = null, endNow = false, rackLetters = [];
@@ -133,7 +136,7 @@ export function generateGame(dict, options = {}, onProgress = null) {
       top = mode.snake
         ? snakeBestTop(board, rackLetters, dict, snakeEnds, { maxTilesUsed: mode.maxPlayed, bonuses: mode.bonuses, layout })
         : findTopRanked(board, rackLetters, dict, bag, {
-            maxTilesUsed: mode.maxPlayed,
+            maxTilesUsed: maxTiles,
             bonuses: mode.bonuses,
             preserveJoker: withJoker && spareJokers > 0,
             jokerPays,

@@ -26,7 +26,7 @@
 import {
   emptyBoard, BOARD_BONUSES, BOARD_SIZE, CENTER, LETTER_VALUE, LETTER_BAG,
   VOWELS, drawForDuplicate, scoreMove, applyMove,
-  bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName, randomBoardLayout, snakeEndpointsAfter, sablierTime,
+  bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName, randomBoardLayout, snakeEndpointsAfter, sablierTime, gigogneRackSize,
 } from "./engine.js?v=347";
 import { Dictionary } from "./dictionary.js?v=347";
 import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=347";
@@ -281,6 +281,16 @@ async function saveSettingsToSupabase() {
 function currentMode() {
   return GAME_MODES[state.settings.gameMode] || GAME_MODES.duplicate;
 }
+// Taille du tirage au coup courant (Gigogne : grandit ; sinon fixe).
+function rackTargetNow() {
+  const m = currentMode();
+  return m.gigogne ? gigogneRackSize(state.moveNo) : (m.rackSize || 7);
+}
+// Nb max de lettres jouables au coup courant (Gigogne : toute la taille du tirage).
+function maxPlayedNow() {
+  const m = currentMode();
+  return m.gigogne ? rackTargetNow() : m.maxPlayed;
+}
 function saveSettings() {
   localStorage.setItem("scrabbleSettings", JSON.stringify(state.settings));
 }
@@ -447,10 +457,12 @@ function renderRack() {
   // taille MAX du mode (7/8/9), constante toute la partie, et JAMAIS le nombre
   // courant de lettres → les jetons gardent la même taille même s'il n'en reste
   // que 2 ou 3 en fin de partie (sinon ils deviendraient énormes).
-  const rackSize = currentMode().rackSize;
+  // Gigogne : le tirage grandit → on calibre sur la taille MAX (maxPlayed) pour que
+  // les jetons ne deviennent pas énormes quand il n'y en a que 2-3.
+  const rackSize = currentMode().gigogne ? (currentMode().maxPlayed || 15) : currentMode().rackSize;
   document.documentElement.style.setProperty("--rack-size", String(rackSize));
   if (state.rack.length === 0 && !state.started) {
-    const size = currentMode().rackSize;
+    const size = rackTargetNow();
     div.innerHTML = Array.from({ length: size }, () => `<div class="tile empty"></div>`).join("");
     return;
   }
@@ -1903,9 +1915,9 @@ function validateDuplicate(move, mode) {
     showFeedback("info", `<strong>${wLink(move.word)}</strong> — ${raw.score} pts retenu${wait}`, "");
     return;
   }
-  if (result.placed.length > mode.maxPlayed) {
-    showTransientError(`Trop de lettres posées (max ${mode.maxPlayed})`,
-      `Le mode ${mode.label} limite à ${mode.maxPlayed} lettres jouées par coup.`);
+  if (result.placed.length > maxPlayedNow()) {
+    showTransientError(`Trop de lettres posées (max ${maxPlayedNow()})`,
+      `Le mode ${mode.label} limite à ${maxPlayedNow()} lettres jouées par coup.`);
     return;
   }
   // Mot légal retenu (remplace le précédent). Les jetons restent visibles ; le
@@ -2142,9 +2154,9 @@ function validate() {
     flashInvalidWord(result.errors.join("<br>"), result.invalidCells);
     return;
   }
-  // Vérification mode 7sur8 / 7et8 / 789 : nb de tuiles posées
-  if (result.placed.length > mode.maxPlayed) {
-    showTransientError(`Trop de lettres posées (max ${mode.maxPlayed})`, `Le mode ${mode.label} limite à ${mode.maxPlayed} lettres jouées par coup.`);
+  // Vérification mode 7sur8 / 7et8 / 789 / Gigogne : nb de tuiles posées
+  if (result.placed.length > maxPlayedNow()) {
+    showTransientError(`Trop de lettres posées (max ${maxPlayedNow()})`, `Le mode ${mode.label} limite à ${maxPlayedNow()} lettres jouées par coup.`);
     return;
   }
   // Mode Snake : le coup doit prolonger le serpent (s'accrocher à une extrémité ;
@@ -2755,9 +2767,9 @@ function nextMove() {
   // (chrono + calcul du top) qu'à la validation du tirage.
   if (manualDrawActive()) { beginManualDraw(); return; }
 
-  // Compléter le chevalet selon le mode de partie
+  // Compléter le chevalet selon le mode de partie (Gigogne : tirage croissant).
   const mode = currentMode();
-  const targetSize = mode.rackSize;
+  const targetSize = rackTargetNow();
   // Mode joker : si jokers actifs disponibles, on impose 1 joker dans le tirage
   const jokerInRack = state.rack.some(t => t.letter === "?");
   const forceJoker = effJoker() && state.spareJokers > 0 && !jokerInRack;
@@ -2860,7 +2872,7 @@ function computeTop() {
     return true;
   }
   state.topMove = findTopRanked(state.board, rackLetters, state.dict, state.bag, {
-    maxTilesUsed: mode.maxPlayed,
+    maxTilesUsed: maxPlayedNow(),
     bonuses: mode.bonuses,
     preserveJoker: effJoker() && state.spareJokers > 0,
     jokerPays, forceDir, layout,
