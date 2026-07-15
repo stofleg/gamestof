@@ -118,7 +118,8 @@ export function generateGame(dict, options = {}, onProgress = null) {
     // tirage et on en pioche un autre (rare). Sinon une seule tentative.
     const bagSnap = { ...bag };
     const rackSnap = rack.map(t => ({ ...t }));
-    let tries = alternateDir ? 40 : 1;
+    // H/V et Gigogne : on retente un tirage tant qu'aucun coup n'est jouable.
+    let tries = (alternateDir || mode.gigogne) ? 40 : 1;
     while (tries-- > 0) {
       const jokerInRack = rack.some(t => t.letter === "?");
       const forceJoker = withJoker && spareJokers > 0 && !jokerInRack;
@@ -143,8 +144,8 @@ export function generateGame(dict, options = {}, onProgress = null) {
             forceDir,
             layout,
           });
-      if (top || !alternateDir) break;
-      // Rejet H/V : on restaure l'état AVANT pioche et on retente un tirage neuf.
+      if (top || (!alternateDir && !mode.gigogne)) break;
+      // Rejet : on restaure l'état AVANT pioche et on retente un tirage neuf.
       bag = { ...bagSnap };
       rack = rackSnap.map(t => ({ ...t }));
     }

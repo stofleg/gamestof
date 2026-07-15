@@ -2774,28 +2774,33 @@ function nextMove() {
   const jokerInRack = state.rack.some(t => t.letter === "?");
   const forceJoker = effJoker() && state.spareJokers > 0 && !jokerInRack;
   const regularTarget = forceJoker ? targetSize - 1 : targetSize;
-  const kept = state.rack.map(t => t.letter);
-  const result = drawForDuplicate(state.bag, kept, state.moveNo, regularTarget, { minVowels: mode.minVowels });
-  if (result.failed) {
-    endGame();
-    return;
+
+  // Gigogne (tirages courts, surtout au coup 1) : on RE-TIRE tant qu'aucun coup
+  // n'est jouable, et on n'affiche le tirage qu'une fois une solution trouvée.
+  const retryUntilPlayable = !!mode.gigogne;
+  const bagSnap = { ...state.bag };
+  const keptTiles = state.rack.map(t => ({ letter: t.letter, isBlank: !!t.isBlank }));
+  let tries = retryUntilPlayable ? 120 : 1;
+  let computed = false;
+  while (tries-- > 0) {
+    // (Re)partir de l'état d'avant tirage à chaque tentative.
+    state.bag = { ...bagSnap };
+    state.rack = keptTiles.map(t => ({ letter: t.letter, isBlank: t.isBlank, used: false, id: nextTileId() }));
+    const kept = state.rack.map(t => t.letter);
+    const result = drawForDuplicate(state.bag, kept, state.moveNo, regularTarget, { minVowels: mode.minVowels });
+    if (result.failed) { endGame(); return; }
+    state.bag = result.bag;
+    if (result.fresh) state.rack = state.rack.filter(t => t.letter === "?");
+    state.currentRackFresh = !!result.fresh;
+    state.currentKept = result.fresh ? "" : kept.join("");
+    for (const L of (result.drawn || [])) state.rack.push({ letter: L, used: false, id: nextTileId() });
+    if (forceJoker) state.rack.push({ letter: "?", used: false, id: nextTileId() });
+    for (const t of state.rack) t.used = false;
+    if (!retryUntilPlayable) break;
+    // Vérifier qu'un coup est jouable ; sinon on retente un tirage.
+    if (computeTop() && state.topMove) { computed = true; break; }
   }
-  state.bag = result.bag;
-  // Rejet : le reliquat (hors jokers) est remis dans le sac → on ne garde que
-  // les jokers conservés, le reste est un tirage complet neuf.
-  if (result.fresh) state.rack = state.rack.filter(t => t.letter === "?");
-  state.currentRackFresh = !!result.fresh;
-  state.currentKept = result.fresh ? "" : kept.join("");
-  for (const L of (result.drawn || [])) {
-    state.rack.push({ letter: L, used: false, id: nextTileId() });
-  }
-  if (forceJoker) {
-    state.rack.push({ letter: "?", used: false, id: nextTileId() });
-  }
-  for (const t of state.rack) t.used = false;
-  // Log de la règle appliquée si elle a été relâchée
-  if (result.minApplied !== undefined && result.minApplied < (state.moveNo >= 15 ? 1 : 2)) {
-  }
+
   state._dupLast = null;   // duplicate : remise à zéro du « dernier mot validé » du coup
   renderRack();
   renderBoard();
@@ -2803,12 +2808,13 @@ function nextMove() {
   startMoveTimer();
   showLastTopFeedback();
   ensureCursorOnFreeCell();
-  // Calcul du top DIFFÉRÉ : en entraînement findTopRanked est coûteux et bloquait
-  // le rendu → on laisse le navigateur peindre le nouveau coup AVANT de chercher
-  // (supprime la latence ressentie quand on enchaîne après avoir trouvé le top).
-  // validate() force le calcul si le joueur valide avant que ce minuteur ne tourne.
-  state._topPending = true;
-  setTimeout(() => { if (state._topPending && computeTop()) state._topPending = false; }, 0);
+  // Calcul du top DIFFÉRÉ (sauf s'il vient déjà d'être calculé par la boucle
+  // ci-dessus) : findTopRanked est coûteux et bloquerait le rendu.
+  if (computed) { state._topPending = false; }
+  else {
+    state._topPending = true;
+    setTimeout(() => { if (state._topPending && computeTop()) state._topPending = false; }, 0);
+  }
 }
 
 // Garde le curseur sur le plateau et sur une case libre après l'avancement
