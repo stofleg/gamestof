@@ -10,7 +10,7 @@
 import {
   emptyBoard, LETTER_BAG, drawForDuplicate, applyMove,
   bagTotalVowels, bagTotalConsonants, GAME_MODES, randomBoardLayout, snakeEndpointsAfter, gigogneRackSize,
-  bagFor, valuesFor, setLetterValues, LETTER_VALUE,
+  bagFor, valuesFor, setLetterValues, LETTER_VALUE, isCrossingCell,
 } from "./engine.js?v=347";
 import { findTopRanked, findTop, snakeBestTop } from "./topfinder.js?v=347";
 
@@ -175,23 +175,7 @@ export function generateGame(dict, options = {}, onProgress = null) {
       }
     }
 
-    // Lettre cachée : après ce coup, on retourne un jeton DÉJÀ présent (board =
-    // état AVANT ce coup) et pas encore masqué. On le mémorise pour rejouer à
-    // l'identique. (Aucun jeton à masquer au 1er coup : grille vide avant.)
-    let hiddenCell = null;
-    if (mode.lettrecachee) {
-      const occ = [];
-      for (let r = 0; r < board.length; r++)
-        for (let c = 0; c < board[r].length; c++)
-          if (board[r][c] && !hiddenSet.has(r + "," + c)) occ.push([r, c]);
-      if (occ.length) {
-        const [hr, hc] = occ[Math.floor(Math.random() * occ.length)];
-        hiddenCell = { row: hr, col: hc };
-        hiddenSet.add(hr + "," + hc);
-      }
-    }
-
-    // Enregistrer le coup
+    // Enregistrer le coup (le jeton retourné est calculé APRÈS application, plus bas)
     moves.push({
       moveNo,
       rack: rackLetters.join(""),
@@ -207,7 +191,6 @@ export function generateGame(dict, options = {}, onProgress = null) {
         words: top.words,
       },
       ...(subTop ? { subTop } : {}),
-      ...(hiddenCell ? { hidden: hiddenCell } : {}),
       ...(mode.snake ? { _ends: snakeEnds } : {}),   // extrémités du serpent AVANT ce coup
     });
     totalTopScore += top.score;
@@ -238,6 +221,23 @@ export function generateGame(dict, options = {}, onProgress = null) {
 
     // Appliquer au plateau
     board = applyMove(board, top.move);
+
+    // Lettre cachée : on retourne un jeton présent APRÈS ce coup (les lettres du
+    // 1er coup deviennent candidates → le masquage démarre au 2e coup), en
+    // excluant les jetons au croisement de deux mots et ceux déjà masqués. On le
+    // mémorise sur ce coup pour rejouer à l'identique.
+    if (mode.lettrecachee) {
+      const occ = [];
+      for (let r = 0; r < board.length; r++)
+        for (let c = 0; c < board[r].length; c++)
+          if (board[r][c] && !hiddenSet.has(r + "," + c) && !isCrossingCell(board, r, c))
+            occ.push([r, c]);
+      if (occ.length) {
+        const [hr, hc] = occ[Math.floor(Math.random() * occ.length)];
+        moves[moves.length - 1].hidden = { row: hr, col: hc };
+        hiddenSet.add(hr + "," + hc);
+      }
+    }
 
     // Mode joker (règle FFSC 3.8.1) : si le top utilise le joker, tenter le
     // remplacement par la lettre adéquate si elle est encore dans le sac.

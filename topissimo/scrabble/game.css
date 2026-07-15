@@ -644,10 +644,9 @@ body.theme-duplijeu .tile.blank { color: #c8202a !important; }
   border-color: rgba(0,0,0,.35);
 }
 .tile.hidden-letter::after {
-  content: "?";
-  font-family: 'Georgia', serif;
-  font-weight: 700;
-  opacity: .5;
+  content: "💀";
+  font-size: .95em;
+  line-height: 1;
 }
 .tile.blank .val { display: none; }
 

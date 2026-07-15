@@ -27,7 +27,7 @@ import {
   emptyBoard, BOARD_BONUSES, BOARD_SIZE, CENTER, LETTER_VALUE, LETTER_BAG,
   VOWELS, drawForDuplicate, scoreMove, applyMove,
   bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName, randomBoardLayout, snakeEndpointsAfter, sablierTime, gigogneRackSize,
-  setLetterValues, letterValue, valuesFor, bagFor,
+  setLetterValues, letterValue, valuesFor, bagFor, isCrossingCell,
 } from "./engine.js?v=347";
 import { Dictionary } from "./dictionary.js?v=347";
 import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=347";
@@ -2445,7 +2445,9 @@ function placeTopAndAdvance(playerScore, playedWord = null, playedScore = null, 
   // Appliquer le top au plateau
   state.board = applyMove(state.board, tm.move);
 
-  // Lettre cachée : retourner un jeton DÉJÀ présent (pas ceux posés à ce coup).
+  // Lettre cachée : retourner un jeton présent APRÈS ce coup (les lettres du 1er
+  // coup deviennent candidates → masquage dès le 2e coup). On exclut les jetons
+  // au croisement de deux mots et ceux déjà masqués.
   if (currentMode().lettrecachee) {
     if (!state.hiddenCells) state.hiddenCells = new Set();
     if (state.prepared) {
@@ -2453,13 +2455,13 @@ function placeTopAndAdvance(playerScore, playedWord = null, playedScore = null, 
       const cur = state.prepared.moves[state.preparedIdx];
       if (cur && cur.hidden) state.hiddenCells.add(`${cur.hidden.row},${cur.hidden.col}`);
     } else {
-      // Entraînement : un jeton présent avant ce coup, non encore masqué.
-      const placedNow = new Set(lastPlaced.map(p => `${p.row},${p.col}`));
+      // Entraînement : un jeton présent, non croisé, non encore masqué.
       const occ = [];
       for (let r = 0; r < state.board.length; r++)
         for (let c = 0; c < state.board[r].length; c++) {
           const k = `${r},${c}`;
-          if (state.board[r][c] && !placedNow.has(k) && !state.hiddenCells.has(k)) occ.push(k);
+          if (state.board[r][c] && !state.hiddenCells.has(k) && !isCrossingCell(state.board, r, c))
+            occ.push(k);
         }
       if (occ.length) state.hiddenCells.add(occ[Math.floor(Math.random() * occ.length)]);
     }

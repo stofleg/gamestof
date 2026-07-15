@@ -42,6 +42,17 @@ export function valuesFor(modeKey) { return (GAME_MODES[modeKey] && GAME_MODES[m
 
 export const VOWELS = new Set(["A", "E", "I", "O", "U", "Y"]);
 
+// Case « croisée » (mode Lettre cachée) : la lettre est commune à deux mots, donc
+// au croisement d'un mot horizontal et d'un mot vertical. On ne cache que ces
+// jetons (au moins un voisin occupé horizontalement ET verticalement).
+export function isCrossingCell(board, r, c) {
+  const n = board.length;
+  const occ = (rr, cc) => rr >= 0 && rr < n && cc >= 0 && cc < n && !!board[rr][cc];
+  const horiz = occ(r, c - 1) || occ(r, c + 1);
+  const vert = occ(r - 1, c) || occ(r + 1, c);
+  return horiz && vert;
+}
+
 // ============================================================
 //  Modes de jeu (formules originales FFSC)
 // ============================================================
