@@ -221,14 +221,16 @@ async function loadMyGames() {
   const pid = +state.currentPlayerId;
   const { modeDisplayName } = await import("./scrabble/engine.js?v=344");
 
-  // Tournoi : prepared_game_results jointes avec prepared_games
+  // Tournoi : prepared_game_results jointes avec prepared_games. Colonnes explicites
+  // (pas de details/diagnostics → egress) ; `summary` sert juste à savoir si des
+  // coups ont été joués (on exclut les parties en pause non terminées).
   const { data: tour } = await sb.from("prepared_game_results")
-    .select("*, prepared_games(id,name,mode,with_joker)")
+    .select("id, finished_at, total_score, sum_neg, total_time_seconds, summary, prepared_games(id,name,mode,with_joker)")
     .eq("player_id", pid)
     .order("finished_at", { ascending: false })
     .limit(30);
 
-  myGames.tournoi = (tour || []).filter(r => r.prepared_games).map(r => {
+  myGames.tournoi = (tour || []).filter(r => r.prepared_games && r.summary && Array.isArray(r.summary.mv) && r.summary.mv.length > 0).map(r => {
     const g = r.prepared_games;
     return {
       date: r.finished_at || "", name: g.name || "",
@@ -2383,12 +2385,18 @@ async function loadTournamentDetail(tournamentId) {
   // → "jouée" = result présent ET détail coup par coup non vide (sinon c'est
   //   un résultat importé sans partie réelle, donc rien à revoir).
   const playedIds = new Set();
-  if (state.currentPlayerId) {
+  const suspendedSrv = new Set();   // parties en pause côté serveur (multi-appareils)
+  if (state.currentPlayerId && (games || []).length) {
+    const gameIds = games.map(g => g.id);
+    // Léger : summary (dit si des coups ont été joués) + paused, filtré sur ce tournoi.
     const { data: results } = await sb.from("prepared_game_results")
-      .select("prepared_game_id,details").eq("player_id", +state.currentPlayerId);
+      .select("prepared_game_id, summary, paused")
+      .eq("player_id", +state.currentPlayerId)
+      .in("prepared_game_id", gameIds);
     (results || []).forEach(r => {
-      const hasDetails = Array.isArray(r.details) && r.details.length > 0;
-      if (hasDetails) playedIds.add(r.prepared_game_id);
+      const hasMoves = r.summary && Array.isArray(r.summary.mv) && r.summary.mv.length > 0;
+      if (hasMoves) playedIds.add(r.prepared_game_id);
+      else if (r.paused) suspendedSrv.add(r.prepared_game_id);
     });
   }
 
@@ -2399,7 +2407,9 @@ async function loadTournamentDetail(tournamentId) {
     ? `<p class="muted">${admin ? "Aucune partie. Génère-en une." : "Aucune partie disponible."}</p>`
     : `<div class="pg-mini-list">${(games || []).map(g => {
         const played = playedIds.has(g.id);
-        const suspended = !played && suspendedPrepared(g.id);
+        // En pause : côté serveur (autre appareil possible) OU localStorage (filet
+        // de sécurité si l'écriture réseau n'a pas eu le temps de partir).
+        const suspended = !played && (suspendedSrv.has(g.id) || suspendedPrepared(g.id));
         const action = played
           ? `<a style="${btnStyle};background:var(--soft);color:var(--petrol)" href="scrabble/game.html?review=${g.id}&tid=${currentTournamentId}">👁 Revoir</a>`
           : admin
@@ -2449,7 +2459,8 @@ window.showGamePodium = async function(gameId, gameName) {
   const { data: rowsRaw } = await sb.from("prepared_game_results")
     .select("player_id, sum_neg, total_score, total_time_seconds, details, played_on_mobile, players(name)")
     .eq("prepared_game_id", gameId);
-  const rows = excludeAdminRows(rowsRaw || []);
+  // Exclure les fiches sans coups (parties en pause non terminées).
+  const rows = excludeAdminRows(rowsRaw || []).filter(r => Array.isArray(r.details) && r.details.length > 0);
   if (!rows.length) { body.innerHTML = `<p class="muted">Personne n'a encore joué cette partie.</p>`; return; }
 
   // Tri : négatif décroissant (0 = meilleur), puis temps croissant.
@@ -2603,7 +2614,8 @@ async function loadTournamentLeaderboard(tournamentId, games, tournamentName, mo
   const { data: resultsRaw } = await cachedQuery(`tlead:${tournamentId}`, () => sb.from("prepared_game_results")
     .select("player_id, prepared_game_id, total_score, sum_neg, total_time_seconds, details, played_on_mobile, players(name)")
     .in("prepared_game_id", gameIds).then(r => ({ data: r.data })));
-  const results = excludeAdminRows(resultsRaw);
+  // Exclure les fiches sans coups (parties en pause non terminées) : pas de résultat.
+  const results = excludeAdminRows(resultsRaw).filter(r => Array.isArray(r.details) && r.details.length > 0);
   if (!results || results.length === 0) { if (!stale()) body.innerHTML = `<p class="muted">Aucun résultat enregistré.</p>`; return; }
 
   // Index resultats : player_id -> game_id -> result
@@ -2869,7 +2881,8 @@ async function loadTournamentStats(tournamentId, games) {
   const { data: resultsRaw } = await cachedQuery(`tstats:${tournamentId}`, () => sb.from("prepared_game_results")
     .select("player_id, prepared_game_id, sum_neg, total_score, total_time_seconds, finished_at, details, played_on_mobile, players(name)")
     .in("prepared_game_id", gameIds).then(r => ({ data: r.data })));
-  const results = excludeAdminRows(resultsRaw);
+  // Exclure les fiches sans coups (parties en pause non terminées).
+  const results = excludeAdminRows(resultsRaw).filter(r => Array.isArray(r.details) && r.details.length > 0);
 
   if (!results || results.length === 0) {
     if (!stale()) { body.innerHTML = `<p class="muted">Aucun joueur n'a encore terminé une partie de ce tournoi.</p>`; if (shameEl()) shameEl().innerHTML = ""; }

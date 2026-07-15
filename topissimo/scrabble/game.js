@@ -3950,7 +3950,7 @@ async function initGame() {
   // dictionnaire — voir « ORDRE CRITIQUE ».)
   // Partie de TOURNOI mise en pause puis rechargée (retour d'une autre appli, même
   // des heures après) → on la restaure au coup exact, en pause.
-  if (PREPARED_ID && restorePausedPrepared(PREPARED_ID)) return;
+  if (PREPARED_ID && await restorePausedPrepared(PREPARED_ID)) return;
   // Si aucune URL spéciale, et qu'on a un entraînement en pause sauvegardé → restaurer
   if (!PREPARED_ID && !TRAINING_ID && !PUZZLE_GAME_ID && !REVIEW_ID) {
     if (restorePausedTraining()) return;
@@ -5069,6 +5069,20 @@ function saveTrainingState() {
     // Entraînement → clé unique.
     const key = state.prepared ? preparedKey(state.prepared.id) : TRAINING_STORAGE_KEY;
     localStorage.setItem(key, JSON.stringify(snapshot));
+    // Partie de TOURNOI : on sauvegarde AUSSI côté Supabase (reprise multi-appareils).
+    // Fire-and-forget : le localStorage ci-dessus reste le filet fiable (l'écriture
+    // réseau peut ne pas aboutir si l'appareil se verrouille juste après).
+    if (state.prepared && window._sb) {
+      const pid = +(localStorage.getItem("currentPlayerId") || 0);
+      if (pid) window._sb.from("prepared_game_results").upsert(
+        // On renseigne aussi score/négatif/temps (au cas où ces colonnes seraient
+        // NOT NULL) ; sans `details`, cette ligne reste HORS classement/stats.
+        { prepared_game_id: state.prepared.id, player_id: pid, paused: snapshot,
+          total_score: state.totalScore || 0, sum_neg: state.sumNeg || 0,
+          total_time_seconds: snapshot.chronoElapsed || 0 },
+        { onConflict: "prepared_game_id,player_id" }
+      ).then(null, e => console.error("Sync pause serveur KO:", e?.message || e));
+    }
   } catch (e) { console.error("Save training state failed:", e); }
 }
 
@@ -5130,13 +5144,28 @@ function restorePausedTraining() {
   }
 }
 
-// Restaure une partie de TOURNOI mise en pause (après rechargement / retour d'une
-// autre appli). Ne restaure que si le snapshot correspond à CETTE partie pré-tirée.
-function restorePausedPrepared(preparedId) {
-  const raw = localStorage.getItem(preparedKey(preparedId));
-  if (!raw) return false;
+// Récupère le snapshot de pause d'une partie : d'abord SUPABASE (reprise possible
+// depuis un autre appareil), sinon le localStorage (filet de sécurité local).
+async function loadPausedSnapshot(preparedId) {
+  const pid = +(localStorage.getItem("currentPlayerId") || 0);
   try {
-    const s = JSON.parse(raw);
+    if (!window._sb) await loadSupabaseClient();
+    if (window._sb && pid) {
+      const { data } = await window._sb.from("prepared_game_results")
+        .select("paused").eq("prepared_game_id", preparedId).eq("player_id", pid).maybeSingle();
+      if (data && data.paused) return data.paused;
+    }
+  } catch (e) { console.warn("Lecture pause serveur KO:", e); }
+  try { const raw = localStorage.getItem(preparedKey(preparedId)); if (raw) return JSON.parse(raw); } catch {}
+  return null;
+}
+
+// Restaure une partie de TOURNOI mise en pause (rechargement / autre appli / autre
+// appareil). Ne restaure que si le snapshot correspond à CETTE partie pré-tirée.
+async function restorePausedPrepared(preparedId) {
+  const s = await loadPausedSnapshot(preparedId);
+  if (!s) return false;
+  try {
     if (!s.isPrepared || String(s.preparedId) !== String(preparedId)) return false;
     const currentPid = +(localStorage.getItem("currentPlayerId") || 0);
     if (s.playerId && currentPid && s.playerId !== currentPid) return false;
@@ -5539,6 +5568,7 @@ async function saveResultIfPrepared() {
     total_time_seconds: totalTime,
     details: detailsToSave,
     summary: buildResultSummary(detailsToSave, state.abandoned),
+    paused: null,   // partie terminée → plus « à reprendre »
     played_on_mobile: wasPlayedOnMobile(),
     diagnostics,
   }, { onConflict: "prepared_game_id,player_id" });
