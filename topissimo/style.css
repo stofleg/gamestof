@@ -611,6 +611,9 @@ tbody tr.me:hover { background: rgba(255,221,0,.22); }
   flex-direction: column;
   grid-template-columns: none !important;
   padding: 0 14px;
+  /* ~5 parties visibles, le reste défile. */
+  max-height: 280px;
+  overflow-y: auto;
 }
 
 .pg-mini .pg-name { font-weight: 600; font-size: .88rem; color: var(--petrol-dark); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
