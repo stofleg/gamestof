@@ -10,7 +10,7 @@
 import {
   emptyBoard, LETTER_BAG, drawForDuplicate, applyMove,
   bagTotalVowels, bagTotalConsonants, GAME_MODES, randomBoardLayout, snakeEndpointsAfter, gigogneRackSize,
-  bagFor, valuesFor, setLetterValues, LETTER_VALUE, isCrossingCell,
+  bagFor, valuesFor, setLetterValues, LETTER_VALUE, isCrossingCell, wordHiddenCount,
 } from "./engine.js?v=347";
 import { findTopRanked, findTop, snakeBestTop } from "./topfinder.js?v=347";
 
@@ -230,7 +230,8 @@ export function generateGame(dict, options = {}, onProgress = null) {
       const occ = [];
       for (let r = 0; r < board.length; r++)
         for (let c = 0; c < board[r].length; c++)
-          if (board[r][c] && !hiddenSet.has(r + "," + c) && !isCrossingCell(board, r, c))
+          if (board[r][c] && !hiddenSet.has(r + "," + c) && !isCrossingCell(board, r, c)
+              && wordHiddenCount(board, r, c, hiddenSet) < 2)
             occ.push([r, c]);
       if (occ.length) {
         const [hr, hc] = occ[Math.floor(Math.random() * occ.length)];

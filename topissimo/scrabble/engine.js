@@ -53,6 +53,25 @@ export function isCrossingCell(board, r, c) {
   return horiz && vert;
 }
 
+// Nombre max de jetons déjà masqués parmi le(s) mot(s) traversant (r,c). Sert à
+// interdire une 3e tête de mort dans un même mot.
+export function wordHiddenCount(board, r, c, hiddenSet) {
+  const n = board.length;
+  let maxCnt = 0;
+  for (const [dr, dc] of [[0, 1], [1, 0]]) {
+    let sr = r, sc = c;
+    while (sr - dr >= 0 && sc - dc >= 0 && board[sr - dr][sc - dc]) { sr -= dr; sc -= dc; }
+    let len = 0, cnt = 0, er = sr, ec = sc;
+    while (er >= 0 && er < n && ec >= 0 && ec < n && board[er][ec]) {
+      len++;
+      if (hiddenSet.has(er + "," + ec)) cnt++;
+      er += dr; ec += dc;
+    }
+    if (len > 1) maxCnt = Math.max(maxCnt, cnt);
+  }
+  return maxCnt;
+}
+
 // ============================================================
 //  Modes de jeu (formules originales FFSC)
 // ============================================================

@@ -27,7 +27,7 @@ import {
   emptyBoard, BOARD_BONUSES, BOARD_SIZE, CENTER, LETTER_VALUE, LETTER_BAG,
   VOWELS, drawForDuplicate, scoreMove, applyMove,
   bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName, randomBoardLayout, snakeEndpointsAfter, sablierTime, gigogneRackSize,
-  setLetterValues, letterValue, valuesFor, bagFor, isCrossingCell,
+  setLetterValues, letterValue, valuesFor, bagFor, isCrossingCell, wordHiddenCount,
 } from "./engine.js?v=347";
 import { Dictionary } from "./dictionary.js?v=347";
 import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=347";
@@ -2460,7 +2460,8 @@ function placeTopAndAdvance(playerScore, playedWord = null, playedScore = null, 
       for (let r = 0; r < state.board.length; r++)
         for (let c = 0; c < state.board[r].length; c++) {
           const k = `${r},${c}`;
-          if (state.board[r][c] && !state.hiddenCells.has(k) && !isCrossingCell(state.board, r, c))
+          if (state.board[r][c] && !state.hiddenCells.has(k) && !isCrossingCell(state.board, r, c)
+              && wordHiddenCount(state.board, r, c, state.hiddenCells) < 2)
             occ.push(k);
         }
       if (occ.length) state.hiddenCells.add(occ[Math.floor(Math.random() * occ.length)]);
