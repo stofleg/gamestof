@@ -28,7 +28,7 @@ import {
   VOWELS, drawForDuplicate, scoreMove, applyMove,
   bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName, randomBoardLayout, snakeEndpointsAfter, sablierTime, gigogneRackSize,
   setLetterValues, letterValue, valuesFor, bagFor, isCrossingCell, wordHiddenCount,
-  drawVowelRack, VOWELS_NO_Y,
+  drawVowelRack, VOWELS_NO_Y, MARATHON_TARGET, MARATHON_GAMES,
 } from "./engine.js?v=347";
 import { Dictionary } from "./dictionary.js?v=347";
 import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=347";
@@ -2648,6 +2648,8 @@ function recordMove({ status, playerScore, playedWord = null, playedMove = null,
     } : {}),
     v: 2,
   });
+  // Marathon : ce coup incrémente le streak s'il a été topé, sinon le remet à zéro.
+  if (currentMode().marathon && state.marathon) marathonRegister(status === "top");
 }
 
 function posLabel(move) {
@@ -2684,6 +2686,9 @@ function nextMove() {
   // nouveau automatiquement (sinon un seul déplacement manuel désactivait le
   // tri alpha pour tout le reste de la partie).
   state._tempUnsorted = false;
+  // Marathon : dès que l'objectif de 42 tops consécutifs est atteint, victoire →
+  // fin immédiate (le temps a été figé au coup gagnant).
+  if (currentMode().marathon && state.marathon && state.marathon.reached) { endGame(); return; }
   // ===== Mode partie pré-tirée : lecture de partition =====
   // INVARIANT : en mode pré-tiré, l'état de la partie est 100 % déterminé
   // par les données stockées. À chaque coup :
@@ -5160,8 +5165,72 @@ function startGame() {
   if (_btnReview) { _btnReview.hidden = true; _btnReview.disabled = true; _btnReview.classList.remove("active"); }
   updateGiveUpLabel();
   updateTournamentNavButtons();
+  // Marathon (entraînement) : init du compteur de tops consécutifs, conservé sur
+  // les 10 parties enchaînées.
+  if (currentMode().marathon && !state.prepared) {
+    state.marathon = { streak: 0, best: 0, gameIdx: 1, startMs: performance.now(), reached: false, time42: null };
+    updateMarathonHUD();
+  } else {
+    state.marathon = null;
+    updateMarathonHUD();
+  }
   startChrono();
   nextMove();
+}
+
+// ===== Marathon : compteur de tops consécutifs + enchaînement des parties =====
+function marathonRegister(topped) {
+  const M = state.marathon;
+  if (!M || M.reached) return;
+  if (topped) {
+    M.streak++;
+    if (M.streak > M.best) M.best = M.streak;
+    if (M.streak >= MARATHON_TARGET) { M.reached = true; M.time42 = performance.now() - M.startMs; }
+  } else {
+    M.streak = 0;
+  }
+  updateMarathonHUD();
+}
+
+function marathonStartNextGame() {
+  const M = state.marathon;
+  M.gameIdx++;
+  // Nouvelle partie duplicate : plateau/sac/tirage remis à zéro, STREAK conservé.
+  // Le chrono général continue (on ne rappelle pas startChrono).
+  state.board = emptyBoard();
+  state.rack = [];
+  state.pending = [];
+  state.cursor = null;
+  state.moveNo = 1;
+  state.topMove = null;
+  state.subTop = null;
+  state.snakeEnds = null;
+  state.hiddenCells = new Set();
+  state.bestAttempt = null;
+  state.lastPlaced = [];
+  state.lastTopCells = [];
+  state.bag = { ...bagFor(state.settings.gameMode) };
+  state.spareJokers = 0;
+  state._topPending = false;
+  updateMarathonHUD();
+  renderBoard(); renderRack(); renderBag();
+  nextMove();
+}
+
+function updateMarathonHUD() {
+  let el = document.getElementById("marathonHud");
+  const M = state.marathon;
+  if (!M || !currentMode().marathon || review.active) { if (el) el.hidden = true; return; }
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "marathonHud";
+    document.body.appendChild(el);
+  }
+  el.hidden = false;
+  const flames = M.streak > 0 ? "🔥" : "·";
+  el.innerHTML = `<span class="mh-game">Partie ${M.gameIdx}/${MARATHON_GAMES}</span>`
+    + `<span class="mh-streak">${flames} <strong>${M.streak}</strong>/${MARATHON_TARGET}</span>`
+    + `<span class="mh-best">record ${M.best}</span>`;
 }
 
 // ===== Pause + persistance (uniquement entraînement) =====
@@ -5455,6 +5524,13 @@ window.addEventListener("popstate", () => {
 });
 
 function endGame() {
+  // Marathon : si l'objectif n'est pas encore atteint et qu'il reste des parties,
+  // on enchaîne la partie suivante (streak et chrono conservés) au lieu de finir.
+  if (currentMode().marathon && state.marathon && !state.marathon.reached
+      && state.marathon.gameIdx < MARATHON_GAMES) {
+    marathonStartNextGame();
+    return;
+  }
   console.log(`[endGame] ${BUILD_VERSION} — reconstruction plateau depuis ${state.history?.length || 0} coups d'historique`);
   stopChrono();
   stopMoveTimer();
@@ -5473,7 +5549,7 @@ function endGame() {
   // que le plateau (state.board) contient déjà tout le contexte des coups
   // précédents + le top posé. Reconstruire depuis l'historique effacerait ce
   // contexte → on saute la reconstruction (le plateau est déjà correct).
-  if (!state.isPuzzle && Array.isArray(state.history) && state.history.length) {
+  if (!state.isPuzzle && !currentMode().marathon && Array.isArray(state.history) && state.history.length) {
     const playedTops = state.history.filter(h => h?.top?.word);
     let board = emptyBoard();
     let lastNewCells = [], lastAllCells = [], lastReliquat = null;
@@ -5513,10 +5589,32 @@ function endGame() {
     renderBag();   // recalcul du sac avec le chevalet réduit au reliquat (évite le -1)
   }
   const time = fmtChrono(state.chronoFinal);
+  if (currentMode().marathon && state.marathon) {
+    const M = state.marathon;
+    const hud = document.getElementById("marathonHud"); if (hud) hud.hidden = true;
+    const tops = state.history.filter(h => h.status === "top").length;
+    const title = document.getElementById("endModalTitle");
+    if (M.reached) {
+      if (title) title.textContent = "🏁 Marathon réussi !";
+      $("#endSummary").innerHTML = `
+        <div style="font-size:1.15em">🏆 <strong>${MARATHON_TARGET} tops consécutifs</strong> atteints !</div>
+        <div>Temps pour y arriver : <strong>${fmtChrono(Math.round(M.time42 / 1000))}</strong></div>
+        <div>Parties nécessaires : <strong>${M.gameIdx}/${MARATHON_GAMES}</strong> · tops trouvés : <strong>${tops}</strong></div>`;
+    } else {
+      if (title) title.textContent = "🏁 Marathon terminé";
+      $("#endSummary").innerHTML = `
+        <div style="font-size:1.15em">Record : <strong>${M.best}</strong> tops consécutifs <span style="opacity:.7">(objectif ${MARATHON_TARGET})</span></div>
+        <div>Parties jouées : <strong>${M.gameIdx}/${MARATHON_GAMES}</strong> · tops trouvés : <strong>${tops}</strong></div>
+        <div>Temps total : <strong>${time}</strong></div>`;
+    }
+  } else {
+    const title = document.getElementById("endModalTitle");
+    if (title) title.textContent = "🎉 Partie terminée";
   $("#endSummary").innerHTML = `
     <div>Score total : <strong>${state.totalScore}</strong> pts</div>
     <div>Négatif : <strong>${state.sumNeg}</strong></div>
     <div>Temps : <strong>${time}</strong>${state.chronoPenalty ? ` (dont ${state.chronoPenalty}s de pénalités)` : ""}</div>`;
+  }
   // Rendre le bouton Revoir accessible (partie terminée)
   if (_btnReview) { _btnReview.hidden = false; _btnReview.disabled = false; _btnReview.classList.remove("active"); }
   updateTournamentNavButtons();

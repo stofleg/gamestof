@@ -141,7 +141,17 @@ export const GAME_MODES = {
   // utilisant un sous-ensemble des voyelles du tirage + consonnes libres.
   voyelles: { label: "Voyelles", rackSize: 5, maxPlayed: 7, bonuses: { 7: 50 },
     defaultTime: 120, stofOnly: true, voyelles: true },
+  // Marathon : 10 parties duplicate classiques enchaînées automatiquement. Un
+  // compteur de tops CONSÉCUTIFS est conservé d'une partie à l'autre ; il repart
+  // à zéro à chaque raté. Objectif : 42 tops d'affilée = victoire (temps enregistré).
+  // Sinon la fin arrive après la 10e partie (classement au plus long streak).
+  marathon: { label: "Marathon", rackSize: 7, maxPlayed: 7, bonuses: { 7: 50 },
+    defaultTime: 120, stofOnly: true, marathon: true },
 };
+
+// Marathon : objectif de tops consécutifs et nombre de parties enchaînées.
+export const MARATHON_TARGET = 42;
+export const MARATHON_GAMES = 10;
 
 // Mode Voyelles : le Y est traité comme une CONSONNE. Les voyelles sont donc
 // A E I O U seulement (tirées dans le chevalet), et Y rejoint les consonnes libres.
