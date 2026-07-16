@@ -3913,12 +3913,13 @@ if (window.matchMedia("(max-width: 700px)").matches) {
 
 
 // Ajoute les formules « superoriginales » au sélecteur d'entraînement, mais
-// UNIQUEMENT pour le pseudo stof (les autres joueurs ne les voient pas).
+// UNIQUEMENT pour stof EN MODE ADMIN (superadmin). Les autres — y compris stof
+// hors mode admin — ne les voient pas.
 function populateAdminModes() {
-  // Formules superoriginales dans le sélecteur d'ENTRAÎNEMENT — pour stof
-  // uniquement (permet de tester les formules sans générer de tournoi).
-  if ((localStorage.getItem("currentPseudo") || "").toLowerCase() !== "stof") {
-    // Mode « Éditeur » (construction de partie) : réservé à stof également.
+  const isSuperAdmin = (localStorage.getItem("currentPseudo") || "").toLowerCase() === "stof"
+    && localStorage.getItem("topissimo:superadmin") === "1";
+  if (!isSuperAdmin) {
+    // Mode « Éditeur » (construction de partie) : réservé au superadmin également.
     const edOpt = document.querySelector('#optPlayMode option[value="editor"]');
     if (edOpt) edOpt.remove();
     return;

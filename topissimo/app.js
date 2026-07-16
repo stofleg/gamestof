@@ -137,6 +137,8 @@ function initials(name) {
 //  Tabs
 // ============================================================
 function activateTab(name, persist = true) {
+  // Le compte "admin" (génération seule) ne peut aller que sur l'onglet Tournois.
+  if (typeof isAdmin === "function" && isAdmin() && name !== "prepared") name = "prepared";
   const b = document.querySelector(`nav button[data-tab="${name}"]`);
   if (!b) return;
   // Nettoyer un éventuel #tid=/#tab= de l'URL en changeant d'onglet : sinon un
@@ -2173,7 +2175,7 @@ function startPresence(playerId) {
   });
 }
 function renderPresence() {
-  if (!isAdmin()) return;
+  if (!superAdmin()) return;
   const card = $("#presenceCard");
   const body = $("#presenceBody");
   if (!card || !body) return;
@@ -2200,13 +2202,13 @@ function renderPresence() {
 async function loadTournaments() {
   $("#tournamentsView").hidden = false;
   $("#tournamentDetailView").hidden = true;
-  $("#tournamentFormCard").hidden = !isAdmin();
-  if (isAdmin()) renderPresence(); else { const c = $("#presenceCard"); if (c) c.hidden = true; }
+  $("#tournamentFormCard").hidden = !canGenerate();
+  if (superAdmin()) renderPresence(); else { const c = $("#presenceCard"); if (c) c.hidden = true; }
 
   // Les joueurs ne voient que les tournois actifs (archived_at null). L'admin voit
   // EN PLUS les tournois verrouillés (archived_at renseigné) pour les déverrouiller.
   let q = sb.from("tournaments").select("*");
-  if (!isAdmin()) q = q.is("archived_at", null);
+  if (!superAdmin()) q = q.is("archived_at", null);
   const { data: tournamentsRaw, error } = await q.order("created_at", { ascending: false });
   // Actifs d'abord, verrouillés ensuite.
   const tournaments = (tournamentsRaw || []).slice().sort((a, b) =>
@@ -2241,7 +2243,7 @@ async function loadTournaments() {
 
   // Marathon : soft-launch réservé à stof — un tournoi Marathon n'apparaît dans
   // la liste que pour le pseudo « stof » (caché à admin et aux autres joueurs).
-  const visibleTournaments = (tournaments || []).filter(t => isStof() || !marathonT.has(t.id));
+  const visibleTournaments = (tournaments || []).filter(t => superAdmin() || !marathonT.has(t.id));
 
   $("#tournamentsBody").innerHTML = (visibleTournaments).map(t => {
     // Tournoi démo : afficher 10/10 pour tout le monde (référence complète).
@@ -2250,7 +2252,7 @@ async function loadTournaments() {
       ? "10/10"
       : `${playedByT[t.id] || 0}/${countsByT[t.id] || 0}`;
     const locked = !!t.archived_at;   // verrouillé = masqué aux joueurs
-    const adminBtns = !isAdmin() ? "" : locked
+    const adminBtns = !superAdmin() ? "" : locked
       ? `<button class="btn ghost small" onclick="event.stopPropagation();unlockTournament(${t.id})">🔓 Déverrouiller</button>`
       : `<button class="btn ghost small" onclick="event.stopPropagation();lockTournament(${t.id})">🔒 Verrouiller</button>`;
     return `
@@ -2260,7 +2262,7 @@ async function loadTournaments() {
       <td>${partiesCell}</td>
       <td>${adminBtns}</td>
     </tr>`;
-  }).join("") || `<tr><td colspan="4" class="muted">${isAdmin() ? "Aucun tournoi. Crée-en un ci-dessus." : "Aucun tournoi disponible."}</td></tr>`;
+  }).join("") || `<tr><td colspan="4" class="muted">${canGenerate() ? "Aucun tournoi. Crée-en un ci-dessus." : "Aucun tournoi disponible."}</td></tr>`;
 }
 
 // Archiver le plus ancien tournoi tant qu'on dépasse la limite
@@ -2343,7 +2345,7 @@ window.purgeCurrentTournament = () => purgeTournament(currentTournamentId).then(
 
 // Renommer un tournoi a posteriori (admin uniquement).
 window.renameCurrentTournament = async () => {
-  if (!isAdmin()) return;
+  if (!superAdmin()) return;
   if (!currentTournamentId) return;
   const current = ($("#tournamentDetailTitle").textContent || "").replace(/^🏟\s*/, "");
   const name = prompt("Nouveau nom du tournoi :", current);
@@ -2361,13 +2363,14 @@ async function loadTournamentDetail(tournamentId) {
   if (_swReg) _swReg.update().catch(() => {});
   $("#tournamentsView").hidden = true;
   $("#tournamentDetailView").hidden = false;
-  $("#pgFormCard").hidden = !isAdmin();
-  // Outils admin (recalcul des négatifs, donner le top…) : réservés au SEUL
-  // pseudo « admin » — plus visibles pour « stof ».
-  $("#adminToolsCard").hidden = currentPlayer?.name !== ADMIN_PSEUDO;
-  $("#tournamentRename").hidden = !isAdmin();
-  $("#tournamentDelete").hidden = !isAdmin();
-  $("#tournamentPurge").hidden = !isAdmin();
+  $("#pgFormCard").hidden = !canGenerate();
+  // Outils admin (recalcul des négatifs, donner le top…) + gestion (renommer,
+  // supprimer, purger) : réservés au SUPERADMIN (stof en mode admin). Le compte
+  // « admin » ne fait QUE générer.
+  $("#adminToolsCard").hidden = !superAdmin();
+  $("#tournamentRename").hidden = !superAdmin();
+  $("#tournamentDelete").hidden = !superAdmin();
+  $("#tournamentPurge").hidden = !superAdmin();
 
   const { data: t } = await sb.from("tournaments").select("*").eq("id", tournamentId).maybeSingle();
   if (!t) { backToTournaments(); return; }
@@ -2388,14 +2391,15 @@ async function loadTournamentDetail(tournamentId) {
   // Marathon : soft-launch réservé à stof. Garde défensive si on atteint le détail
   // autrement que par la liste (URL directe, compte admin) : on refuse l'accès.
   const isMarathonTournament = games.some(g => g.mode === "marathon");
-  if (isMarathonTournament && !isStof()) { backToTournaments(); return; }
+  if (isMarathonTournament && !superAdmin()) { backToTournaments(); return; }
 
   // S'assurer qu'au moins une ligne de formule est présente dans le générateur.
-  if (isAdmin() && $("#pgRecipe") && !$("#pgRecipe").children.length) pgAddRecipeLine();
+  if (canGenerate() && $("#pgRecipe") && !$("#pgRecipe").children.length) pgAddRecipeLine();
 
   const { modeDisplayName } = await import("./scrabble/engine.js?v=348");
   const btnStyle = "text-decoration:none;padding:5px 10px;border-radius:6px;font-weight:600;font-size:.85rem";
-  const admin = isAdmin();
+  const admin = superAdmin();     // stof en mode admin : joue + teste + supprime
+  const genOnly = isAdmin();       // compte "admin" : génération seule, pas de jeu
 
   // ===== Une seule requête pour ce tournoi (en cache) : état du viewer + stof +
   // progression de TOUS les joueurs. `summary` dit si des coups ont été joués,
@@ -2443,7 +2447,9 @@ async function loadTournamentDetail(tournamentId) {
   const makeCard = (g) => {
     const played = playedIds.has(g.id);
     const suspended = !played && (suspendedSrv.has(g.id) || suspendedPrepared(g.id));
-    const action = played
+    const action = genOnly
+      ? ""   // le compte "admin" ne joue pas (génération uniquement)
+      : played
       ? `<a style="${btnStyle};background:var(--soft);color:var(--petrol)" href="scrabble/game.html?review=${g.id}&tid=${currentTournamentId}">👁 Revoir</a>`
       : suspended
         ? `<button style="${btnStyle};background:#ffcf33;color:var(--petrol-dark);border:none;cursor:pointer;font-weight:700" onclick="ensureFreshAndNavigate('scrabble/game.html?prepared=${g.id}&tid=${currentTournamentId}')" title="Reprendre la partie en cours">⏯ Continuer</button>`
@@ -2452,7 +2458,7 @@ async function loadTournamentDetail(tournamentId) {
               ? `<button style="${btnStyle};background:var(--yellow);color:var(--petrol-dark);border:none;cursor:pointer" onclick="ensureFreshAndNavigate('scrabble/game.html?prepared=${g.id}&tid=${currentTournamentId}')" title="Tester (déjà jouée par stof — hors classement)">🧪 Tester</button>`
               : `<button style="${btnStyle};background:var(--soft);color:var(--ink-soft);border:none;opacity:.5;cursor:not-allowed" disabled title="À tester une fois que stof l'aura jouée">▶ Jouer</button>`)
           : `<button style="${btnStyle};background:var(--yellow);color:var(--petrol-dark);border:none;cursor:pointer" onclick="ensureFreshAndNavigate('scrabble/game.html?prepared=${g.id}&tid=${currentTournamentId}')">▶ Jouer</button>`;
-    const del = admin ? `<button class="danger" onclick="delPreparedGame(${g.id})" title="Supprimer">🗑</button>` : "";
+    const del = (admin || genOnly) ? `<button class="danger" onclick="delPreparedGame(${g.id})" title="Supprimer">🗑</button>` : "";
     const podium = played
       ? `<button class="btn ghost small" onclick="showGamePodium(${g.id}, '${escapeHtml(g.name).replace(/'/g, "\\'")}')" title="Classement de cette partie">🥇</button>`
       : `<button class="btn ghost small" disabled title="Joue d'abord cette partie pour voir le classement" style="opacity:.4;cursor:not-allowed">🥇</button>`;
@@ -2714,8 +2720,10 @@ async function loadTournamentLeaderboard(tournamentId, games, tournamentName, mo
   const stale = () => currentTournamentId !== tournamentId;
   if (!games.length) { if (!stale()) body.innerHTML = `<p class="muted">Pas encore de partie.</p>`; return; }
 
-  // Marathon : classement dédié (temps pour 42, puis record de streak).
-  if (games.some(g => g.mode === "marathon")) {
+  // Marathon : classement dédié (temps pour 42, puis record de streak) — seulement
+  // pour un tournoi ENTIÈREMENT marathon. Un tournoi mixte (« tournoi de la mort »)
+  // retombe sur le classement standard (le marathon y compte par son négatif).
+  if (games.length && games.every(g => g.mode === "marathon")) {
     const gIds = games.map(g => g.id);
     const { data: mRows } = await sb.from("prepared_game_results")
       .select("player_id, summary, total_time_seconds, details, played_on_mobile, players(name)")
@@ -3007,8 +3015,8 @@ async function loadTournamentStats(tournamentId, games) {
     return;
   }
   // Marathon : les stats « duplicate » (solos, négatifs moyens…) n'ont pas de sens
-  // ici → on masque le panneau (le classement dédié suffit).
-  if (games.some(g => g.mode === "marathon")) {
+  // pour un tournoi entièrement marathon → on masque le panneau (classement dédié).
+  if (games.length && games.every(g => g.mode === "marathon")) {
     if (!stale()) { body.innerHTML = `<p class="muted">Statistiques non applicables au Marathon — voir le classement.</p>`; if (shameEl()) shameEl().innerHTML = ""; }
     return;
   }
@@ -3289,7 +3297,7 @@ async function loadTournamentStats(tournamentId, games) {
 }
 
 $("#tCreate").onclick = async () => {
-  if (!isAdmin()) return alert("Réservé à l'admin.");
+  if (!canGenerate()) return alert("Réservé à la génération de tournois.");
   const name = $("#tName").value.trim();
   if (!name) return alert("Donne un nom au tournoi.");
   const { data, error } = await sb.from("tournaments").insert({
@@ -3329,7 +3337,7 @@ const PG_SUPER_OPTIONS = `
     <option value="grillerandom">Grille random</option>
   </optgroup>`;
 // Les formules superoriginales ne sont proposées qu'au pseudo « stof ».
-function pgModeOptions() { return PG_STD_OPTIONS + (isStof() ? PG_SUPER_OPTIONS : ""); }
+function pgModeOptions() { return PG_STD_OPTIONS + (superAdmin() ? PG_SUPER_OPTIONS : ""); }
 const PG_STD_MODES = ["duplicate", "blitz", "7sur8", "7et8", "789"];   // modes où le joker est optionnel
 // Temps par défaut (s/coup) par mode — doit refléter GAME_MODES[mode].defaultTime
 // d'engine.js. Sert à préremplir le champ « temps » du générateur (le générateur
@@ -3380,7 +3388,7 @@ window.delPreparedGame = async function(id) {
 };
 
 $("#pgCreate").onclick = async () => {
-  if (!isAdmin()) { alert("Seul l'admin peut créer des parties."); return; }
+  if (!canGenerate()) { alert("Réservé à la génération de tournois."); return; }
   if (!currentTournamentId) { alert("Choisis ou crée d'abord un tournoi."); return; }
   clearStatsCache();
   try {
@@ -3461,7 +3469,7 @@ $("#pgCreate").onclick = async () => {
 // ============================================================
 
 window.recomputeAllNeg = async function(force = false) {
-  if (!isAdmin()) return alert("Réservé à l'admin.");
+  if (!superAdmin()) return alert("Réservé au mode admin.");
   if (!currentTournamentId) return alert("Ouvre d'abord un tournoi.");
   clearStatsCache();
   const statusEl = $("#recomputeStatus");
@@ -3564,7 +3572,7 @@ function parseMoveList(str) {
 }
 
 window.adminGiveTop = async function() {
-  if (!isAdmin()) return alert("Réservé à l'admin.");
+  if (!superAdmin()) return alert("Réservé au mode admin.");
   const statusEl = $("#fixStatus");
   if (!currentTournamentId) { statusEl.textContent = "❌ Ouvre d'abord un tournoi."; return; }
 
@@ -3660,7 +3668,7 @@ window.adminGiveTop = async function() {
 // cette partie (cas d'un bug rencontré en cours de partie). Après ça, la partie
 // réaffiche « ▶ Jouer » au lieu de « 👁 Revoir ».
 window.adminAllowReplay = async function() {
-  if (!isAdmin()) return alert("Réservé à l'admin.");
+  if (!superAdmin()) return alert("Réservé au mode admin.");
   clearStatsCache();
   const statusEl = $("#replayStatus");
   if (!currentTournamentId) { statusEl.textContent = "❌ Ouvre d'abord un tournoi."; return; }
@@ -3716,7 +3724,7 @@ window.adminAllowReplay = async function() {
 };
 
 window.recomputeAllJokerNeg = async function() {
-  if (!isAdmin()) return alert("Réservé à l'admin.");
+  if (!superAdmin()) return alert("Réservé au mode admin.");
   clearStatsCache();
   const statusEl = $("#recomputeStatus");
   statusEl.textContent = "⏳ Chargement des modules…";
@@ -3817,6 +3825,44 @@ const ADMIN_PSEUDO = "admin"; // compte de test (exclu des classements)
 function isAdmin() { return currentPlayer?.name === ADMIN_PSEUDO; }
 // Accès aux FORMULES SUPERORIGINALES : réservé au pseudo stof.
 function isStof() { return currentPlayer?.name === "stof"; }
+
+// ===== Rôles =====
+//  • admin (pseudo "admin")  : UNIQUEMENT la génération de tournois (page Tournois
+//    + outils de création). Pas de stats, entraînement, rejeu, présence, etc.
+//  • stof                    : joueur normal par défaut. Un bouton « admin » (à côté
+//    du pseudo) le fait passer en SUPERADMIN → tout est actif (fonctions admin +
+//    formules superoriginales en entraînement et en génération).
+const SUPERADMIN_KEY = "topissimo:superadmin";
+// Vrai quand stof a activé le mode admin (bouton). Persisté (partagé avec la page de jeu).
+function superAdmin() { return isStof() && localStorage.getItem(SUPERADMIN_KEY) === "1"; }
+// Peut générer/créer des tournois : l'admin OU stof en mode superadmin.
+function canGenerate() { return isAdmin() || superAdmin(); }
+
+// Applique la visibilité liée au rôle : bouton « admin » (stof), onglets (l'admin
+// ne voit que « Tournois »).
+function applyRoleUI() {
+  const tgl = document.getElementById("adminToggle");
+  if (tgl) {
+    tgl.hidden = !isStof();
+    tgl.classList.toggle("active", superAdmin());
+  }
+  // Le compte "admin" ne voit QUE l'onglet Tournois (génération) : pas les autres
+  // onglets, ni le bouton « S'entraîner ».
+  const adminOnly = isAdmin();
+  document.querySelectorAll('nav button[data-tab]').forEach(b => {
+    b.hidden = adminOnly && b.dataset.tab !== "prepared";
+  });
+  const playBtn = document.querySelector("header .play-btn");
+  if (playBtn) playBtn.style.display = adminOnly ? "none" : "";
+  if (adminOnly) activateTab("prepared", false);
+}
+
+window.toggleSuperAdmin = function() {
+  if (!isStof()) return;
+  if (localStorage.getItem(SUPERADMIN_KEY) === "1") localStorage.removeItem(SUPERADMIN_KEY);
+  else localStorage.setItem(SUPERADMIN_KEY, "1");
+  location.reload();   // rejoue tout le gating proprement (onglets, générateur, superoriginales)
+};
 
 // Les parties de l'admin sont enregistrées (utile pour débusquer des bugs)
 // mais ne doivent PAS apparaître dans les résultats publics (classements,
@@ -4031,6 +4077,8 @@ async function onSignedIn() {
       }
     }).catch(() => { if (swVerEl) swVerEl.hidden = true; });
   } else if (swVerEl) { swVerEl.hidden = true; }
+  // Visibilité liée au rôle (bouton admin, onglets)
+  applyRoleUI();
   // Charger les données
   loadPlayers().then(() => { startPresence(player.id); loadPreparedGames(); });
   restoreFfscReturn();

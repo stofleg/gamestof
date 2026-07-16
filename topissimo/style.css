@@ -227,6 +227,25 @@ header .user-pill .logout-btn {
   justify-content: center;
 }
 header .user-pill .logout-btn:hover { background: rgba(255,255,255,.3); }
+/* Bouton « admin » (bascule superadmin, pseudo stof uniquement). */
+header .user-pill .admin-toggle {
+  background: rgba(255,255,255,.15);
+  border: 1px solid rgba(255,255,255,.35);
+  color: #fff;
+  padding: 3px 10px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: .72rem;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+header .user-pill .admin-toggle:hover { background: rgba(255,255,255,.28); }
+header .user-pill .admin-toggle.active {
+  background: var(--yellow, #ffd24a);
+  color: var(--petrol-dark, #0d3a4f);
+  border-color: transparent;
+}
 
 header .user-pill {
   display:flex;
