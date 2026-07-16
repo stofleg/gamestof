@@ -2702,6 +2702,19 @@ function nextMove() {
       return;
     }
     const next = state.prepared.moves[state.preparedIdx];
+    // Marathon tournoi : frontière de sous-partie → on repart d'un plateau vide
+    // (le compteur de streak, lui, est conservé). Le 1er coup de chaque sous-partie
+    // (sauf la 1re) porte `newGame:true` (posé à la génération).
+    if (next && next.newGame && currentMode().marathon) {
+      state.board = emptyBoard();
+      state.hiddenCells = new Set();
+      state.snakeEnds = null;
+      state.lastPlaced = [];
+      state.lastTopCells = [];
+      state.moveNo = 1;   // n° de coup par sous-partie
+      if (state.marathon) state.marathon.gameIdx++;
+      updateMarathonHUD();
+    }
     // Garde-fou : vérifier que le chevalet stocké est cohérent avec le mode.
     const rackStr = next.rack || "";
     const mode = currentMode();
@@ -5069,6 +5082,7 @@ async function loadPreparedGame(id) {
   state.topMove = null;
   state.subTop = null;
   state.snakeEnds = null;
+  state.marathon = null;   // recréé à startGame si la partie est un Marathon
   state.bestAttempt = null;
   state._dual = null;
   state._topPending = false;
@@ -5172,13 +5186,15 @@ function startGame() {
   updateTournamentNavButtons();
   // Marathon (entraînement) : init du compteur de tops consécutifs, conservé sur
   // les 10 parties enchaînées.
-  if (currentMode().marathon && !state.prepared) {
-    state.marathon = { streak: 0, best: 0, gameIdx: 1, reached: false, time42: null };
-    updateMarathonHUD();
+  // Marathon (entraînement OU tournoi) : compteur de tops consécutifs, conservé
+  // sur les MARATHON_GAMES parties enchaînées. En tournoi, l'objet peut déjà avoir
+  // été créé par une reprise ; on ne le réinitialise donc que s'il est absent.
+  if (currentMode().marathon) {
+    if (!state.marathon) state.marathon = { streak: 0, best: 0, gameIdx: 1, reached: false, time42: null };
   } else {
     state.marathon = null;
-    updateMarathonHUD();
   }
+  updateMarathonHUD();
   startChrono();
   nextMove();
 }
@@ -5544,9 +5560,11 @@ window.addEventListener("popstate", () => {
 });
 
 function endGame() {
-  // Marathon : si l'objectif n'est pas encore atteint et qu'il reste des parties,
-  // on enchaîne la partie suivante (streak et chrono conservés) au lieu de finir.
-  if (currentMode().marathon && state.marathon && !state.marathon.reached
+  // Marathon ENTRAÎNEMENT : si l'objectif n'est pas atteint et qu'il reste des
+  // parties, on enchaîne la partie suivante (streak et chrono conservés) au lieu
+  // de finir. En TOURNOI, l'enchaînement est déjà dans les coups concaténés
+  // (frontières `newGame`), donc on ne passe pas par ici.
+  if (!state.prepared && currentMode().marathon && state.marathon && !state.marathon.reached
       && state.marathon.gameIdx < MARATHON_GAMES) {
     marathonStartNextGame();
     return;
@@ -5814,6 +5832,16 @@ async function saveResultIfPrepared() {
     events: diag.events,
   };
 
+  const summary = buildResultSummary(detailsToSave, state.abandoned);
+  // Marathon : on stocke le résultat spécifique dans le résumé — temps pour
+  // atteindre 42 (secondes, null si non atteint), meilleur streak, objectif atteint.
+  if (currentMode().marathon && state.marathon) {
+    summary.m = {
+      t42: state.marathon.reached ? state.marathon.time42 : null,
+      best: state.marathon.best || 0,
+      reached: !!state.marathon.reached,
+    };
+  }
   const { error: e1 } = await window._sb.from("prepared_game_results").upsert({
     prepared_game_id: state.prepared.id,
     player_id: pid,
@@ -5821,7 +5849,7 @@ async function saveResultIfPrepared() {
     sum_neg: state.sumNeg,
     total_time_seconds: totalTime,
     details: detailsToSave,
-    summary: buildResultSummary(detailsToSave, state.abandoned),
+    summary,
     paused: null,   // partie terminée → plus « à reprendre »
     played_on_mobile: wasPlayedOnMobile(),
     diagnostics,

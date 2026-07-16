@@ -2218,10 +2218,13 @@ async function loadTournaments() {
   // Compter les parties par tournoi (total) ET celles jouées par le joueur
   // courant → colonne "Parties" présentée en « joué / total » (progression).
   const ids = (tournaments || []).map(t => t.id);
-  let countsByT = {}, playedByT = {};
+  let countsByT = {}, playedByT = {}, marathonT = new Set();
   if (ids.length) {
-    const { data: counts } = await sb.from("prepared_games").select("tournament_id").in("tournament_id", ids);
-    (counts || []).forEach(p => countsByT[p.tournament_id] = (countsByT[p.tournament_id] || 0) + 1);
+    const { data: counts } = await sb.from("prepared_games").select("tournament_id, mode").in("tournament_id", ids);
+    (counts || []).forEach(p => {
+      countsByT[p.tournament_id] = (countsByT[p.tournament_id] || 0) + 1;
+      if (p.mode === "marathon") marathonT.add(p.tournament_id);   // tournoi Marathon
+    });
     const me = +state.currentPlayerId || 0;
     if (me) {
       // Une fiche de résultat = une partie jouée par ce joueur. On remonte au
@@ -2236,7 +2239,11 @@ async function loadTournaments() {
     }
   }
 
-  $("#tournamentsBody").innerHTML = (tournaments || []).map(t => {
+  // Marathon : soft-launch réservé à stof — un tournoi Marathon n'apparaît dans
+  // la liste que pour le pseudo « stof » (caché à admin et aux autres joueurs).
+  const visibleTournaments = (tournaments || []).filter(t => isStof() || !marathonT.has(t.id));
+
+  $("#tournamentsBody").innerHTML = (visibleTournaments).map(t => {
     // Tournoi démo : afficher 10/10 pour tout le monde (référence complète).
     const isDemo = /d[ée]mo/i.test(t.name || "");
     const partiesCell = isDemo
@@ -2378,6 +2385,11 @@ async function loadTournamentDetail(tournamentId) {
     return (a.created_at || "").localeCompare(b.created_at || "");
   });
 
+  // Marathon : soft-launch réservé à stof. Garde défensive si on atteint le détail
+  // autrement que par la liste (URL directe, compte admin) : on refuse l'accès.
+  const isMarathonTournament = games.some(g => g.mode === "marathon");
+  if (isMarathonTournament && !isStof()) { backToTournaments(); return; }
+
   // S'assurer qu'au moins une ligne de formule est présente dans le générateur.
   if (isAdmin() && $("#pgRecipe") && !$("#pgRecipe").children.length) pgAddRecipeLine();
 
@@ -2501,6 +2513,46 @@ async function loadTournamentDetail(tournamentId) {
 
 // Classement d'UNE partie : modale listant les joueurs ayant déjà joué cette
 // partie, triés par négatif (meilleur d'abord), avec score et temps.
+// Classement Marathon : atteint (par temps pour 42 ↑), puis non-atteints (par
+// record de streak ↓, puis temps total ↑). `rows` = fiches prepared_game_results
+// avec un `summary.m` = { t42, best, reached }. Rend dans `body`.
+function renderMarathonRows(body, rows) {
+  const me = +state.currentPlayerId || 0;
+  const fmtT = (s) => (s == null || s === "") ? "—" : `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+  const list = rows.map(r => ({
+    id: r.player_id,
+    name: r.players?.name || ("#" + r.player_id),
+    reached: !!(r.summary.m && r.summary.m.reached),
+    t42: r.summary.m ? r.summary.m.t42 : null,
+    best: (r.summary.m && r.summary.m.best) || 0,
+    time: r.total_time_seconds || 0,
+    mobile: !!r.played_on_mobile,
+  }));
+  list.sort((a, b) => {
+    if (a.reached !== b.reached) return a.reached ? -1 : 1;
+    if (a.reached) return (a.t42 || 0) - (b.t42 || 0);
+    return (b.best - a.best) || (a.time - b.time);
+  });
+  const medal = (i) => i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `${i + 1}.`;
+  body.innerHTML = `<div class="table-wrap"><table style="width:100%;border-collapse:collapse;font-size:.9rem">
+    <thead><tr style="background:var(--petrol);color:#fff">
+      <th style="padding:5px 8px;text-align:left">#</th>
+      <th style="padding:5px 8px;text-align:left">Joueur</th>
+      <th style="padding:5px 8px;text-align:right">🏁 Temps pour 42</th>
+      <th style="padding:5px 8px;text-align:right">🔥 Record</th>
+    </tr></thead>
+    <tbody>${list.map((p, i) => {
+      const mob = p.mobile ? `<span title="Jouée sur mobile" style="font-size:.85em">📱</span> ` : "";
+      return `<tr${p.id === me ? ' style="background:#fff3cd"' : ''}>
+        <td style="padding:5px 8px">${medal(i)}</td>
+        <td style="padding:5px 8px">${mob}${escapeHtml(p.name)}</td>
+        <td style="padding:5px 8px;text-align:right;white-space:nowrap">${p.reached ? "🏁 " + fmtT(p.t42) : "—"}</td>
+        <td style="padding:5px 8px;text-align:right">${p.best}/42</td>
+      </tr>`;
+    }).join("")}</tbody>
+  </table></div>`;
+}
+
 window.showGamePodium = async function(gameId, gameName) {
   let modal = document.getElementById("gamePodiumModal");
   if (!modal) {
@@ -2521,11 +2573,14 @@ window.showGamePodium = async function(gameId, gameName) {
   modal.hidden = false;
 
   const { data: rowsRaw } = await sb.from("prepared_game_results")
-    .select("player_id, sum_neg, total_score, total_time_seconds, details, played_on_mobile, players(name)")
+    .select("player_id, sum_neg, total_score, total_time_seconds, details, summary, played_on_mobile, players(name)")
     .eq("prepared_game_id", gameId);
   // Exclure les fiches sans coups (parties en pause non terminées).
   const rows = excludeAdminRows(rowsRaw || []).filter(r => Array.isArray(r.details) && r.details.length > 0);
   if (!rows.length) { body.innerHTML = `<p class="muted">Personne n'a encore joué cette partie.</p>`; return; }
+
+  // Marathon : classement dédié (temps pour 42 / record de streak).
+  if (rows.some(r => r.summary && r.summary.m)) { renderMarathonRows(body, rows); return; }
 
   // Tri : négatif décroissant (0 = meilleur), puis temps croissant.
   rows.sort((a, b) => (b.sum_neg || 0) - (a.sum_neg || 0) || (a.total_time_seconds || 0) - (b.total_time_seconds || 0));
@@ -2658,6 +2713,18 @@ async function loadTournamentLeaderboard(tournamentId, games, tournamentName, mo
   // toujours celui affiché, pour ne pas se faire écraser par un calcul en vol.
   const stale = () => currentTournamentId !== tournamentId;
   if (!games.length) { if (!stale()) body.innerHTML = `<p class="muted">Pas encore de partie.</p>`; return; }
+
+  // Marathon : classement dédié (temps pour 42, puis record de streak).
+  if (games.some(g => g.mode === "marathon")) {
+    const gIds = games.map(g => g.id);
+    const { data: mRows } = await sb.from("prepared_game_results")
+      .select("player_id, summary, total_time_seconds, details, played_on_mobile, players(name)")
+      .in("prepared_game_id", gIds);
+    const mres = excludeAdminRows(mRows || []).filter(r => r.summary && r.summary.m);
+    if (!mres.length) { if (!stale()) body.innerHTML = `<p class="muted">Aucun résultat enregistré.</p>`; return; }
+    if (!stale()) renderMarathonRows(body, mres);
+    return;
+  }
 
   // Classement par type de partie pour les tournois « En route vers les ICE ».
   const byType = /en route|ICE/i.test(tournamentName || "");
@@ -2937,6 +3004,12 @@ async function loadTournamentStats(tournamentId, games) {
   const shameEl = () => $("#tournamentShameBody");
   if (!games.length) {
     if (!stale()) { body.innerHTML = `<p class="muted">Pas encore de partie dans ce tournoi.</p>`; if (shameEl()) shameEl().innerHTML = ""; }
+    return;
+  }
+  // Marathon : les stats « duplicate » (solos, négatifs moyens…) n'ont pas de sens
+  // ici → on masque le panneau (le classement dédié suffit).
+  if (games.some(g => g.mode === "marathon")) {
+    if (!stale()) { body.innerHTML = `<p class="muted">Statistiques non applicables au Marathon — voir le classement.</p>`; if (shameEl()) shameEl().innerHTML = ""; }
     return;
   }
 
@@ -3245,6 +3318,7 @@ const PG_SUPER_OPTIONS = `
     <option value="anglaise">À l'anglaise</option>
     <option value="lettrecachee">Lettre cachée</option>
     <option value="voyelles">Voyelles</option>
+    <option value="marathon">Marathon (10 parties)</option>
     <option value="6lettres">6 lettres</option>
     <option value="hyperblitz">Hyperblitz</option>
     <option value="7sur15">7 sur 15</option>
@@ -3263,7 +3337,7 @@ const PG_STD_MODES = ["duplicate", "blitz", "7sur8", "7et8", "789"];   // modes 
 const PG_DEFAULT_TIME = {
   duplicate: 120, blitz: 60, "7sur8": 120, "7et8": 120, "789": 120,
   "6lettres": 120, hyperblitz: 30, "7sur15": 240, jokerpayant: 120,
-  horizvert: 120, topsoustop: 180, infjoker: 120, grillerandom: 120, sablier: 120, gigogne: 120, anglaise: 120, lettrecachee: 120, voyelles: 120,
+  horizvert: 120, topsoustop: 180, infjoker: 120, grillerandom: 120, sablier: 120, gigogne: 120, anglaise: 120, lettrecachee: 120, voyelles: 120, marathon: 120,
 };
 const pgDefaultTime = (mode) => PG_DEFAULT_TIME[mode] ?? 120;
 

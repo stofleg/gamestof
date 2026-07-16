@@ -11,7 +11,7 @@ import {
   emptyBoard, LETTER_BAG, drawForDuplicate, applyMove,
   bagTotalVowels, bagTotalConsonants, GAME_MODES, randomBoardLayout, snakeEndpointsAfter, gigogneRackSize,
   bagFor, valuesFor, setLetterValues, LETTER_VALUE, isCrossingCell, wordHiddenCount,
-  drawVowelRack,
+  drawVowelRack, MARATHON_GAMES,
 } from "./engine.js?v=348";
 import { findTopRanked, findTop, snakeBestTop } from "./topfinder.js?v=348";
 
@@ -30,6 +30,24 @@ const VOWELS_GEN = new Set(["A", "E", "I", "O", "U", "Y"]);
 export function generateGame(dict, options = {}, onProgress = null) {
   const modeKey = options.mode || "duplicate";
   const mode = GAME_MODES[modeKey] || GAME_MODES.duplicate;
+
+  // Marathon : une « partie » = MARATHON_GAMES parties duplicate enchaînées. On
+  // génère chaque sous-partie en duplicate et on concatène leurs coups ; le 1er
+  // coup de chaque sous-partie (sauf la 1re) porte `newGame:true` (→ remise à zéro
+  // du plateau au rejeu). Chaque coup est étiqueté de son n° de sous-partie `g`.
+  if (mode.marathon) {
+    const allMoves = [];
+    let totalTop = 0;
+    for (let g = 0; g < MARATHON_GAMES; g++) {
+      const sub = generateGame(dict, { ...options, mode: "duplicate" }, null);
+      (sub.moves || []).forEach((mv, i) => {
+        allMoves.push({ ...mv, g: g + 1, ...(g > 0 && i === 0 ? { newGame: true } : {}) });
+      });
+      totalTop += sub.totalTopScore || 0;
+      if (onProgress) onProgress((g + 1) / MARATHON_GAMES);
+    }
+    return { moves: allMoves, totalTopScore: totalTop };
+  }
   const jokerPays = !!mode.jokerPays;          // mode « Joker payant »
   const alternateDir = !!mode.alternateDir;    // mode « Horizontal/Vertical »
   const dualTop = !!mode.dualTop;              // mode « Top/sous-top »
