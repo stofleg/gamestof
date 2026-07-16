@@ -2026,10 +2026,12 @@ async function loadSolosAndStreaks() {
   streaks.sort((a, b) => b.length - a.length);
 
   // ===== Meilleurs temps sur une partie =====
-  // On EXCLUT les parties abandonnées (summary.ab) : elles ne doivent pas figurer
-  // dans « la partie la plus rapide » (ex. abandon à 0:07).
+  // On EXCLUT les parties abandonnées (summary.ab) ET les parties SANS coup joué
+  // (résumé vide : parties en pause dont la sync a écrit un temps mais pas de
+  // summary, ou anciennes lignes) — sinon des « 0:14 » fantômes polluent le
+  // classement des plus rapides.
   const timeRecs = detailed
-    .filter(r => r.total_time_seconds && !sm(r).ab)
+    .filter(r => r.total_time_seconds && !sm(r).ab && (sm(r).mv || []).length > 0)
     .map(r => ({
       player_id: r.player_id, name: r.players?.name || "?",
       time: r.total_time_seconds,
