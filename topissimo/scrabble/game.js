@@ -5173,7 +5173,7 @@ function startGame() {
   // Marathon (entraînement) : init du compteur de tops consécutifs, conservé sur
   // les 10 parties enchaînées.
   if (currentMode().marathon && !state.prepared) {
-    state.marathon = { streak: 0, best: 0, gameIdx: 1, startMs: performance.now(), reached: false, time42: null };
+    state.marathon = { streak: 0, best: 0, gameIdx: 1, reached: false, time42: null };
     updateMarathonHUD();
   } else {
     state.marathon = null;
@@ -5190,7 +5190,10 @@ function marathonRegister(topped) {
   if (topped) {
     M.streak++;
     if (M.streak > M.best) M.best = M.streak;
-    if (M.streak >= MARATHON_TARGET) { M.reached = true; M.time42 = performance.now() - M.startMs; }
+    // Temps pour atteindre 42 = chrono général (en secondes) au coup gagnant.
+    // On s'appuie sur elapsedSeconds() (pause-aware et persisté), pas sur
+    // performance.now() qui se remet à zéro après un rechargement.
+    if (M.streak >= MARATHON_TARGET) { M.reached = true; M.time42 = elapsedSeconds(); }
   } else {
     M.streak = 0;
   }
@@ -5268,6 +5271,7 @@ function saveTrainingState() {
       history: state.history,
       lastPlaced: state.lastPlaced || [],
       hiddenCells: state.hiddenCells ? [...state.hiddenCells] : [],
+      marathon: state.marathon || null,   // compteur de tops consécutifs (Marathon)
       bestAttempt: state.bestAttempt,
       settings: state.settings,
       chronoElapsed: state._pauseInfo?.elapsed ?? elapsedSeconds(),
@@ -5334,6 +5338,7 @@ function restorePausedTraining() {
     state.lastPlaced = s.lastPlaced || [];
     state.hiddenCells = new Set(s.hiddenCells || []);
     state.lastTopCells = s.lastTopCells || [];
+    state.marathon = s.marathon || null;   // reprise du compteur Marathon
     state.bestAttempt = s.bestAttempt || null;
     Object.assign(state.settings, s.settings || {});
     state.chronoPenalty = s.chronoPenalty || 0;
@@ -5349,6 +5354,7 @@ function restorePausedTraining() {
     renderRack();
     renderBoard();
     renderGameTitle();
+    updateMarathonHUD();   // ré-affiche le compteur si partie Marathon
     computeTop();
     // Modale de pause active dès l'arrivée
     $("#pauseModal").hidden = false;
@@ -5610,7 +5616,7 @@ function endGame() {
       if (title) title.textContent = "🏁 Marathon réussi !";
       $("#endSummary").innerHTML = `
         <div style="font-size:1.15em">🏆 <strong>${MARATHON_TARGET} tops consécutifs</strong> atteints !</div>
-        <div>Temps pour y arriver : <strong>${fmtChrono(Math.round(M.time42 / 1000))}</strong></div>
+        <div>Temps pour y arriver : <strong>${fmtChrono(M.time42 || 0)}</strong></div>
         <div>Parties nécessaires : <strong>${M.gameIdx}/${MARATHON_GAMES}</strong> · tops trouvés : <strong>${tops}</strong></div>`;
     } else {
       if (title) title.textContent = "🏁 Marathon terminé";
