@@ -28,7 +28,7 @@ import {
   VOWELS, drawForDuplicate, scoreMove, applyMove,
   bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName, randomBoardLayout, snakeEndpointsAfter, sablierTime, gigogneRackSize,
   setLetterValues, letterValue, valuesFor, bagFor, isCrossingCell, wordHiddenCount,
-  drawVowelRack,
+  drawVowelRack, VOWELS_NO_Y,
 } from "./engine.js?v=347";
 import { Dictionary } from "./dictionary.js?v=347";
 import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=347";
@@ -1744,7 +1744,7 @@ function placeLetter(L, preferTileId = null) {
   // Mode Voyelles : les consonnes sont « libres » (hors chevalet). Une consonne
   // tapée est posée directement comme jeton virtuel (à sa vraie valeur), sans
   // consommer de tuile. Les voyelles, elles, viennent obligatoirement du chevalet.
-  if (currentMode().voyelles && !state.jokerPending && L !== "?" && !VOWELS.has(L)) {
+  if (currentMode().voyelles && !state.jokerPending && L !== "?" && !VOWELS_NO_Y.has(L)) {
     state.pending.push({ row, col, letter: L, rackId: null, isBlank: false });
     advanceCursor();
     renderBoard();
@@ -2128,7 +2128,7 @@ function validate() {
     const rackLetters = state.rack.map(t => t.letter);
     const allMoves = findTop(state.board, rackLetters, state.dict, {
       all: true, maxTilesUsed: mode.maxPlayed, bonuses: mode.bonuses,
-      jokerPays: mode.jokerPays, layout: state.boardLayout,
+      jokerPays: mode.jokerPays, layout: state.boardLayout, freeCons: mode.voyelles,
     }) || [];
     const sameWord = allMoves.filter(c => c.move.word === move.word);
     if (sameWord.length) {
@@ -2180,6 +2180,18 @@ function validate() {
   if (result.placed.length > maxPlayedNow()) {
     showTransientError(`Trop de lettres posées (max ${maxPlayedNow()})`, `Le mode ${mode.label} limite à ${maxPlayedNow()} lettres jouées par coup.`);
     return;
+  }
+  // Mode Voyelles : budget de consonnes = maxPlayed − nb de voyelles du tirage
+  // (le chevalet fait 7 « cases » : voyelles + consonnes libres). Ex. 5 voyelles
+  // → au plus 2 consonnes. On compte les consonnes NOUVELLES posées (Y compris).
+  if (mode.voyelles) {
+    const budget = Math.max(0, maxPlayedNow() - state.rack.length);
+    const consPlayed = state.pending.filter(p => !VOWELS_NO_Y.has(p.letter)).length;
+    if (consPlayed > budget) {
+      showTransientError(`Trop de consonnes (max ${budget})`,
+        `Avec ${state.rack.length} voyelles, tu peux ajouter au plus ${budget} consonne${budget > 1 ? "s" : ""}.`);
+      return;
+    }
   }
   // Mode Snake : le coup doit prolonger le serpent (s'accrocher à une extrémité ;
   // les mots croisés latéraux sont permis), sinon « non accepté ».

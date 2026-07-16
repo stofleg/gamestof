@@ -443,6 +443,9 @@ function scoreLeave(board, rack, move, bag) {
 export function findTop(board, rack, dict, opts = {}) {
   const maxTilesUsed = opts.maxTilesUsed ?? rack.length;
   const bonuses = opts.bonuses || { 7: 50 };
+  // Mode Voyelles : le chevalet a 7 « cases » = voyelles tirées (rack) + le reste
+  // en consonnes libres. Budget de consonnes = maxPlayed − nb de voyelles.
+  const freeConsBudget = opts.freeCons ? Math.max(0, maxTilesUsed - rack.length) : 0;
   const isEmpty = board.every(row => row.every(c => !c));
   const seenMoves = new Set();         // dédupliquer
   const candidates = [];
@@ -510,6 +513,8 @@ export function findTop(board, rack, dict, opts = {}) {
           jokerPays: opts.jokerPays,
           layout: opts.layout,
           freeCons: opts.freeCons,
+          freeConsBudget,
+          consUsed: 0,
           anchorCovered: false,
           candidates, seenMoves, zone,
         });
@@ -522,10 +527,11 @@ export function findTop(board, rack, dict, opts = {}) {
   return opts.all ? candidates : candidates[0];
 }
 
-// Cross-check (mode Voyelles) : en plaçant L sur (r,c) dans le sens `dir`, le mot
-// PERPENDICULAIRE formé avec les tuiles déjà posées doit être valide. S'il n'y a
-// aucun voisin perpendiculaire, aucune contrainte (true).
-function freeConsCrossOk(board, r, c, L, dir, dict) {
+// Cross-check : en plaçant L sur (r,c) dans le sens `dir`, le mot PERPENDICULAIRE
+// formé avec les tuiles déjà posées doit être valide. S'il n'y a aucun voisin
+// perpendiculaire, aucune contrainte (true). Élagage sûr, appliqué à tous les
+// modes : scoreMove revalide de toute façon les mots croisés en fin de course.
+function crossWordOk(board, r, c, L, dir, dict) {
   const pdr = dir === "H" ? 1 : 0;   // perpendiculaire = vertical si mot horizontal
   const pdc = dir === "H" ? 0 : 1;
   let ur = r - pdr, uc = c - pdc, up = "";
@@ -599,25 +605,29 @@ function extend(ctx) {
   //       qu'elle formerait (avec les tuiles voisines) est valide (ou inexistant).
   if (ctx.freeCons) {
     const triedC = new Set();
-    // Consonnes libres : on ne touche pas au chevalet.
-    for (const L of CONSONANTS_FR) {
-      if (triedC.has(L)) continue;
-      triedC.add(L);
-      if (!freeConsCrossOk(board, r, c, L, dir, dict)) continue;
-      extend({
-        ...ctx,
-        r: r + dr, c: c + dc,
-        currentWord: currentWord + L,
-        tilesUsed: tilesUsed + 1,
-        anchorCovered: anchorCovered || (r === ar && c === ac),
-      });
+    // Consonnes libres : on ne touche pas au chevalet, mais on est borné par le
+    // budget (maxPlayed − nb de voyelles). Ex. 5 voyelles → au plus 2 consonnes.
+    if ((ctx.consUsed || 0) < ctx.freeConsBudget) {
+      for (const L of CONSONANTS_FR) {
+        if (triedC.has(L)) continue;
+        triedC.add(L);
+        if (!crossWordOk(board, r, c, L, dir, dict)) continue;
+        extend({
+          ...ctx,
+          r: r + dr, c: c + dc,
+          currentWord: currentWord + L,
+          tilesUsed: tilesUsed + 1,
+          consUsed: (ctx.consUsed || 0) + 1,
+          anchorCovered: anchorCovered || (r === ar && c === ac),
+        });
+      }
     }
     // Voyelles du chevalet : une par lettre distincte disponible (consommée).
     for (let i = 0; i < rack.length; i++) {
       const tile = rack[i];
       if (triedC.has(tile)) continue;
       triedC.add(tile);
-      if (!freeConsCrossOk(board, r, c, tile, dir, dict)) continue;
+      if (!crossWordOk(board, r, c, tile, dir, dict)) continue;
       const newRack = rack.slice(); newRack.splice(i, 1);
       extend({
         ...ctx,
@@ -640,6 +650,7 @@ function extend(ctx) {
         const L = String.fromCharCode(code);
         if (tried.has("?" + L)) continue;
         tried.add("?" + L);
+        if (!crossWordOk(board, r, c, L, dir, dict)) continue;
         const newRack = rack.slice(); newRack.splice(i, 1);
         extend({
           ...ctx,
@@ -654,6 +665,7 @@ function extend(ctx) {
     } else {
       if (tried.has(tile)) continue;
       tried.add(tile);
+      if (!crossWordOk(board, r, c, tile, dir, dict)) continue;
       const newRack = rack.slice(); newRack.splice(i, 1);
       extend({
         ...ctx,

@@ -143,18 +143,19 @@ export const GAME_MODES = {
     defaultTime: 120, stofOnly: true, voyelles: true },
 };
 
-// Consonnes françaises (hors voyelles A E I O U Y). Utilisé par le mode Voyelles
-// pour composer le « stock illimité » de consonnes lors du calcul du top.
-export const CONSONANTS_FR = ["B","C","D","F","G","H","J","K","L","M","N","P","Q","R","S","T","V","W","X","Z"];
+// Mode Voyelles : le Y est traité comme une CONSONNE. Les voyelles sont donc
+// A E I O U seulement (tirées dans le chevalet), et Y rejoint les consonnes libres.
+export const VOWELS_NO_Y = new Set(["A", "E", "I", "O", "U"]);
+export const CONSONANTS_FR = ["B","C","D","F","G","H","J","K","L","M","N","P","Q","R","S","T","V","W","X","Y","Z"];
 
-// Mode Voyelles : tire un chevalet de voyelles seules depuis le sac (consommées).
-// 2-5 voyelles jusqu'au coup 14, 1-6 dès le coup 15. Renvoie un tableau de lettres,
-// ou null si le sac ne contient plus assez de voyelles (fin de partie).
+// Mode Voyelles : tire un chevalet de voyelles seules (A E I O U, sans Y) depuis
+// le sac (consommées). 2-5 voyelles jusqu'au coup 14, 1-6 dès le coup 15. Renvoie
+// un tableau de lettres, ou null si le sac n'a plus assez de voyelles (fin).
 export function drawVowelRack(bag, moveNo) {
   const min = (moveNo || 1) >= 15 ? 1 : 2;
   const max = (moveNo || 1) >= 15 ? 6 : 5;
   const pool = [];
-  for (const v of VOWELS) for (let k = 0; k < (bag[v] || 0); k++) pool.push(v);
+  for (const v of VOWELS_NO_Y) for (let k = 0; k < (bag[v] || 0); k++) pool.push(v);
   if (pool.length < min) return null;
   let want = min + Math.floor(Math.random() * (max - min + 1));
   want = Math.min(want, pool.length);
