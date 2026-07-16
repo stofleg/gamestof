@@ -3330,7 +3330,6 @@ const PG_SUPER_OPTIONS = `
     <option value="voyelles">Voyelles</option>
     <option value="marathon">Marathon (10 parties)</option>
     <option value="6lettres">6 lettres</option>
-    <option value="hyperblitz">Hyperblitz</option>
     <option value="7sur15">7 sur 15</option>
     <option value="jokerpayant">Joker payant</option>
     <option value="horizvert">Horizontal/Vertical</option>

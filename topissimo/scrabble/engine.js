@@ -85,7 +85,7 @@ export const GAME_MODES = {
   // 6 lettres : duplicate à 6 jetons, jamais de prime de scrabble.
   "6lettres":  { label: "6 lettres",  rackSize: 6,  maxPlayed: 6,  bonuses: {}, defaultTime: 120, stofOnly: true },
   // Hyperblitz : blitz à 30 s/coup.
-  hyperblitz:  { label: "Hyperblitz", rackSize: 7,  maxPlayed: 7,  bonuses: { 7: 50 }, defaultTime: 30, stofOnly: true },
+  hyperblitz:  { label: "Hyperblitz", rackSize: 7,  maxPlayed: 7,  bonuses: { 7: 50 }, defaultTime: 30, stofOnly: true, hidden: true },
   // 7 sur 15 : tirage de 15, max 7 jouées (sur le modèle 7 sur 8). Min 4 voyelles.
   "7sur15": { label: "7 sur 15", rackSize: 15, maxPlayed: 7, bonuses: { 7: 50 },
     defaultTime: 240, minVowels: 4, stofOnly: true },
