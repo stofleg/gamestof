@@ -12,7 +12,7 @@
 //     aussi les mots croisés) et on garde le maximum.
 // ============================================================
 
-import { BOARD_SIZE, CENTER, scoreMove, applyMove, LETTER_VALUE, VOWELS, CONSONANTS_FR, isSimplePath, isSnakeMove } from "./engine.js?v=349";
+import { BOARD_SIZE, CENTER, scoreMove, applyMove, LETTER_VALUE, VOWELS, CONSONANTS_FR, isSimplePath, isSnakeMove } from "./engine.js?v=350";
 
 // Un coup PROLONGE le serpent s'il s'accroche à une extrémité (isSnakeMove ; les
 // mots croisés latéraux sont permis), OU s'il garde un chemin simple (extension
