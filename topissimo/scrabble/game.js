@@ -5402,6 +5402,7 @@ async function restorePausedPrepared(preparedId) {
     state.history = s.history || [];
     state.lastPlaced = s.lastPlaced || [];
     state.hiddenCells = new Set(s.hiddenCells || []);
+    state.marathon = s.marathon || null;   // (prêt pour un futur Marathon en tournoi)
     state.bestAttempt = s.bestAttempt || null;
     state.chronoPenalty = s.chronoPenalty || 0;
     state.started = true;
@@ -5412,6 +5413,7 @@ async function restorePausedPrepared(preparedId) {
     $("#actionRowInGame").hidden = false;
     $("#btnPause").hidden = false;
     renderInfo(); renderRack(); renderBoard(); renderGameTitle();
+    updateMarathonHUD();   // (no-op hors Marathon)
     if (!computeTop()) state._topPending = true;   // dico pas encore prêt → recalcul différé
     $("#pauseModal").hidden = false;
     return true;
