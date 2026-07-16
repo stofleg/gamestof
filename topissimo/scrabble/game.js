@@ -5224,13 +5224,20 @@ function updateMarathonHUD() {
   if (!el) {
     el = document.createElement("div");
     el.id = "marathonHud";
-    document.body.appendChild(el);
+    // Placé dans la barre d'action, juste après le groupe de boutons → remplit
+    // l'espace libre à droite (Abandonner / Partager).
+    const grp = document.querySelector("#actionRowInGame .picto-group");
+    if (grp && grp.parentNode) grp.after(el);
+    else document.body.appendChild(el);
   }
   el.hidden = false;
-  const flames = M.streak > 0 ? "🔥" : "·";
-  el.innerHTML = `<span class="mh-game">Partie ${M.gameIdx}/${MARATHON_GAMES}</span>`
-    + `<span class="mh-streak">${flames} <strong>${M.streak}</strong>/${MARATHON_TARGET}</span>`
-    + `<span class="mh-best">record ${M.best}</span>`;
+  // Palier de « chaleur » : le fond chauffe avec le streak (5 seuils).
+  const heat = M.streak >= 30 ? 5 : M.streak >= 20 ? 4 : M.streak >= 10 ? 3 : M.streak >= 5 ? 2 : M.streak >= 1 ? 1 : 0;
+  el.dataset.heat = heat;
+  el.innerHTML = `
+    <div class="mh-label">${M.streak > 0 ? "🔥" : "🎯"} Tops d'affilée</div>
+    <div class="mh-big"><strong>${M.streak}</strong><span class="mh-target">/ ${MARATHON_TARGET}</span></div>
+    <div class="mh-sub">Partie ${M.gameIdx}/${MARATHON_GAMES} · record ${M.best}</div>`;
 }
 
 // ===== Pause + persistance (uniquement entraînement) =====

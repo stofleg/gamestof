@@ -637,20 +637,30 @@ body.theme-duplijeu .board tr:last-child td.coord { height: calc(var(--cell-size
    !important pour battre les overrides de thème (ex. DupliJeu fixe color: #111). */
 .tile.blank,
 body.theme-duplijeu .tile.blank { color: #c8202a !important; }
-/* Marathon : bandeau flottant (compteur de tops consécutifs). */
+/* Marathon : grand HUD dans l'espace libre de la barre d'action. */
 #marathonHud {
-  position: fixed;
-  top: 8px; left: 50%; transform: translateX(-50%);
-  z-index: 60;
-  display: flex; align-items: center; gap: 14px;
-  padding: 6px 16px; border-radius: 999px;
+  flex: 1 1 220px;
+  min-width: 190px;
+  align-self: stretch;
+  display: flex; flex-direction: column; justify-content: center; align-items: center;
+  gap: 2px;
+  padding: 8px 18px; border-radius: 14px;
   background: #0d3a4f; color: #eaf3f7;
-  font-size: .9rem; box-shadow: 0 3px 12px rgba(0,0,0,.28);
-  white-space: nowrap;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.08);
+  text-align: center;
+  transition: background .4s ease;
 }
-#marathonHud .mh-streak strong { font-size: 1.15em; color: #ffd27a; }
-#marathonHud .mh-best { opacity: .75; font-size: .82em; }
-#marathonHud .mh-game { opacity: .9; font-size: .82em; }
+#marathonHud .mh-label { font-size: .82rem; letter-spacing: .04em; opacity: .9; }
+#marathonHud .mh-big { line-height: 1; font-weight: 400; }
+#marathonHud .mh-big strong { font-size: 2.6rem; color: #ffd27a; }
+#marathonHud .mh-big .mh-target { font-size: 1.2rem; opacity: .75; margin-left: 4px; }
+#marathonHud .mh-sub { font-size: .8rem; opacity: .78; }
+/* Le fond « chauffe » avec le streak. */
+#marathonHud[data-heat="1"] { background: #123f4a; }
+#marathonHud[data-heat="2"] { background: #3a4a2c; }
+#marathonHud[data-heat="3"] { background: #6b5620; }
+#marathonHud[data-heat="4"] { background: #8a3d1c; }
+#marathonHud[data-heat="5"] { background: #a52f22; }
 
 /* Lettre cachée : jeton retourné (dos), la lettre reste en jeu mais masquée. */
 .tile.hidden-letter {
