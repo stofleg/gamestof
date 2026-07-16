@@ -3854,6 +3854,11 @@ function applyRoleUI() {
   });
   const playBtn = document.querySelector("header .play-btn");
   if (playBtn) playBtn.style.display = adminOnly ? "none" : "";
+  // L'admin ne gère que les Challenges Garenna : on masque le sous-onglet
+  // « Tournois personnels » et on force le sous-onglet Garenna.
+  const persoTab = document.querySelector('#preparedSubtabs button[data-ptab="perso"]');
+  if (persoTab) persoTab.hidden = adminOnly;
+  if (adminOnly && typeof switchPreparedTab === "function") switchPreparedTab("garenna");
   if (adminOnly) activateTab("prepared", false);
 }
 
