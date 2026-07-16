@@ -5273,6 +5273,16 @@ const preparedKey = id => `topissimo:pg:${id}`;
 state.paused = false;
 state._pauseInfo = null;
 
+// Session « superadmin » : stof avec le mode admin activé (bouton « admin » de
+// l'accueil, drapeau localStorage partagé). Dans ce mode, stof agit comme l'admin :
+// ses parties (entraînement ET tournoi) NE SONT PAS enregistrées → non
+// comptabilisées, et « tester » une partie déjà jouée en stof n'écrase pas le
+// vrai résultat.
+function isSuperAdminSession() {
+  return (localStorage.getItem("currentPseudo") || "").toLowerCase() === "stof"
+    && localStorage.getItem("topissimo:superadmin") === "1";
+}
+
 function saveTrainingState() {
   if (state.isPuzzle) return;   // puzzles non persistés ; entraînement ET tournoi le sont
   try {
@@ -5308,7 +5318,7 @@ function saveTrainingState() {
     // Partie de TOURNOI : on sauvegarde AUSSI côté Supabase (reprise multi-appareils).
     // Fire-and-forget : le localStorage ci-dessus reste le filet fiable (l'écriture
     // réseau peut ne pas aboutir si l'appareil se verrouille juste après).
-    if (state.prepared && window._sb) {
+    if (state.prepared && window._sb && !isSuperAdminSession()) {
       const pid = +(localStorage.getItem("currentPlayerId") || 0);
       if (pid) state._pauseSync = window._sb.from("prepared_game_results").upsert(
         // On renseigne aussi score/négatif/temps (au cas où ces colonnes seraient
@@ -5671,6 +5681,8 @@ function endGame() {
 }
 
 async function saveTrainingGame() {
+  // Mode admin (superadmin) : parties non comptabilisées → on n'enregistre rien.
+  if (isSuperAdminSession()) return;
   const pid = +(localStorage.getItem("currentPlayerId") || 0);
   if (!pid) return;
   if (!window._sb) await loadSupabaseClient();
@@ -5805,6 +5817,9 @@ function buildResultSummary(history, abandoned) {
 }
 
 async function saveResultIfPrepared() {
+  // Mode admin (superadmin) : « test » d'une partie → on n'enregistre RIEN (pas
+  // d'écrasement du vrai résultat de stof, pas de comptabilisation).
+  if (isSuperAdminSession()) { console.log("[superadmin] test — résultat tournoi non enregistré"); return; }
   const pid = +(localStorage.getItem("currentPlayerId") || 0);
   if (!pid) { console.log("Pas de joueur sélectionné — résultat non sauvegardé"); return; }
   if (!window._sb) await loadSupabaseClient();

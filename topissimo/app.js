@@ -2451,14 +2451,17 @@ async function loadTournamentDetail(tournamentId) {
     const suspended = !played && (suspendedSrv.has(g.id) || suspendedPrepared(g.id));
     const action = genOnly
       ? ""   // le compte "admin" ne joue pas (génération uniquement)
+      : admin
+        // Mode admin (superadmin) : on TESTE les parties déjà jouées en mode stof
+        // (hors classement, sans écraser le vrai résultat). Les autres ne sont pas
+        // testables tant que stof ne les a pas jouées.
+        ? (stofPlayed.has(g.id)
+            ? `<button style="${btnStyle};background:var(--yellow);color:var(--petrol-dark);border:none;cursor:pointer" onclick="ensureFreshAndNavigate('scrabble/game.html?prepared=${g.id}&tid=${currentTournamentId}')" title="Tester (déjà jouée en stof — hors classement, sans écrasement)">🧪 Tester</button>`
+            : `<button style="${btnStyle};background:var(--soft);color:var(--ink-soft);border:none;opacity:.5;cursor:not-allowed" disabled title="À jouer d'abord en mode stof">🧪 Tester</button>`)
       : played
-      ? `<a style="${btnStyle};background:var(--soft);color:var(--petrol)" href="scrabble/game.html?review=${g.id}&tid=${currentTournamentId}">👁 Revoir</a>`
-      : suspended
-        ? `<button style="${btnStyle};background:#ffcf33;color:var(--petrol-dark);border:none;cursor:pointer;font-weight:700" onclick="ensureFreshAndNavigate('scrabble/game.html?prepared=${g.id}&tid=${currentTournamentId}')" title="Reprendre la partie en cours">⏯ Continuer</button>`
-        : admin
-          ? (stofPlayed.has(g.id)
-              ? `<button style="${btnStyle};background:var(--yellow);color:var(--petrol-dark);border:none;cursor:pointer" onclick="ensureFreshAndNavigate('scrabble/game.html?prepared=${g.id}&tid=${currentTournamentId}')" title="Tester (déjà jouée par stof — hors classement)">🧪 Tester</button>`
-              : `<button style="${btnStyle};background:var(--soft);color:var(--ink-soft);border:none;opacity:.5;cursor:not-allowed" disabled title="À tester une fois que stof l'aura jouée">▶ Jouer</button>`)
+        ? `<a style="${btnStyle};background:var(--soft);color:var(--petrol)" href="scrabble/game.html?review=${g.id}&tid=${currentTournamentId}">👁 Revoir</a>`
+        : suspended
+          ? `<button style="${btnStyle};background:#ffcf33;color:var(--petrol-dark);border:none;cursor:pointer;font-weight:700" onclick="ensureFreshAndNavigate('scrabble/game.html?prepared=${g.id}&tid=${currentTournamentId}')" title="Reprendre la partie en cours">⏯ Continuer</button>`
           : `<button style="${btnStyle};background:var(--yellow);color:var(--petrol-dark);border:none;cursor:pointer" onclick="ensureFreshAndNavigate('scrabble/game.html?prepared=${g.id}&tid=${currentTournamentId}')">▶ Jouer</button>`;
     const del = (admin || genOnly) ? `<button class="danger" onclick="delPreparedGame(${g.id})" title="Supprimer">🗑</button>` : "";
     const podium = played
