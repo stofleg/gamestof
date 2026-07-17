@@ -5506,6 +5506,38 @@ function pauseGame({ showModal = true } = {}) {
   saveTrainingState();
   if (showModal) $("#pauseModal").hidden = false;
 }
+// Reprise « gardée » (clic sur ▶ Reprendre) : pour une partie de TOURNOI, on
+// vérifie d'abord côté serveur qu'elle n'a pas été TERMINÉE sur un autre appareil.
+// Si c'est le cas, reprendre écraserait le résultat → on renvoie vers l'accueil du
+// tournoi au lieu de reprendre. (Le rafraîchissement étant bloqué en partie, c'est
+// le seul moment où l'on peut détecter une fin survenue ailleurs.)
+async function resumeGameGuarded() {
+  if (state.prepared && !isSuperAdminSession()) {
+    const pid = +(localStorage.getItem("currentPlayerId") || 0);
+    try {
+      if (!window._sb) await loadSupabaseClient();
+      if (window._sb && pid) {
+        const { data } = await window._sb.from("prepared_game_results")
+          .select("summary, paused").eq("prepared_game_id", state.prepared.id).eq("player_id", pid).maybeSingle();
+        if (data && data.summary && !data.paused) {
+          try { clearSuspendedPrepared(state.prepared.id); } catch {}
+          const tid = state._soloTid || TOURNAMENT_ID;
+          const dest = tid ? `../index.html#tid=${tid}` : "../index.html#tab=prepared";
+          // Message dans la modale de pause, puis retour au tournoi.
+          const pc = document.querySelector("#pauseModal .content, #pauseModal .modal-content");
+          if (pc) pc.innerHTML = `<h2 style="margin-top:0">🏁 Partie terminée sur un autre appareil</h2>`
+            + `<p>Ton score a déjà été enregistré. Retour au tournoi…</p>`
+            + `<button class="btn primary" onclick="location.href='${dest}'">← Retour au tournoi</button>`;
+          $("#pauseModal").hidden = false;
+          setTimeout(() => { location.href = dest; }, 1800);
+          return;
+        }
+      }
+    } catch (e) { console.warn("Vérif fin de partie (reprise) KO:", e); }
+  }
+  resumeGame();
+}
+
 function resumeGame() {
   if (!state.paused) { $("#pauseModal").hidden = true; return; }
   state.paused = false;
@@ -6056,7 +6088,7 @@ document.addEventListener("keydown", (e) => {
     e.preventDefault();
     // Partie démarrée non terminée (entraînement ou tournoi, pas puzzle)
     if (state.started && !state.isPuzzle && state.chronoFinal == null) {
-      if (state.paused) resumeGame(); else pauseGame();
+      if (state.paused) resumeGameGuarded(); else pauseGame();
     }
   }
 });
@@ -6094,7 +6126,7 @@ $$(".annot-btn[data-tool]").forEach(b => {
 $("#btnStart").onclick = startGame;
 $("#btnGiveUp").onclick = revealTop;
 $("#btnPause").onclick = pauseGame;
-$("#btnResume").onclick = resumeGame;
+$("#btnResume").onclick = resumeGameGuarded;
 // « Arrêter la partie » depuis la pause : même effet que dans les paramètres
 // (stoppe net sans révéler les coups, revient à l'écran pré-démarrage), en
 // levant d'abord l'état de pause et sa sauvegarde.
