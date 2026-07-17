@@ -2302,6 +2302,15 @@ async function loadTournaments() {
   const dateCell = t => (t.created_at || "").slice(0, 10);
   const nameCell = t => `<strong>${t.archived_at ? "🔒 " : ""}${escapeHtml(t.name)}</strong>`;
   const partiesCell = t => isDemoT(t) ? "10/10" : `${playedByT[t.id] || 0}/${countsByT[t.id] || 0}`;
+  // Barre de progression (jouées / total) pour la colonne « Parties ».
+  const progBar = t => {
+    const done = isDemoT(t) ? 10 : (playedByT[t.id] || 0);
+    const tot  = isDemoT(t) ? 10 : (countsByT[t.id] || 0);
+    const pct = tot ? Math.round(done / tot * 100) : 0;
+    const fill = pct >= 100 ? "#2fa84f" : "var(--petrol)";
+    return `<span class="pbar" style="display:inline-block;width:70px;vertical-align:middle"><span style="width:${pct}%;background:${fill}"></span></span>`;
+  };
+  const partiesCellBar = t => `<span style="display:inline-flex;align-items:center;gap:8px;white-space:nowrap">${progBar(t)}<span>${partiesCell(t)}</span></span>`;
   const placeCell = tid => {
     const r = rankByT[tid];
     if (!r) return "—";
@@ -2313,7 +2322,7 @@ async function loadTournaments() {
     <tr class="clickable" onclick="openTournament(${t.id})"${t.archived_at ? ' style="opacity:.55"' : ''}>
       <td>${dateCell(t)}</td>
       <td>${nameCell(t)}</td>
-      <td>${partiesCell(t)}</td>
+      <td>${partiesCellBar(t)}</td>
       <td>${lockBtns(t)}</td>
     </tr>`).join("") || `<tr><td colspan="4" class="muted">${canGenerate() ? "Aucun tournoi. Crée-en un ci-dessus." : "Aucun tournoi disponible."}</td></tr>`;
 
