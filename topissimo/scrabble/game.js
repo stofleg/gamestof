@@ -4117,6 +4117,14 @@ async function initGame() {
   // Partie de TOURNOI mise en pause puis rechargée (retour d'une autre appli, même
   // des heures après) → on la restaure au coup exact, en pause.
   if (PREPARED_ID && await restorePausedPrepared(PREPARED_ID)) return;
+  // Partie de tournoi DÉJÀ TERMINÉE (ex. finie sur un autre appareil) rouverte via
+  // un « Continuer » périmé ou un lien direct : on bascule en REVUE au lieu de la
+  // rejouer (sinon on écraserait le résultat). Exception : le mode admin, où l'on
+  // « teste » volontairement une partie déjà jouée (test non enregistré).
+  if (PREPARED_ID && _preparedFinishedOnServer && !isSuperAdminSession()) {
+    location.replace(`game.html?review=${PREPARED_ID}${TOURNAMENT_ID ? `&tid=${TOURNAMENT_ID}` : ""}`);
+    return;
+  }
   // Si aucune URL spéciale, et qu'on a un entraînement en pause sauvegardé → restaurer
   if (!PREPARED_ID && !TRAINING_ID && !PUZZLE_GAME_ID && !REVIEW_ID) {
     if (restorePausedTraining()) return;
@@ -5404,14 +5412,23 @@ function restorePausedTraining() {
 
 // Récupère le snapshot de pause d'une partie : d'abord SUPABASE (reprise possible
 // depuis un autre appareil), sinon le localStorage (filet de sécurité local).
+// Vrai si le dernier loadPausedSnapshot a vu un résultat DÉJÀ terminé côté serveur
+// (summary présent, pas de pause) → la partie ne doit pas être rejouée.
+let _preparedFinishedOnServer = false;
 async function loadPausedSnapshot(preparedId) {
+  _preparedFinishedOnServer = false;
   const pid = +(localStorage.getItem("currentPlayerId") || 0);
   try {
     if (!window._sb) await loadSupabaseClient();
     if (window._sb && pid) {
       const { data } = await window._sb.from("prepared_game_results")
-        .select("paused").eq("prepared_game_id", preparedId).eq("player_id", pid).maybeSingle();
+        .select("paused, summary").eq("prepared_game_id", preparedId).eq("player_id", pid).maybeSingle();
       if (data && data.paused) return data.paused;
+      if (data && data.summary) _preparedFinishedOnServer = true;
+      // Partie DÉJÀ TERMINÉE (résultat enregistré, ex. finie sur un autre appareil) :
+      // plus de reprise. On purge l'instantané périmé de CET appareil (localStorage)
+      // pour ne plus proposer « Continuer ».
+      if (data && data.summary) { try { localStorage.removeItem(preparedKey(preparedId)); } catch {} return null; }
     }
   } catch (e) { console.warn("Lecture pause serveur KO:", e); }
   try { const raw = localStorage.getItem(preparedKey(preparedId)); if (raw) return JSON.parse(raw); } catch {}
