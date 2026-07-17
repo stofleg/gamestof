@@ -2321,8 +2321,13 @@ async function loadTournaments() {
   const placeCell = tid => {
     const r = rankByT[tid];
     if (!r) return "—";
-    const o = r.rank === 1 ? "🥇 1er" : r.rank === 2 ? "🥈 2e" : r.rank === 3 ? "🥉 3e" : `${r.rank}e`;
-    return `${o} <span class="muted">/ ${r.total}</span>`;
+    const medal = r.rank === 1 ? "🥇" : r.rank === 2 ? "🥈" : r.rank === 3 ? "🥉" : "";
+    const ord = r.rank === 1 ? "1er" : `${r.rank}e`;
+    // Médaille dans un slot de largeur fixe AVANT la place → les places sont
+    // alignées verticalement (médaille ou non), les médailles débordant à gauche.
+    return `<span style="display:inline-flex;align-items:center;white-space:nowrap">`
+      + `<span style="flex:0 0 1.5em;text-align:center">${medal}</span>`
+      + `<span>${ord} <span class="muted">/ ${r.total}</span></span></span>`;
   };
 
   $("#tournamentsBody").innerHTML = available.map(t => `
