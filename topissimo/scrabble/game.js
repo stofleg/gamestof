@@ -2603,6 +2603,15 @@ function revealTop() {
 
 // Enregistre un coup dans l'historique (pour la feuille de route)
 function recordMove({ status, playerScore, playedWord = null, playedMove = null, dual = null }) {
+  // Garde-fou pré-tiré : une fois TOUS les coups stockés consommés, la partie est
+  // finie — on n'enregistre plus rien (évite un « coup fantôme » en trop, ex. une
+  // pause juste après le dernier coup qui, à la reprise, présentait un 24e coup
+  // dupliquant le top et comptant 0). Le vrai dernier coup est enregistré AVANT
+  // l'incrément de preparedIdx, donc il passe (idx < length).
+  if (state.prepared && state.preparedIdx >= (state.prepared.moves?.length || 0)) {
+    stopMoveTimer();
+    return;
+  }
   const tm = state.topMove;
   let timeMs = stopMoveTimer();
   // Le temps d'un coup ne peut pas dépasser le temps max imparti : on plafonne
@@ -5423,6 +5432,14 @@ async function restorePausedPrepared(preparedId) {
     state.rack = (s.rack || []).map(t => ({ letter: t.letter, isBlank: !!t.isBlank, used: false, id: nextTileId() }));
     state.moveNo = s.moveNo;
     state.preparedIdx = s.preparedIdx || 0;
+    // Pause prise JUSTE APRÈS le dernier coup (index déjà au bout) : la partie est
+    // en réalité finie → on clôture proprement au lieu de présenter un coup fantôme.
+    if (state.preparedIdx >= (state.prepared?.moves?.length || 0)) {
+      state.started = true; state.paused = false;
+      $("#actionRowPreStart").hidden = true; $("#actionRowInGame").hidden = false;
+      endGame();
+      return true;
+    }
     state.totalScore = s.totalScore;
     state.sumNeg = s.sumNeg;
     state.spareJokers = s.spareJokers || 0;
