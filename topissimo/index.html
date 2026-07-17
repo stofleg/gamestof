@@ -15,7 +15,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Lora:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=354">
+<link rel="stylesheet" href="style.css?v=355">
 </head>
 <body>
 
@@ -115,8 +115,9 @@
     <div class="card">
       <h2>🎮 Tournois disponibles</h2>
       <div class="table-wrap">
-        <table>
-          <thead><tr><th>Date</th><th>Nom</th><th>Parties</th><th></th></tr></thead>
+        <table class="tt-table">
+          <colgroup><col style="width:110px"><col><col style="width:200px"><col style="width:44px"><col style="width:90px"><col style="width:130px"></colgroup>
+          <thead><tr><th>Date</th><th>Nom</th><th>Parties</th><th></th><th></th><th></th></tr></thead>
           <tbody id="tournamentsBody"></tbody>
         </table>
       </div>
@@ -125,7 +126,8 @@
     <div class="card" id="tournamentsDoneCard" hidden>
       <h2>🏁 Tournois terminés</h2>
       <div class="table-wrap">
-        <table>
+        <table class="tt-table">
+          <colgroup><col style="width:110px"><col><col style="width:200px"><col style="width:44px"><col style="width:90px"><col style="width:130px"></colgroup>
           <thead><tr><th>Date</th><th>Nom</th><th>Parties</th><th></th><th>Place</th><th></th></tr></thead>
           <tbody id="tournamentsDoneBody"></tbody>
         </table>
@@ -421,6 +423,6 @@
 
 <script src="config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script src="app.js?v=354"></script>
+<script src="app.js?v=355"></script>
 </body>
 </html>

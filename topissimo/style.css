@@ -582,6 +582,10 @@ tbody tr.me:hover { background: rgba(255,221,0,.22); }
 .pg-mini .pg-actions { flex: 0 0 auto; }
 
 /* Barre de progression réutilisable */
+/* Tableaux tournois (disponibles / terminés) : largeurs de colonnes identiques
+   pour aligner Date / Nom / Parties d'un tableau à l'autre. */
+.tt-table { width: 100%; table-layout: fixed; }
+.tt-table td { overflow: hidden; text-overflow: ellipsis; }
 .pbar { flex: 1 1 auto; min-width: 50px; height: 10px; background: #e6ebee; border-radius: 6px; overflow: hidden; }
 .pbar > span { display: block; height: 100%; border-radius: 6px; transition: width .3s ease; }
 
