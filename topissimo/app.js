@@ -2318,16 +2318,17 @@ async function loadTournaments() {
     return `<span class="pbar" style="flex:1 1 auto;min-width:120px"><span style="width:${pct}%;background:${fill}"></span></span>`;
   };
   const partiesCellBar = t => `<span style="display:flex;align-items:center;gap:12px;white-space:nowrap">${progBar(t)}<span>${partiesCell(t)}</span></span>`;
+  // Colonne « médaille » dédiée (sans titre) + colonne « Place » : la place est
+  // ainsi alignée sur l'en-tête PLACE, indépendamment de la médaille.
+  const medalCell = tid => {
+    const r = rankByT[tid];
+    return r ? (r.rank === 1 ? "🥇" : r.rank === 2 ? "🥈" : r.rank === 3 ? "🥉" : "") : "";
+  };
   const placeCell = tid => {
     const r = rankByT[tid];
     if (!r) return "—";
-    const medal = r.rank === 1 ? "🥇" : r.rank === 2 ? "🥈" : r.rank === 3 ? "🥉" : "";
     const ord = r.rank === 1 ? "1er" : `${r.rank}e`;
-    // Médaille dans un slot de largeur fixe AVANT la place → les places sont
-    // alignées verticalement (médaille ou non), les médailles débordant à gauche.
-    return `<span style="display:inline-flex;align-items:center;white-space:nowrap">`
-      + `<span style="flex:0 0 1.5em;text-align:center">${medal}</span>`
-      + `<span>${ord} <span class="muted">/ ${r.total}</span></span></span>`;
+    return `${ord} <span class="muted">/ ${r.total}</span>`;
   };
 
   $("#tournamentsBody").innerHTML = available.map(t => `
@@ -2345,6 +2346,7 @@ async function loadTournaments() {
         <td>${dateCell(t)}</td>
         <td>${nameCell(t)}</td>
         <td>${partiesCell(t)}</td>
+        <td style="text-align:right;padding-right:0">${medalCell(t.id)}</td>
         <td style="white-space:nowrap">${placeCell(t.id)}</td>
         <td>${lockBtns(t)}</td>
       </tr>`).join("");
