@@ -2303,11 +2303,16 @@ async function loadTournaments() {
   const nameCell = t => `<strong>${t.archived_at ? "🔒 " : ""}${escapeHtml(t.name)}</strong>`;
   const partiesCell = t => isDemoT(t) ? "10/10" : `${playedByT[t.id] || 0}/${countsByT[t.id] || 0}`;
   // Barre de progression (jouées / total) pour la colonne « Parties ».
+  // Dégradé « logo inversé » en 5 paliers (rouge → jaune-vert pour les 4 quarts,
+  // vert réservé au 100 %) — même principe que la progression dans le détail.
+  const PROG_COLORS = ["#d6402f", "#e5872a", "#e6c02e", "#9cbf2c"];
   const progBar = t => {
     const done = isDemoT(t) ? 10 : (playedByT[t.id] || 0);
     const tot  = isDemoT(t) ? 10 : (countsByT[t.id] || 0);
     const pct = tot ? Math.round(done / tot * 100) : 0;
-    const fill = pct >= 100 ? "#2fa84f" : "var(--petrol)";
+    const fill = !tot || done <= 0 ? PROG_COLORS[0]
+      : done >= tot ? "#2fa84f"
+      : PROG_COLORS[Math.min(3, Math.floor(done / tot * 4))];
     // Barre extensible (flex:1) : elle occupe toute la largeur dispo de la colonne
     // → le compteur est repoussé à droite (aligné avec la colonne « Place »).
     return `<span class="pbar" style="flex:1 1 auto;min-width:120px"><span style="width:${pct}%;background:${fill}"></span></span>`;
