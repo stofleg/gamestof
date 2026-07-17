@@ -2222,23 +2222,24 @@ async function loadTournaments() {
   // Compter les parties par tournoi (total) ET celles jouées par le joueur
   // courant → colonne "Parties" présentée en « joué / total » (progression).
   const ids = (tournaments || []).map(t => t.id);
-  let countsByT = {}, playedByT = {}, marathonT = new Set();
+  const me = +state.currentPlayerId || 0;
+  let countsByT = {}, playedByT = {}, marathonT = new Set(), gamesByT = {};
   if (ids.length) {
-    const { data: counts } = await sb.from("prepared_games").select("tournament_id, mode").in("tournament_id", ids);
+    const { data: counts } = await sb.from("prepared_games").select("id, tournament_id, mode").in("tournament_id", ids);
     (counts || []).forEach(p => {
       countsByT[p.tournament_id] = (countsByT[p.tournament_id] || 0) + 1;
+      (gamesByT[p.tournament_id] ||= []).push(p.id);
       if (p.mode === "marathon") marathonT.add(p.tournament_id);   // tournoi Marathon
     });
-    const me = +state.currentPlayerId || 0;
     if (me) {
-      // Une fiche de résultat = une partie jouée par ce joueur. On remonte au
-      // tournoi via la relation prepared_games.tournament_id.
+      // Une fiche de résultat AVEC des coups joués = une partie réellement jouée
+      // (on exclut les parties en pause : summary vide). On remonte au tournoi.
       const { data: myRes } = await sb.from("prepared_game_results")
-        .select("prepared_game_id, prepared_games(tournament_id)")
+        .select("prepared_game_id, summary, prepared_games(tournament_id)")
         .eq("player_id", me);
       (myRes || []).forEach(r => {
         const tid = r.prepared_games?.tournament_id;
-        if (tid) playedByT[tid] = (playedByT[tid] || 0) + 1;
+        if (tid && (r.summary?.mv?.length || 0) > 0) playedByT[tid] = (playedByT[tid] || 0) + 1;
       });
     }
   }
@@ -2247,24 +2248,87 @@ async function loadTournaments() {
   // la liste que pour le pseudo « stof » (caché à admin et aux autres joueurs).
   const visibleTournaments = (tournaments || []).filter(t => superAdmin() || !marathonT.has(t.id));
 
-  $("#tournamentsBody").innerHTML = (visibleTournaments).map(t => {
-    // Tournoi démo : afficher 10/10 pour tout le monde (référence complète).
-    const isDemo = /d[ée]mo/i.test(t.name || "");
-    const partiesCell = isDemo
-      ? "10/10"
-      : `${playedByT[t.id] || 0}/${countsByT[t.id] || 0}`;
-    const locked = !!t.archived_at;   // verrouillé = masqué aux joueurs
-    const adminBtns = !superAdmin() ? "" : locked
-      ? `<button class="btn ghost small" onclick="event.stopPropagation();unlockTournament(${t.id})">🔓 Déverrouiller</button>`
-      : `<button class="btn ghost small" onclick="event.stopPropagation();lockTournament(${t.id})">🔒 Verrouiller</button>`;
-    return `
-    <tr class="clickable" onclick="openTournament(${t.id})"${locked ? ' style="opacity:.55"' : ''}>
-      <td>${(t.created_at || "").slice(0,10)}</td>
-      <td><strong>${locked ? "🔒 " : ""}${escapeHtml(t.name)}</strong></td>
-      <td>${partiesCell}</td>
-      <td>${adminBtns}</td>
-    </tr>`;
-  }).join("") || `<tr><td colspan="4" class="muted">${canGenerate() ? "Aucun tournoi. Crée-en un ci-dessus." : "Aucun tournoi disponible."}</td></tr>`;
+  // Séparer les tournois « disponibles » (en cours) des « terminés » (le joueur a
+  // joué TOUTES les parties). Les tournois démo restent dans « disponibles ».
+  const isDemoT = t => /d[ée]mo/i.test(t.name || "");
+  const isDone = t => !isDemoT(t) && (countsByT[t.id] || 0) > 0 && (playedByT[t.id] || 0) >= countsByT[t.id];
+  const available = visibleTournaments.filter(t => !isDone(t));
+  const finished  = visibleTournaments.filter(t => isDone(t));
+
+  // Place finale du joueur dans chaque tournoi terminé : une requête bornée aux
+  // parties de ces tournois. Classement par négatif total (temps en départage) ;
+  // Marathon → atteint 42 ↑, puis temps pour 42 ↑, puis meilleur streak ↓.
+  const rankByT = {};
+  if (me && finished.length) {
+    const fGameIds = finished.flatMap(t => gamesByT[t.id] || []);
+    if (fGameIds.length) {
+      const rows = [];
+      for (let from = 0; from < 20000; from += 1000) {
+        const { data } = await sb.from("prepared_game_results")
+          .select("player_id, sum_neg, total_time_seconds, summary, players(name), prepared_games(tournament_id)")
+          .in("prepared_game_id", fGameIds).range(from, from + 999);
+        if (!data || !data.length) break;
+        rows.push(...data);
+        if (data.length < 1000) break;
+      }
+      const agg = {};   // tid → pid → { played, neg, time, m }
+      for (const r of rows) {
+        if ((r.players?.name || "").toLowerCase() === "admin") continue;   // hors classement
+        const tid = r.prepared_games?.tournament_id;
+        if (!tid || (r.summary?.mv?.length || 0) === 0) continue;
+        const a = ((agg[tid] ||= {})[r.player_id] ||= { played: 0, neg: 0, time: 0, m: null });
+        a.played++; a.neg += (r.sum_neg || 0); a.time += (r.total_time_seconds || 0);
+        if (r.summary?.m) a.m = r.summary.m;
+      }
+      for (const t of finished) {
+        const tid = t.id, total = countsByT[tid] || 0;
+        const completers = Object.entries(agg[tid] || {})
+          .map(([pid, a]) => ({ pid: +pid, ...a }))
+          .filter(p => p.played >= total);
+        const marathon = marathonT.has(tid);
+        completers.sort((x, y) => marathon
+          ? ((y.m?.reached ? 1 : 0) - (x.m?.reached ? 1 : 0)) || ((x.m?.t42 ?? 1e9) - (y.m?.t42 ?? 1e9)) || ((y.m?.best || 0) - (x.m?.best || 0))
+          : (y.neg - x.neg) || (x.time - y.time));
+        const idx = completers.findIndex(p => p.pid === me);
+        if (idx >= 0) rankByT[tid] = { rank: idx + 1, total: completers.length };
+      }
+    }
+  }
+
+  // Helpers de rendu communs aux deux tableaux.
+  const lockBtns = t => !superAdmin() ? "" : (t.archived_at
+    ? `<button class="btn ghost small" onclick="event.stopPropagation();unlockTournament(${t.id})">🔓 Déverrouiller</button>`
+    : `<button class="btn ghost small" onclick="event.stopPropagation();lockTournament(${t.id})">🔒 Verrouiller</button>`);
+  const dateCell = t => (t.created_at || "").slice(0, 10);
+  const nameCell = t => `<strong>${t.archived_at ? "🔒 " : ""}${escapeHtml(t.name)}</strong>`;
+  const partiesCell = t => isDemoT(t) ? "10/10" : `${playedByT[t.id] || 0}/${countsByT[t.id] || 0}`;
+  const placeCell = tid => {
+    const r = rankByT[tid];
+    if (!r) return "—";
+    const o = r.rank === 1 ? "🥇 1er" : r.rank === 2 ? "🥈 2e" : r.rank === 3 ? "🥉 3e" : `${r.rank}e`;
+    return `${o} <span class="muted">/ ${r.total}</span>`;
+  };
+
+  $("#tournamentsBody").innerHTML = available.map(t => `
+    <tr class="clickable" onclick="openTournament(${t.id})"${t.archived_at ? ' style="opacity:.55"' : ''}>
+      <td>${dateCell(t)}</td>
+      <td>${nameCell(t)}</td>
+      <td>${partiesCell(t)}</td>
+      <td>${lockBtns(t)}</td>
+    </tr>`).join("") || `<tr><td colspan="4" class="muted">${canGenerate() ? "Aucun tournoi. Crée-en un ci-dessus." : "Aucun tournoi disponible."}</td></tr>`;
+
+  const doneCard = $("#tournamentsDoneCard");
+  if (finished.length) {
+    $("#tournamentsDoneBody").innerHTML = finished.map(t => `
+      <tr class="clickable" onclick="openTournament(${t.id})"${t.archived_at ? ' style="opacity:.55"' : ''}>
+        <td>${dateCell(t)}</td>
+        <td>${nameCell(t)}</td>
+        <td>${partiesCell(t)}</td>
+        <td style="white-space:nowrap">${placeCell(t.id)}</td>
+        <td>${lockBtns(t)}</td>
+      </tr>`).join("");
+    if (doneCard) doneCard.hidden = false;
+  } else if (doneCard) { doneCard.hidden = true; }
 }
 
 // Archiver le plus ancien tournoi tant qu'on dépasse la limite
