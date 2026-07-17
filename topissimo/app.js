@@ -2335,9 +2335,7 @@ async function loadTournaments() {
     <tr class="clickable" onclick="openTournament(${t.id})"${t.archived_at ? ' style="opacity:.55"' : ''}>
       <td>${dateCell(t)}</td>
       <td>${nameCell(t)}</td>
-      <td>${partiesCellBar(t)}</td>
-      <td></td>
-      <td></td>
+      <td colspan="3">${partiesCellBar(t)}</td>
       <td>${lockBtns(t)}</td>
     </tr>`).join("") || `<tr><td colspan="6" class="muted">${canGenerate() ? "Aucun tournoi. Crée-en un ci-dessus." : "Aucun tournoi disponible."}</td></tr>`;
 
