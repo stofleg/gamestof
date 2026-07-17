@@ -2308,9 +2308,11 @@ async function loadTournaments() {
     const tot  = isDemoT(t) ? 10 : (countsByT[t.id] || 0);
     const pct = tot ? Math.round(done / tot * 100) : 0;
     const fill = pct >= 100 ? "#2fa84f" : "var(--petrol)";
-    return `<span class="pbar" style="display:inline-block;width:70px;vertical-align:middle"><span style="width:${pct}%;background:${fill}"></span></span>`;
+    // Barre extensible (flex:1) : elle occupe toute la largeur dispo de la colonne
+    // → le compteur est repoussé à droite (aligné avec la colonne « Place »).
+    return `<span class="pbar" style="flex:1 1 auto;min-width:120px"><span style="width:${pct}%;background:${fill}"></span></span>`;
   };
-  const partiesCellBar = t => `<span style="display:inline-flex;align-items:center;gap:8px;white-space:nowrap">${progBar(t)}<span>${partiesCell(t)}</span></span>`;
+  const partiesCellBar = t => `<span style="display:flex;align-items:center;gap:12px;white-space:nowrap">${progBar(t)}<span>${partiesCell(t)}</span></span>`;
   const placeCell = tid => {
     const r = rankByT[tid];
     if (!r) return "—";
