@@ -637,6 +637,22 @@ body.theme-duplijeu .board tr:last-child td.coord { height: calc(var(--cell-size
    !important pour battre les overrides de thème (ex. DupliJeu fixe color: #111). */
 .tile.blank,
 body.theme-duplijeu .tile.blank { color: #c8202a !important; }
+/* Définition Élimots : modale centrée (remplace les volets latéraux). */
+#dictModal { z-index: 9999; }
+#dictModal .content.dict-modal-content {
+  width: min(560px, 94vw);
+  height: min(78vh, 720px);
+  max-width: none;
+  display: flex; flex-direction: column;
+  gap: 6px; padding: 14px;
+}
+.dict-modal-head { display: flex; align-items: center; gap: 10px; }
+.dict-modal-word { font-weight: 700; font-size: 1.15rem; }
+.dict-modal-ext { margin-left: auto; font-size: .85rem; text-decoration: none; color: var(--petrol, #0d3a4f); font-weight: 600; }
+.dict-modal-head .close { position: static; margin-left: 2px; }
+.dict-modal-src { font-size: .72rem; opacity: .6; }
+.dict-modal-iframe { flex: 1 1 auto; width: 100%; border: 0; border-radius: 8px; background: #fff; }
+
 /* Marathon : grand HUD dans l'espace libre de la barre d'action. */
 #marathonHud {
   flex: 1 1 220px;

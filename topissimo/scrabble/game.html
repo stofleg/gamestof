@@ -312,6 +312,20 @@
 </div>
 
 <!-- Modal pause -->
+<!-- Définition Élimots : modale centrée (remplace les anciens volets latéraux). -->
+<div id="dictModal" class="modal" hidden>
+  <div class="backdrop" onclick="closeDictModal()"></div>
+  <div class="content dict-modal-content">
+    <div class="dict-modal-head">
+      <span class="dict-modal-word" id="dictModalWord"></span>
+      <a class="dict-modal-ext" id="dictModalExt" href="" target="_blank" rel="noopener">↗ Élimots</a>
+      <button class="close" onclick="closeDictModal()" aria-label="Fermer">×</button>
+    </div>
+    <div class="dict-modal-src">Source : Élimots.com</div>
+    <iframe class="dict-modal-iframe" id="dictModalIframe" src="" title="Définition"></iframe>
+  </div>
+</div>
+
 <div id="pauseModal" class="modal" hidden>
   <div class="backdrop"></div>
   <div class="content" style="max-width:380px;text-align:center">

@@ -1090,51 +1090,26 @@ function wLinkB(move) {
   return `<a href="${dictUrl(word)}" class="word-link" onclick="event.preventDefault();event.stopPropagation();openDictPanel('${word}')">${disp}</a>`;
 }
 
+// Définition Élimots : une seule MODALE centrée (fonctionne partout, mobile inclus)
+// — remplace les anciens volets latéraux qui restaient vides sur petit écran.
 window.openDictPanel = function(word) {
   // Pas de dictionnaire pendant une partie tournoi en cours
   if (document.body.classList.contains("mode-tournament") && state.started && state.chronoFinal == null && !review.active) return;
   const url = dictUrl(word);
-  // Si la feuille de route est ouverte, utiliser le volet latéral de la feuille
-  if (!$("#sheet").hidden) {
-    $("#sheetDictWord").textContent = word;
-    $("#sheetDictExt").href = url;
-    $("#sheetDictIframe").src = url;
-    $("#sheetDictPanel").hidden = false;
-    $("#sheet .sheet-content").classList.add("with-dict");
-    return;
-  }
-  // En mode review : volet intégré dans la moitié basse du panneau review
-  if (review.active) {
-    $("#reviewDictWord").textContent = word;
-    $("#reviewDictExt").href = url;
-    $("#reviewDictIframe").src = url;
-    $("#reviewDictPanel").hidden = false;
-    document.querySelector(".review-split")?.classList.add("with-dict");
-    return;
-  }
-  // Sinon volet inline du panneau droit
-  $("#dictWord").textContent = word;
-  $("#dictExt").href = url;
-  $("#dictIframe").src = url;
-  $("#dictPanel").hidden = false;
+  $("#dictModalWord").textContent = word;
+  $("#dictModalExt").href = url;
+  $("#dictModalIframe").src = url;
+  $("#dictModal").hidden = false;
 };
 
-window.closeReviewDict = function() {
-  $("#reviewDictPanel").hidden = true;
-  $("#reviewDictIframe").src = "";
-  document.querySelector(".review-split")?.classList.remove("with-dict");
+window.closeDictModal = function() {
+  const m = $("#dictModal");
+  if (m) m.hidden = true;
+  const f = $("#dictModalIframe");
+  if (f) f.src = "";
 };
-
-window.closeDictPanel = function() {
-  $("#dictPanel").hidden = true;
-  $("#dictIframe").src = "";
-};
-
-window.closeSheetDict = function() {
-  $("#sheetDictPanel").hidden = true;
-  $("#sheetDictIframe").src = "";
-  $("#sheet .sheet-content").classList.remove("with-dict");
-};
+// Compat : les anciens boutons de fermeture des volets pointent vers la modale.
+window.closeReviewDict = window.closeSheetDict = window.closeDictPanel = window.closeDictModal;
 
 function showFeedback(kind, title, detail = "", topReveal = "") {
   const div = $("#feedback");
