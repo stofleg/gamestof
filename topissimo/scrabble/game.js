@@ -6250,9 +6250,13 @@ window.showTournamentResults = async function() {
   body.innerHTML = `<p class="muted">Chargement…</p>`;
   modal.hidden = false;
   const { data: rowsRaw } = await window._sb.from("prepared_game_results")
-    .select("player_id, sum_neg, total_time_seconds, played_on_mobile, players(name)")
+    .select("player_id, sum_neg, total_time_seconds, played_on_mobile, summary, players(name)")
     .eq("prepared_game_id", PREPARED_ID);
-  const rows = (rowsRaw || []).filter(r => (r.players?.name || "").toLowerCase() !== "admin");
+  // On exclut l'admin ET les parties NON TERMINÉES (en pause) : une fiche de pause
+  // porte un score/temps partiel mais aucun coup dans summary.mv → pas un résultat.
+  const rows = (rowsRaw || []).filter(r =>
+    (r.players?.name || "").toLowerCase() !== "admin"
+    && (r.summary?.mv?.length || 0) > 0);
   if (!rows.length) { body.innerHTML = `<p class="muted">Personne d'autre n'a encore joué cette partie.</p>`; return; }
   rows.sort((a, b) => (b.sum_neg || 0) - (a.sum_neg || 0) || (a.total_time_seconds || 0) - (b.total_time_seconds || 0));
   const fmtT = (s) => !s ? "—" : `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
