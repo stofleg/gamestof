@@ -2367,6 +2367,7 @@ async function autoArchiveOldest() {
 
 window.openTournament = async (id) => {
   currentTournamentId = id;
+  _lbActiveTab = null;   // ouverture explicite d'un tournoi → classement sur « général »
   // Refléter le tournoi ouvert dans l'URL (sans déclencher hashchange) pour que
   // le bouton "précédent" du navigateur revienne ici après un rejeu/une partie.
   if (location.hash !== `#tid=${id}`) history.replaceState(null, "", `#tid=${id}`);
@@ -2805,6 +2806,9 @@ function makeCategorizer(games, byType, modeDisplayName) {
   return { keyOf, labelOf: (k) => labels[k] || k, order };
 }
 
+// Onglet de classement actif (catégorie), conservé entre deux rendus pour ne pas
+// rebasculer vers le général quand un recalcul asynchrone réécrit le classement.
+let _lbActiveTab = null;
 async function loadTournamentLeaderboard(tournamentId, games, tournamentName, modeDisplayName) {
   const body = $("#tournamentLeaderboardBody");
   // Garde anti-course (cf. loadTournamentStats) : n'écrire que si ce tournoi est
@@ -3044,17 +3048,22 @@ async function loadTournamentLeaderboard(tournamentId, games, tournamentName, mo
   const tabActive = "padding:7px 13px;border:none;border-bottom:2px solid var(--petrol);background:transparent;color:var(--petrol);font-weight:700;font-size:.85rem;cursor:pointer";
 
   if (stale()) return;   // tournoi changé pendant le calcul → on n'écrase pas
+  // Onglet actif conservé d'un rendu à l'autre : si un recalcul asynchrone
+  // réécrit le classement pendant qu'on consulte une catégorie, on ne rebascule
+  // pas vers le général.
+  const activeKey = panels.some(pn => pn.k === _lbActiveTab) ? _lbActiveTab : panels[0].k;
   body.innerHTML = `
     <div style="display:flex;flex-wrap:wrap;gap:2px;border-bottom:1px solid rgba(0,0,0,.08);margin-bottom:10px">${
-      panels.map((pn, i) => `<button data-lbtab="${pn.k}" style="${i === 0 ? tabActive : tabBase}">${pn.label}</button>`).join("")
+      panels.map((pn) => `<button data-lbtab="${pn.k}" style="${pn.k === activeKey ? tabActive : tabBase}">${pn.label}</button>`).join("")
     }</div>
-    ${panels.map((pn, i) => `<div data-lbpanel="${pn.k}" style="display:${i === 0 ? 'block' : 'none'}">${panelTable(pn)}</div>`).join("")}
+    ${panels.map((pn) => `<div data-lbpanel="${pn.k}" style="display:${pn.k === activeKey ? 'block' : 'none'}">${panelTable(pn)}</div>`).join("")}
     <p class="muted" style="margin-top:8px;font-size:.78rem">Rang attribué après avoir terminé l'ensemble · clique sur une colonne pour trier · clique sur un joueur pour le détail.</p>`;
 
-  // Bascule d'onglets
+  // Bascule d'onglets (mémorise le choix pour survivre à un re-render)
   body.querySelectorAll("button[data-lbtab]").forEach(btn => {
     btn.onclick = () => {
       const k = btn.dataset.lbtab;
+      _lbActiveTab = k;
       body.querySelectorAll("button[data-lbtab]").forEach(b => b.setAttribute("style", b === btn ? tabActive : tabBase));
       body.querySelectorAll("div[data-lbpanel]").forEach(pan => pan.style.display = pan.dataset.lbpanel === k ? "block" : "none");
     };
