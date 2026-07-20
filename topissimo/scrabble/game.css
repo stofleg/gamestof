@@ -649,7 +649,8 @@ body.theme-duplijeu .tile.blank { color: #c8202a !important; }
 .dict-modal-head { display: flex; align-items: center; gap: 10px; }
 .dict-modal-word { font-weight: 700; font-size: 1.15rem; }
 .dict-modal-ext { margin-left: auto; font-size: .85rem; text-decoration: none; color: var(--petrol, #0d3a4f); font-weight: 600; }
-.dict-modal-head .close { position: static; margin-left: 2px; }
+/* × en flux (pas en absolu) → plus de chevauchement avec « Élimots ». */
+#dictModal .dict-modal-head .close { position: static; top: auto; right: auto; margin: 0; flex: 0 0 auto; }
 .dict-modal-src { font-size: .72rem; opacity: .6; }
 .dict-modal-iframe { flex: 1 1 auto; width: 100%; border: 0; border-radius: 8px; background: #fff; }
 

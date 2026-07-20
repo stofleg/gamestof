@@ -1090,26 +1090,64 @@ function wLinkB(move) {
   return `<a href="${dictUrl(word)}" class="word-link" onclick="event.preventDefault();event.stopPropagation();openDictPanel('${word}')">${disp}</a>`;
 }
 
-// Définition Élimots : une seule MODALE centrée (fonctionne partout, mobile inclus)
-// — remplace les anciens volets latéraux qui restaient vides sur petit écran.
+// Définition Élimots : MOBILE → modale centrée (les volets latéraux y sont
+// invisibles) ; PC → volet incorporé aux solutions (feuille de route / revue /
+// panneau droit), comme avant.
+const _dictIsMobile = () => !!(window.matchMedia && window.matchMedia("(max-width: 700px)").matches);
 window.openDictPanel = function(word) {
   // Pas de dictionnaire pendant une partie tournoi en cours
   if (document.body.classList.contains("mode-tournament") && state.started && state.chronoFinal == null && !review.active) return;
   const url = dictUrl(word);
-  $("#dictModalWord").textContent = word;
-  $("#dictModalExt").href = url;
-  $("#dictModalIframe").src = url;
-  $("#dictModal").hidden = false;
+  if (_dictIsMobile()) {
+    $("#dictModalWord").textContent = word;
+    $("#dictModalExt").href = url;
+    $("#dictModalIframe").src = url;
+    $("#dictModal").hidden = false;
+    return;
+  }
+  // PC : volet de la feuille de route si ouverte
+  if (!$("#sheet").hidden) {
+    $("#sheetDictWord").textContent = word;
+    $("#sheetDictExt").href = url;
+    $("#sheetDictIframe").src = url;
+    $("#sheetDictPanel").hidden = false;
+    $("#sheet .sheet-content").classList.add("with-dict");
+    return;
+  }
+  // PC en revue : volet intégré dans la moitié basse du panneau review
+  if (review.active) {
+    $("#reviewDictWord").textContent = word;
+    $("#reviewDictExt").href = url;
+    $("#reviewDictIframe").src = url;
+    $("#reviewDictPanel").hidden = false;
+    document.querySelector(".review-split")?.classList.add("with-dict");
+    return;
+  }
+  // PC sinon : volet inline du panneau droit
+  $("#dictWord").textContent = word;
+  $("#dictExt").href = url;
+  $("#dictIframe").src = url;
+  $("#dictPanel").hidden = false;
 };
 
 window.closeDictModal = function() {
-  const m = $("#dictModal");
-  if (m) m.hidden = true;
-  const f = $("#dictModalIframe");
-  if (f) f.src = "";
+  const m = $("#dictModal"); if (m) m.hidden = true;
+  const f = $("#dictModalIframe"); if (f) f.src = "";
 };
-// Compat : les anciens boutons de fermeture des volets pointent vers la modale.
-window.closeReviewDict = window.closeSheetDict = window.closeDictPanel = window.closeDictModal;
+window.closeReviewDict = function() {
+  $("#reviewDictPanel").hidden = true;
+  $("#reviewDictIframe").src = "";
+  document.querySelector(".review-split")?.classList.remove("with-dict");
+};
+window.closeDictPanel = function() {
+  $("#dictPanel").hidden = true;
+  $("#dictIframe").src = "";
+};
+window.closeSheetDict = function() {
+  $("#sheetDictPanel").hidden = true;
+  $("#sheetDictIframe").src = "";
+  $("#sheet .sheet-content").classList.remove("with-dict");
+};
 
 function showFeedback(kind, title, detail = "", topReveal = "") {
   const div = $("#feedback");
