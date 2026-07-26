@@ -29,9 +29,9 @@ import {
   bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName, randomBoardLayout, snakeEndpointsAfter, sablierTime, gigogneRackSize,
   setLetterValues, letterValue, valuesFor, bagFor, isCrossingCell, wordHiddenCount,
   drawVowelRack, VOWELS_NO_Y, MARATHON_TARGET, MARATHON_GAMES,
-} from "./engine.js?v=359";
-import { Dictionary } from "./dictionary.js?v=359";
-import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=359";
+} from "./engine.js?v=360";
+import { Dictionary } from "./dictionary.js?v=360";
+import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=360";
 
 // État du mode review (parcours coup par coup)
 const review = {
@@ -61,7 +61,7 @@ const FFSC_REVIEW = URL_PARAMS.get("ffscreview");  // revoir une partie FFSC imp
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v359";
+const BUILD_VERSION = "garenna-v360";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -5315,6 +5315,10 @@ function isSuperAdminSession() {
 
 function saveTrainingState() {
   if (state.isPuzzle) return;   // puzzles non persistés ; entraînement ET tournoi le sont
+  // Ceinture de sécurité : partie TERMINÉE → on n'enregistre plus d'état de pause
+  // (sinon une sauvegarde tardive pourrait ré-écraser le résultat avec un négatif
+  // partiel et re-marquer la partie « en pause », cf. bug v347).
+  if (state.chronoFinal != null) return;
   try {
     const snapshot = {
       playerId: +(localStorage.getItem("currentPlayerId") || 0),
