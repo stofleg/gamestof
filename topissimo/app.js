@@ -1477,6 +1477,8 @@ async function loadMyStats() {
       else cur = 0;
     }
   }
+  // Série EN COURS (tournoi) : tops consécutifs à la fin du parcours chronologique.
+  const tourCurStreak = cur;
 
   // ===== Solos & anti-solos =====
   // Solo    = je suis le SEUL à avoir topé un coup, parmi ≥2 joueurs l'ayant joué.
@@ -1531,15 +1533,18 @@ async function loadMyStats() {
     .map(t => mkRec(t.sum_neg, t.total_time_seconds, isAbandoned(t.history), t.mode, t.with_joker, t.time_per_move));
 
   // ===== Série de tops (chronologique) =====
+  // Renvoie { max, cur } : plus longue série de tops, et série EN COURS (les tops
+  // consécutifs qui courent encore à la fin du parcours chronologique).
   const streakOf = (sorted, getMoves) => {
     let cur = 0, max = 0;
     for (const g of sorted) for (const m of (getMoves(g) || []).slice().sort((a, b) => a.moveNo - b.moveNo)) {
       if (m.status === "top") { cur++; if (cur > max) max = cur; } else cur = 0;
     }
-    return max;
+    return { max, cur };
   };
   const trainSorted = [...(train || [])].sort((a, b) => (a.created_at || "").localeCompare(b.created_at || ""));
-  const trainStreak = streakOf(trainSorted, g => g.history);
+  const _trainStk = streakOf(trainSorted, g => g.history);
+  const trainStreak = _trainStk.max, trainCurStreak = _trainStk.cur;
   // (tour : maxStreak déjà calculé plus haut sur tourSorted)
 
   // ===== Agrégats par colonne =====
@@ -1592,7 +1597,20 @@ async function loadMyStats() {
         <h3 style="margin:0 0 4px">${rLab}</h3>
         <p style="margin:0;font-size:1.5rem;font-weight:700;color:#c8202a">${rVal}</p></div>
     </div>`;
-  const colHTML = (emoji, title, s, streak, prefix, topsPct, soloSplit, wrapBg) => `
+  // Carte scindée « séries de tops » : série en cours (gauche) / record (droite, ambre).
+  const streakSplit = (curV, maxV) => {
+    const unit = v => `${v} coup${v > 1 ? "s" : ""}`;
+    return `
+    <div class="t-stat-card" style="padding:0;overflow:hidden;display:flex">
+      <div style="flex:1;padding:14px 16px">
+        <h3 style="margin:0 0 4px">🔥 Série en cours</h3>
+        <p style="margin:0;font-size:1.5rem;font-weight:700;color:var(--petrol-dark)">${unit(curV)}</p></div>
+      <div style="flex:1;padding:14px 16px;background:#fdf3dd;border-left:1px solid rgba(0,46,68,.06)">
+        <h3 style="margin:0 0 4px">🏅 Plus longue série</h3>
+        <p style="margin:0;font-size:1.5rem;font-weight:700;color:#a8730c">${unit(maxV)}</p></div>
+    </div>`;
+  };
+  const colHTML = (emoji, title, s, streak, prefix, topsPct, soloSplit, wrapBg, curStreak) => `
     <div style="display:flex;flex-direction:column;gap:12px;padding:16px;border-radius:16px;background:${wrapBg}">
       <h2 style="margin:0">${emoji} ${title}</h2>
       <div class="t-stat-card"><h3>Parties jouées</h3><p style="${V}">${s.jouees}</p></div>
@@ -1601,15 +1619,15 @@ async function loadMyStats() {
       ${negCard(prefix, s.tabs)}
       ${soloSplit || ""}
       ${splitCard("⏱ Meilleur temps", fmtT(s.best), "🐢 Plus mauvais temps", fmtT(s.worst))}
-      <div class="t-stat-card"><h3>🔥 Plus longue série de tops</h3><p style="${V}">${streak} coup${streak > 1 ? "s" : ""}</p></div>
+      ${streakSplit(curStreak || 0, streak)}
     </div>`;
 
   const soloSplit = splitCard("Solos", mySolos, "Anti-solos", myAntiSolos);
 
   body.innerHTML = `
     <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:20px;align-items:start">
-      ${colHTML("🏆", "Tournoi", sTour, maxStreak, "negt", tourTopsPct, soloSplit, "#e7eff4")}
-      ${colHTML("🎯", "Entraînement", sTrain, trainStreak, "nege", trainTopsPct, "", "#eef3ea")}
+      ${colHTML("🏆", "Tournoi", sTour, maxStreak, "negt", tourTopsPct, soloSplit, "#e7eff4", tourCurStreak)}
+      ${colHTML("🎯", "Entraînement", sTrain, trainStreak, "nege", trainTopsPct, "", "#eef3ea", trainCurStreak)}
     </div>`;
 
   // Bascule des onglets « négatif moyen »
