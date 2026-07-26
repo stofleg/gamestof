@@ -12,8 +12,8 @@ import {
   bagTotalVowels, bagTotalConsonants, GAME_MODES, randomBoardLayout, snakeEndpointsAfter, gigogneRackSize,
   bagFor, valuesFor, setLetterValues, LETTER_VALUE, isCrossingCell, wordHiddenCount,
   drawVowelRack, MARATHON_GAMES,
-} from "./engine.js?v=360";
-import { findTopRanked, findTop, snakeBestTop } from "./topfinder.js?v=360";
+} from "./engine.js?v=361";
+import { findTopRanked, findTop, snakeBestTop } from "./topfinder.js?v=361";
 
 const VOWELS_GEN = new Set(["A", "E", "I", "O", "U", "Y"]);
 
