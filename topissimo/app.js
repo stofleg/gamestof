@@ -1603,7 +1603,7 @@ async function loadMyStats() {
     return `
     <div class="t-stat-card" style="padding:0;overflow:hidden;display:flex">
       <div style="flex:1;padding:14px 16px">
-        <h3 style="margin:0 0 4px">🔥 Série en cours</h3>
+        <h3 style="margin:0 0 4px">🔥 Série de tops en cours</h3>
         <p style="margin:0;font-size:1.5rem;font-weight:700;color:var(--petrol-dark)">${unit(curV)}</p></div>
       <div style="flex:1;padding:14px 16px;background:#fdf3dd;border-left:1px solid rgba(0,46,68,.06)">
         <h3 style="margin:0 0 4px">🏅 Plus longue série</h3>
