@@ -1483,29 +1483,16 @@ async function loadMyStats() {
   // ===== Solos & anti-solos =====
   // Solo    = je suis le SEUL à avoir topé un coup, parmi ≥2 joueurs l'ayant joué.
   // Anti-solo = je suis le SEUL à NE PAS avoir topé un coup, parmi ≥2 joueurs.
+  // Calcul délégué à computeSoloCounts() — SOURCE UNIQUE partagée avec les « Stats
+  // du club », pour que les deux écrans affichent le même nombre. (L'ancien calcul
+  // local divergeait : il n'excluait pas l'admin — un test admin ayant topé le coup
+  // annulait le solo — et n'était pas paginé, donc tronqué au-delà de 1000 lignes.)
   let mySolos = 0, myAntiSolos = 0;
   if (tour && tour.length) {
-    const gameIds = [...new Set(tour.map(r => r.prepared_game_id))];
-    const allResults = await cachedQuery(`my:solos:${pid}`, () => sb.from("prepared_game_results")
-      .select("player_id, prepared_game_id, summary").in("prepared_game_id", gameIds).then(r => r.data || []));
-    const byGame = {};
-    for (const r of allResults || []) (byGame[r.prepared_game_id] ||= []).push(r);
-    for (const rs of Object.values(byGame)) {
-      const playedBy = {};   // moveNo -> Set des joueurs ayant joué ce coup
-      const toppedBy = {};   // moveNo -> Set des joueurs ayant topé ce coup
-      for (const r of rs) {
-        const s = sm(r);
-        for (const n of (s.mv || [])) (playedBy[n] ||= new Set()).add(r.player_id);
-        for (const n of (s.tp || [])) (toppedBy[n] ||= new Set()).add(r.player_id);
-      }
-      for (const [mv, played] of Object.entries(playedBy)) {
-        if (played.size < 2 || !played.has(pid)) continue;
-        const topped = toppedBy[mv] || new Set();
-        if (topped.size === 1 && topped.has(pid)) mySolos++;
-        // Anti-solo : tout le monde a topé sauf moi (je suis le seul non-topeur).
-        if (!topped.has(pid) && topped.size === played.size - 1) myAntiSolos++;
-      }
-    }
+    const _detailed = await loadDetailedResults();
+    const _sc = await computeSoloCounts(_detailed);
+    mySolos = _sc.soloCount[pid] || 0;
+    myAntiSolos = _sc.antiSoloCount[pid] || 0;
   }
 
   const fmtT = (s) => !isFinite(s) || !s ? "—" : `${Math.floor(s/60)}:${String(s%60).padStart(2,"0")}`;
@@ -1917,10 +1904,13 @@ async function loadClubStats() {
   await loadSolosAndStreaks();
 }
 
-async function loadSolosAndStreaks() {
-  // Récupérer TOUS les résultats en paginant : PostgREST plafonne à 1000 lignes par
-  // requête, or le total dépasse ce seuil (ex. « En route pour les ICE » = 96 parties
-  // × plusieurs joueurs) → sans pagination, les classements tronquent (sous-comptage).
+// Chargement (paginé + mis en cache) de TOUS les résultats de parties pré-tirées,
+// hors admin et hors tournois « démo ». SOURCE COMMUNE aux stats du club et aux
+// stats perso, pour qu'elles reposent sur exactement les mêmes données.
+// Pagination indispensable : PostgREST plafonne à 1000 lignes par requête, or le
+// total dépasse ce seuil (ex. « En route pour les ICE » = 96 parties × N joueurs)
+// → sans pagination, les compteurs tronquent (sous-comptage).
+async function loadDetailedResults() {
   const SEL = "player_id, prepared_game_id, total_time_seconds, sum_neg, finished_at, summary, players(name), prepared_games(id,name,mode,with_joker,time_per_move,created_at,tournament_id)";
   const detailedRaw = await cachedQuery("club:detailed", async () => {
     const acc = [];
@@ -1933,10 +1923,66 @@ async function loadSolosAndStreaks() {
     }
     return acc;
   });
-  // Exclure les tournois « démo » (résultats importés hors Topissimo).
   const _tlist = await cachedQuery("tournaments", () => sb.from("tournaments").select("id,name").then(r => r.data || []));
   const demoIds = new Set(_tlist.filter(t => /d[ée]mo/i.test(t.name || "")).map(t => t.id));
-  const detailed = excludeAdminRows(detailedRaw).filter(r => !demoIds.has(r.prepared_games?.tournament_id));
+  return excludeAdminRows(detailedRaw).filter(r => !demoIds.has(r.prepared_games?.tournament_id));
+}
+
+// Solos / anti-solos PAR JOUEUR — règles uniques (club ET perso) :
+//   • solo      = coup topé par UN SEUL joueur, sur un coup joué par ≥2 joueurs ;
+//   • anti-solo = coup topé par tous SAUF un (celui-ci écope de l'anti-solo) ;
+//   • seuls comptent les tournois ENTIÈREMENT complétés par ≥5 joueurs ;
+//   • admin et tournois démo déjà exclus par loadDetailedResults().
+// Le filtre ≥2 joueurs écarte les coups orphelins d'une partie régénérée plus
+// courte, qui ne subsistent que dans une fiche périmée.
+async function computeSoloCounts(detailed) {
+  const sm = r => (r.summary && typeof r.summary === "object") ? r.summary : { mv: [], tp: [], ab: false };
+  const hasMovesR = r => (sm(r).mv || []).length > 0;
+  const allGames = await cachedQuery("club:allGames", () => sb.from("prepared_games").select("id, tournament_id").then(r => r.data || []));
+  const gameToTour = {}, tourGamesCount = {};
+  for (const g of allGames || []) {
+    if (g.tournament_id == null) continue;
+    gameToTour[g.id] = g.tournament_id;
+    tourGamesCount[g.tournament_id] = (tourGamesCount[g.tournament_id] || 0) + 1;
+  }
+  const donePerTourPlayer = {};
+  for (const r of detailed) {
+    const tid = gameToTour[r.prepared_game_id];
+    if (tid == null || !hasMovesR(r)) continue;
+    (donePerTourPlayer[`${tid}|${r.player_id}`] ||= new Set()).add(r.prepared_game_id);
+  }
+  const completersByTour = {};
+  for (const [k, set] of Object.entries(donePerTourPlayer)) {
+    const tid = k.split("|")[0];
+    if (tourGamesCount[tid] && set.size >= tourGamesCount[tid]) completersByTour[tid] = (completersByTour[tid] || 0) + 1;
+  }
+  const qualifyingTour = new Set(Object.entries(completersByTour).filter(([, n]) => n >= 5).map(([tid]) => tid));
+
+  const byGame = {}, soloCount = {}, antiSoloCount = {}, soloName = {};
+  for (const r of detailed) { (byGame[r.prepared_game_id] ||= []).push(r); soloName[r.player_id] = r.players?.name || "?"; }
+  for (const [gid, rs] of Object.entries(byGame)) {
+    const tid = gameToTour[gid];
+    if (tid == null || !qualifyingTour.has(String(tid))) continue;
+    const playedByMove = {}, toppedByMove = {};
+    for (const r of rs) {
+      const s = sm(r);
+      for (const n of (s.mv || [])) (playedByMove[n] ||= new Set()).add(r.player_id);
+      for (const n of (s.tp || [])) (toppedByMove[n] ||= new Set()).add(r.player_id);
+    }
+    for (const [mv, played] of Object.entries(playedByMove)) {
+      if (played.size < 2) continue;
+      const topped = toppedByMove[mv] || new Set();
+      if (topped.size === 1) { const [only] = topped; soloCount[only] = (soloCount[only] || 0) + 1; }
+      if (topped.size === played.size - 1) {
+        for (const pidp of played) if (!topped.has(pidp)) antiSoloCount[pidp] = (antiSoloCount[pidp] || 0) + 1;
+      }
+    }
+  }
+  return { soloCount, antiSoloCount, soloName };
+}
+
+async function loadSolosAndStreaks() {
+  const detailed = await loadDetailedResults();
   if (!detailed || detailed.length === 0) {
     $("#recordsGrid").innerHTML = `<p class="muted">Pas encore de parties tournoi.</p>`;
     return;
@@ -1947,65 +1993,10 @@ async function loadSolosAndStreaks() {
   // Résumé compact d'un résultat (au lieu du gros details) : mv=coups joués,
   // tp=coups topés, ab=abandon. Tout se calcule à partir de ça + sum_neg + temps.
   const sm = r => (r.summary && typeof r.summary === "object") ? r.summary : { mv: [], tp: [], ab: false };
-  const hasMovesR = r => (sm(r).mv || []).length > 0;
 
   // ===== TOP SOLOS (cumul sur TOUS les tournois) =====
-  // Solo joueur = un coup topé par UN SEUL joueur, parmi un coup réellement joué
-  // par ≥2 joueurs (le filtre ≥2 écarte les coups orphelins d'une partie
-  // régénérée plus courte, qui ne subsistent que dans une fiche périmée).
-  // De plus, on ne comptabilise QUE les tournois ENTIÈREMENT complétés par ≥ 5
-  // joueurs (un solo n'entre au « top solos » du club qu'à cette condition).
-  const allGames = await cachedQuery("club:allGames", () => sb.from("prepared_games").select("id, tournament_id").then(r => r.data || []));
-  const gameToTour = {};        // gid  → tid
-  const tourGamesCount = {};    // tid  → nb de parties du tournoi
-  for (const g of allGames || []) {
-    if (g.tournament_id == null) continue;
-    gameToTour[g.id] = g.tournament_id;
-    tourGamesCount[g.tournament_id] = (tourGamesCount[g.tournament_id] || 0) + 1;
-  }
-  const donePerTourPlayer = {};   // `${tid}|${pid}` → Set(gid réellement joués)
-  for (const r of detailed) {
-    const tid = gameToTour[r.prepared_game_id];
-    if (tid == null) continue;
-    if (!hasMovesR(r)) continue;   // partie réellement jouée (des coups)
-    (donePerTourPlayer[`${tid}|${r.player_id}`] ||= new Set()).add(r.prepared_game_id);
-  }
-  const completersByTour = {};    // tid → nb de joueurs ayant TOUT complété
-  for (const [k, set] of Object.entries(donePerTourPlayer)) {
-    const tid = k.split("|")[0];
-    if (tourGamesCount[tid] && set.size >= tourGamesCount[tid]) completersByTour[tid] = (completersByTour[tid] || 0) + 1;
-  }
-  const qualifyingTour = new Set(
-    Object.entries(completersByTour).filter(([, n]) => n >= 5).map(([tid]) => tid)
-  );
-
-  const byGameSolo = {};
-  for (const r of detailed) (byGameSolo[r.prepared_game_id] ||= []).push(r);
-  const soloCount = {};       // player_id → nb de solos
-  const antiSoloCount = {};   // player_id → nb d'anti-solos
-  const soloName = {};
-  for (const r of detailed) soloName[r.player_id] = r.players?.name || "?";
-  for (const [gid, rs] of Object.entries(byGameSolo)) {
-    const tid = gameToTour[gid];
-    // Tournoi non complété par ≥5 joueurs (ou partie hors tournoi) → ni solo ni anti-solo.
-    if (tid == null || !qualifyingTour.has(String(tid))) continue;
-    const playedByMove = {};   // moveNo → Set des joueurs ayant joué ce coup
-    const toppedByMove = {};   // moveNo → Set des joueurs ayant topé ce coup
-    for (const r of rs) {
-      const s = sm(r);
-      for (const n of (s.mv || [])) (playedByMove[n] ||= new Set()).add(r.player_id);
-      for (const n of (s.tp || [])) (toppedByMove[n] ||= new Set()).add(r.player_id);
-    }
-    for (const [mv, played] of Object.entries(playedByMove)) {
-      if (played.size < 2) continue;
-      const topped = toppedByMove[mv] || new Set();
-      // Solo : un seul topeur. Anti-solo : un seul NON-topeur (tous topent sauf un).
-      if (topped.size === 1) { const [only] = topped; soloCount[only] = (soloCount[only] || 0) + 1; }
-      if (topped.size === played.size - 1) {
-        for (const pidp of played) if (!topped.has(pidp)) antiSoloCount[pidp] = (antiSoloCount[pidp] || 0) + 1;
-      }
-    }
-  }
+  // Calcul délégué à computeSoloCounts() — source unique partagée avec « Mes stats ».
+  const { soloCount, antiSoloCount, soloName } = await computeSoloCounts(detailed);
   const soloRecs = Object.entries(soloCount)
     .map(([pid, n]) => ({ player_id: +pid, name: soloName[+pid] || "?", solos: n }))
     .sort((a, b) => b.solos - a.solos);
