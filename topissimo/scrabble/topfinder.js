@@ -12,7 +12,7 @@
 //     aussi les mots croisés) et on garde le maximum.
 // ============================================================
 
-import { BOARD_SIZE, CENTER, scoreMove, applyMove, LETTER_VALUE, VOWELS, CONSONANTS_FR, isSimplePath, isSnakeMove } from "./engine.js?v=362";
+import { BOARD_SIZE, BOARD_BONUSES, CENTER, scoreMove, applyMove, LETTER_VALUE, VOWELS, CONSONANTS_FR, isSimplePath, isSnakeMove } from "./engine.js?v=362";
 
 // Un coup PROLONGE le serpent s'il s'accroche à une extrémité (isSnakeMove ; les
 // mots croisés latéraux sont permis), OU s'il garde un chemin simple (extension
@@ -69,6 +69,7 @@ function sortTiedIsotops(tied, board, rack, dict, bag, opts = {}) {
 
   const scored = tied.map(c => ({
     ...c,
+    _fertCells: fertilityByCell(board, c.move, dict, opts.layout),
     _noJoker:   scoreJokerPreserved(c.move, bag, preserveJoker),
     _endsGame:  scoreEndsGame(rack, c.move, bag, board),  // 1 si ce coup termine la partie
     _playsQ:    c.move.word.includes("Q") ? 1 : 0,
@@ -91,12 +92,21 @@ function sortTiedIsotops(tied, board, rack, dict, bag, opts = {}) {
     _openDir:   scoreOpenDirection(board, c.move),         // ouverture vers la zone libre (biais haut/gauche)
     _supportL:  scoreSupportLetters(board, c.move, dict),  // qualité des lettres comme appuis (E ≫ X)
     _fert:      scoreSupportFertility(board, c.move, dict),// nb de scrabbles accrochables sur les appuis créés
+    // Agrégations de la fertilité positionnelle (distinguent les anagrammes) :
+    // meilleur appui créé, deux meilleurs, et total.
+    _fertMax:   0, _fertTop2: 0, _fertPos: 0,   // renseignés juste après
     _ext:       scoreExtensibility(board, c.move),
     _scrab:     scoreScrabbleOpenings(board, c.move),   // nb d'appuis pour scrabble perpendiculaire
     _open:      scoreOpenness(board, c.move),
     _left:      scoreLeftPosition(c.move, dict),        // utile au 1er coup
     _leave:     scoreLeave(board, rack, c.move, bag),
   }));
+  for (const c of scored) {
+    const f = c._fertCells || [];
+    c._fertMax = f[0] || 0;
+    c._fertTop2 = (f[0] || 0) + (f[1] || 0);
+    c._fertPos = f.reduce((s, x) => s + x, 0);
+  }
   // Ordre de priorité :
   //   1. coup qui TERMINE la partie (prime sur tout, même sur préserver joker)
   //   2. joker préservé (mode joker)
@@ -124,6 +134,11 @@ function sortTiedIsotops(tied, board, rack, dict, bag, opts = {}) {
       twReal:  Math.max(-1, Math.min(1, (c._twReal || 0) / 6)),
       openDir: Math.max(-1, Math.min(1, (c._openDir || 0) * 1.6)),
       fert:    Math.min(1, (c._fert || 0) / 60000),
+      // Normalisation LOGARITHMIQUE : ces compteurs varient sur plusieurs ordres
+      // de grandeur ; une division linéaire saturait à 1 et effaçait les écarts.
+      fertPos: Math.min(1, Math.log1p(c._fertPos || 0) / Math.log1p(400000)),
+      fertMax: Math.min(1, Math.log1p(c._fertMax || 0) / Math.log1p(120000)),
+      fertTop2: Math.min(1, Math.log1p(c._fertTop2 || 0) / Math.log1p(200000)),
       supportL: c._supportL || 0,
       scrab:   Math.min(1, (c._scrab || 0) / 4),
       ext:     Math.min(1, (c._ext || 0) / 2),
@@ -503,6 +518,72 @@ function scoreSupportFertility(board, move, dict) {
     }
   }
   return total;
+}
+
+// ===== Potentiel d'une case comme APPUI (chantier 3 bis) =====
+// Constat des annotations : sur deux anagrammes posés aux mêmes cases (TAXEE vs
+// EXEAT, GANSENT vs GENANTS), toute mesure globale (somme/moyenne) est invariante
+// par permutation — donc incapable de les distinguer. Or le jugement humain est
+// POSITIONNEL : « le T et le A sont de meilleurs appuis EN LIGNE B ET C », « les
+// départs de scrabble EN J9 ET L9 ». Ce qui compte est donc : quelle lettre tombe
+// sur quelle case, et ce que la perpendiculaire de cette case permet.
+// On évalue ici le potentiel de la perpendiculaire : valeur des cases bonus
+// encore libres et atteignables depuis cette case.
+const BONUS_WEIGHT = { T: 4, D: 2.5, t: 2, d: 1.2, "*": 0 };
+function perpPotential(board, r, c, wordDir, layout = null) {
+  const rows = layout || BOARD_BONUSES;
+  const pdr = wordDir === "H" ? 1 : 0;   // perpendiculaire d'un mot horizontal = vertical
+  const pdc = wordDir === "H" ? 0 : 1;
+  let pot = 0;
+  for (const sign of [-1, 1]) {
+    for (let k = 1; k < BOARD_SIZE; k++) {
+      const rr = r + sign * k * pdr, cc = c + sign * k * pdc;
+      if (rr < 0 || rr >= BOARD_SIZE || cc < 0 || cc >= BOARD_SIZE) break;
+      if (board[rr][cc]) break;                      // chemin bloqué au-delà
+      if (k > 8) break;                              // hors de portée d'un scrabble
+      pot += (BONUS_WEIGHT[rows[rr][cc]] || 0.12) / k;   // plus c'est loin, moins ça pèse
+    }
+  }
+  return pot;
+}
+
+// Fertilité POSITIONNELLE, case par case : pour chaque lettre posée, combien de
+// scrabbles peuvent s'accrocher dessus, pondéré par la qualité de la lettre et le
+// potentiel de sa perpendiculaire. Renvoie la liste TRIÉE (décroissante).
+// Agréger par SOMME dilue l'information (un bon appui unique se noie parmi les
+// médiocres) ; on expose donc aussi le meilleur appui et les deux meilleurs, car
+// le jugement humain retient surtout « la » case qui ouvre le jeu.
+function fertilityByCell(board, move, dict, layout = null) {
+  const { posCount, supportFreq, maxFreq } = supportIndex(dict);
+  const dr = move.dir === "V" ? 1 : 0, dc = move.dir === "H" ? 1 : 0;
+  const pdr = dr ? 0 : 1, pdc = dr ? 1 : 0;
+  const out = [];
+  for (let i = 0; i < move.word.length; i++) {
+    const r = move.row + i * dr, c = move.col + i * dc;
+    if (board[r][c]) continue;
+    let before = 0, after = 0;
+    for (let k = 1; k < BOARD_SIZE; k++) {
+      const rr = r - k * pdr, cc = c - k * pdc;
+      if (rr < 0 || cc < 0 || board[rr][cc]) break;
+      before++;
+    }
+    for (let k = 1; k < BOARD_SIZE; k++) {
+      const rr = r + k * pdr, cc = c + k * pdc;
+      if (rr >= BOARD_SIZE || cc >= BOARD_SIZE || board[rr][cc]) break;
+      after++;
+    }
+    if (!before && !after) continue;                 // pas un appui
+    const L = move.word[i];
+    let fert = 0;
+    for (let len = 7; len <= 9; len++)
+      for (let p = 1; p <= len; p++) {
+        if (p - 1 > before || len - p > after) continue;
+        fert += posCount.get(`${L}|${p}|${len}`) || 0;
+      }
+    const q = (supportFreq[L] || 0) / maxFreq;        // qualité intrinsèque (E ≫ X)
+    out.push(fert * (0.5 + q) * (1 + perpPotential(board, r, c, move.dir, layout)));
+  }
+  return out.sort((a, b) => b - a);
 }
 
 function scoreScrabbleOpenings(board, move) {
