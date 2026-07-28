@@ -159,15 +159,24 @@ function sortTiedIsotops(tied, board, rack, dict, bag, opts = {}) {
     c._pertinence = isFirstMove
       ? (2.0 * n.extBoth + 1.5 * n.dictExt + 1.2 * n.centerL + 1.0 * n.backExt
          + 0.9 * n.left + 0.6 * n.supportL + 0.4 * n.fert)
-      // Modèle COMPACT calibré sur les 31 cas annotés (2 lots), puis validé en
-      // croisé (calage sur un lot, test sur l'autre) : 6 features seulement, car
-      // un modèle à 14 poids sur-apprenait (40 % de généralisation contre ~72 %
-      // ici). Les features retenues sont celles que les raisons d'annotation
-      // citent explicitement : ouverture de la grille, meilleur appui créé,
-      // accès réels aux TW, rallonges pondérées par le sac, rallonges
-      // multi-lettres atteignant une case bonus, reliquat.
-      : (2.5 * n.open + 3.6 * n.fertMax + 1.4 * n.twReal
-         + 2.6 * n.dictExtBag + 1.3 * n.bonusReach + 0.5 * n.leave);
+      // Modèle COMPACT calibré sur 45 cas annotés (3 lots) et validé en croisé
+      // (calage sur 2 lots, test sur le 3e) : 6 features seulement, car un modèle
+      // à 14 poids sur-apprenait. Les features retenues sont celles que les
+      // raisons d'annotation citent explicitement.
+      : (5.8 * n.open + 1.2 * n.fertMax + 5.5 * n.twReal
+         + 2.8 * n.dictExtBag + 3.2 * n.bonusReach + 0.9 * n.leave);
+  }
+  // ÉTAGE « rallongeabilité », au-dessus du score pondéré : la première question
+  // est « ce mot peut-il être rallongé (par l'avant ou l'arrière) ? », et seulement
+  // ensuite viennent l'ouverture, les appuis, etc. — les annotations le disent
+  // explicitement (« rallonge initiale privilégiée », « rallonge finale
+  // privilégiée » reviennent dans 8 validations sur 12).
+  // Paliers GROSSIERS (aucune / 1-2 / 3 et plus) et non comparaison stricte : un
+  // classement strict par nombre de rallonges dégrade nettement (71 % contre 78 %
+  // en validation croisée), car il écrase tous les autres critères.
+  for (const c of scored) {
+    const n = c._dictExtR || 0;
+    c._extTier = isFirstMove ? 0 : (n === 0 ? 0 : n <= 2 ? 1 : 2);
   }
   scored.sort((a, b) =>
     // --- verrous non négociables ---
@@ -175,6 +184,8 @@ function sortTiedIsotops(tied, board, rack, dict, bag, opts = {}) {
     b._noJoker - a._noJoker ||
     b._playsQ - a._playsQ ||
     b._qPos - a._qPos ||
+    // --- palier de rallongeabilité ---
+    b._extTier - a._extTier ||
     // --- score de pertinence (compromis pondéré) ---
     b._pertinence - a._pertinence ||
     // --- départage stable (évite tout choix « arbitraire » à égalité parfaite) ---
