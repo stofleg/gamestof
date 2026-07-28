@@ -94,6 +94,9 @@ function sortTiedIsotops(tied, board, rack, dict, bag, opts = {}) {
     _nonuple:   scoreNonuple(board, c.move, dict),         // probabilité de nonuple créée (mots de 8 lettres au bon rang)
     _collante:  scoreCollante(board, c.move, dict),        // facilité de coller un mot parallèle
     _endL:      scoreEndLetters(board, c.move, dict),      // lettres extrêmes ouvrantes/fermantes (généralise « Q en bout »)
+    // --- 1er coup : hiérarchie dédiée (position → rallonges → accès H1/H15) ---
+    _fmPos:     isFirstMove ? firstMovePosScore(c.move) : 0,
+    _fmReach:   isFirstMove ? firstMoveReachTW(c.move, dict) : 0,
     // Base de l'étage hiérarchique : rallonges à la fois jouables (case libre) ET
     // disponibles (lettre encore dans le sac / le reliquat, ou joker).
     _extPlayable: countPlayableExtensions(c.move.word, dict, board, c.move, bag, rack),
@@ -164,8 +167,12 @@ function sortTiedIsotops(tied, board, rack, dict, bag, opts = {}) {
       left:    Math.max(-1, Math.min(1, (c._left || 0) / 8)),
     };
     c._pertinence = isFirstMove
-      ? (2.0 * n.extBoth + 1.5 * n.dictExt + 1.2 * n.centerL + 1.0 * n.backExt
-         + 0.9 * n.left + 0.6 * n.supportL + 0.4 * n.fert)
+      // 1er coup : la POSITION (règle 1) et les RALLONGES (règle 2) sont traitées
+      // en étages hiérarchiques ci-dessous ; ne reste ici que la règle 3 (accès aux
+      // triples H1/H15 par benjamin, superbenjamin ou rallonge finale), complétée
+      // par quelques appoints de moindre importance.
+      ? (3.0 * Math.min(1, (c._fmReach || 0) / 12) + 0.8 * n.extBoth
+         + 0.5 * n.backExt + 0.4 * n.supportL + 0.3 * n.fert)
       // Modèle COMPACT calibré sur 45 cas annotés (3 lots), validé en croisé
       // (calage sur 2 lots, test sur le 3e) : peu de features, car un modèle à 14
       // poids sur-apprenait. Toutes correspondent à un critère cité explicitement
@@ -197,16 +204,20 @@ function sortTiedIsotops(tied, board, rack, dict, bag, opts = {}) {
   // en validation croisée), car il écrase tous les autres critères.
   // Le palier s'appuie sur les rallonges JOUABLES ET DISPONIBLES (case libre +
   // lettre encore en jeu), pas sur les rallonges théoriques du dictionnaire.
+  // Au 1er coup, la grille est vide : c'est le nombre de rallonges d'une lettre
+  // (règle 2 du barème de départ) qui fait palier.
   for (const c of scored) {
-    const n = c._extPlayable || 0;
-    c._extTier = isFirstMove ? 0 : (n === 0 ? 0 : n <= 2 ? 1 : 2);
+    const n = isFirstMove ? (c._dictExt || 0) : (c._extPlayable || 0);
+    c._extTier = n === 0 ? 0 : n <= 2 ? 1 : 2;
   }
   scored.sort((a, b) =>
     // --- verrous non négociables ---
     b._endsGame - a._endsGame ||
     b._noJoker - a._noJoker ||
     b._playsQ - a._playsQ ||
-    // --- palier de rallongeabilité ---
+    // --- 1er coup : POSITION d'abord (règle 1) ---
+    b._fmPos - a._fmPos ||
+    // --- palier de rallongeabilité (règle 2 au 1er coup) ---
     b._extTier - a._extTier ||
     // --- score de pertinence (compromis pondéré) ---
     b._pertinence - a._pertinence ||
@@ -792,6 +803,81 @@ function fertilityByCell(board, move, dict, layout = null) {
     out.push(fert * (0.5 + q) * (1 + perpPotential(board, r, c, move.dir, layout)));
   }
   return out.sort((a, b) => b - a);
+}
+
+// ============================================================
+//  PREMIER COUP — hiérarchie dédiée
+//  Ordre d'importance (règles de jeu explicitées) :
+//    1. POSITION : mot de 4 lettres et plus → le plus à gauche possible ;
+//       mot de 3 lettres → position centrée, sauf si un décalage permet de poser
+//       sur l'étoile une lettre de AEILNRST ; mot de 2 lettres → on privilégie
+//       aussi la bonne lettre sur l'étoile.
+//    2. RALLONGES d'une lettre (initiales + finales).
+//    3. ACCÈS À H1 / H15 (les deux triples de la ligne de départ) : par benjamin
+//       (lettres devant, GUI-MAUVE), superbenjamin (devant et derrière,
+//       PRE-TENDU-MENT) ou rallonge finale (INDEX-ENT).
+// ============================================================
+const CORE8 = new Set(["A", "E", "I", "L", "N", "R", "S", "T"]);
+
+// Règle 1 — score de position. Valeurs discrètes : cet étage doit trancher net.
+function firstMovePosScore(move) {
+  const n = move.word.length;
+  const dr = move.dir === "V" ? 1 : 0, dc = move.dir === "H" ? 1 : 0;
+  // Index, dans le mot, de la lettre posée sur l'étoile centrale.
+  const starIdx = dr ? CENTER - move.row : CENTER - move.col;
+  const starCore = starIdx >= 0 && starIdx < n && CORE8.has(move.word[starIdx]);
+  const start = dr ? move.row : move.col;
+  if (n >= 4) {
+    // Le plus à gauche (ou le plus haut) possible : start minimal.
+    return 100 - start * 4;
+  }
+  // Mots de 2 et 3 lettres : une lettre de AEILNRST sur l'étoile prime.
+  let s = starCore ? 60 : 0;
+  // À défaut, pour un mot de 3 lettres, la position centrée (étoile au milieu).
+  if (n === 3 && start === CENTER - 1) s += 12;
+  return s;
+}
+
+// Règle 3 — accès aux triples H1 / H15 de la ligne de départ, par prolongement du
+// mot vers l'avant (benjamin), l'arrière (rallonge finale) ou les deux
+// (superbenjamin). On compte les mots du dictionnaire qui réalisent ce
+// prolongement, en pondérant par 1/nombre de lettres à ajouter : un benjamin de
+// 3 lettres est bien plus probable qu'un prolongement de 6.
+function firstMoveReachTW(move, dict) {
+  const n = move.word.length;
+  const start = move.dir === "V" ? move.row : move.col;
+  const kFront = start;                     // lettres nécessaires pour atteindre la case 1
+  const kBack = BOARD_SIZE - 1 - (start + n - 1);   // ... pour atteindre la case 15
+  const w = move.word;
+  let score = 0;
+  // --- vers H1 : mots FINISSANT par w, de longueur n + kFront ---
+  if (kFront > 0 && kFront <= 7) {
+    const rev = reversedIndex(dict);
+    const wRev = w.split("").reverse().join("");
+    const [a, b] = countWithPrefix(rev, wRev);
+    let cnt = 0;
+    for (let i = a; i < b; i++) if (rev[i].length === n + kFront) cnt++;
+    score += cnt / kFront;
+  }
+  // --- vers H15 : mots COMMENÇANT par w, de longueur n + kBack ---
+  if (kBack > 0 && kBack <= 7) {
+    const [a, b] = countWithPrefix(dict.words, w);
+    let cnt = 0;
+    for (let i = a; i < b; i++) if (dict.words[i].length === n + kBack) cnt++;
+    score += cnt / kBack;
+  }
+  // --- superbenjamin : un mot de 15 lettres contenant w à la bonne position,
+  //     donc atteignant les DEUX triples d'un coup. Rare, donc fortement valorisé.
+  if (kFront > 0 && kBack > 0 && kFront + n + kBack === BOARD_SIZE) {
+    const [a, b] = countWithPrefix(dict.words, w.slice(0, 1));
+    let cnt = 0;
+    for (let i = a; i < b && cnt < 3; i++) {
+      const cand = dict.words[i];
+      if (cand.length === BOARD_SIZE && cand.substr(kFront, n) === w) cnt++;
+    }
+    score += 3 * cnt;
+  }
+  return score;
 }
 
 // ===== Qualité des lettres EXTRÊMES du mot posé =====
