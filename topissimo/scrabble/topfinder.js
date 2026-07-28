@@ -75,7 +75,6 @@ function sortTiedIsotops(tied, board, rack, dict, bag, opts = {}) {
     // « Joue le Q » = le Q fait partie des lettres POSÉES (pas d'un Q déjà sur le
     // plateau — DETROQUER via un Q existant ne « joue » pas le Q du tirage).
     _playsQ:    playsQFromRack(board, c.move) ? 1 : 0,
-    _qPos:      scoreQPosition(c.move),                 // -1 si Q en bout, 0 sinon
     _extBoth:   isFirstMove ? scoreExtBothSides(c.move.word, dict) : 0, // 1 si rallongeable des 2 côtés (1er coup)
     _dictExt:   scoreDictExtensibility(c.move.word, dict), // rallonges 1 lettre dans le dico
     // 1er coup : pour un mot de 3 lettres, on privilégie le placement qui pose
@@ -94,6 +93,10 @@ function sortTiedIsotops(tied, board, rack, dict, bag, opts = {}) {
     _bonusReach: scoreBonusReach(board, c.move, dict, opts.layout), // rallonges multi-lettres atteignant une TW/DW
     _nonuple:   scoreNonuple(board, c.move, dict),         // probabilité de nonuple créée (mots de 8 lettres au bon rang)
     _collante:  scoreCollante(board, c.move, dict),        // facilité de coller un mot parallèle
+    _endL:      scoreEndLetters(board, c.move, dict),      // lettres extrêmes ouvrantes/fermantes (généralise « Q en bout »)
+    // Base de l'étage hiérarchique : rallonges à la fois jouables (case libre) ET
+    // disponibles (lettre encore dans le sac / le reliquat, ou joker).
+    _extPlayable: countPlayableExtensions(c.move.word, dict, board, c.move, bag, rack),
     _twReal:    scoreTWAccessReal(board, c.move),          // accès TW : créés/conservés − bouchés
     _openDir:   scoreOpenDirection(board, c.move),         // ouverture vers la zone libre (biais haut/gauche)
     _supportL:  scoreSupportLetters(board, c.move, dict),  // qualité des lettres comme appuis (E ≫ X)
@@ -116,8 +119,7 @@ function sortTiedIsotops(tied, board, rack, dict, bag, opts = {}) {
   // Ordre de priorité :
   //   1. coup qui TERMINE la partie (prime sur tout, même sur préserver joker)
   //   2. joker préservé (mode joker)
-  //   3. joue le Q
-  //   4. Q pas en bout de mot
+  //   3. joue le Q (du tirage)
   //   5. (1er coup) rallongeable des 2 côtés en 1 lettre (TETAI > ETAIT)
   //   6. extensibilité dico globale (nb total de rallonges 1 lettre)
   //   7. accès aux cases TW libres (tuile posée dans même ligne/colonne qu'une TW libre)
@@ -144,6 +146,7 @@ function sortTiedIsotops(tied, board, rack, dict, bag, opts = {}) {
       bonusReach: Math.min(1, Math.log1p(c._bonusReach || 0) / Math.log1p(60)),
       nonuple: Math.min(1, Math.log1p(c._nonuple || 0) / Math.log1p(9000)),
       collante: Math.min(1, (c._collante || 0) / 40),
+      endL: c._endL || 0,
       // Normalisation LOGARITHMIQUE : ces compteurs varient sur plusieurs ordres
       // de grandeur ; une division linéaire saturait à 1 et effaçait les écarts.
       fertPos: Math.min(1, Math.log1p(c._fertPos || 0) / Math.log1p(400000)),
@@ -171,6 +174,15 @@ function sortTiedIsotops(tied, board, rack, dict, bag, opts = {}) {
       //   nonuple  : mesuré NEUTRE sur le corpus actuel (il est largement
       //              redondant avec l'accès aux triples) mais conservé à poids
       //              modéré pour son sens de jeu — au-delà de 2, il dégrade.
+      // NB : le comptage fin des rallonges (dictExtBag) est CONSERVÉ ici en plus de
+      // l'étage. Ce n'est pas un doublon : l'étage ne distingue que trois paliers
+      // (aucune / 1-2 / 3 et plus) ; à l'intérieur d'un palier, le comptage pondéré
+      // par le sac départage encore utilement. Mesuré : le retirer coûte 2 cas
+      // (36/45 → 34/45), tout le déficit venant du lot 2.
+      // `endL` (lettres extrêmes ouvrantes/fermantes, qui généralise « Q pas en bout
+      // de mot ») est calculé mais NON pondéré : mesuré non contributif, son meilleur
+      // poids est 0 et il dégrade dès 1,0 — les rallonges capturent déjà l'essentiel
+      // de cette idée (un mot finissant par V ou W n'a pas de rallonge).
       : (4.5 * n.open + 4.3 * n.fertMax + 5.0 * n.twReal
          + 4.0 * n.dictExtBag + 4.0 * n.bonusReach
          + 1.7 * n.collante + 1.2 * n.nonuple + 0.3 * n.leave);
@@ -183,8 +195,10 @@ function sortTiedIsotops(tied, board, rack, dict, bag, opts = {}) {
   // Paliers GROSSIERS (aucune / 1-2 / 3 et plus) et non comparaison stricte : un
   // classement strict par nombre de rallonges dégrade nettement (71 % contre 78 %
   // en validation croisée), car il écrase tous les autres critères.
+  // Le palier s'appuie sur les rallonges JOUABLES ET DISPONIBLES (case libre +
+  // lettre encore en jeu), pas sur les rallonges théoriques du dictionnaire.
   for (const c of scored) {
-    const n = c._dictExtR || 0;
+    const n = c._extPlayable || 0;
     c._extTier = isFirstMove ? 0 : (n === 0 ? 0 : n <= 2 ? 1 : 2);
   }
   scored.sort((a, b) =>
@@ -192,7 +206,6 @@ function sortTiedIsotops(tied, board, rack, dict, bag, opts = {}) {
     b._endsGame - a._endsGame ||
     b._noJoker - a._noJoker ||
     b._playsQ - a._playsQ ||
-    b._qPos - a._qPos ||
     // --- palier de rallongeabilité ---
     b._extTier - a._extTier ||
     // --- score de pertinence (compromis pondéré) ---
@@ -287,13 +300,6 @@ function playsQFromRack(board, move) {
   return false;
 }
 
-function scoreQPosition(move) {
-  const qIdx = move.word.indexOf("Q");
-  if (qIdx === -1) return 0;
-  // Pénalité si Q est au début ou à la fin du mot (bloque l'extension d'un côté)
-  if (qIdx === 0 || qIdx === move.word.length - 1) return -1;
-  return 0;
-}
 
 // Renvoie 1 si le mot peut être rallongé d'une lettre AVANT (préfixe valide L+word)
 // ET d'une lettre APRÈS (suffixe valide word+L). Sinon 0.
@@ -428,6 +434,44 @@ function scoreDictExtensibilityBag(word, dict, board, move, bag) {
     if (canBefore && dict.has(L + word)) count += w;
   }
   return count;
+}
+
+// ===== Rallonges JOUABLES ET DISPONIBLES (base de l'étage hiérarchique) =====
+// Une rallonge ne « compte » que si elle est doublement possible :
+//   • physiquement — la case avant / après le mot est libre sur la grille ;
+//   • matériellement — la lettre nécessaire est encore disponible (sac, chevalet
+//     conservé ou joker). Une rallonge en C alors qu'il n'y a plus de C en jeu
+//     n'est pas une rallonge.
+// Renvoie un COMPTE entier (et non une pondération), car l'étage hiérarchique
+// travaille par paliers : aucune rallonge / 1-2 / 3 et plus.
+function countPlayableExtensions(word, dict, board, move, bag, rack) {
+  const dr = move.dir === "V" ? 1 : 0, dc = move.dir === "H" ? 1 : 0;
+  const free = (r, c) => r >= 0 && r < BOARD_SIZE && c >= 0 && c < BOARD_SIZE && !board[r][c];
+  const canBefore = free(move.row - dr, move.col - dc);
+  const canAfter = free(move.row + word.length * dr, move.col + word.length * dc);
+  if (!canBefore && !canAfter) return 0;
+  // Lettres encore disponibles : sac + reliquat du chevalet (hors lettres posées).
+  let avail = null;
+  if (bag) {
+    avail = { ...bag };
+    for (const L of (rack || [])) avail[L] = (avail[L] || 0) + 1;
+    // retirer les lettres consommées par ce coup
+    for (let i = 0; i < word.length; i++) {
+      const r = move.row + i * dr, c = move.col + i * dc;
+      if (board[r][c]) continue;
+      const L = (move.blanks || []).includes(i) ? "?" : word[i];
+      if (avail[L] > 0) avail[L]--;
+    }
+  }
+  const jokers = avail ? (avail["?"] || 0) : 1;
+  let n = 0;
+  for (let code = 65; code <= 90; code++) {
+    const L = String.fromCharCode(code);
+    if (avail && !(avail[L] || 0) && !jokers) continue;   // lettre épuisée
+    if (canAfter && dict.has(word + L)) n++;
+    if (canBefore && dict.has(L + word)) n++;
+  }
+  return n;
 }
 
 // ===== Rallonge multi-lettres ATTEIGNANT une case bonus (cas 7 et 19) =====
@@ -588,8 +632,18 @@ function supportIndex(dict) {
   // lettres au-dessus et en dessous ; si on colle sur au moins deux lettres, ce
   // sont les lettres transformant ces mots de 2 en mots de 3 qui comptent. »
   const twoAfter = {}, twoBefore = {}, three = new Map();
+  // Fréquence d'une lettre en DÉBUT et en FIN de mot (sur les mots de 4 lettres et
+  // plus). Généralise l'ancien critère « Q pas en bout de mot » : une lettre rare
+  // en finale (Q, V, W, B) ferme le mot — même logique, mais valable pour toutes
+  // les lettres au lieu d'un cas codé en dur.
+  const startFreq = {}, endFreq = {};
+  let maxStart = 1, maxEnd = 1;
   for (const w of (dict.words || [])) {
     const len = w.length;
+    if (len >= 4) {
+      startFreq[w[0]] = (startFreq[w[0]] || 0) + 1;
+      endFreq[w[len - 1]] = (endFreq[w[len - 1]] || 0) + 1;
+    }
     if (len === 2) {
       twoAfter[w[0]] = (twoAfter[w[0]] || 0) + 1;
       twoBefore[w[1]] = (twoBefore[w[1]] || 0) + 1;
@@ -612,7 +666,10 @@ function supportIndex(dict) {
     }
   }
   for (const L in supportFreq) maxFreq = Math.max(maxFreq, supportFreq[L]);
-  const idx = { supportFreq, posCount, maxFreq, twoAfter, twoBefore, three };
+  for (const L in startFreq) maxStart = Math.max(maxStart, startFreq[L]);
+  for (const L in endFreq) maxEnd = Math.max(maxEnd, endFreq[L]);
+  const idx = { supportFreq, posCount, maxFreq, twoAfter, twoBefore, three,
+                startFreq, endFreq, maxStart, maxEnd };
   try { Object.defineProperty(dict, "__supportIdx", { value: idx, enumerable: false }); }
   catch { dict.__supportIdx = idx; }
   return idx;
@@ -735,6 +792,27 @@ function fertilityByCell(board, move, dict, layout = null) {
     out.push(fert * (0.5 + q) * (1 + perpPotential(board, r, c, move.dir, layout)));
   }
   return out.sort((a, b) => b - a);
+}
+
+// ===== Qualité des lettres EXTRÊMES du mot posé =====
+// Remplace l'ancien « Q pas en bout de mot », cas particulier codé en dur : le
+// principe est général, « c'est la même logique que la probabilité d'un mot se
+// terminant par V, W ou B ». Une lettre rare en finale (ou en initiale) ferme le
+// mot ; on ne le mesure que sur les extrémités OUVERTES (case libre au-delà),
+// puisqu'une extrémité bloquée par une tuile ne se prolongera de toute façon pas.
+function scoreEndLetters(board, move, dict) {
+  const { startFreq, endFreq, maxStart, maxEnd } = supportIndex(dict);
+  const dr = move.dir === "V" ? 1 : 0, dc = move.dir === "H" ? 1 : 0;
+  const w = move.word;
+  const free = (r, c) => r >= 0 && r < BOARD_SIZE && c >= 0 && c < BOARD_SIZE && !board[r][c];
+  let s = 0, n = 0;
+  if (free(move.row - dr, move.col - dc)) {
+    s += (startFreq[w[0]] || 0) / maxStart; n++;
+  }
+  if (free(move.row + w.length * dr, move.col + w.length * dc)) {
+    s += (endFreq[w[w.length - 1]] || 0) / maxEnd; n++;
+  }
+  return n ? s / n : 0;
 }
 
 // ===== NONUPLE probable =====
