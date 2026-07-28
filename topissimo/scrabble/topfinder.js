@@ -92,6 +92,8 @@ function sortTiedIsotops(tied, board, rack, dict, bag, opts = {}) {
     _dictExtR:  scoreDictExtensibility(c.move.word, dict, board, c.move), // rallonges RÉELLEMENT jouables
     _dictExtBag: scoreDictExtensibilityBag(c.move.word, dict, board, c.move, bag), // idem, pondérées par le sac
     _bonusReach: scoreBonusReach(board, c.move, dict, opts.layout), // rallonges multi-lettres atteignant une TW/DW
+    _nonuple:   scoreNonuple(board, c.move, dict),         // probabilité de nonuple créée (mots de 8 lettres au bon rang)
+    _collante:  scoreCollante(board, c.move, dict),        // facilité de coller un mot parallèle
     _twReal:    scoreTWAccessReal(board, c.move),          // accès TW : créés/conservés − bouchés
     _openDir:   scoreOpenDirection(board, c.move),         // ouverture vers la zone libre (biais haut/gauche)
     _supportL:  scoreSupportLetters(board, c.move, dict),  // qualité des lettres comme appuis (E ≫ X)
@@ -140,6 +142,8 @@ function sortTiedIsotops(tied, board, rack, dict, bag, opts = {}) {
       fert:    Math.min(1, (c._fert || 0) / 60000),
       dictExtBag: Math.min(1, (c._dictExtBag || 0) / 15),
       bonusReach: Math.min(1, Math.log1p(c._bonusReach || 0) / Math.log1p(60)),
+      nonuple: Math.min(1, Math.log1p(c._nonuple || 0) / Math.log1p(9000)),
+      collante: Math.min(1, (c._collante || 0) / 40),
       // Normalisation LOGARITHMIQUE : ces compteurs varient sur plusieurs ordres
       // de grandeur ; une division linéaire saturait à 1 et effaçait les écarts.
       fertPos: Math.min(1, Math.log1p(c._fertPos || 0) / Math.log1p(400000)),
@@ -159,12 +163,17 @@ function sortTiedIsotops(tied, board, rack, dict, bag, opts = {}) {
     c._pertinence = isFirstMove
       ? (2.0 * n.extBoth + 1.5 * n.dictExt + 1.2 * n.centerL + 1.0 * n.backExt
          + 0.9 * n.left + 0.6 * n.supportL + 0.4 * n.fert)
-      // Modèle COMPACT calibré sur 45 cas annotés (3 lots) et validé en croisé
-      // (calage sur 2 lots, test sur le 3e) : 6 features seulement, car un modèle
-      // à 14 poids sur-apprenait. Les features retenues sont celles que les
-      // raisons d'annotation citent explicitement.
-      : (5.8 * n.open + 1.2 * n.fertMax + 5.5 * n.twReal
-         + 2.8 * n.dictExtBag + 3.2 * n.bonusReach + 0.9 * n.leave);
+      // Modèle COMPACT calibré sur 45 cas annotés (3 lots), validé en croisé
+      // (calage sur 2 lots, test sur le 3e) : peu de features, car un modèle à 14
+      // poids sur-apprenait. Toutes correspondent à un critère cité explicitement
+      // dans les annotations.
+      //   collante : « la collante est plus facile sous VA que sous VU » ;
+      //   nonuple  : mesuré NEUTRE sur le corpus actuel (il est largement
+      //              redondant avec l'accès aux triples) mais conservé à poids
+      //              modéré pour son sens de jeu — au-delà de 2, il dégrade.
+      : (4.5 * n.open + 4.3 * n.fertMax + 5.0 * n.twReal
+         + 4.0 * n.dictExtBag + 4.0 * n.bonusReach
+         + 1.7 * n.collante + 1.2 * n.nonuple + 0.3 * n.leave);
   }
   // ÉTAGE « rallongeabilité », au-dessus du score pondéré : la première question
   // est « ce mot peut-il être rallongé (par l'avant ou l'arrière) ? », et seulement
@@ -570,8 +579,29 @@ function supportIndex(dict) {
   if (dict.__supportIdx) return dict.__supportIdx;
   const supportFreq = {}, posCount = new Map();
   let maxFreq = 1;
+  // Index des collantes : pour une lettre L déjà posée,
+  //   twoAfter[L]  = nb de lettres X telles que L+X soit un mot de 2 lettres
+  //                  (X se colle en dessous / à droite) ;
+  //   twoBefore[L] = nb de X telles que X+L soit un mot de 2 lettres ;
+  //   three[L|p]   = nb de mots de 3 lettres ayant L en position p.
+  // « Si le mot n'est en pivot que sur une lettre, on regarde les mots de 2
+  // lettres au-dessus et en dessous ; si on colle sur au moins deux lettres, ce
+  // sont les lettres transformant ces mots de 2 en mots de 3 qui comptent. »
+  const twoAfter = {}, twoBefore = {}, three = new Map();
   for (const w of (dict.words || [])) {
     const len = w.length;
+    if (len === 2) {
+      twoAfter[w[0]] = (twoAfter[w[0]] || 0) + 1;
+      twoBefore[w[1]] = (twoBefore[w[1]] || 0) + 1;
+      continue;
+    }
+    if (len === 3) {
+      for (let i = 0; i < 3; i++) {
+        const k = `${w[i]}|${i + 1}`;
+        three.set(k, (three.get(k) || 0) + 1);
+      }
+      continue;
+    }
     if (len < 7 || len > 9) continue;
     const seen = new Set();
     for (let i = 0; i < len; i++) {
@@ -582,7 +612,7 @@ function supportIndex(dict) {
     }
   }
   for (const L in supportFreq) maxFreq = Math.max(maxFreq, supportFreq[L]);
-  const idx = { supportFreq, posCount, maxFreq };
+  const idx = { supportFreq, posCount, maxFreq, twoAfter, twoBefore, three };
   try { Object.defineProperty(dict, "__supportIdx", { value: idx, enumerable: false }); }
   catch { dict.__supportIdx = idx; }
   return idx;
@@ -705,6 +735,86 @@ function fertilityByCell(board, move, dict, layout = null) {
     out.push(fert * (0.5 + q) * (1 + perpPotential(board, r, c, move.dir, layout)));
   }
   return out.sort((a, b) => b - a);
+}
+
+// ===== NONUPLE probable =====
+// Un nonuple = mot de 8 lettres reliant DEUX cases mot-compte-triple : sur le
+// plateau standard, les segments concernés sont les demi-lignes A et O et les
+// demi-colonnes 1 et 15 (8 cases chacune). Règle donnée par l'annotation : ce qui
+// départage, c'est la position de la lettre dans la langue — « entre E et V en A7,
+// on choisit E car il y a plus de mots de 8 lettres avec un E en rang 7 ».
+// On compte donc, pour chaque lettre posée dans un tel segment (les 7 autres cases
+// devant être libres), le nombre de mots de 8 lettres portant cette lettre à ce rang.
+const NONUPLE_SEGMENTS = (() => {
+  const segs = [];
+  const line = (r, c0) => Array.from({ length: 8 }, (_, i) => [r, c0 + i]);
+  const col = (c, r0) => Array.from({ length: 8 }, (_, i) => [r0 + i, c]);
+  for (const r of [0, 14]) { segs.push(line(r, 0)); segs.push(line(r, 7)); }
+  for (const c of [0, 14]) { segs.push(col(c, 0)); segs.push(col(c, 7)); }
+  return segs;
+})();
+function scoreNonuple(board, move, dict) {
+  const { posCount } = supportIndex(dict);
+  const dr = move.dir === "V" ? 1 : 0, dc = move.dir === "H" ? 1 : 0;
+  const placed = [];
+  for (let i = 0; i < move.word.length; i++) {
+    const r = move.row + i * dr, c = move.col + i * dc;
+    if (!board[r][c]) placed.push({ r, c, L: move.word[i] });
+  }
+  if (!placed.length) return 0;
+  const after = applyMove(board, move);
+  let best = 0;
+  for (const seg of NONUPLE_SEGMENTS) {
+    for (const p of placed) {
+      const idx = seg.findIndex(([sr, sc]) => sr === p.r && sc === p.c);
+      if (idx === -1) continue;
+      // Les 7 autres cases du segment doivent être libres APRÈS le coup : sinon le
+      // mot de 8 lettres ne pourra plus s'y déployer.
+      let free = true;
+      for (let k = 0; k < 8; k++) {
+        if (k === idx) continue;
+        const [sr, sc] = seg[k];
+        if (after[sr][sc]) { free = false; break; }
+      }
+      if (!free) continue;
+      best = Math.max(best, posCount.get(`${p.L}|${idx + 1}|8`) || 0);
+    }
+  }
+  return best;
+}
+
+// ===== COLLANTE : facilité de coller un mot parallèle =====
+// « Plus facile sous VA que sous VU » : ce qui compte est, pour chaque lettre
+// posée, le nombre de lettres qui peuvent venir au contact en formant un mot de
+// 2 lettres valide (au-dessus et en dessous). Et quand le contact porte sur
+// PLUSIEURS lettres consécutives, ce sont les lettres transformant ces mots de 2
+// en mots de 3 qui comptent → on ajoute alors la composante « mots de 3 lettres ».
+function scoreCollante(board, move, dict) {
+  const { twoAfter, twoBefore, three } = supportIndex(dict);
+  const dr = move.dir === "V" ? 1 : 0, dc = move.dir === "H" ? 1 : 0;
+  const pdr = dr ? 0 : 1, pdc = dr ? 1 : 0;   // axe perpendiculaire (celui de la collante)
+  let total = 0, n = 0, runLen = 0, runScore = 0;
+  for (let i = 0; i < move.word.length; i++) {
+    const r = move.row + i * dr, c = move.col + i * dc;
+    if (board[r][c]) { runLen = 0; continue; }   // lettre déjà là : coupe la série
+    const L = move.word[i];
+    const freeUp = r - pdr >= 0 && c - pdc >= 0 && !board[r - pdr][c - pdc];
+    const freeDown = r + pdr < BOARD_SIZE && c + pdc < BOARD_SIZE && !board[r + pdr][c + pdc];
+    if (!freeUp && !freeDown) { runLen = 0; continue; }
+    // Perméabilité en mots de 2 lettres, des deux côtés disponibles.
+    let s = (freeDown ? (twoAfter[L] || 0) : 0) + (freeUp ? (twoBefore[L] || 0) : 0);
+    // Contact sur ≥2 lettres consécutives : on regarde aussi les mots de 3 lettres.
+    runLen++;
+    if (runLen >= 2) {
+      s += 0.35 * (((three.get(`${L}|2`) || 0) + (three.get(`${L}|1`) || 0) + (three.get(`${L}|3`) || 0)) / 3);
+      runScore += s;
+    }
+    total += s; n++;
+  }
+  if (!n) return 0;
+  // Moyenne par lettre (la collante bute sur le maillon faible), majorée si une
+  // série de contacts est possible.
+  return total / n + 0.4 * (runScore / n);
 }
 
 function scoreScrabbleOpenings(board, move) {
