@@ -72,7 +72,9 @@ function sortTiedIsotops(tied, board, rack, dict, bag, opts = {}) {
     _fertCells: fertilityByCell(board, c.move, dict, opts.layout),
     _noJoker:   scoreJokerPreserved(c.move, bag, preserveJoker),
     _endsGame:  scoreEndsGame(rack, c.move, bag, board),  // 1 si ce coup termine la partie
-    _playsQ:    c.move.word.includes("Q") ? 1 : 0,
+    // « Joue le Q » = le Q fait partie des lettres POSÉES (pas d'un Q déjà sur le
+    // plateau — DETROQUER via un Q existant ne « joue » pas le Q du tirage).
+    _playsQ:    playsQFromRack(board, c.move) ? 1 : 0,
     _qPos:      scoreQPosition(c.move),                 // -1 si Q en bout, 0 sinon
     _extBoth:   isFirstMove ? scoreExtBothSides(c.move.word, dict) : 0, // 1 si rallongeable des 2 côtés (1er coup)
     _dictExt:   scoreDictExtensibility(c.move.word, dict), // rallonges 1 lettre dans le dico
@@ -88,6 +90,8 @@ function sortTiedIsotops(tied, board, rack, dict, bag, opts = {}) {
     _twAccess:  scoreTWAccess(board, c.move),              // nb de cases TW libres atteignables après ce coup
     // ----- Critères affinés (chantiers 1-5) -----
     _dictExtR:  scoreDictExtensibility(c.move.word, dict, board, c.move), // rallonges RÉELLEMENT jouables
+    _dictExtBag: scoreDictExtensibilityBag(c.move.word, dict, board, c.move, bag), // idem, pondérées par le sac
+    _bonusReach: scoreBonusReach(board, c.move, dict, opts.layout), // rallonges multi-lettres atteignant une TW/DW
     _twReal:    scoreTWAccessReal(board, c.move),          // accès TW : créés/conservés − bouchés
     _openDir:   scoreOpenDirection(board, c.move),         // ouverture vers la zone libre (biais haut/gauche)
     _supportL:  scoreSupportLetters(board, c.move, dict),  // qualité des lettres comme appuis (E ≫ X)
@@ -134,6 +138,8 @@ function sortTiedIsotops(tied, board, rack, dict, bag, opts = {}) {
       twReal:  Math.max(-1, Math.min(1, (c._twReal || 0) / 6)),
       openDir: Math.max(-1, Math.min(1, (c._openDir || 0) * 1.6)),
       fert:    Math.min(1, (c._fert || 0) / 60000),
+      dictExtBag: Math.min(1, (c._dictExtBag || 0) / 15),
+      bonusReach: Math.min(1, Math.log1p(c._bonusReach || 0) / Math.log1p(60)),
       // Normalisation LOGARITHMIQUE : ces compteurs varient sur plusieurs ordres
       // de grandeur ; une division linéaire saturait à 1 et effaçait les écarts.
       fertPos: Math.min(1, Math.log1p(c._fertPos || 0) / Math.log1p(400000)),
@@ -153,12 +159,15 @@ function sortTiedIsotops(tied, board, rack, dict, bag, opts = {}) {
     c._pertinence = isFirstMove
       ? (2.0 * n.extBoth + 1.5 * n.dictExt + 1.2 * n.centerL + 1.0 * n.backExt
          + 0.9 * n.left + 0.6 * n.supportL + 0.4 * n.fert)
-      // Poids calibrés sur les jugements annotés (16 cas de milieu de partie).
-      // Ils confirment le diagnostic : l'ouverture de la grille (ex-critère 13)
-      // et la fertilité des appuis dominent, tandis que les rallonges dico
-      // (ex-critère 6), qui écrasaient tout, passent au second plan.
-      : (5.5 * n.fert + 5.3 * n.open + 3.1 * n.twReal + 1.7 * n.scrab
-         + 0.6 * n.dictExt + 0.5 * n.supportL + 0.4 * n.ext + 0.2 * n.openDir + 0.1 * n.leave);
+      // Modèle COMPACT calibré sur les 31 cas annotés (2 lots), puis validé en
+      // croisé (calage sur un lot, test sur l'autre) : 6 features seulement, car
+      // un modèle à 14 poids sur-apprenait (40 % de généralisation contre ~72 %
+      // ici). Les features retenues sont celles que les raisons d'annotation
+      // citent explicitement : ouverture de la grille, meilleur appui créé,
+      // accès réels aux TW, rallonges pondérées par le sac, rallonges
+      // multi-lettres atteignant une case bonus, reliquat.
+      : (2.5 * n.open + 3.6 * n.fertMax + 1.4 * n.twReal
+         + 2.6 * n.dictExtBag + 1.3 * n.bonusReach + 0.5 * n.leave);
   }
   scored.sort((a, b) =>
     // --- verrous non négociables ---
@@ -246,6 +255,16 @@ function scoreEndsGame(rack, move, bag, board) {
   const jokersLeft = rackRem.filter(L => L === "?").length + (bag["?"] || 0);
   if (v === 0 || c === 0) return jokersLeft > 0 ? 0 : 1;
   return 0;
+}
+
+// Vrai si un Q figure parmi les lettres NOUVELLEMENT posées par ce coup.
+function playsQFromRack(board, move) {
+  const dr = move.dir === "V" ? 1 : 0, dc = move.dir === "H" ? 1 : 0;
+  for (let i = 0; i < move.word.length; i++) {
+    const r = move.row + i * dr, c = move.col + i * dc;
+    if (!board[r][c] && move.word[i] === "Q") return true;
+  }
+  return false;
 }
 
 function scoreQPosition(move) {
@@ -363,6 +382,97 @@ function scoreTWAccess(board, move) {
     if (accessed) count++;
   }
   return count;
+}
+
+// ===== Rallonges pondérées par le SAC (cas 9 des annotations) =====
+// Une rallonge n'a de valeur que si la lettre nécessaire peut encore ARRIVER en
+// jeu : « il n'y a plus de C dans le sac et un seul G → une seule rallonge réelle
+// contre tous les E restants ». On compte donc les rallonges d'1 lettre jouables
+// (case libre) ET dont la lettre subsiste dans le sac (le joker compte pour tout).
+function scoreDictExtensibilityBag(word, dict, board, move, bag) {
+  if (!bag) return scoreDictExtensibility(word, dict, board, move);
+  const dr = move.dir === "V" ? 1 : 0, dc = move.dir === "H" ? 1 : 0;
+  const free = (r, c) => r >= 0 && r < BOARD_SIZE && c >= 0 && c < BOARD_SIZE && !board[r][c];
+  const canBefore = free(move.row - dr, move.col - dc);
+  const canAfter = free(move.row + word.length * dr, move.col + word.length * dc);
+  const jokers = bag["?"] || 0;
+  let count = 0;
+  for (let code = 65; code <= 90; code++) {
+    const L = String.fromCharCode(code);
+    const avail = (bag[L] || 0) + jokers;
+    if (!avail) continue;
+    // Pondération douce : une lettre abondante (tous les E du sac) pèse plus
+    // qu'une lettre unique.
+    const w = Math.min(1, 0.5 + 0.25 * (bag[L] || 0));
+    if (canAfter && dict.has(word + L)) count += w;
+    if (canBefore && dict.has(L + word)) count += w;
+  }
+  return count;
+}
+
+// ===== Rallonge multi-lettres ATTEIGNANT une case bonus (cas 7 et 19) =====
+// « 4 rallonges en 2 lettres devant LISERENT 15C permettent de rejoindre 15A »
+// (case triple) : ce qui compte est le nombre de mots du dico qui prolongent le
+// mot posé jusqu'à une case TW/DW encore libre, et la LONGUEUR du chemin (2
+// lettres ≫ 4 lettres). Index inversé mémoïsé pour les prolongements par
+// l'avant (mots finissant par X), recherche binaire pour l'arrière.
+function reversedIndex(dict) {
+  if (dict.__revIdx) return dict.__revIdx;
+  const rev = (dict.words || []).map(w => w.split("").reverse().join("")).sort();
+  try { Object.defineProperty(dict, "__revIdx", { value: rev, enumerable: false }); }
+  catch { dict.__revIdx = rev; }
+  return rev;
+}
+function countWithPrefix(sorted, prefix) {
+  // nb d'entrées de `sorted` commençant par `prefix` ET de longueur exacte donnée
+  // → on renvoie la tranche [lo, hi) et le filtrage longueur se fait chez l'appelant.
+  let lo = 0, hi = sorted.length;
+  while (lo < hi) { const m = (lo + hi) >> 1; if (sorted[m] < prefix) lo = m + 1; else hi = m; }
+  const start = lo;
+  const end = prefix.slice(0, -1) + String.fromCharCode(prefix.charCodeAt(prefix.length - 1) + 1);
+  lo = start; hi = sorted.length;
+  while (lo < hi) { const m = (lo + hi) >> 1; if (sorted[m] < end) lo = m + 1; else hi = m; }
+  return [start, lo];
+}
+function scoreBonusReach(board, move, dict, layout = null) {
+  const rows = layout || BOARD_BONUSES;
+  const dr = move.dir === "V" ? 1 : 0, dc = move.dir === "H" ? 1 : 0;
+  const w = move.word;
+  const bonusW = (r, c) => rows[r][c] === "T" ? 3 : rows[r][c] === "D" ? 1.5 : 0;
+  let score = 0;
+  // --- prolongement par l'AVANT (k lettres devant) : mots finissant par w ---
+  const rev = reversedIndex(dict);
+  const wRev = w.split("").reverse().join("");
+  for (let k = 1; k <= 4; k++) {
+    const sr = move.row - k * dr, sc = move.col - k * dc;
+    if (sr < 0 || sc < 0) break;
+    if (board[sr] && board[sr][sc]) break;             // chemin occupé
+    // toutes les cases intermédiaires doivent être libres
+    let clear = true;
+    for (let j = 1; j <= k; j++) { const rr = move.row - j * dr, cc = move.col - j * dc; if (board[rr][cc]) { clear = false; break; } }
+    if (!clear) break;
+    const bw = bonusW(sr, sc);
+    if (!bw) continue;                                 // la case atteinte n'est pas une TW/DW
+    const [a, b] = countWithPrefix(rev, wRev);
+    let n = 0;
+    for (let i = a; i < b && n < 50; i++) if (rev[i].length === w.length + k) n++;
+    score += bw * n / k;                               // plus court = plus probable
+  }
+  // --- prolongement par l'ARRIÈRE (k lettres après) : mots commençant par w ---
+  for (let k = 1; k <= 4; k++) {
+    const er = move.row + (w.length + k - 1) * dr, ec = move.col + (w.length + k - 1) * dc;
+    if (er >= BOARD_SIZE || ec >= BOARD_SIZE) break;
+    let clear = true;
+    for (let j = 0; j < k; j++) { const rr = move.row + (w.length + j) * dr, cc = move.col + (w.length + j) * dc; if (board[rr][cc]) { clear = false; break; } }
+    if (!clear) break;
+    const bw = bonusW(er, ec);
+    if (!bw) continue;
+    const [a, b] = countWithPrefix(dict.words, w);
+    let n = 0;
+    for (let i = a; i < b && n < 50; i++) if (dict.words[i].length === w.length + k) n++;
+    score += bw * n / k;
+  }
+  return score;
 }
 
 // ===== Accès RÉEL aux cases TW (chantier 5) =====
