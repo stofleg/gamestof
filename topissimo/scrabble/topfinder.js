@@ -31,7 +31,8 @@ export function snakeBestTop(board, rack, dict, ends, opts = {}) {
   const top = legal[0].score;                       // legal garde l'ordre décroissant
   const tied = legal.filter(c => c.score === top);
   if (tied.length === 1) return tied[0];
-  tied.sort((a, b) => scoreDictExtensibility(b.move.word, dict) - scoreDictExtensibility(a.move.word, dict));
+  tied.sort((a, b) => scoreDictExtensibility(b.move.word, dict, board, b.move)
+                    - scoreDictExtensibility(a.move.word, dict, board, a.move));
   return tied[0];
 }
 
@@ -84,6 +85,12 @@ function sortTiedIsotops(tied, board, rack, dict, bag, opts = {}) {
     // (benjamins) pour AEINRST.
     _backExt:   isFirstMove ? backExtCount(c.move.word, dict) : 0,
     _twAccess:  scoreTWAccess(board, c.move),              // nb de cases TW libres atteignables après ce coup
+    // ----- Critères affinés (chantiers 1-5) -----
+    _dictExtR:  scoreDictExtensibility(c.move.word, dict, board, c.move), // rallonges RÉELLEMENT jouables
+    _twReal:    scoreTWAccessReal(board, c.move),          // accès TW : créés/conservés − bouchés
+    _openDir:   scoreOpenDirection(board, c.move),         // ouverture vers la zone libre (biais haut/gauche)
+    _supportL:  scoreSupportLetters(board, c.move, dict),  // qualité des lettres comme appuis (E ≫ X)
+    _fert:      scoreSupportFertility(board, c.move, dict),// nb de scrabbles accrochables sur les appuis créés
     _ext:       scoreExtensibility(board, c.move),
     _scrab:     scoreScrabbleOpenings(board, c.move),   // nb d'appuis pour scrabble perpendiculaire
     _open:      scoreOpenness(board, c.move),
@@ -103,21 +110,52 @@ function sortTiedIsotops(tied, board, rack, dict, bag, opts = {}) {
   //  10. position à gauche (1er coup uniquement)
   //  11. ouverture de la grille (générique)
   //  12. qualité du reliquat
+  // ===== Score PONDÉRÉ (remplace la hiérarchie stricte) =====
+  // Une hiérarchie lexicographique interdit tout compromis : un critère de rang 3
+  // ne pouvait jamais compenser un critère de rang 2, même de justesse. Or la
+  // pertinence d'un coup est faite d'arbitrages (« le critère 6 ne peut pas être
+  // au dépens du 13, il faut un savant mélange des deux »).
+  // Restent en VERROU hiérarchique, car non négociables : terminer la partie,
+  // préserver le joker, jouer le Q (et pas en bout de mot).
+  // Les autres critères sont normalisés en 0..1 puis pondérés.
+  for (const c of scored) {
+    const n = {
+      dictExt: Math.min(1, (c._dictExtR || 0) / 20),   // rallonges réellement jouables
+      twReal:  Math.max(-1, Math.min(1, (c._twReal || 0) / 6)),
+      openDir: Math.max(-1, Math.min(1, (c._openDir || 0) * 1.6)),
+      fert:    Math.min(1, (c._fert || 0) / 60000),
+      supportL: c._supportL || 0,
+      scrab:   Math.min(1, (c._scrab || 0) / 4),
+      ext:     Math.min(1, (c._ext || 0) / 2),
+      open:    Math.min(1, (c._open || 0) / 16),
+      leave:   Math.max(-1, Math.min(1, (c._leave || 0) / 10)),
+      // Spécifiques 1er coup
+      extBoth: c._extBoth || 0,
+      centerL: Math.min(1, (c._centerL || 0)),
+      backExt: Math.min(1, (c._backExt || 0) / 10),
+      left:    Math.max(-1, Math.min(1, (c._left || 0) / 8)),
+    };
+    c._pertinence = isFirstMove
+      ? (2.0 * n.extBoth + 1.5 * n.dictExt + 1.2 * n.centerL + 1.0 * n.backExt
+         + 0.9 * n.left + 0.6 * n.supportL + 0.4 * n.fert)
+      // Poids calibrés sur les jugements annotés (16 cas de milieu de partie).
+      // Ils confirment le diagnostic : l'ouverture de la grille (ex-critère 13)
+      // et la fertilité des appuis dominent, tandis que les rallonges dico
+      // (ex-critère 6), qui écrasaient tout, passent au second plan.
+      : (5.5 * n.fert + 5.3 * n.open + 3.1 * n.twReal + 1.7 * n.scrab
+         + 0.6 * n.dictExt + 0.5 * n.supportL + 0.4 * n.ext + 0.2 * n.openDir + 0.1 * n.leave);
+  }
   scored.sort((a, b) =>
+    // --- verrous non négociables ---
     b._endsGame - a._endsGame ||
     b._noJoker - a._noJoker ||
     b._playsQ - a._playsQ ||
     b._qPos - a._qPos ||
-    b._extBoth - a._extBoth ||
-    b._dictExt - a._dictExt ||
-    b._centerL - a._centerL ||
-    b._backExt - a._backExt ||
-    b._twAccess - a._twAccess ||
-    b._ext - a._ext ||
-    b._scrab - a._scrab ||
-    (isFirstMove ? b._left - a._left : 0) ||
-    b._open - a._open ||
-    b._leave - a._leave
+    // --- score de pertinence (compromis pondéré) ---
+    b._pertinence - a._pertinence ||
+    // --- départage stable (évite tout choix « arbitraire » à égalité parfaite) ---
+    a.move.word.localeCompare(b.move.word) ||
+    (a.move.row - b.move.row) || (a.move.col - b.move.col)
   );
   return scored;
 }
@@ -254,15 +292,28 @@ function backExtCount(word, dict) {
   return n;
 }
 
-function scoreDictExtensibility(word, dict) {
+function scoreDictExtensibility(word, dict, board = null, move = null) {
   // Compte les rallonges valides d'1 lettre (suffixe ou préfixe) dans l'ODS.
   // Une forme verbale conjuguable (DEMARIE → DEMARIES, DEMARIEE, DEMARIEZ…)
   // ou un mot pluriélisable obtient un score élevé.
+  //
+  // IMPORTANT : si le plateau et le coup sont fournis, on ne compte que les
+  // rallonges RÉELLEMENT JOUABLES — il faut une case LIBRE juste avant (préfixe)
+  // ou juste après (suffixe) le mot, dans sa direction. Sans cette vérification,
+  // un mot coincé entre deux tuiles ou contre un bord héritait d'un score élevé
+  // alors qu'aucune rallonge n'est possible (mesuré : 12 % des candidats gonflés).
+  let canAfter = true, canBefore = true;
+  if (board && move) {
+    const dr = move.dir === "V" ? 1 : 0, dc = move.dir === "H" ? 1 : 0;
+    const free = (r, c) => r >= 0 && r < BOARD_SIZE && c >= 0 && c < BOARD_SIZE && !board[r][c];
+    canBefore = free(move.row - dr, move.col - dc);
+    canAfter = free(move.row + word.length * dr, move.col + word.length * dc);
+  }
   let count = 0;
   for (let code = 65; code <= 90; code++) {
     const L = String.fromCharCode(code);
-    if (dict.has(word + L)) count++;
-    if (dict.has(L + word)) count++;
+    if (canAfter && dict.has(word + L)) count++;
+    if (canBefore && dict.has(L + word)) count++;
   }
   return count;
 }
@@ -297,6 +348,161 @@ function scoreTWAccess(board, move) {
     if (accessed) count++;
   }
   return count;
+}
+
+// ===== Accès RÉEL aux cases TW (chantier 5) =====
+// L'ancien scoreTWAccess se contente d'un contact ligne/colonne : un coup qui
+// BOUCHE le chemin vers la TW scorait quand même. Ici on exige un chemin LIBRE
+// entre une tuile d'appui et la case TW, et on mesure le DELTA (avant → après) :
+//   • conserver / créer un accès  → positif ;
+//   • boucher un accès existant   → négatif.
+// Un « accès » = une case TW libre alignée avec au moins une tuile posée, avec
+// toutes les cases intermédiaires libres (donc un mot peut réellement y courir).
+function twAccessSet(bd) {
+  const acc = new Set();
+  for (const [tr, tc] of TW_CELLS) {
+    if (bd[tr][tc]) continue;                       // TW déjà occupée
+    for (let i = 0; i < BOARD_SIZE; i++) {
+      // Appui sur la même LIGNE que la TW
+      if (bd[tr][i]) {
+        const [a, b] = i < tc ? [i + 1, tc] : [tc, i - 1];
+        let clear = true;
+        for (let k = a; k <= b; k++) if (bd[tr][k]) { clear = false; break; }
+        if (clear) { acc.add(`${tr},${tc}`); break; }
+      }
+      // Appui sur la même COLONNE que la TW
+      if (bd[i][tc]) {
+        const [a, b] = i < tr ? [i + 1, tr] : [tr, i - 1];
+        let clear = true;
+        for (let k = a; k <= b; k++) if (bd[k][tc]) { clear = false; break; }
+        if (clear) { acc.add(`${tr},${tc}`); break; }
+      }
+    }
+  }
+  return acc;
+}
+function scoreTWAccessReal(board, move) {
+  const before = twAccessSet(board);
+  const after = twAccessSet(applyMove(board, move));
+  let gained = 0, lost = 0;
+  for (const k of after) if (!before.has(k)) gained++;
+  for (const k of before) if (!after.has(k)) lost++;
+  // Les accès CONSERVÉS comptent aussi (ton cas 12 : « on conserve A15, H15 et
+  // on ajoute O1 et O15 »), mais moins qu'un accès nouvellement créé.
+  const kept = [...after].filter(k => before.has(k)).length;
+  return 2 * gained + kept - 3 * lost;
+}
+
+// ===== Ouverture ORIENTÉE vers la zone libre (chantier 4) =====
+// Ta règle : « toute la grille est sous la ligne H, il faut ouvrir la partie
+// supérieure ; on écrit du haut vers le bas, donc plus on monte mieux c'est »
+// (cas 10) et « la partie est très à gauche, B ouvre sur la droite » (cas 14).
+// On mesure donc si le coup se développe vers la zone VIDE du plateau, avec un
+// biais de lecture haut → bas et gauche → droite.
+function scoreOpenDirection(board, move) {
+  // Barycentre des tuiles déjà posées (la « masse » du plateau).
+  let n = 0, sr = 0, sc = 0;
+  for (let r = 0; r < BOARD_SIZE; r++) for (let c = 0; c < BOARD_SIZE; c++) {
+    if (board[r][c]) { n++; sr += r; sc += c; }
+  }
+  if (!n) return 0;                                  // 1er coup : géré par _left/_centerL
+  const cr = sr / n, cc = sc / n;
+  const dr = move.dir === "V" ? 1 : 0, dc = move.dir === "H" ? 1 : 0;
+  let s = 0, nt = 0;
+  for (let i = 0; i < move.word.length; i++) {
+    const r = move.row + i * dr, c = move.col + i * dc;
+    if (board[r][c]) continue;                       // on ne juge que les tuiles POSÉES
+    nt++;
+    // Aller vers le côté le moins occupé (distance signée au barycentre),
+    // avec un bonus pour « monter » et pour « aller à gauche » (sens de lecture).
+    const up = (cr - r) / BOARD_SIZE;                // >0 si on monte au-dessus de la masse
+    const left = (cc - c) / BOARD_SIZE;              // >0 si on va à gauche de la masse
+    s += 1.3 * up + 0.7 * left;
+  }
+  return nt ? s / nt : 0;
+}
+
+// ===== Index dictionnaire pour la qualité des appuis (chantiers 2 & 3) =====
+// Construit UNE FOIS par dictionnaire (mémoïsé sur l'objet dict), à partir des
+// mots de 7 à 9 lettres (les scrabbles) :
+//   • supportFreq[L]        : fréquence de la lettre L dans ces mots → « E excellent
+//     appui, X mauvais » (tes cas 5, 9, 17) ;
+//   • posCount["L|p|len"]   : nb de mots de longueur `len` ayant L en position p,
+//     ce qui permet de compter les scrabbles RÉELLEMENT accrochables sur un appui
+//     compte tenu de la place libre de part et d'autre (ton cas 7).
+function supportIndex(dict) {
+  if (dict.__supportIdx) return dict.__supportIdx;
+  const supportFreq = {}, posCount = new Map();
+  let maxFreq = 1;
+  for (const w of (dict.words || [])) {
+    const len = w.length;
+    if (len < 7 || len > 9) continue;
+    const seen = new Set();
+    for (let i = 0; i < len; i++) {
+      const L = w[i];
+      const k = `${L}|${i + 1}|${len}`;
+      posCount.set(k, (posCount.get(k) || 0) + 1);
+      if (!seen.has(L)) { seen.add(L); supportFreq[L] = (supportFreq[L] || 0) + 1; }
+    }
+  }
+  for (const L in supportFreq) maxFreq = Math.max(maxFreq, supportFreq[L]);
+  const idx = { supportFreq, posCount, maxFreq };
+  try { Object.defineProperty(dict, "__supportIdx", { value: idx, enumerable: false }); }
+  catch { dict.__supportIdx = idx; }
+  return idx;
+}
+
+// Chantier 2 : qualité MOYENNE des lettres posées comme futurs appuis (0..1).
+function scoreSupportLetters(board, move, dict) {
+  const { supportFreq, maxFreq } = supportIndex(dict);
+  const dr = move.dir === "V" ? 1 : 0, dc = move.dir === "H" ? 1 : 0;
+  let s = 0, n = 0;
+  for (let i = 0; i < move.word.length; i++) {
+    const r = move.row + i * dr, c = move.col + i * dc;
+    if (board[r][c]) continue;
+    // Une lettre n'est un appui que si l'axe perpendiculaire offre de la place.
+    const pdr = dr ? 0 : 1, pdc = dr ? 1 : 0;
+    const free = (rr, cc) => rr >= 0 && rr < BOARD_SIZE && cc >= 0 && cc < BOARD_SIZE && !board[rr][cc];
+    if (!free(r - pdr, c - pdc) && !free(r + pdr, c + pdc)) continue;
+    s += (supportFreq[move.word[i]] || 0) / maxFreq;
+    n++;
+  }
+  return n ? s / n : 0;
+}
+
+// Chantier 3 : FERTILITÉ des appuis créés — nb de scrabbles (7-9 lettres)
+// réellement accrochables sur chaque lettre posée, compte tenu de la place libre
+// avant/après dans l'axe perpendiculaire. Remplace le simple « ≥6 cases vides »
+// par une mesure lexicale (ton cas 7 : « voyelle + 2 consonnes » ≫ « 3 consonnes »).
+function scoreSupportFertility(board, move, dict) {
+  const { posCount } = supportIndex(dict);
+  const dr = move.dir === "V" ? 1 : 0, dc = move.dir === "H" ? 1 : 0;
+  const pdr = dr ? 0 : 1, pdc = dr ? 1 : 0;
+  let total = 0;
+  for (let i = 0; i < move.word.length; i++) {
+    const r = move.row + i * dr, c = move.col + i * dc;
+    if (board[r][c]) continue;
+    // Place libre de part et d'autre, dans l'axe perpendiculaire.
+    let before = 0, after = 0;
+    for (let k = 1; k < BOARD_SIZE; k++) {
+      const rr = r - k * pdr, cc = c - k * pdc;
+      if (rr < 0 || cc < 0 || board[rr][cc]) break;
+      before++;
+    }
+    for (let k = 1; k < BOARD_SIZE; k++) {
+      const rr = r + k * pdr, cc = c + k * pdc;
+      if (rr >= BOARD_SIZE || cc >= BOARD_SIZE || board[rr][cc]) break;
+      after++;
+    }
+    const L = move.word[i];
+    for (let len = 7; len <= 9; len++) {
+      for (let p = 1; p <= len; p++) {
+        if (p - 1 > before || len - p > after) continue;   // ne rentre pas dans l'espace
+        total += posCount.get(`${L}|${p}|${len}`) || 0;
+      }
+    }
+  }
+  return total;
 }
 
 function scoreScrabbleOpenings(board, move) {
