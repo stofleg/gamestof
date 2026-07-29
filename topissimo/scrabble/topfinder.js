@@ -72,9 +72,6 @@ function sortTiedIsotops(tied, board, rack, dict, bag, opts = {}) {
     _fertCells: fertilityByCell(board, c.move, dict, opts.layout),
     _noJoker:   scoreJokerPreserved(c.move, bag, preserveJoker),
     _endsGame:  scoreEndsGame(rack, c.move, bag, board),  // 1 si ce coup termine la partie
-    // « Joue le Q » = le Q fait partie des lettres POSÉES (pas d'un Q déjà sur le
-    // plateau — DETROQUER via un Q existant ne « joue » pas le Q du tirage).
-    _playsQ:    playsQFromRack(board, c.move) ? 1 : 0,
     _extBoth:   isFirstMove ? scoreExtBothSides(c.move.word, dict) : 0, // 1 si rallongeable des 2 côtés (1er coup)
     _dictExt:   scoreDictExtensibility(c.move.word, dict), // rallonges 1 lettre dans le dico
     // 1er coup : pour un mot de 3 lettres, on privilégie le placement qui pose
@@ -125,7 +122,6 @@ function sortTiedIsotops(tied, board, rack, dict, bag, opts = {}) {
   // Ordre de priorité :
   //   1. coup qui TERMINE la partie (prime sur tout, même sur préserver joker)
   //   2. joker préservé (mode joker)
-  //   3. joue le Q (du tirage)
   //   5. (1er coup) rallongeable des 2 côtés en 1 lettre (TETAI > ETAIT)
   //   6. extensibilité dico globale (nb total de rallonges 1 lettre)
   //   7. accès aux cases TW libres (tuile posée dans même ligne/colonne qu'une TW libre)
@@ -232,7 +228,6 @@ function sortTiedIsotops(tied, board, rack, dict, bag, opts = {}) {
     // --- verrous non négociables ---
     b._endsGame - a._endsGame ||
     b._noJoker - a._noJoker ||
-    b._playsQ - a._playsQ ||
     // --- rallongeabilité (initiale ou finale), avec la pénalité de moitié pour un
     //     candidat qui condamne un axe de bord ; passe avant la position ---
     b._extTier - a._extTier ||
@@ -321,15 +316,6 @@ function scoreEndsGame(rack, move, bag, board) {
   return 0;
 }
 
-// Vrai si un Q figure parmi les lettres NOUVELLEMENT posées par ce coup.
-function playsQFromRack(board, move) {
-  const dr = move.dir === "V" ? 1 : 0, dc = move.dir === "H" ? 1 : 0;
-  for (let i = 0; i < move.word.length; i++) {
-    const r = move.row + i * dr, c = move.col + i * dc;
-    if (!board[r][c] && move.word[i] === "Q") return true;
-  }
-  return false;
-}
 
 
 // Renvoie 1 si le mot peut être rallongé d'une lettre AVANT (préfixe valide L+word)
