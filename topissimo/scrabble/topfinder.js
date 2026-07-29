@@ -81,7 +81,6 @@ function sortTiedIsotops(tied, board, rack, dict, bag, opts = {}) {
     // À nombre de rallonges égal, on préfère les rallonges FINALES (le mot est
     // posé à gauche, sens de lecture). Ex. SENTIRA (rallonge finale) > ENTRAIS
     // (benjamins) pour AEINRST.
-    _backExt:   isFirstMove ? backExtCount(c.move.word, dict) : 0,
     _twAccess:  scoreTWAccess(board, c.move),              // nb de cases TW libres atteignables après ce coup
     // ----- Critères affinés (chantiers 1-5) -----
     _dictExtR:  scoreDictExtensibility(c.move.word, dict, board, c.move), // rallonges RÉELLEMENT jouables
@@ -162,7 +161,6 @@ function sortTiedIsotops(tied, board, rack, dict, bag, opts = {}) {
       leave:   Math.max(-1, Math.min(1, (c._leave || 0) / 10)),
       // Spécifiques 1er coup
       centerL: Math.min(1, (c._centerL || 0)),
-      backExt: Math.min(1, (c._backExt || 0) / 10),
       left:    Math.max(-1, Math.min(1, (c._left || 0) / 8)),
     };
     c._pertinence = isFirstMove
@@ -171,7 +169,7 @@ function sortTiedIsotops(tied, board, rack, dict, bag, opts = {}) {
       // triples H1/H15 par benjamin, superbenjamin ou rallonge finale), complétée
       // par quelques appoints de moindre importance.
       ? (3.0 * Math.min(1, (c._fmReach || 0) / 12)
-         + 0.5 * n.backExt + 0.4 * n.supportL + 0.3 * n.fert)
+         + 0.4 * n.supportL + 0.3 * n.fert)
       // Modèle COMPACT calibré sur 45 cas annotés (3 lots), validé en croisé
       // (calage sur 2 lots, test sur le 3e) : peu de features, car un modèle à 14
       // poids sur-apprenait. Toutes correspondent à un critère cité explicitement
@@ -348,14 +346,6 @@ function centerLetterScore(move, dict, board) {
   return 0;
 }
 
-// Nombre de rallonges FINALES d'une lettre (word + L) présentes dans l'ODS.
-function backExtCount(word, dict) {
-  let n = 0;
-  for (let code = 65; code <= 90; code++) {
-    if (dict.has(word + String.fromCharCode(code))) n++;
-  }
-  return n;
-}
 
 function scoreDictExtensibility(word, dict, board = null, move = null) {
   // Compte les rallonges valides d'1 lettre (suffixe ou préfixe) dans l'ODS.
