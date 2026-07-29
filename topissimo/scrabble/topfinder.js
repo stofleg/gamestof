@@ -202,16 +202,21 @@ function sortTiedIsotops(tied, board, rack, dict, bag, opts = {}) {
       // valeurs réellement rencontrées (un critère dont les valeurs utiles vont de
       // 0,25 à 1 est recadré sur toute la plage, sinon un quart des points serait
       // acquis d'office et ne départagerait rien).
-      : ( 8.7 * Math.min(1, n.bonusReach / 0.79)
-        + 5.5 * Math.min(1, (c._extPlayable || 0) * ((c._edgeKill || 0) > 0 ? 0.5 : 1) / 4)
-        + 5.5 * n.twReal
-        + 5.1 * Math.max(0, (n.quadBal - 0.03) / 0.97)
-        + 4.2 * n.nonuple
-        + 2.6 * n.appui
-        + 1.2 * Math.max(0, (n.open - 0.25) / 0.75)
-        + 0.8 * n.fertMax
-        + 0.7 * Math.min(1, (c._dictExtBag || 0) / 4)
-        + 0.2 * Math.max(0, (n.collante - 0.21) / 0.79)
+      // Les poids suivent l'ORDRE D'IMPORTANCE fixé pour le jeu, en décroissance
+      // forte. Écart mesuré assumé : cet ordre donne 35/45 sur le corpus annoté,
+      // contre 37/45 si la portée bonus remontait au 7e rang (poids 2) et 38/45
+      // avec un barème purement optimisé — la hiérarchie de jeu primant ici sur
+      // deux à trois cas d'écart.
+      : (15   * Math.min(1, (c._extPlayable || 0) * ((c._edgeKill || 0) > 0 ? 0.5 : 1) / 4)  // rallonges (½ si un axe de bord est condamné)
+        + 10  * n.twReal                                        // accès réels aux triples (peut être négatif)
+        +  7  * Math.max(0, (n.quadBal - 0.03) / 0.97)          // ouverture par quarts de grille
+        +  5  * n.nonuple                                       // nonuple probable
+        +  3.5 * n.appui                                        // appuis filtrés (hors pivot/collante/diagonale, ≥8 cases)
+        +  2.5 * Math.max(0, (n.open - 0.25) / 0.75)            // ouverture brute (cases vides adjacentes)
+        +  1.7 * n.fertMax                                      // meilleur appui créé
+        +  1.2 * Math.min(1, (c._dictExtBag || 0) / 4)          // rallonges pondérées par le sac
+        +  0.8 * Math.max(0, (n.collante - 0.21) / 0.79)        // facilité de collante
+        +  0.4 * Math.min(1, n.bonusReach / 0.79)               // portée bonus (rallonge multi-lettres vers une TW/DW)
         );
   }
   // Au 1er COUP seulement, le nombre de rallonges reste un étage au-dessus du
