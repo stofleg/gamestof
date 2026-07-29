@@ -95,6 +95,7 @@ function sortTiedIsotops(tied, board, rack, dict, bag, opts = {}) {
     _collante:  scoreCollante(board, c.move, dict),        // facilité de coller un mot parallèle
     _endL:      scoreEndLetters(board, c.move, dict),      // lettres extrêmes ouvrantes/fermantes (généralise « Q en bout »)
     _appui:     scoreAppuiQuality(board, c.move, dict),    // qualité des VRAIS appuis (hors pivot/collante/diagonale, ≥8 cases libres)
+    _quadBal:   scoreQuadrantBalance(board, c.move),       // ouverture par quarts de grille (pose-t-on là où c'est vide ?)
     // --- 1er coup : hiérarchie dédiée (position → rallonges → accès H1/H15) ---
     _fmPos:     isFirstMove ? firstMovePosScore(c.move) : 0,
     _fmReach:   isFirstMove ? firstMoveReachTW(c.move, dict) : 0,
@@ -151,6 +152,7 @@ function sortTiedIsotops(tied, board, rack, dict, bag, opts = {}) {
       nonuple: Math.min(1, Math.log1p(c._nonuple || 0) / Math.log1p(9000)),
       collante: Math.min(1, (c._collante || 0) / 40),
       appui: c._appui || 0,
+      quadBal: Math.min(1, (c._quadBal || 0) / 2.5),
       endL: c._endL || 0,
       // Normalisation LOGARITHMIQUE : ces compteurs varient sur plusieurs ordres
       // de grandeur ; une division linéaire saturait à 1 et effaçait les écarts.
@@ -888,6 +890,35 @@ function firstMoveReachTW(move, dict) {
     score += 3 * cnt;
   }
   return score;
+}
+
+// ===== OUVERTURE / FERMETURE PAR QUARTS DE GRILLE (règle formalisée) =====
+// La grille est découpée en quatre quarts (haut-gauche, haut-droit, bas-gauche,
+// bas-droit). Un coup « ouvre » le jeu quand il pose ses lettres dans un quart
+// encore peu peuplé, et le « ferme » quand il s'entasse là où il y a déjà tout.
+// Exemple donné : à critères prédominants égaux, entre un coup qui ajoute 4
+// lettres dans un quart qui en compte déjà 15 et un coup qui en ajoute 5 dans un
+// quart qui n'en compte que 3, on préfère le second.
+// On somme donc, par quart impacté, les lettres ajoutées pondérées par la rareté
+// du quart : added / (1 + déjà présentes).
+// Cette formulation couvre aussi le cas du 2e coup (« si vertical, ouvrir vers le
+// haut ; si horizontal, vers la droite ») : le quart vide est simplement celui qui
+// pèse le plus lourd dans la pondération.
+function quadOf(r, c) { return (r <= 7 ? 0 : 2) + (c <= 7 ? 0 : 1); }
+function scoreQuadrantBalance(board, move) {
+  const counts = [0, 0, 0, 0];
+  for (let r = 0; r < BOARD_SIZE; r++)
+    for (let c = 0; c < BOARD_SIZE; c++)
+      if (board[r][c]) counts[quadOf(r, c)]++;
+  const dr = move.dir === "V" ? 1 : 0, dc = move.dir === "H" ? 1 : 0;
+  const added = [0, 0, 0, 0];
+  for (let i = 0; i < move.word.length; i++) {
+    const r = move.row + i * dr, c = move.col + i * dc;
+    if (!board[r][c]) added[quadOf(r, c)]++;
+  }
+  let s = 0;
+  for (let q = 0; q < 4; q++) if (added[q]) s += added[q] / (1 + counts[q]);
+  return s;
 }
 
 // ===== QUALITÉ DES LETTRES D'APPUI (règle formalisée) =====
