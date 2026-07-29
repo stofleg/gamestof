@@ -89,7 +89,9 @@ function sortTiedIsotops(tied, board, rack, dict, bag, opts = {}) {
     _nonuple:   scoreNonuple(board, c.move, dict),         // probabilité de nonuple créée (mots de 8 lettres au bon rang)
     _collante:  scoreCollante(board, c.move, dict),        // facilité de coller un mot parallèle
     _endL:      scoreEndLetters(board, c.move, dict),      // lettres extrêmes ouvrantes/fermantes (généralise « Q en bout »)
-    _appui:     scoreAppuiQuality(board, c.move, dict),    // qualité des VRAIS appuis (hors pivot/collante/diagonale, ≥8 cases libres)
+    _appui:     scoreAppuiQuality(board, c.move, dict),
+    _lateral:   scoreLateralAccess(board, c.move, dict),   // peut-on jouer À CÔTÉ ? (E ouvre, P ferme)
+    _bonusPivot: scoreBonusPivot(board, c.move, dict),     // pivot en 2 lettres vers une DW/TW bordant une extrémité
     _quadBal:   scoreQuadrantBalance(board, c.move),       // ouverture par quarts de grille (pose-t-on là où c'est vide ?)
     _edgeKill:  countEdgeCondemned(c.move.word, dict, board, c.move), // nb d'axes de bord condamnés (case morte en colonne 1/15 ou ligne A/O)
     // --- 1er coup : hiérarchie dédiée (position → rallonges → accès H1/H15) ---
@@ -213,6 +215,7 @@ function sortTiedIsotops(tied, board, rack, dict, bag, opts = {}) {
         +  2.5 * n.fertMax                                      // meilleur appui créé
         +  1.7 * n.appui                                        // appuis filtrés (hors pivot/collante/diagonale, ≥8 cases)
         +  1.2 * Math.max(0, (n.collante - 0.21) / 0.79)        // facilité de collante
+        +  0.6 * Math.min(1, (c._bonusPivot || 0) / 30)         // meilleur pivot en 2 lettres vers une DW/TW bordante
         +  0.8 * n.nonuple                                      // nonuple probable
         +  0.4 * Math.min(1, (c._dictExtBag || 0) / 4)          // rallonges pondérées par le sac
         );
@@ -441,8 +444,11 @@ function scoreDictExtensibilityBag(word, dict, board, move, bag) {
 //   • matériellement — la lettre nécessaire est encore disponible (sac, chevalet
 //     conservé ou joker). Une rallonge en C alors qu'il n'y a plus de C en jeu
 //     n'est pas une rallonge.
-// Renvoie un COMPTE entier (et non une pondération), car l'étage hiérarchique
-// travaille par paliers : aucune rallonge / 1-2 / 3 et plus.
+// Les lettres à exemplaire unique dans le sac (J K Q W X Y Z) ne comptent que
+// pour MOITIÉ : « le Z, qui est une lettre très rare, ne peut pas faire basculer
+// à lui seul la balance des rallonges ». BIPE admet E R S Z (4 → 3,5) et ne
+// dépasse donc plus EMBUA / PAUMA sur le seul mérite du Z.
+const RARE_LETTERS = new Set(["J", "K", "Q", "W", "X", "Y", "Z"]);
 function countPlayableExtensions(word, dict, board, move, bag, rack) {
   const dr = move.dir === "V" ? 1 : 0, dc = move.dir === "H" ? 1 : 0;
   const free = (r, c) => r >= 0 && r < BOARD_SIZE && c >= 0 && c < BOARD_SIZE && !board[r][c];
@@ -467,8 +473,9 @@ function countPlayableExtensions(word, dict, board, move, bag, rack) {
   for (let code = 65; code <= 90; code++) {
     const L = String.fromCharCode(code);
     if (avail && !(avail[L] || 0) && !jokers) continue;   // lettre épuisée
-    if (canAfter && dict.has(word + L)) n++;
-    if (canBefore && dict.has(L + word)) n++;
+    const w = RARE_LETTERS.has(L) ? 0.5 : 1;
+    if (canAfter && dict.has(word + L)) n += w;
+    if (canBefore && dict.has(L + word)) n += w;
   }
   return n;
 }
@@ -930,6 +937,43 @@ function scoreQuadrantBalance(board, move) {
   return s;
 }
 
+// ===== ACCÈS LATÉRAL : peut-on jouer À CÔTÉ de chaque lettre posée ? =====
+// « Avec PAUMA on ne peut pas jouer à gauche du P pour rejoindre la case 4A » : une
+// lettre posée borde un espace libre dans l'axe perpendiculaire, et c'est ELLE qui
+// devra terminer (espace à gauche / en haut) ou commencer (espace à droite / en bas)
+// le futur mot. Or très peu de mots finissent par P, alors que beaucoup finissent
+// par E — le E ouvre donc le jeu là où le P le ferme.
+// On mesure, lettre par lettre, la fréquence de la lettre dans la bonne position
+// (finale ou initiale), pondérée par l'espace réellement disponible de ce côté.
+// Contrairement à scoreAppuiQuality, qui moyenne sur les lettres retenues, ce
+// critère additionne : une seule très bonne lettre bien placée suffit à ouvrir.
+function scoreLateralAccess(board, move, dict) {
+  const { startFreq, endFreq, maxStart, maxEnd } = supportIndex(dict);
+  const dr = move.dir === "V" ? 1 : 0, dc = move.dir === "H" ? 1 : 0;
+  const pdr = dr ? 0 : 1, pdc = dr ? 1 : 0;      // axe perpendiculaire
+  let s = 0;
+  for (let i = 0; i < move.word.length; i++) {
+    const r = move.row + i * dr, c = move.col + i * dc;
+    if (board[r][c]) continue;                   // lettre déjà en place
+    const L = move.word[i];
+    let before = 0, after = 0;
+    for (let k = 1; k <= 7; k++) {
+      const rr = r - k * pdr, cc = c - k * pdc;
+      if (rr < 0 || cc < 0 || board[rr][cc]) break;
+      before++;
+    }
+    for (let k = 1; k <= 7; k++) {
+      const rr = r + k * pdr, cc = c + k * pdc;
+      if (rr >= BOARD_SIZE || cc >= BOARD_SIZE || board[rr][cc]) break;
+      after++;
+    }
+    // Espace en amont → la lettre servira de FIN de mot ; en aval → de DÉBUT.
+    if (before >= 2) s += ((endFreq[L] || 0) / maxEnd) * Math.min(before, 6) / 6;
+    if (after >= 2) s += ((startFreq[L] || 0) / maxStart) * Math.min(after, 6) / 6;
+  }
+  return s;
+}
+
 // ===== QUALITÉ DES LETTRES D'APPUI (règle formalisée) =====
 // Toutes les lettres d'un mot ne sont pas des appuis utilisables pour un futur
 // scrabble. On les trie ainsi :
@@ -1074,6 +1118,38 @@ function scoreCollante(board, move, dict) {
   // Moyenne par lettre (la collante bute sur le maillon faible), majorée si une
   // série de contacts est possible.
   return total / n + 0.4 * (runScore / n);
+}
+
+// ===== PIVOT VERS UNE CASE MOT COMPTE DOUBLE / TRIPLE =====
+// « Si la première ou la dernière lettre de deux isotops se trouve à côté d'une
+// case DW ou TW, on privilégie l'isotop qui offre le plus de possibilités de mots
+// de 2 lettres permettant de rejoindre cette case (le meilleur pivot). »
+// Cas 6 du lot 2 : le E de EMBUA borde la DW et accepte 12 mots de 2 lettres
+// finissant par E (BE CE DE HE JE LE ME NE RE SE TE VE) ; le P de PAUMA, aucun.
+// Seuls les multiplicateurs de MOT comptent (T/D majuscules), pas les cases
+// lettre compte double/triple.
+function scoreBonusPivot(board, move, dict) {
+  const { twoAfter, twoBefore } = supportIndex(dict);
+  const dr = move.dir === "V" ? 1 : 0, dc = move.dir === "H" ? 1 : 0;
+  const pdr = dr ? 0 : 1, pdc = dr ? 1 : 0;   // axe perpendiculaire
+  const free = (r, c) => r >= 0 && r < BOARD_SIZE && c >= 0 && c < BOARD_SIZE && !board[r][c];
+  const mult = (r, c) => {
+    const b = BOARD_BONUSES[r][c];
+    return b === "T" ? 3 : b === "D" ? 2 : 0;   // MOT compte triple / double seulement
+  };
+  let total = 0;
+  // Extrémités du mot posé : première et dernière lettre.
+  for (const i of [0, move.word.length - 1]) {
+    const r = move.row + i * dr, c = move.col + i * dc;
+    const L = move.word[i];
+    // En amont sur l'axe perpendiculaire : le mot de 2 lettres FINIT par L.
+    const ur = r - pdr, uc = c - pdc;
+    if (free(ur, uc) && mult(ur, uc)) total += mult(ur, uc) * (twoBefore[L] || 0);
+    // En aval : le mot de 2 lettres COMMENCE par L.
+    const dr2 = r + pdr, dc2 = c + pdc;
+    if (free(dr2, dc2) && mult(dr2, dc2)) total += mult(dr2, dc2) * (twoAfter[L] || 0);
+  }
+  return total;
 }
 
 function scoreScrabbleOpenings(board, move) {
