@@ -49,6 +49,21 @@ export function snakeBestTop(board, rack, dict, ends, opts = {}) {
 //      on garde un Q sans U disponible (rack ∪ sac), etc.
 // ============================================================
 
+// ===== SÉLECTION DE L'ISOTOP : critères pondérés ou tirage au sort =====
+// Mesuré sur 2 × 500 parties simulées (mêmes graines de tirage) : les critères
+// n'apportent rien de sensible au déroulement d'une partie — score, longueur,
+// scrabbles et trouvabilité du top sont statistiquement identiques à un tirage au
+// sort. Seule l'ouverture de la grille gagne ~5 % (p = 0,005), pour une taille
+// d'effet de 0,16 écart-type. La raison est structurelle : dans 73 % des tours il
+// n'y a qu'UN SEUL top, donc les critères n'ont voix au chapitre que sur 27 % des
+// coups — plafond qu'aucun réglage ne peut franchir.
+// D'où ce choix : ISOTOP_RANDOM = true → l'isotop est tiré au sort.
+// Une seule ligne à repasser à false pour retrouver les critères pondérés (le code
+// de `sortTiedIsotops` est conservé intact et reste utilisé par le mode éditeur).
+// Le top est figé à la GÉNÉRATION du tournoi puis stocké : tous les joueurs d'un
+// même tournoi voient donc bien le même top, l'aléa ne joue qu'une fois.
+export const ISOTOP_RANDOM = true;
+
 export function findTopRanked(board, rack, dict, bag = null, opts = {}) {
   const all = findTop(board, rack, dict, { all: true, ...opts }) || [];
   if (!all.length) return null;
@@ -57,6 +72,10 @@ export function findTopRanked(board, rack, dict, bag = null, opts = {}) {
   const isotopWords = [...new Set(tied.map(c => c.move.word))];
   if (tied.length === 1) return { ...tied[0], isotops: 1, isotopWords };
 
+  if (ISOTOP_RANDOM) {
+    const pick = tied[Math.floor(Math.random() * tied.length)];
+    return { ...pick, isotops: tied.length, isotopWords };
+  }
   const scored = sortTiedIsotops(tied, board, rack, dict, bag, opts);
   return { ...scored[0], isotops: tied.length, isotopWords };
 }
