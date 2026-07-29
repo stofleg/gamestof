@@ -219,20 +219,22 @@ function sortTiedIsotops(tied, board, rack, dict, bag, opts = {}) {
   // (règle 2 du barème de départ) qui fait palier.
   for (const c of scored) {
     const n = isFirstMove ? (c._dictExt || 0) : (c._extPlayable || 0);
-    c._extTier = Math.min(30, n);   // borne de sécurité, sans effet en pratique
+    // PÉNALITÉ DE MOITIÉ : un mot qui laisse une case morte sur un bord (il commence
+    // en colonne 2 sans rallonge initiale, finit en colonne 14 sans rallonge finale,
+    // ou l'équivalent en lignes B et N pour un mot vertical) condamne l'axe du bord,
+    // donc l'accès à ses deux triples. Son poids de candidat est divisé par deux.
+    // Appliquer la pénalité ICI, sur le critère prépondérant, plutôt qu'au score
+    // final : mesuré 36/45 contre 35/45 (et contre 35/45 pour un veto éliminatoire).
+    const penalty = (c._edgeKill || 0) > 0 ? 0.5 : 1;
+    c._extTier = Math.min(30, n) * penalty;
   }
   scored.sort((a, b) =>
     // --- verrous non négociables ---
     b._endsGame - a._endsGame ||
     b._noJoker - a._noJoker ||
     b._playsQ - a._playsQ ||
-    // --- VETO : ne pas condamner un axe de bord ---
-    // Laisser une case morte en colonne 1/15 ou ligne A/O coupe l'accès aux deux
-    // triples de cet axe : la faute est plus grave que le gain d'une rallonge de
-    // plus, donc elle passe avant. Mesuré : ce veto favorise le bon candidat dans
-    // 9 des 11 cas où il discrimine, sans coût sur le score global.
-    (a._edgeKill || 0) - (b._edgeKill || 0) ||
-    // --- puis la rallongeabilité (initiale ou finale), avant la position ---
+    // --- rallongeabilité (initiale ou finale), avec la pénalité de moitié pour un
+    //     candidat qui condamne un axe de bord ; passe avant la position ---
     b._extTier - a._extTier ||
     // --- 1er coup : parmi les candidats restants, le placement (à gauche, ou la
     //     bonne lettre sur l'étoile pour les mots de 2-3 lettres) ---
