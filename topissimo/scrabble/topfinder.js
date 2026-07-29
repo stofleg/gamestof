@@ -72,7 +72,6 @@ function sortTiedIsotops(tied, board, rack, dict, bag, opts = {}) {
     _fertCells: fertilityByCell(board, c.move, dict, opts.layout),
     _noJoker:   scoreJokerPreserved(c.move, bag, preserveJoker),
     _endsGame:  scoreEndsGame(rack, c.move, bag, board),  // 1 si ce coup termine la partie
-    _extBoth:   isFirstMove ? scoreExtBothSides(c.move.word, dict) : 0, // 1 si rallongeable des 2 côtés (1er coup)
     _dictExt:   scoreDictExtensibility(c.move.word, dict), // rallonges 1 lettre dans le dico
     // 1er coup : pour un mot de 3 lettres, on privilégie le placement qui pose
     // sur le centre la lettre la PLUS fréquente en bord (début/fin) de mot de 8
@@ -162,7 +161,6 @@ function sortTiedIsotops(tied, board, rack, dict, bag, opts = {}) {
       open:    Math.min(1, (c._open || 0) / 16),
       leave:   Math.max(-1, Math.min(1, (c._leave || 0) / 10)),
       // Spécifiques 1er coup
-      extBoth: c._extBoth || 0,
       centerL: Math.min(1, (c._centerL || 0)),
       backExt: Math.min(1, (c._backExt || 0) / 10),
       left:    Math.max(-1, Math.min(1, (c._left || 0) / 8)),
@@ -172,7 +170,7 @@ function sortTiedIsotops(tied, board, rack, dict, bag, opts = {}) {
       // en étages hiérarchiques ci-dessous ; ne reste ici que la règle 3 (accès aux
       // triples H1/H15 par benjamin, superbenjamin ou rallonge finale), complétée
       // par quelques appoints de moindre importance.
-      ? (3.0 * Math.min(1, (c._fmReach || 0) / 12) + 0.8 * n.extBoth
+      ? (3.0 * Math.min(1, (c._fmReach || 0) / 12)
          + 0.5 * n.backExt + 0.4 * n.supportL + 0.3 * n.fert)
       // Modèle COMPACT calibré sur 45 cas annotés (3 lots), validé en croisé
       // (calage sur 2 lots, test sur le 3e) : peu de features, car un modèle à 14
@@ -321,16 +319,6 @@ function scoreEndsGame(rack, move, bag, board) {
 // Renvoie 1 si le mot peut être rallongé d'une lettre AVANT (préfixe valide L+word)
 // ET d'une lettre APRÈS (suffixe valide word+L). Sinon 0.
 // Utile au 1er coup pour privilégier les mots ouverts des 2 côtés.
-function scoreExtBothSides(word, dict) {
-  let frontOK = false, backOK = false;
-  for (let code = 65; code <= 90; code++) {
-    const L = String.fromCharCode(code);
-    if (!frontOK && dict.has(L + word)) frontOK = true;
-    if (!backOK  && dict.has(word + L)) backOK  = true;
-    if (frontOK && backOK) return 1;
-  }
-  return 0;
-}
 
 // Fréquence de chaque lettre en 1ʳᵉ OU dernière position des mots de 8 lettres
 // de l'ODS (calculée une fois, mémorisée sur l'objet dict).
