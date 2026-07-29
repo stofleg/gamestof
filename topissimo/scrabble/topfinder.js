@@ -192,7 +192,7 @@ function sortTiedIsotops(tied, board, rack, dict, bag, opts = {}) {
       // départage sur la fréquence des lettres retenues). Elle relève de
       // l'ouverture de la grille, critère prépondérant, d'où un poids notable.
       : (4.5 * n.open + 4.3 * n.fertMax + 5.0 * n.twReal
-         + 4.0 * n.dictExtBag + 4.0 * n.bonusReach + 3.0 * n.appui
+         + 4.0 * n.dictExtBag + 4.0 * n.bonusReach + 4.3 * n.appui
          + 1.7 * n.collante + 1.2 * n.nonuple + 0.3 * n.leave);
   }
   // ÉTAGE « rallongeabilité », au-dessus du score pondéré : la première question
