@@ -202,19 +202,21 @@ function sortTiedIsotops(tied, board, rack, dict, bag, opts = {}) {
   }
   // ÉTAGE « rallongeabilité », au-dessus du score pondéré : la première question
   // est « ce mot peut-il être rallongé (par l'avant ou l'arrière) ? », et seulement
-  // ensuite viennent l'ouverture, les appuis, etc. — les annotations le disent
-  // explicitement (« rallonge initiale privilégiée », « rallonge finale
-  // privilégiée » reviennent dans 8 validations sur 12).
-  // Paliers GROSSIERS (aucune / 1-2 / 3 et plus) et non comparaison stricte : un
-  // classement strict par nombre de rallonges dégrade nettement (71 % contre 78 %
-  // en validation croisée), car il écrase tous les autres critères.
+  // ensuite viennent la position, l'ouverture, les appuis… — les annotations le
+  // disent explicitement (« rallonge initiale privilégiée », « rallonge finale
+  // privilégiée » reviennent dans 8 validations sur 12), et « la règle du nombre de
+  // rallonges possibles prévaut ».
+  // Comparaison sur le NOMBRE EXACT de rallonges : c'est ce que dit la règle, et
+  // c'est mesuré sans coût (même score global que des paliers grossiers, mais cela
+  // tranche en plus les cas serrés — ex. URINA à 4 rallonges contre RUINA à 3, que
+  // des paliers « 3 et plus » laissaient indistincts).
   // Le palier s'appuie sur les rallonges JOUABLES ET DISPONIBLES (case libre +
   // lettre encore en jeu), pas sur les rallonges théoriques du dictionnaire.
   // Au 1er coup, la grille est vide : c'est le nombre de rallonges d'une lettre
   // (règle 2 du barème de départ) qui fait palier.
   for (const c of scored) {
     const n = isFirstMove ? (c._dictExt || 0) : (c._extPlayable || 0);
-    c._extTier = n === 0 ? 0 : n <= 2 ? 1 : 2;
+    c._extTier = Math.min(30, n);   // borne de sécurité, sans effet en pratique
   }
   scored.sort((a, b) =>
     // --- verrous non négociables ---
