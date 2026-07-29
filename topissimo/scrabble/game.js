@@ -1972,7 +1972,7 @@ function topSolutions() {
   const ranked = rankIsotops(state.board, rackLetters, state.dict, state.bag, {
     maxTilesUsed: mode.maxPlayed, bonuses: mode.bonuses,
     jokerPays: mode.jokerPays, layout: state.boardLayout,
-    preserveJoker: effJoker() && state.spareJokers > 0,
+    preserveJoker: effJoker() && state.spareJokers > 0, moveNo: state.moveNo,
   });
   const seen = new Set();
   const out = [];
@@ -3423,7 +3423,7 @@ function editorRefreshSolutions() {
   const topScore = all.length ? all[0].score : 0;
   // Groupe au TOP (isotops) classé par pertinence Topissimo : vert (1er) puis orange.
   const ranked = rankIsotops(state.board, rackLetters, state.dict, state.bag, {
-    ...opts, preserveJoker: effJoker() && state.spareJokers > 0,
+    ...opts, preserveJoker: effJoker() && state.spareJokers > 0, moveNo: state.moveNo,
   });
   const dedup = (arr, out, seen) => {
     for (const c of arr) {

@@ -12,7 +12,7 @@
 //     aussi les mots croisés) et on garde le maximum.
 // ============================================================
 
-import { BOARD_SIZE, BOARD_BONUSES, CENTER, scoreMove, applyMove, LETTER_VALUE, VOWELS, CONSONANTS_FR, isSimplePath, isSnakeMove } from "./engine.js?v=362";
+import { BOARD_SIZE, BOARD_BONUSES, CENTER, scoreMove, applyMove, LETTER_VALUE, VOWELS, VOWELS_NO_Y, CONSONANTS_FR, isSimplePath, isSnakeMove } from "./engine.js?v=362";
 
 // Un coup PROLONGE le serpent s'il s'accroche à une extrémité (isSnakeMove ; les
 // mots croisés latéraux sont permis), OU s'il garde un chemin simple (extension
@@ -92,6 +92,7 @@ function sortTiedIsotops(tied, board, rack, dict, bag, opts = {}) {
     _appui:     scoreAppuiQuality(board, c.move, dict),
     _lateral:   scoreLateralAccess(board, c.move, dict),   // peut-on jouer À CÔTÉ ? (E ouvre, P ferme)
     _bonusPivot: scoreBonusPivot(board, c.move, dict),     // pivot en 2 lettres vers une DW/TW bordant une extrémité
+    _bagBal:    scoreBagBalance(board, c.move, bag, opts.moveNo), // équilibre voyelles/consonnes du sac (au-delà du coup 15)
     _quadBal:   scoreQuadrantBalance(board, c.move),       // ouverture par quarts de grille (pose-t-on là où c'est vide ?)
     _edgeKill:  countEdgeCondemned(c.move.word, dict, board, c.move), // nb d'axes de bord condamnés (case morte en colonne 1/15 ou ligne A/O)
     // --- 1er coup : hiérarchie dédiée (position → rallonges → accès H1/H15) ---
@@ -237,7 +238,13 @@ function sortTiedIsotops(tied, board, rack, dict, bag, opts = {}) {
     // --- 1er coup : parmi les candidats restants, le placement (à gauche, ou la
     //     bonne lettre sur l'étoile pour les mots de 2-3 lettres) ---
     b._fmPos - a._fmPos ||
-    // --- score de pertinence (compromis pondéré) ---
+    // --- score de pertinence (compromis pondéré), quantifié au pas TIE_EPS :
+    //     deux candidats dont les scores tiennent dans le même palier sont
+    //     considérés comme indécidables au score, et c'est l'équilibre
+    //     voyelles/consonnes du sac qui les départage (fin de partie seulement).
+    //     La quantification garde le comparateur transitif.
+    Math.round(b._pertinence / TIE_EPS) - Math.round(a._pertinence / TIE_EPS) ||
+    b._bagBal - a._bagBal ||
     b._pertinence - a._pertinence ||
     // --- départage stable (évite tout choix « arbitraire » à égalité parfaite) ---
     a.move.word.localeCompare(b.move.word) ||
@@ -1150,6 +1157,41 @@ function scoreBonusPivot(board, move, dict) {
     if (free(dr2, dc2) && mult(dr2, dc2)) total += mult(dr2, dc2) * (twoAfter[L] || 0);
   }
   return total;
+}
+
+// ===== ÉQUILIBRE VOYELLES / CONSONNES DU SAC (fin de partie) =====
+// « Au-delà du coup 15, il faut consulter le sac pour garder un équilibre dans la
+// répartition des voyelles d'un côté et des consonnes de l'autre. Si l'un des
+// isotops permet de placer deux A alors qu'il en reste 7 dans le sac, plutôt que
+// deux E quand il n'en reste que 3, on privilégie les A. »
+// On se débarrasse donc en priorité des lettres encore ABONDANTES, ce qui laisse
+// les lettres devenues rares disponibles pour la suite. Voyelles et consonnes sont
+// traitées séparément : une moyenne par famille, puis la moyenne des familles
+// présentes — sinon un mot riche en consonnes serait avantagé par son seul nombre.
+const BALANCE_FROM_MOVE = 15;
+// Pas de quantification du score de pertinence : en deçà, deux isotops sont jugés
+// indécidables au score et passent à l'étage de départage (équilibre du sac).
+const TIE_EPS = 0.5;
+function scoreBagBalance(board, move, bag, moveNo) {
+  if (!bag || !moveNo || moveNo <= BALANCE_FROM_MOVE) return 0;
+  const dr = move.dir === "V" ? 1 : 0, dc = move.dir === "H" ? 1 : 0;
+  let vSum = 0, vN = 0, cSum = 0, cN = 0;
+  for (let i = 0; i < move.word.length; i++) {
+    const r = move.row + i * dr, c = move.col + i * dc;
+    if (board[r][c]) continue;                          // lettre déjà sur la grille
+    if ((move.blanks || []).includes(i)) continue;      // un joker n'a pas de famille
+    const L = move.word[i];
+    const left = bag[L] || 0;                           // exemplaires encore au sac
+    if (VOWELS_NO_Y.has(L)) { vSum += left; vN++; }
+    else { cSum += left; cN++; }
+  }
+  if (!vN && !cN) return 0;
+  // Normalisation par famille : le A est la voyelle la plus nombreuse (9), le S la
+  // consonne la plus nombreuse (6) — on ramène chaque moyenne sur [0,1].
+  const parts = [];
+  if (vN) parts.push(Math.min(1, (vSum / vN) / 9));
+  if (cN) parts.push(Math.min(1, (cSum / cN) / 6));
+  return parts.reduce((a, b) => a + b, 0) / parts.length;
 }
 
 function scoreScrabbleOpenings(board, move) {
