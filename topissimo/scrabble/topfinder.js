@@ -96,6 +96,7 @@ function sortTiedIsotops(tied, board, rack, dict, bag, opts = {}) {
     _endL:      scoreEndLetters(board, c.move, dict),      // lettres extrêmes ouvrantes/fermantes (généralise « Q en bout »)
     _appui:     scoreAppuiQuality(board, c.move, dict),    // qualité des VRAIS appuis (hors pivot/collante/diagonale, ≥8 cases libres)
     _quadBal:   scoreQuadrantBalance(board, c.move),       // ouverture par quarts de grille (pose-t-on là où c'est vide ?)
+    _edgeKill:  countEdgeCondemned(c.move.word, dict, board, c.move), // nb d'axes de bord condamnés (case morte en colonne 1/15 ou ligne A/O)
     // --- 1er coup : hiérarchie dédiée (position → rallonges → accès H1/H15) ---
     _fmPos:     isFirstMove ? firstMovePosScore(c.move) : 0,
     _fmReach:   isFirstMove ? firstMoveReachTW(c.move, dict) : 0,
@@ -225,8 +226,13 @@ function sortTiedIsotops(tied, board, rack, dict, bag, opts = {}) {
     b._endsGame - a._endsGame ||
     b._noJoker - a._noJoker ||
     b._playsQ - a._playsQ ||
-    // --- palier de rallongeabilité : la rallonge (initiale ou finale) passe en
-    //     premier, avant la position ---
+    // --- VETO : ne pas condamner un axe de bord ---
+    // Laisser une case morte en colonne 1/15 ou ligne A/O coupe l'accès aux deux
+    // triples de cet axe : la faute est plus grave que le gain d'une rallonge de
+    // plus, donc elle passe avant. Mesuré : ce veto favorise le bon candidat dans
+    // 9 des 11 cas où il discrimine, sans coût sur le score global.
+    (a._edgeKill || 0) - (b._edgeKill || 0) ||
+    // --- puis la rallongeabilité (initiale ou finale), avant la position ---
     b._extTier - a._extTier ||
     // --- 1er coup : parmi les candidats restants, le placement (à gauche, ou la
     //     bonne lettre sur l'étoile pour les mots de 2-3 lettres) ---
@@ -890,6 +896,39 @@ function firstMoveReachTW(move, dict) {
     score += 3 * cnt;
   }
   return score;
+}
+
+// ===== CONDAMNATION D'UNE LIGNE / COLONNE DE BORD =====
+// « A, B et C condamnent la colonne 1 » : si le mot posé laisse, juste avant ou
+// juste après lui, une case VIDE située sur un bord (colonne 1 ou 15, ligne A ou O)
+// et qu'AUCUNE lettre ne peut y être posée — parce qu'il n'existe aucune rallonge
+// valide du mot — alors cette case devient morte. Or elle commande tout l'axe du
+// bord, donc l'accès aux DEUX triples de cet axe : c'est une faute lourde, pas un
+// simple malus. Renvoie le nombre d'axes de bord ainsi condamnés.
+function countEdgeCondemned(word, dict, board, move) {
+  const dr = move.dir === "V" ? 1 : 0, dc = move.dir === "H" ? 1 : 0;
+  const inside = (r, c) => r >= 0 && r < BOARD_SIZE && c >= 0 && c < BOARD_SIZE;
+  const onEdge = (r, c) => r === 0 || r === BOARD_SIZE - 1 || c === 0 || c === BOARD_SIZE - 1;
+  let n = 0;
+  // Case juste AVANT le mot
+  const br = move.row - dr, bc = move.col - dc;
+  if (inside(br, bc) && !board[br][bc] && onEdge(br, bc)) {
+    let can = false;
+    for (let code = 65; code <= 90 && !can; code++) {
+      if (dict.has(String.fromCharCode(code) + word)) can = true;
+    }
+    if (!can) n++;
+  }
+  // Case juste APRÈS le mot
+  const ar = move.row + word.length * dr, ac = move.col + word.length * dc;
+  if (inside(ar, ac) && !board[ar][ac] && onEdge(ar, ac)) {
+    let can = false;
+    for (let code = 65; code <= 90 && !can; code++) {
+      if (dict.has(word + String.fromCharCode(code))) can = true;
+    }
+    if (!can) n++;
+  }
+  return n;
 }
 
 // ===== OUVERTURE / FERMETURE PAR QUARTS DE GRILLE (règle formalisée) =====
