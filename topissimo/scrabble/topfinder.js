@@ -94,6 +94,7 @@ function sortTiedIsotops(tied, board, rack, dict, bag, opts = {}) {
     _nonuple:   scoreNonuple(board, c.move, dict),         // probabilité de nonuple créée (mots de 8 lettres au bon rang)
     _collante:  scoreCollante(board, c.move, dict),        // facilité de coller un mot parallèle
     _endL:      scoreEndLetters(board, c.move, dict),      // lettres extrêmes ouvrantes/fermantes (généralise « Q en bout »)
+    _appui:     scoreAppuiQuality(board, c.move, dict),    // qualité des VRAIS appuis (hors pivot/collante/diagonale, ≥8 cases libres)
     // --- 1er coup : hiérarchie dédiée (position → rallonges → accès H1/H15) ---
     _fmPos:     isFirstMove ? firstMovePosScore(c.move) : 0,
     _fmReach:   isFirstMove ? firstMoveReachTW(c.move, dict) : 0,
@@ -149,6 +150,7 @@ function sortTiedIsotops(tied, board, rack, dict, bag, opts = {}) {
       bonusReach: Math.min(1, Math.log1p(c._bonusReach || 0) / Math.log1p(60)),
       nonuple: Math.min(1, Math.log1p(c._nonuple || 0) / Math.log1p(9000)),
       collante: Math.min(1, (c._collante || 0) / 40),
+      appui: c._appui || 0,
       endL: c._endL || 0,
       // Normalisation LOGARITHMIQUE : ces compteurs varient sur plusieurs ordres
       // de grandeur ; une division linéaire saturait à 1 et effaçait les écarts.
@@ -190,8 +192,12 @@ function sortTiedIsotops(tied, board, rack, dict, bag, opts = {}) {
       // de mot ») est calculé mais NON pondéré : mesuré non contributif, son meilleur
       // poids est 0 et il dégrade dès 1,0 — les rallonges capturent déjà l'essentiel
       // de cette idée (un mot finissant par V ou W n'a pas de rallonge).
+      // `appui` applique la règle formalisée des lettres d'appui (écarte pivots,
+      // collantes et lettres gênées par une diagonale, exige ≥8 cases libres, puis
+      // départage sur la fréquence des lettres retenues). Elle relève de
+      // l'ouverture de la grille, critère prépondérant, d'où un poids notable.
       : (4.5 * n.open + 4.3 * n.fertMax + 5.0 * n.twReal
-         + 4.0 * n.dictExtBag + 4.0 * n.bonusReach
+         + 4.0 * n.dictExtBag + 4.0 * n.bonusReach + 3.0 * n.appui
          + 1.7 * n.collante + 1.2 * n.nonuple + 0.3 * n.leave);
   }
   // ÉTAGE « rallongeabilité », au-dessus du score pondéré : la première question
@@ -215,10 +221,12 @@ function sortTiedIsotops(tied, board, rack, dict, bag, opts = {}) {
     b._endsGame - a._endsGame ||
     b._noJoker - a._noJoker ||
     b._playsQ - a._playsQ ||
-    // --- 1er coup : POSITION d'abord (règle 1) ---
-    b._fmPos - a._fmPos ||
-    // --- palier de rallongeabilité (règle 2 au 1er coup) ---
+    // --- palier de rallongeabilité : la rallonge (initiale ou finale) passe en
+    //     premier, avant la position ---
     b._extTier - a._extTier ||
+    // --- 1er coup : parmi les candidats restants, le placement (à gauche, ou la
+    //     bonne lettre sur l'étoile pour les mots de 2-3 lettres) ---
+    b._fmPos - a._fmPos ||
     // --- score de pertinence (compromis pondéré) ---
     b._pertinence - a._pertinence ||
     // --- départage stable (évite tout choix « arbitraire » à égalité parfaite) ---
@@ -808,11 +816,11 @@ function fertilityByCell(board, move, dict, layout = null) {
 // ============================================================
 //  PREMIER COUP — hiérarchie dédiée
 //  Ordre d'importance (règles de jeu explicitées) :
-//    1. POSITION : mot de 4 lettres et plus → le plus à gauche possible ;
-//       mot de 3 lettres → position centrée, sauf si un décalage permet de poser
-//       sur l'étoile une lettre de AEILNRST ; mot de 2 lettres → on privilégie
-//       aussi la bonne lettre sur l'étoile.
-//    2. RALLONGES d'une lettre (initiales + finales).
+//    1. RALLONGE d'une lettre, initiale ou finale (étage par paliers).
+//    2. POSITION, entre les candidats restants : mot de 4 lettres et plus → le
+//       plus à gauche possible ; mot de 3 lettres → position centrée, sauf si un
+//       décalage permet de poser sur l'étoile une lettre de AEILNRST ; mot de
+//       2 lettres → on privilégie aussi la bonne lettre sur l'étoile.
 //    3. ACCÈS À H1 / H15 (les deux triples de la ligne de départ) : par benjamin
 //       (lettres devant, GUI-MAUVE), superbenjamin (devant et derrière,
 //       PRE-TENDU-MENT) ou rallonge finale (INDEX-ENT).
@@ -878,6 +886,51 @@ function firstMoveReachTW(move, dict) {
     score += 3 * cnt;
   }
   return score;
+}
+
+// ===== QUALITÉ DES LETTRES D'APPUI (règle formalisée) =====
+// Toutes les lettres d'un mot ne sont pas des appuis utilisables pour un futur
+// scrabble. On les trie ainsi :
+//   • lettre en PIVOT (contact avec une lettre de la grille) ou en COLLANTE
+//     (plusieurs contacts) → mauvais appui, écartée ;
+//   • lettre ayant une lettre de la grille EN DIAGONALE → écartée aussi : un mot
+//     perpendiculaire partant de cette lettre buterait sur la diagonale, qui
+//     impose alors un mot croisé — c'est une contrainte de plus ;
+//   • lettres restantes → il faut au moins 8 cases libres dans l'axe
+//     perpendiculaire, réparties de part et d'autre (3+5, 6+2, 2+6…), pour qu'un
+//     scrabble puisse réellement s'y accrocher.
+// Le départage se fait ensuite sur la FRÉQUENCE de ces lettres dans la langue :
+// TAXEE (appuis T, A) vaut mieux que EXEAT (appuis E, X), le X étant rare.
+function scoreAppuiQuality(board, move, dict) {
+  const { supportFreq, maxFreq } = supportIndex(dict);
+  const dr = move.dir === "V" ? 1 : 0, dc = move.dir === "H" ? 1 : 0;
+  const pdr = dr ? 0 : 1, pdc = dr ? 1 : 0;   // axe perpendiculaire
+  const on = (r, c) => r >= 0 && r < BOARD_SIZE && c >= 0 && c < BOARD_SIZE && !!board[r][c];
+  let total = 0, kept = 0;
+  for (let i = 0; i < move.word.length; i++) {
+    const r = move.row + i * dr, c = move.col + i * dc;
+    if (board[r][c]) continue;                       // lettre déjà en place
+    // Pivot / collante : contact orthogonal avec une lettre préexistante.
+    if (on(r - 1, c) || on(r + 1, c) || on(r, c - 1) || on(r, c + 1)) continue;
+    // Contrainte diagonale.
+    if (on(r - 1, c - 1) || on(r - 1, c + 1) || on(r + 1, c - 1) || on(r + 1, c + 1)) continue;
+    // Place disponible dans l'axe perpendiculaire.
+    let before = 0, after = 0;
+    for (let k = 1; k < BOARD_SIZE; k++) {
+      const rr = r - k * pdr, cc = c - k * pdc;
+      if (rr < 0 || cc < 0 || board[rr][cc]) break;
+      before++;
+    }
+    for (let k = 1; k < BOARD_SIZE; k++) {
+      const rr = r + k * pdr, cc = c + k * pdc;
+      if (rr >= BOARD_SIZE || cc >= BOARD_SIZE || board[rr][cc]) break;
+      after++;
+    }
+    if (before + after < 8) continue;                // pas de quoi loger un scrabble
+    total += (supportFreq[move.word[i]] || 0) / maxFreq;
+    kept++;
+  }
+  return kept ? total / kept : 0;                    // qualité MOYENNE des appuis retenus
 }
 
 // ===== Qualité des lettres EXTRÊMES du mot posé =====
