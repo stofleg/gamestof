@@ -191,41 +191,38 @@ function sortTiedIsotops(tied, board, rack, dict, bag, opts = {}) {
       // collantes et lettres gênées par une diagonale, exige ≥8 cases libres, puis
       // départage sur la fréquence des lettres retenues). Elle relève de
       // l'ouverture de la grille, critère prépondérant, d'où un poids notable.
-      : (4.5 * n.open + 4.3 * n.fertMax + 5.0 * n.twReal
-         + 4.0 * n.dictExtBag + 4.0 * n.bonusReach + 4.3 * n.appui
-         + 1.7 * n.collante + 1.2 * n.nonuple + 0.3 * n.leave);
+      // ===== SCORE UNIQUE EN POINTS (milieu de partie) =====
+      // Plus d'étage intermédiaire : hormis les deux verrous, TOUS les critères
+      // sont convertis en points et additionnés ; le meilleur total gagne. Chaque
+      // valeur est exprimée dans son unité naturelle, de sorte que le barème se lit
+      // directement (« une rallonge = 8 points »).
+      // Mesuré meilleur que la structure à étages : 38/45 contre 36/45, avec le lot
+      // des candidats sur mêmes cases à 14/14, et le cas URINA correctement tranché.
+      : ( 8 * (c._extPlayable || 0) * ((c._edgeKill || 0) > 0 ? 0.5 : 1)  // rallonge jouable+dispo (½ si un bord est condamné)
+        + 7 * 10 * n.bonusReach      // portée bonus (rallonge multi-lettres vers une TW/DW)
+        + 7 * 10 * n.quadBal         // ouverture par quarts de grille
+        + 6 * 15 * n.dictExtBag      // rallonges pondérées par le sac
+        + 4 * 10 * n.appui           // appuis filtrés (hors pivot/collante/diagonale, ≥8 cases)
+        + 3 * 10 * n.fertMax         // meilleur appui créé
+        + 3 * 10 * n.nonuple         // nonuple probable
+        + 2 * 6  * n.twReal          // accès réels aux triples (peut être négatif)
+        + 1 * 16 * n.open            // ouverture brute (cases vides adjacentes)
+        + 1 * 10 * n.collante        // facilité de collante
+        );
   }
-  // ÉTAGE « rallongeabilité », au-dessus du score pondéré : la première question
-  // est « ce mot peut-il être rallongé (par l'avant ou l'arrière) ? », et seulement
-  // ensuite viennent la position, l'ouverture, les appuis… — les annotations le
-  // disent explicitement (« rallonge initiale privilégiée », « rallonge finale
-  // privilégiée » reviennent dans 8 validations sur 12), et « la règle du nombre de
-  // rallonges possibles prévaut ».
-  // Comparaison sur le NOMBRE EXACT de rallonges : c'est ce que dit la règle, et
-  // c'est mesuré sans coût (même score global que des paliers grossiers, mais cela
-  // tranche en plus les cas serrés — ex. URINA à 4 rallonges contre RUINA à 3, que
-  // des paliers « 3 et plus » laissaient indistincts).
-  // Le palier s'appuie sur les rallonges JOUABLES ET DISPONIBLES (case libre +
-  // lettre encore en jeu), pas sur les rallonges théoriques du dictionnaire.
-  // Au 1er coup, la grille est vide : c'est le nombre de rallonges d'une lettre
-  // (règle 2 du barème de départ) qui fait palier.
+  // Au 1er COUP seulement, le nombre de rallonges reste un étage au-dessus du
+  // score : la grille est vide, les autres critères sont peu discriminants, et la
+  // règle de départ est explicite (rallonge d'abord, puis position).
+  // En milieu de partie il n'y a PLUS d'étage : tous les critères, rallonges
+  // comprises, sont convertis en points dans _pertinence (voir plus haut).
   for (const c of scored) {
-    const n = isFirstMove ? (c._dictExt || 0) : (c._extPlayable || 0);
-    // PÉNALITÉ DE MOITIÉ : un mot qui laisse une case morte sur un bord (il commence
-    // en colonne 2 sans rallonge initiale, finit en colonne 14 sans rallonge finale,
-    // ou l'équivalent en lignes B et N pour un mot vertical) condamne l'axe du bord,
-    // donc l'accès à ses deux triples. Son poids de candidat est divisé par deux.
-    // Appliquer la pénalité ICI, sur le critère prépondérant, plutôt qu'au score
-    // final : mesuré 36/45 contre 35/45 (et contre 35/45 pour un veto éliminatoire).
-    const penalty = (c._edgeKill || 0) > 0 ? 0.5 : 1;
-    c._extTier = Math.min(30, n) * penalty;
+    c._extTier = isFirstMove ? (c._dictExt || 0) : 0;
   }
   scored.sort((a, b) =>
     // --- verrous non négociables ---
     b._endsGame - a._endsGame ||
     b._noJoker - a._noJoker ||
-    // --- rallongeabilité (initiale ou finale), avec la pénalité de moitié pour un
-    //     candidat qui condamne un axe de bord ; passe avant la position ---
+    // --- 1er coup uniquement : nombre de rallonges, avant la position ---
     b._extTier - a._extTier ||
     // --- 1er coup : parmi les candidats restants, le placement (à gauche, ou la
     //     bonne lettre sur l'étoile pour les mots de 2-3 lettres) ---
