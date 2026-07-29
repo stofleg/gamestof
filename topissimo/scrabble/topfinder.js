@@ -191,23 +191,27 @@ function sortTiedIsotops(tied, board, rack, dict, bag, opts = {}) {
       // collantes et lettres gênées par une diagonale, exige ≥8 cases libres, puis
       // départage sur la fréquence des lettres retenues). Elle relève de
       // l'ouverture de la grille, critère prépondérant, d'où un poids notable.
-      // ===== SCORE UNIQUE EN POINTS (milieu de partie) =====
-      // Plus d'étage intermédiaire : hormis les deux verrous, TOUS les critères
-      // sont convertis en points et additionnés ; le meilleur total gagne. Chaque
-      // valeur est exprimée dans son unité naturelle, de sorte que le barème se lit
-      // directement (« une rallonge = 8 points »).
-      // Mesuré meilleur que la structure à étages : 38/45 contre 36/45, avec le lot
-      // des candidats sur mêmes cases à 14/14, et le cas URINA correctement tranché.
-      : ( 8 * (c._extPlayable || 0) * ((c._edgeKill || 0) > 0 ? 0.5 : 1)  // rallonge jouable+dispo (½ si un bord est condamné)
-        + 7 * 10 * n.bonusReach      // portée bonus (rallonge multi-lettres vers une TW/DW)
-        + 7 * 10 * n.quadBal         // ouverture par quarts de grille
-        + 6 * 15 * n.dictExtBag      // rallonges pondérées par le sac
-        + 4 * 10 * n.appui           // appuis filtrés (hors pivot/collante/diagonale, ≥8 cases)
-        + 3 * 10 * n.fertMax         // meilleur appui créé
-        + 3 * 10 * n.nonuple         // nonuple probable
-        + 2 * 6  * n.twReal          // accès réels aux triples (peut être négatif)
-        + 1 * 16 * n.open            // ouverture brute (cases vides adjacentes)
-        + 1 * 10 * n.collante        // facilité de collante
+      // ===== SCORE UNIQUE, BARÈME SUR ÉCHELLE UNIFORME (milieu de partie) =====
+      // Hormis les deux verrous, TOUS les critères sont convertis en points et
+      // additionnés : le meilleur total gagne, sans étage intermédiaire.
+      // Chaque critère est d'abord ramené sur 0..1 (bornes ci-dessous), de sorte que
+      // son poids se lise directement comme « nombre de points maximum apportés ».
+      // Les poids sont donc COMPARABLES entre eux : 8,7 pèse trois fois plus que 2,6.
+      // Mesuré équivalent au barème en unités naturelles (38/45) mais lisible.
+      // Chaque critère est ramené sur 0..1 par un cadrage min→max reflétant les
+      // valeurs réellement rencontrées (un critère dont les valeurs utiles vont de
+      // 0,25 à 1 est recadré sur toute la plage, sinon un quart des points serait
+      // acquis d'office et ne départagerait rien).
+      : ( 8.7 * Math.min(1, n.bonusReach / 0.79)
+        + 5.5 * Math.min(1, (c._extPlayable || 0) * ((c._edgeKill || 0) > 0 ? 0.5 : 1) / 4)
+        + 5.5 * n.twReal
+        + 5.1 * Math.max(0, (n.quadBal - 0.03) / 0.97)
+        + 4.2 * n.nonuple
+        + 2.6 * n.appui
+        + 1.2 * Math.max(0, (n.open - 0.25) / 0.75)
+        + 0.8 * n.fertMax
+        + 0.7 * Math.min(1, (c._dictExtBag || 0) / 4)
+        + 0.2 * Math.max(0, (n.collante - 0.21) / 0.79)
         );
   }
   // Au 1er COUP seulement, le nombre de rallonges reste un étage au-dessus du
