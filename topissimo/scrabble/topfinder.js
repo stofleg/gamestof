@@ -12,7 +12,7 @@
 //     aussi les mots croisés) et on garde le maximum.
 // ============================================================
 
-import { BOARD_SIZE, BOARD_BONUSES, CENTER, scoreMove, applyMove, LETTER_VALUE, VOWELS, VOWELS_NO_Y, CONSONANTS_FR, isSimplePath, isSnakeMove } from "./engine.js?v=363";
+import { BOARD_SIZE, BOARD_BONUSES, CENTER, scoreMove, applyMove, LETTER_VALUE, VOWELS, VOWELS_NO_Y, CONSONANTS_FR, isSimplePath, isSnakeMove } from "./engine.js?v=364";
 
 // Un coup PROLONGE le serpent s'il s'accroche à une extrémité (isSnakeMove ; les
 // mots croisés latéraux sont permis), OU s'il garde un chemin simple (extension
@@ -50,19 +50,31 @@ export function snakeBestTop(board, rack, dict, ends, opts = {}) {
 // ============================================================
 
 // ===== SÉLECTION DE L'ISOTOP : critères pondérés ou tirage au sort =====
-// Mesuré sur 2 × 500 parties simulées (mêmes graines de tirage) : les critères
-// n'apportent rien de sensible au déroulement d'une partie — score, longueur,
-// scrabbles et trouvabilité du top sont statistiquement identiques à un tirage au
-// sort. Seule l'ouverture de la grille gagne ~5 % (p = 0,005), pour une taille
-// d'effet de 0,16 écart-type. La raison est structurelle : dans 73 % des tours il
-// n'y a qu'UN SEUL top, donc les critères n'ont voix au chapitre que sur 27 % des
-// coups — plafond qu'aucun réglage ne peut franchir.
-// D'où ce choix : ISOTOP_RANDOM = true → l'isotop est tiré au sort.
-// Une seule ligne à repasser à false pour retrouver les critères pondérés (le code
-// de `sortTiedIsotops` est conservé intact et reste utilisé par le mode éditeur).
+// Mesuré sur 2 × 10 000 parties simulées, mêmes graines de tirage, test apparié.
+// Les critères pondérés font mieux que le tirage au sort, modestement mais de
+// façon reproductible, et précisément sur les objectifs visés :
+//
+//   mesure                    aléatoire   critères        p
+//   coups / partie              21,48      21,33      < 0,0001
+//   parties <= 20 coups          2 956      3 244      < 0,0001
+//   parties >= 25 coups            494        413        0,006
+//   score / partie              871,2      875,3        0,0001
+//   parties > 1000 pts             573        657        0,013
+//   parties < 800 pts            1 948      1 794        0,005
+//   mots rallongés / partie       7,90       8,01        0,023
+//   scrabbles / partie            3,52       3,55        0,10   (non signif.)
+//   cases TW / partie             4,83       4,85        0,20   (non signif.)
+//
+// Les amplitudes sont faibles (-0,7 % sur la longueur, +0,5 % sur le score) car
+// dans 73 % des tours il n'y a qu'UN SEUL top : les critères ne décident que sur
+// 27 % des coups. Un premier essai sur 500 parties ne détectait aucun de ces
+// écarts — il manquait simplement de puissance statistique.
+// Sur les scrabbles et les cases TW, en revanche, aucun effet : ces deux objectifs
+// restent hors d'atteinte par ce levier.
+// ISOTOP_RANDOM = true rebascule sur un tirage au sort (le comparatif ci-dessus).
 // Le top est figé à la GÉNÉRATION du tournoi puis stocké : tous les joueurs d'un
-// même tournoi voient donc bien le même top, l'aléa ne joue qu'une fois.
-export const ISOTOP_RANDOM = true;
+// même tournoi voient donc le même top.
+export const ISOTOP_RANDOM = false;
 
 export function findTopRanked(board, rack, dict, bag = null, opts = {}) {
   const all = findTop(board, rack, dict, { all: true, ...opts }) || [];
