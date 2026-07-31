@@ -29,9 +29,9 @@ import {
   bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName, randomBoardLayout, snakeEndpointsAfter, sablierTime, gigogneRackSize,
   setLetterValues, letterValue, valuesFor, bagFor, isCrossingCell, wordHiddenCount,
   drawVowelRack, VOWELS_NO_Y, MARATHON_TARGET, MARATHON_GAMES,
-} from "./engine.js?v=364";
-import { Dictionary } from "./dictionary.js?v=364";
-import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=364";
+} from "./engine.js?v=365";
+import { Dictionary } from "./dictionary.js?v=365";
+import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=365";
 
 // État du mode review (parcours coup par coup)
 const review = {
@@ -61,7 +61,7 @@ const FFSC_REVIEW = URL_PARAMS.get("ffscreview");  // revoir une partie FFSC imp
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v364";
+const BUILD_VERSION = "garenna-v365";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -1101,7 +1101,7 @@ window.openDictPanel = function(word) {
   if (_dictIsMobile()) {
     $("#dictModalWord").textContent = word;
     $("#dictModalExt").href = url;
-    $("#dictModalIframe").src = url;
+    setDictIframe("dictModalIframe", url);
     $("#dictModal").hidden = false;
     return;
   }
@@ -1109,7 +1109,7 @@ window.openDictPanel = function(word) {
   if (!$("#sheet").hidden) {
     $("#sheetDictWord").textContent = word;
     $("#sheetDictExt").href = url;
-    $("#sheetDictIframe").src = url;
+    setDictIframe("sheetDictIframe", url);
     $("#sheetDictPanel").hidden = false;
     $("#sheet .sheet-content").classList.add("with-dict");
     return;
@@ -1118,7 +1118,7 @@ window.openDictPanel = function(word) {
   if (review.active) {
     $("#reviewDictWord").textContent = word;
     $("#reviewDictExt").href = url;
-    $("#reviewDictIframe").src = url;
+    setDictIframe("reviewDictIframe", url);
     $("#reviewDictPanel").hidden = false;
     document.querySelector(".review-split")?.classList.add("with-dict");
     return;
@@ -1126,26 +1126,49 @@ window.openDictPanel = function(word) {
   // PC sinon : volet inline du panneau droit
   $("#dictWord").textContent = word;
   $("#dictExt").href = url;
-  $("#dictIframe").src = url;
+  setDictIframe("dictIframe", url);
   $("#dictPanel").hidden = false;
 };
 
+// Vider une iframe par `src = ""` AJOUTE une entrée à l'historique de session
+// (vérifié : history.length passe de 4 à 5). Cette entrée enterre l'état sentinelle
+// empilé par le garde-fou anti-swipe : un « retour » suivant ne traverse plus que
+// l'entrée de l'iframe, le popstate de haut niveau ne se déclenche PAS, aucune
+// confirmation n'apparaît, et un second retour quitte la partie — que `pageshow`
+// (bfcache) recharge alors sur une grille vide.
+// On remplace donc le nœud par un clone vierge : retirer un élément du DOM ne
+// touche pas à l'historique.
+function resetDictIframe(id) {
+  const f = document.getElementById(id);
+  if (!f) return null;
+  const fresh = f.cloneNode(false);
+  fresh.removeAttribute("src");
+  f.replaceWith(fresh);
+  return fresh;
+}
+// Charger une définition : on repart TOUJOURS d'une iframe neuve, pour que
+// l'affectation de `src` soit une navigation INITIALE (sans entrée d'historique).
+// Indispensable aussi quand on enchaîne deux mots sans refermer le volet.
+function setDictIframe(id, url) {
+  const f = resetDictIframe(id);
+  if (f) f.src = url;
+}
 window.closeDictModal = function() {
   const m = $("#dictModal"); if (m) m.hidden = true;
-  const f = $("#dictModalIframe"); if (f) f.src = "";
+  resetDictIframe("dictModalIframe");
 };
 window.closeReviewDict = function() {
   $("#reviewDictPanel").hidden = true;
-  $("#reviewDictIframe").src = "";
+  resetDictIframe("reviewDictIframe");
   document.querySelector(".review-split")?.classList.remove("with-dict");
 };
 window.closeDictPanel = function() {
   $("#dictPanel").hidden = true;
-  $("#dictIframe").src = "";
+  resetDictIframe("dictIframe");
 };
 window.closeSheetDict = function() {
   $("#sheetDictPanel").hidden = true;
-  $("#sheetDictIframe").src = "";
+  resetDictIframe("sheetDictIframe");
   $("#sheet .sheet-content").classList.remove("with-dict");
 };
 
