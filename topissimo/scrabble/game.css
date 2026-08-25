@@ -1664,18 +1664,23 @@ body:not(.ffsc-review) .review-pick { display: none !important; }
   width: 208px;
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  height: calc(15 * var(--cell-size) + 16px);
+  gap: 12px;
+  /* Calé sur la HAUTEUR D'ÉCRAN, et non sur celle de la grille : on affiche ainsi
+     le maximum de joueurs. S'aligner sur la grille laissait ~143px inutilisés en
+     bas et tronquait la liste dès une quinzaine de participants. */
+  height: calc(100vh - 24px);
+  align-self: flex-start;
 }
-body.show-coords .pace-col { height: calc((15 + 1.1) * var(--cell-size) + 16px); }
 /* Colonne de droite resserrée dès que la colonne de gauche est présente. */
-/* La colonne centrale absorbe l'espace restant et CENTRE la grille dedans :
-   sans cela le mou s'accumule à droite et le plateau reste collé à gauche. */
-.layout:has(.pace-col:not([hidden])) .left-col {
-  flex: 1 1 auto;
-  display: flex;
-  justify-content: center;
-  min-width: 0;
+/* Marges ÉGALES de part et d'autre de la colonne de droite : ses deux marges
+   automatiques se partagent l'espace libre à parts égales, si bien que l'écart
+   grille -> colonne vaut celui colonne -> bord de l'écran. La colonne centrale ne
+   grandit donc plus : sinon elle absorberait tout le mou et plaquerait la colonne
+   de droite contre le bord. */
+.layout:has(.pace-col:not([hidden])) .left-col { flex: 0 0 auto; min-width: 0; }
+.layout:has(.pace-col:not([hidden])) .right-col {
+  margin-left: auto;
+  margin-right: auto;
 }
 .layout:has(.pace-col:not([hidden])) .right-col {
   /* 441px est le min-content MESURÉ de la rangée d'actions en cours de partie
@@ -1693,7 +1698,9 @@ body.with-pace main { padding: 12px 8px; }
    en tenir compte, sinon la grille déborde sur les écrans peu larges.
    `body.with-pace` est posé par renderPace() quand la colonne est affichée. */
 body.with-pace {
-  --cell-size: clamp(32px, min(calc((100vh - 130px) / 17), calc((100vw - 660px) / 17)), 60px);
+  /* Réserve verticale ramenée de 130 à 100px : il restait ~61px inutilisés sous le
+     chevalet, autant les rendre à la grille. */
+  --cell-size: clamp(32px, min(calc((100vh - 100px) / 17), calc((100vw - 660px) / 17)), 60px);
 }
 
 .pace-box {
