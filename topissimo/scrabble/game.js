@@ -841,7 +841,139 @@ function renderInfo() {
   renderChrono();
   renderMoveTimer();
   renderBag();
+  renderPace();
 }
+// ============================================================
+//  CLASSEMENTS INTERMÉDIAIRES (colonne de gauche, mode tournoi)
+// ------------------------------------------------------------
+//  Après chaque coup, on situe le joueur face à ceux qui ont DÉJÀ joué la même
+//  partie préparée : négatif cumulé et temps cumulé à l'issue de ce coup.
+//  Les feuilles de route (`details`) portent déjà `neg` et `timeMs` par coup, donc
+//  aucun changement de format de sauvegarde n'est nécessaire, et la comparaison
+//  fonctionne aussi pour les parties déjà jouées.
+//  Une seule requête par partie, mise en cache en mémoire.
+// ============================================================
+const pace = { state: "idle", players: [], gameId: null };   // idle | loading | ready | error
+
+function paceActive() {
+  return !!(state.prepared && state.started && !state.isPuzzle && !editorActive() && !review.active);
+}
+
+// Cumuls coup par coup à partir d'une feuille de route.
+function paceCumul(details) {
+  const cn = [], ct = [];
+  let n = 0, t = 0;
+  for (const m of (Array.isArray(details) ? details : [])) {
+    n += (m.neg || 0);
+    t += (m.timeMs || 0) / 1000;
+    cn.push(n); ct.push(Math.round(t));
+  }
+  return { cn, ct };
+}
+
+async function loadPaceData() {
+  if (pace.state === "loading" || pace.state === "ready") return;
+  pace.state = "loading";
+  pace.gameId = state.prepared.id;
+  try {
+    if (!window._sb) await loadSupabaseClient();
+    const me = +(localStorage.getItem("currentPlayerId") || 0);
+    const { data, error } = await window._sb
+      .from("prepared_game_results")
+      .select("player_id, details, summary, paused, players(name)")
+      .eq("prepared_game_id", state.prepared.id);
+    if (error) throw error;
+    pace.players = (data || [])
+      // Parties RÉELLEMENT terminées : un résumé présent, pas en pause, non abandonnée.
+      .filter(r => r.player_id !== me && r.summary && !r.paused && !r.summary.ab)
+      .map(r => ({ name: r.players?.name || "?", ...paceCumul(r.details) }))
+      .filter(p => p.cn.length);
+    pace.state = "ready";
+  } catch (e) {
+    console.warn("[pace] chargement impossible:", e?.message || e);
+    pace.state = "error";
+  }
+  renderPace();
+}
+
+function renderPace() {
+  const col = $("#paceCol");
+  if (!col) return;
+  const show = v => { col.hidden = !v; document.body.classList.toggle("with-pace", v); };
+  if (!paceActive()) { show(false); return; }
+  // Enchaînement de parties dans la même page (partie suivante, marathon) :
+  // le cache d'une autre partie doit être jeté.
+  if (pace.gameId != null && pace.gameId !== state.prepared.id) {
+    pace.state = "idle"; pace.players = []; pace.gameId = null;
+  }
+  if (pace.state === "idle") { loadPaceData(); return; }
+  if (pace.state !== "ready") { show(false); return; }
+
+  const n = state.history?.length || 0;          // nb de coups TERMINÉS
+  const empty = $("#paceEmpty");
+  const boxes = col.querySelectorAll(".pace-box");
+  // Premier joueur sur cette partie : rien à comparer, on le dit.
+  if (!pace.players.length) {
+    show(true);
+    if (empty) empty.hidden = false;
+    boxes.forEach(b => b.hidden = true);
+    return;
+  }
+  if (empty) empty.hidden = true;
+  boxes.forEach(b => b.hidden = false);
+  show(true);
+  if (!n) {                                       // avant le 1er coup : en attente
+    for (const [list, rank] of [["#paceNegList", "#paceNegRank"], ["#paceTimeList", "#paceTimeRank"]]) {
+      $(list).innerHTML = `<div class="pace-row out"><span class="n">après le 1<sup>er</sup> coup</span></div>`;
+      $(rank).textContent = "—";
+    }
+    return;
+  }
+
+  // Mes cumuls à l'issue du coup n, calculés comme ceux des autres (somme des
+  // temps de coup), pour que la comparaison soit homogène.
+  const mine = paceCumul(state.history);
+  const myNeg = mine.cn[n - 1], myTime = mine.ct[n - 1];
+  const myName = localStorage.getItem("currentPseudo") || "Toi";
+
+  // `dir` = sens du « meilleur ». Le négatif est stocké <= 0 (playerScore - top) :
+  // -3 vaut donc MIEUX que -12, il se trie en DÉCROISSANT. Le temps, lui, se trie
+  // en croissant : le plus rapide devant.
+  const build = (key, mineVal, fmt, dir) => {
+    const rows = [{ name: myName, val: mineVal, me: true, out: false }];
+    for (const p of pace.players) {
+      const arr = p[key];
+      const done = arr.length >= n;
+      rows.push({ name: p.name, val: done ? arr[n - 1] : arr[arr.length - 1], me: false, out: !done });
+    }
+    // Les joueurs n'ayant pas atteint ce coup sont relégués en fin de liste.
+    rows.sort((a, b) => (a.out - b.out) || dir * (a.val - b.val) || a.name.localeCompare(b.name));
+    let pos = 0;
+    const ranked = rows.filter(r => !r.out);
+    const myPos = ranked.findIndex(r => r.me) + 1;
+    const html = rows.map(r => {
+      if (!r.out) pos++;
+      return `<div class="pace-row${r.me ? " me" : ""}${r.out ? " out" : ""}">`
+        + `<span class="p">${r.out ? "–" : pos}</span>`
+        + `<span class="n">${escapeHtml(r.name)}</span>`
+        + `<span class="v">${fmt(r.val)}</span></div>`;
+    }).join("");
+    return { html, label: `${myPos}${myPos === 1 ? "er" : "e"} / ${ranked.length}` };
+  };
+
+  const neg = build("cn", myNeg, v => (v > 0 ? "+" + v : String(v)), -1);
+  const tim = build("ct", myTime, v => fmtChrono(v), 1);
+  $("#paceNegList").innerHTML = neg.html;
+  $("#paceNegRank").textContent = neg.label;
+  $("#paceTimeList").innerHTML = tim.html;
+  $("#paceTimeRank").textContent = tim.label;
+  // Dans un club nombreux la liste défile : sans cela, la ligne du joueur peut
+  // rester hors champ — or c'est précisément celle qu'il vient regarder.
+  for (const id of ["#paceNegList", "#paceTimeList"]) {
+    $(id).querySelector(".pace-row.me")?.scrollIntoView({ block: "nearest" });
+  }
+}
+
 // Met à jour le libellé (.label) au-dessus d'une valeur de l'info-bar.
 function setInfoLabel(valueId, text) {
   const v = document.getElementById(valueId);

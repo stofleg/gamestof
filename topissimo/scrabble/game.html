@@ -17,6 +17,29 @@
 <main>
 
   <div class="layout">
+    <!-- Colonne des classements INTERMÉDIAIRES (tournoi uniquement). Après chaque
+         coup, position du joueur au négatif et au chrono face à ceux qui ont déjà
+         joué la partie. Masquée hors tournoi et quand personne n'a encore joué. -->
+    <aside class="pace-col" id="paceCol" hidden>
+      <div class="pace-box">
+        <div class="pace-head">
+          <span class="pace-title">Négatif intermédiaire</span>
+          <span class="pace-rank" id="paceNegRank">—</span>
+        </div>
+        <div class="pace-list" id="paceNegList"></div>
+      </div>
+      <div class="pace-box">
+        <div class="pace-head">
+          <span class="pace-title">Chrono intermédiaire</span>
+          <span class="pace-rank" id="paceTimeRank">—</span>
+        </div>
+        <div class="pace-list" id="paceTimeList"></div>
+      </div>
+      <div class="pace-empty" id="paceEmpty" hidden>
+        Tu es le premier à jouer cette partie : tu établis les temps intermédiaires.
+      </div>
+    </aside>
+
     <div class="left-col">
       <div class="game-wrap rack-bottom" id="gameWrap">
         <div class="board" id="board"></div>
