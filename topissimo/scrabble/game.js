@@ -841,7 +841,9 @@ function renderInfo() {
   renderChrono();
   renderMoveTimer();
   renderBag();
-  renderPace();
+  // Panneau d'information seulement : renderInfo() est sur le chemin critique de la
+  // boucle de jeu, donc une erreur ici ne doit jamais figer la partie.
+  try { renderPace(); } catch (e) { console.error("[pace] rendu KO:", e); }
 }
 // ============================================================
 //  CLASSEMENTS INTERMÉDIAIRES (colonne de gauche, mode tournoi)
@@ -855,8 +857,10 @@ function renderInfo() {
 // ============================================================
 const pace = { state: "idle", players: [], gameId: null };   // idle | loading | ready | error
 
+// Visible dès l'ouverture d'une partie de tournoi : on n'attend NI le démarrage du
+// chrono, NI le 1er coup — les deux fenêtres doivent être en place d'emblée.
 function paceActive() {
-  return !!(state.prepared && state.started && !state.isPuzzle && !editorActive() && !review.active);
+  return !!(state.prepared && !state.isPuzzle && !editorActive() && !review.active);
 }
 
 // Cumuls coup par coup à partir d'une feuille de route.
@@ -931,10 +935,18 @@ function renderPace() {
   if (empty) empty.hidden = true;
   boxes.forEach(b => b.hidden = false);
   show(true);
-  if (!n) {                                       // avant le 1er coup : en attente
+  // Avant le 1er coup il n'y a rien à cumuler : on montre déjà l'effectif en lice
+  // (moi en tête, les autres par ordre alphabétique, valeurs en attente).
+  if (!n) {
+    const myNameNow = localStorage.getItem("currentPseudo") || "Toi";
+    const others = pace.players.map(p => p.name).sort((a, b) => a.localeCompare(b));
+    const html = `<div class="pace-row me"><span class="p">–</span>`
+      + `<span class="n">${escapeHtmlS(myNameNow)}</span><span class="v">—</span></div>`
+      + others.map(nm => `<div class="pace-row out"><span class="p">–</span>`
+          + `<span class="n">${escapeHtmlS(nm)}</span><span class="v">—</span></div>`).join("");
     for (const [list, rank] of [["#paceNegList", "#paceNegRank"], ["#paceTimeList", "#paceTimeRank"]]) {
-      $(list).innerHTML = `<div class="pace-row out"><span class="n">après le 1<sup>er</sup> coup</span></div>`;
-      $(rank).textContent = "—";
+      $(list).innerHTML = html;
+      $(rank).textContent = `— / ${pace.players.length + 1}`;
     }
     return;
   }
@@ -964,7 +976,7 @@ function renderPace() {
       if (!r.out) pos++;
       return `<div class="pace-row${r.me ? " me" : ""}${r.out ? " out" : ""}">`
         + `<span class="p">${r.out ? "–" : pos}</span>`
-        + `<span class="n">${escapeHtml(r.name)}</span>`
+        + `<span class="n">${escapeHtmlS(r.name)}</span>`
         + `<span class="v">${fmt(r.val)}</span></div>`;
     }).join("");
     return { html, label: `${myPos}${myPos === 1 ? "er" : "e"} / ${ranked.length}` };
