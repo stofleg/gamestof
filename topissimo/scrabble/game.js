@@ -864,6 +864,13 @@ function paceActive() {
 }
 
 // Cumuls coup par coup à partir d'une feuille de route.
+// Libellé de la ligne du joueur en cours. En session de test, « (admin) » la
+// distingue de la ligne du vrai résultat de stof, présente en même temps.
+function paceMyLabel() {
+  const pseudo = localStorage.getItem("currentPseudo") || "Toi";
+  return isSuperAdminSession() ? `${pseudo} (admin)` : pseudo;
+}
+
 function paceCumul(details) {
   const cn = [], ct = [];
   let n = 0, t = 0;
@@ -882,6 +889,10 @@ async function loadPaceData() {
   try {
     if (!window._sb) await loadSupabaseClient();
     const me = +(localStorage.getItem("currentPlayerId") || 0);
+    // En session de test (stof + bouton admin), on NE s'exclut PAS : le vrai
+    // résultat de stof reste dans le classement, et la partie en cours s'affiche à
+    // part sous « stof (admin) ». On voit ainsi les deux côte à côte.
+    const testing = isSuperAdminSession();
     const { data, error } = await window._sb
       .from("prepared_game_results")
       .select("player_id, details, summary, players(name)")
@@ -898,7 +909,7 @@ async function loadPaceData() {
       //     sans toucher à `summary`. Se fier à `paused` exclurait alors à tort une
       //     partie bel et bien finie.
       // Une ligne créée par la seule mise en pause n'a, elle, aucun `summary`.
-      .filter(r => r.player_id !== me && (r.summary?.mv?.length || 0) > 0 && !r.summary.ab)
+      .filter(r => (testing || r.player_id !== me) && (r.summary?.mv?.length || 0) > 0 && !r.summary.ab)
       .map(r => ({ name: r.players?.name || "?", ...paceCumul(r.details) }))
       .filter(p => p.cn.length);
     pace.state = "ready";
@@ -938,7 +949,7 @@ function renderPace() {
   // Avant le 1er coup il n'y a rien à cumuler : on montre déjà l'effectif en lice
   // (moi en tête, les autres par ordre alphabétique, valeurs en attente).
   if (!n) {
-    const myNameNow = localStorage.getItem("currentPseudo") || "Toi";
+    const myNameNow = paceMyLabel();
     const others = pace.players.map(p => p.name).sort((a, b) => a.localeCompare(b));
     const html = `<div class="pace-row me"><span class="p">–</span>`
       + `<span class="n">${escapeHtmlS(myNameNow)}</span><span class="v">—</span></div>`
@@ -955,7 +966,7 @@ function renderPace() {
   // temps de coup), pour que la comparaison soit homogène.
   const mine = paceCumul(state.history);
   const myNeg = mine.cn[n - 1], myTime = mine.ct[n - 1];
-  const myName = localStorage.getItem("currentPseudo") || "Toi";
+  const myName = paceMyLabel();
 
   // `dir` = sens du « meilleur ». Le négatif est stocké <= 0 (playerScore - top) :
   // -3 vaut donc MIEUX que -12, il se trie en DÉCROISSANT. Le temps, lui, se trie
@@ -5331,6 +5342,10 @@ async function loadPreparedGame(id) {
   renderGameTitle();
   updateTournamentNavButtons();
   loadTournamentSiblings();   // détermine l'id de la partie suivante (async, non bloquant)
+  // Classements intermédiaires : afficher les deux fenêtres et lancer le
+  // chargement DÈS l'entrée dans la partie. renderInfo() n'est pas appelée ici,
+  // sans quoi les fenêtres restaient vides jusqu'à la validation du 1er coup.
+  try { renderPace(); } catch (e) { console.error("[pace] rendu KO:", e); }
 }
 
 async function loadSupabaseClient() {
