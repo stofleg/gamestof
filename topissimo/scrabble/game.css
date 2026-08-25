@@ -1759,34 +1759,8 @@ body:not(.ffsc-review) .review-pick { display: none !important; }
   padding: 10px;
 }
 
-/* Plage tablette : pas la place pour trois colonnes, et l'écran est trop large pour
-   la version compacte mobile → on masque. */
-@media (min-width: 701px) and (max-width: 1180px) {
+/* Écrans peu larges : pas la place pour trois colonnes. Une version compacte à deux
+   lignes a été tentée sur mobile puis retirée — illisible sur un écran d'iPhone. */
+@media (max-width: 1180px) {
   .pace-col { display: none; }
-}
-
-/* ===== MOBILE (<= 700px) : version COMPACTE =====
-   Deux colonnes côte à côte (négatif | chrono), insérées juste au-dessus de la zone
-   d'annonces du meilleur coup (l'ordre est posé par applyMobileLayout() dans
-   game.js). Chaque colonne ne montre que DEUX lignes : le joueur et son voisin
-   immédiat au classement — celui juste devant, ou juste derrière s'il est en tête. */
-@media (max-width: 700px) {
-  .pace-col {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 6px;
-    width: auto;
-    height: auto;
-    /* le layout mobile centre ses enfants → sans stretch, le bloc se réduit à son
-       contenu et n'occupe pas la largeur de l'écran */
-    align-self: stretch;
-    margin: 0 4px 4px;
-  }
-  .pace-box { padding: 4px 6px 5px; border-radius: 8px; flex: 0 0 auto; }
-  .pace-head { margin-bottom: 2px; padding-bottom: 2px; gap: 4px; }
-  .pace-title { font-size: .58rem; font-weight: 600; }
-  .pace-rank { font-size: .66rem; }
-  .pace-list { font-size: .66rem; line-height: 1.35; overflow: visible; }
-  .pace-row { grid-template-columns: 1.3em 1fr auto; gap: 3px; padding: 0 2px; }
-  .pace-empty { grid-column: 1 / -1; font-size: .64rem; padding: 5px 7px; }
 }

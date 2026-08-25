@@ -855,26 +855,10 @@ function renderInfo() {
 //  fonctionne aussi pour les parties déjà jouées.
 //  Une seule requête par partie, mise en cache en mémoire.
 // ============================================================
-const pace = { state: "idle", players: [], gameId: null, noRoom: false };   // idle | loading | ready | error
+const pace = { state: "idle", players: [], gameId: null };   // idle | loading | ready | error
 
 // Visible dès l'ouverture d'une partie de tournoi : on n'attend NI le démarrage du
 // chrono, NI le 1er coup — les deux fenêtres doivent être en place d'emblée.
-const paceIsMobile = () => !!(window.matchMedia && window.matchMedia("(max-width: 700px)").matches);
-// MOBILE : la pile verticale est RIGIDE — zone d'annonces figée à 42px, plateau à
-// 100vw — donc rien ne peut céder de la place. Sur un écran de 667px de haut il ne
-// reste que ~18px de marge, et le bloc en réclame ~59 : le chevalet passerait sous
-// le bord de l'écran, où il serait rogné sans possibilité de défiler (html/body sont
-// en overflow:hidden). On mesure donc, plutôt que de deviner un seuil : si le
-// chevalet dépasse, on retire le bloc. Mieux vaut perdre l'indicateur qu'un chevalet
-// inatteignable. Le constat est mémorisé (sinon on oscillerait à chaque rendu) et
-// remis à zéro au redimensionnement / changement d'orientation.
-function paceFitsMobile() {
-  const rack = document.querySelector(".rack-row");
-  if (!rack) return true;
-  return rack.getBoundingClientRect().bottom <= window.innerHeight + 1;
-}
-window.addEventListener("resize", () => { pace.noRoom = false; });
-
 function paceActive() {
   return !!(state.prepared && !state.isPuzzle && !editorActive() && !review.active);
 }
@@ -939,10 +923,7 @@ async function loadPaceData() {
 function renderPace() {
   const col = $("#paceCol");
   if (!col) return;
-  const show = v => {
-    const on = v && !(paceIsMobile() && pace.noRoom);
-    col.hidden = !on; document.body.classList.toggle("with-pace", on);
-  };
+  const show = v => { col.hidden = !v; document.body.classList.toggle("with-pace", v); };
   if (!paceActive()) { show(false); return; }
   // Enchaînement de parties dans la même page (partie suivante, marathon) :
   // le cache d'une autre partie doit être jeté.
@@ -969,9 +950,7 @@ function renderPace() {
   // (moi en tête, les autres par ordre alphabétique, valeurs en attente).
   if (!n) {
     const myNameNow = paceMyLabel();
-    const others = paceIsMobile()
-      ? []                                        // mobile : place comptée, moi seul
-      : pace.players.map(p => p.name).sort((a, b) => a.localeCompare(b));
+    const others = pace.players.map(p => p.name).sort((a, b) => a.localeCompare(b));
     const html = `<div class="pace-row me"><span class="p">–</span>`
       + `<span class="n">${escapeHtmlS(myNameNow)}</span><span class="v">—</span></div>`
       + others.map(nm => `<div class="pace-row out"><span class="p">–</span>`
@@ -1005,17 +984,7 @@ function renderPace() {
     for (const r of rows) if (!r.out) r.pos = ++pos;   // rang réel, conservé quoi qu'on affiche
     const ranked = rows.filter(r => !r.out);
     const myPos = ranked.findIndex(r => r.me) + 1;
-    // MOBILE : place comptée. On ne montre que le joueur et son voisin IMMÉDIAT —
-    // celui juste devant, ou juste derrière si le joueur est en tête. Le voisin de
-    // devant s'affiche au-dessus, pour que l'écart se lise dans le bon sens.
-    let shown = rows;
-    if (paceIsMobile()) {
-      const i = myPos - 1;
-      const voisin = i > 0 ? ranked[i - 1] : ranked[i + 1];
-      shown = [ranked[i], voisin].filter(Boolean);
-      if (i > 0) shown.reverse();
-    }
-    const html = shown.map(r =>
+    const html = rows.map(r =>
       `<div class="pace-row${r.me ? " me" : ""}${r.out ? " out" : ""}">`
       + `<span class="p">${r.out ? "–" : r.pos}</span>`
       + `<span class="n">${escapeHtmlS(r.name)}</span>`
@@ -1034,8 +1003,6 @@ function renderPace() {
   for (const id of ["#paceNegList", "#paceTimeList"]) {
     $(id).querySelector(".pace-row.me")?.scrollIntoView({ block: "nearest" });
   }
-  // Mobile : vérifier APRÈS coup que le chevalet tient toujours à l'écran.
-  if (paceIsMobile() && !paceFitsMobile()) { pace.noRoom = true; show(false); }
 }
 
 // Met à jour le libellé (.label) au-dessus d'une valeur de l'info-bar.
@@ -4076,14 +4043,11 @@ function applyMobileLayout() {
   const bag           = rightCol.querySelector(".bag-display");
   const board         = gameWrap.querySelector(".board");
   const rackRow       = gameWrap.querySelector(".rack-row");
-  const paceCol       = layout.querySelector("#paceCol");
-  // Ordre mobile : la version compacte des classements intermédiaires se place juste
-  // AU-DESSUS de la zone d'annonces du meilleur coup.
-  const els = [titleRow, infoBar, timerChip, preStartRow, paceCol, feedback, board, inGameRow, rackRow, review, bag].filter(Boolean);
+  const els = [titleRow, infoBar, timerChip, preStartRow, feedback, board, inGameRow, rackRow, review, bag].filter(Boolean);
   // Mémoriser l'ordre d'origine des parents concernés (pour restauration desktop)
   const parents = [...new Set(els.map(e => e.parentNode))];
   _origParents = parents.map(p => ({ parent: p, children: [...p.children] }));
-  // Ordre mobile : title → info → timer → preStart → pace → feedback → board → pictos+⌫+✓ → rack
+  // Ordre mobile : title → info → timer → preStart → feedback → board → pictos+⌫+✓ → rack
   els.forEach(el => layout.appendChild(el));
   document.body.dataset.mobileLayout = "1";
 }
