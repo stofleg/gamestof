@@ -880,12 +880,21 @@ async function loadPaceData() {
     const me = +(localStorage.getItem("currentPlayerId") || 0);
     const { data, error } = await window._sb
       .from("prepared_game_results")
-      .select("player_id, details, summary, paused, players(name)")
+      .select("player_id, details, summary, players(name)")
       .eq("prepared_game_id", state.prepared.id);
     if (error) throw error;
     pace.players = (data || [])
-      // Parties RÉELLEMENT terminées : un résumé présent, pas en pause, non abandonnée.
-      .filter(r => r.player_id !== me && r.summary && !r.paused && !r.summary.ab)
+      // Parties RÉELLEMENT terminées. On se fie à `summary.mv` (des coups joués et
+      // enregistrés), convention déjà utilisée par les classements et les stats —
+      // et NON à `paused`, pour deux raisons :
+      //   • une partie mise en pause puis TERMINÉE doit compter (la sauvegarde de
+      //     fin remet bien `paused` à null, mais...) ;
+      //   • ...la sauvegarde de pause part en fire-and-forget : une écriture encore
+      //     en vol à la fin de la partie peut repositionner `paused` après coup,
+      //     sans toucher à `summary`. Se fier à `paused` exclurait alors à tort une
+      //     partie bel et bien finie.
+      // Une ligne créée par la seule mise en pause n'a, elle, aucun `summary`.
+      .filter(r => r.player_id !== me && (r.summary?.mv?.length || 0) > 0 && !r.summary.ab)
       .map(r => ({ name: r.players?.name || "?", ...paceCumul(r.details) }))
       .filter(p => p.cn.length);
     pace.state = "ready";
