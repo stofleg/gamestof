@@ -233,6 +233,8 @@ function loadSettings() {
     colorTheme: "classic",
     chronoType: "challenge",
     highlightTop: true,
+    // Suivi en direct des classements intermédiaires (colonne de gauche, tournoi).
+    showPace: true,
     // Axe « Mode de jeu » (entraînement) : orthogonal à la formule (gameMode).
     //   topping   : on enchaîne dès que le top est trouvé (comportement historique) ;
     //   duplicate : on attend la fin du chrono, puis le top est sélectionné ;
@@ -276,6 +278,7 @@ async function saveSettingsToSupabase() {
     colorTheme: state.settings.colorTheme,
     chronoType: state.settings.chronoType,
     highlightTop: state.settings.highlightTop,
+    showPace:   state.settings.showPace,
   };
   await window._sb.from("players").update({ settings: persisted }).eq("id", pid);
 }
@@ -860,7 +863,10 @@ const pace = { state: "idle", players: [], gameId: null };   // idle | loading |
 // Visible dès l'ouverture d'une partie de tournoi : on n'attend NI le démarrage du
 // chrono, NI le 1er coup — les deux fenêtres doivent être en place d'emblée.
 function paceActive() {
-  return !!(state.prepared && !state.isPuzzle && !editorActive() && !review.active);
+  // `showPace !== false` : les comptes existants, dont les réglages enregistrés
+  // n'ont pas encore la clé, gardent le suivi activé.
+  return !!(state.prepared && state.settings.showPace !== false
+    && !state.isPuzzle && !editorActive() && !review.active);
 }
 
 // Cumuls coup par coup à partir d'une feuille de route.
@@ -3872,6 +3878,7 @@ window.openSettings = () => {
   $("#optRackPos").value = state.settings.rackPos;
   $("#optSortRack").checked = state.settings.sortRack;
   $("#optShowCoords").checked = state.settings.showCoords;
+  $("#optShowPace").checked = state.settings.showPace !== false;
   $("#optColorTheme").value = state.settings.colorTheme || "classic";
   $("#optChronoType").value = state.settings.chronoType || "challenge";
   $("#optHighlightTop").checked = state.settings.highlightTop !== false;
@@ -3986,6 +3993,7 @@ window.closeSettings = () => {
   state.settings.colorTheme = $("#optColorTheme").value || "classic";
   state.settings.chronoType = $("#optChronoType").value || "challenge";
   state.settings.highlightTop = $("#optHighlightTop").checked;
+  state.settings.showPace = $("#optShowPace").checked;
   state.settings.timePerMove = +$("#optTimePerMove").value || 0;
   saveSettings();
   saveSettingsToSupabase().catch(() => {});   // sync compte (silencieux si pas connecté ou pas de colonne)
@@ -3995,6 +4003,7 @@ window.closeSettings = () => {
   renderBoard();
   renderMoveTimer();
   renderGameTitle();
+  try { renderPace(); } catch (e) { console.error("[pace] rendu KO:", e); }
   $("#settings").hidden = true;
   // Si on a changé le mode (partie OU jeu) ou le joker, proposer de relancer
   if (oldMode !== state.settings.gameMode || oldJoker !== state.settings.withJoker ||
