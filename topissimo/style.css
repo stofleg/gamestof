@@ -641,6 +641,21 @@ tbody tr.me:hover { background: rgba(255,221,0,.22); }
   overflow-y: auto;
 }
 
+/* Une seule formule dans le tournoi : la carte occupe toute la largeur et la
+   liste reprend la grille du bandeau, sans ascenseur — les parties tiennent en
+   quelques lignes au lieu d'être coincées dans une colonne de 280 px. */
+.pg-groups.single { grid-template-columns: 1fr; }
+.pg-groups.single > .pg-group > .pg-mini-list {
+  display: grid !important;
+  /* !important nécessaire : la règle générale des cartes de groupe impose
+     grid-template-columns: none !important pour forcer la colonne unique.
+     auto-fit s'adapte seul à la largeur, du téléphone à l'écran large, sans
+     paliers fixes qui déborderaient sur les petits écrans. */
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)) !important;
+  max-height: none;
+  overflow: visible;
+}
+
 .pg-mini .pg-name { font-weight: 600; font-size: .88rem; color: var(--petrol-dark); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pg-mini .pg-meta { font-size: .7rem; color: var(--ink-soft); margin: 2px 0 6px; }
 .pg-mini .pg-actions { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
