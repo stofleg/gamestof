@@ -11,10 +11,12 @@
 //    2. les anagrammes du même tirage          (5,0 mots → 3,4 jeux de lettres) ;
 //    3. la même famille lexicale               (MANGERA / MANGERAS).
 //  On écarte 1 et 3. Les anagrammes posées à des endroits DIFFÉRENTS sont
-//  conservées — TOURNANT et AUNERONT sont deux trouvailles distinctes — mais
-//  celles qui remplissent les MÊMES CASES ne comptent qu'une fois : TEILLES,
-//  TIELLES et TILLEES au même emplacement sont trois orthographes d'un seul
-//  coup, pas trois trouvailles. Les autres sont données en variantes.
+//  conservées — TOURNANT et AUNERONT sont deux trouvailles distinctes. En
+//  revanche, dès que DEUX scrabbles remplissent les MÊMES CASES (TEILLES,
+//  TIELLES et TILLEES au même emplacement), la position entière est REJETÉE :
+//  on veut que chaque solution soit à un endroit qui lui est propre.
+//  Une position est également rejetée si plus de la moitié des solutions
+//  finissent par un S.
 import { generateGame } from "./generator.js";
 import { findTop } from "./topfinder.js";
 import { emptyBoard, applyMove } from "./engine.js";
@@ -22,6 +24,7 @@ import { emptyBoard, applyMove } from "./engine.js";
 const MIN_SCRABBLES = 3;
 const MAX_SCRABBLES = 10;
 const MIN_ANCRES    = 35;   // « grille assez ouverte » : cases vides au contact
+const MAX_PART_S    = 0.5;  // part maximale de solutions finissant par un S
 
 // --- proximité lexicale -----------------------------------------------------
 const lcp = (a, b) => { let i = 0; while (i < a.length && i < b.length && a[i] === b[i]) i++; return i; };
@@ -32,8 +35,12 @@ const lcp = (a, b) => { let i = 0; while (i < a.length && i < b.length && a[i] =
 // FOUT-ONS et FOUT-IONS ne partagent que quatre lettres.
 const FINS_VERBE = ["ERAIENT","IRAIENT","ASSIONS","ISSIONS","ASSENT","ISSENT","ERIONS","IRIONS",
   "ISSAIT","ISSAIS","AIENT","ERONT","IRONT","ERIEZ","IRIEZ","ERAIS","ERAIT","IRAIS","IRAIT",
-  "ERENT","IRENT","ASSES","ASSE","ERAS","ERAI","EREZ","IRAS","IRAI","IREZ","IONS","AMES",
-  "ATES","IMES","ITES","ERA","IRA","ANT","AIS","AIT","ONS","ENT","EZ","ES","E"];
+  "ERENT","IRENT","ASSES","ASSE","ISSES","ISSE","USSES","USSE","ERAS","ERAI","EREZ","IRAS",
+  "IRAI","IREZ","IONS","AMES","ATES","IMES","ITES","ERA","IRA","ANT","AIS","AIT","ONS",
+  "ENT","EZ","ES","E"];
+// -ISSE et -USSE couvrent le subjonctif imparfait (RENDISSE, DETINSSE, FUSSE).
+// Quelques noms y tombent par erreur — SAUCISSE, COULISSE — mais le plafond ne
+// fait que limiter leur nombre, il n'écarte jamais un mot à lui seul.
 
 // Terminaisons sans ambiguïté : celles-ci désignent à coup sûr une forme
 // conjuguée. On en exclut E, ES, ENT et EZ, qui sont surtout des pluriels de
@@ -77,8 +84,7 @@ export function proches(a, b) {
 }
 
 /**
- * Sous-ensemble deux à deux éloignés, les mieux cotés d'abord. Les mots écartés
- * parce qu'ils occupent les mêmes cases sont rattachés en `variantes`.
+ * Sous-ensemble deux à deux éloignés, les mieux cotés d'abord.
  */
 /**
  * Sous-ensemble deux à deux éloignés, les mieux cotés d'abord. Les mots écartés
@@ -93,20 +99,42 @@ export function proches(a, b) {
  */
 export function eloignes(liste, opts = {}) {
   const maxConjugues = opts.maxConjugues ?? 2;
+  const maxRime      = opts.maxRime      ?? 2;   // mots partageant 5 lettres finales
   const out = [];
   let nConj = 0;
+  const rimes = new Map();
   for (const s of liste) {
-    const jumeau = out.find(o => proches(o, s));
-    if (jumeau) {
-      if (place(jumeau) === place(s)) jumeau.variantes.push(s.word);
-      continue;
-    }
+    if (out.some(o => proches(o, s))) continue;
+    // Rimes longues : RENDISSE, TENDISSE et FENDISSE partagent ENDISSE. Ce sont
+    // des verbes différents, donc la règle par racine les laisse passer, mais
+    // trois quasi-homophones dans un même lot font une grille sans intérêt.
+    // (Plafonner sur 3 lettres finales, essayé d'abord, ne servait à rien.)
+    const rime = s.word.length >= 6 ? s.word.slice(-5) : null;
+    if (rime && (rimes.get(rime) || 0) >= maxRime) continue;
     const c = conjugue(s.word);
     if (c && nConj >= maxConjugues) continue;
     if (c) nConj++;
-    out.push({ ...s, variantes: [] });
+    if (rime) rimes.set(rime, (rimes.get(rime) || 0) + 1);
+    out.push({ ...s });
   }
   return out;
+}
+
+/** Vrai si deux scrabbles remplissent les mêmes cases. */
+export function placesEnDoublon(liste) {
+  const vues = new Set();
+  for (const s of liste) {
+    const k = place(s);
+    if (vues.has(k)) return true;
+    vues.add(k);
+  }
+  return false;
+}
+
+/** Vrai si plus de la moitié des solutions finissent par un S. */
+export function tropDeS(liste, max = MAX_PART_S) {
+  if (!liste.length) return false;
+  return liste.filter(s => s.word.endsWith("S")).length / liste.length > max;
 }
 
 // --- analyse d'une position -------------------------------------------------
@@ -153,7 +181,7 @@ export function scrabblesDe(board, rack, dict) {
  * hors premier coup et sans joker au chevalet.
  * Compte environ 3 à 6 secondes et une vingtaine de parties générées.
  * @param {Dictionary} dict
- * @param {object} opts  { minScrabbles, maxScrabbles, minAncres, maxParties, signal }
+ * @param {object} opts  { minScrabbles, maxScrabbles, minAncres, maxParties, onProgress }
  * @returns {{board, rack, scrabbles, coup, ancres, parties}|null}
  */
 export function chercheGrille(dict, opts = {}) {
@@ -163,7 +191,7 @@ export function chercheGrille(dict, opts = {}) {
   const maxP   = opts.maxParties   ?? 400;
 
   for (let p = 0; p < maxP; p++) {
-    if (opts.signal?.aborted) return null;
+    if (opts.onProgress) opts.onProgress(p + 1);
     const partie = generateGame(dict, { mode: "duplicate" });
     let board = emptyBoard();
     for (let k = 0; k < partie.moves.length; k++) {
@@ -174,9 +202,10 @@ export function chercheGrille(dict, opts = {}) {
         const a = ancres(board);
         if (a >= minAnc) {
           const tous = scrabblesDe(board, rack, dict);
-          if (tous.length >= min) {
+          // deux scrabbles aux mêmes cases : on jette la position, sans chercher plus loin
+          if (tous.length >= min && !placesEnDoublon(tous)) {
             const gardes = eloignes(tous);
-            if (gardes.length >= min && gardes.length <= max) {
+            if (gardes.length >= min && gardes.length <= max && !tropDeS(gardes)) {
               return { board, rack, scrabbles: gardes, coup: k + 1, ancres: a, parties: p + 1 };
             }
           }
