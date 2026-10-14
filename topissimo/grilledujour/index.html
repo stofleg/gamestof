@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Grille du jour · Topissimo</title>
+<link rel="icon" href="../icon.svg">
+<link rel="stylesheet" href="../style.css?v=369">
+<style>
+  .gdj-wrap { max-width: 980px; margin: 0 auto; padding: 16px; }
+  .gdj-top { display: flex; flex-wrap: wrap; align-items: baseline; gap: 12px; margin-bottom: 4px; }
+  .gdj-top h1 { margin: 0; font-size: 1.5rem; }
+  .gdj-sub { color: var(--ink-soft); font-size: .9rem; }
+  .gdj-cols { display: grid; grid-template-columns: auto 1fr; gap: 18px; align-items: start; }
+  @media (max-width: 760px) { .gdj-cols { grid-template-columns: 1fr; } }
+
+  .gdj-board { display: grid; grid-template-columns: repeat(15, var(--sz, 30px)); gap: 1px;
+               background: #cfd9dc; border: 2px solid var(--petrol-dark); border-radius: 6px;
+               padding: 1px; width: max-content; }
+  .gdj-board i { display: flex; align-items: center; justify-content: center;
+                 width: var(--sz, 30px); height: var(--sz, 30px); background: #fdfbf5;
+                 font-style: normal; font-size: .62rem; color: #8aa5af; letter-spacing: 0; }
+  .gdj-board i.T { background: #e8604c; color: #fff; }
+  .gdj-board i.D { background: #f3a08f; color: #6b2114; }
+  .gdj-board i.t { background: #4a8fb5; color: #fff; }
+  .gdj-board i.d { background: #a9d2e6; color: #19435c; }
+  .gdj-board i.c { background: #ffcf33; color: var(--petrol-dark); }
+  .gdj-board i.L { background: var(--cream); color: var(--petrol-dark);
+                   font-size: .92rem; font-weight: 700; font-family: 'Lora', serif; }
+  .gdj-board i.L.jk { color: #b06; }
+  .gdj-board i.hit { outline: 2px solid #1f6b47; outline-offset: -2px; background: #cde9d9; }
+  @media (max-width: 760px) { .gdj-board { --sz: min(6.2vw, 30px); } }
+
+  .gdj-rack { display: flex; gap: 5px; margin: 12px 0 4px; }
+  .gdj-rack b { display: flex; align-items: center; justify-content: center;
+                width: 34px; height: 38px; background: var(--cream); border-radius: 6px;
+                border-bottom: 3px solid var(--yellow); font-family: 'Lora', serif;
+                font-size: 1.15rem; color: var(--petrol-dark); }
+  .gdj-find { display: flex; gap: 8px; margin: 12px 0; }
+  .gdj-find input { flex: 1 1 auto; text-transform: uppercase; font-size: 1rem; }
+  .gdj-msg { min-height: 1.3em; font-size: .9rem; margin-bottom: 8px; }
+  .gdj-msg.ok { color: #1f6b47; font-weight: 600; }
+  .gdj-msg.ko { color: #a3402e; }
+  .gdj-list { list-style: none; margin: 0; padding: 0; }
+  .gdj-list li { display: flex; align-items: baseline; gap: 8px; padding: 6px 8px;
+                 border-bottom: 1px solid var(--line); font-size: .92rem; }
+  .gdj-list li.found { background: #eef6f1; }
+  .gdj-list .w { font-weight: 700; font-family: 'Lora', serif; min-width: 7em; cursor: pointer; }
+  .gdj-list .w.masked { color: transparent; background: #e6ecee; border-radius: 4px; cursor: default; }
+  .gdj-list .pos { color: var(--ink-soft); font-size: .82rem; }
+  .gdj-list .sc { margin-left: auto; font-variant-numeric: tabular-nums; font-weight: 600; }
+  .gdj-list .var { color: var(--ink-soft); font-size: .78rem; }
+</style>
+</head>
+<body>
+<div class="gdj-wrap">
+  <div class="gdj-top">
+    <h1>🔎 Grille du jour</h1>
+    <span class="gdj-sub" id="gdjSub">chargement du dictionnaire…</span>
+  </div>
+  <p class="gdj-sub" style="margin:0 0 14px">
+    Trouve tous les scrabbles possibles — les coups qui posent les sept lettres et
+    rapportent la prime de 50.
+  </p>
+
+  <div class="card">
+    <div class="gdj-cols">
+      <div>
+        <div class="gdj-board" id="gdjBoard"></div>
+        <div class="gdj-rack" id="gdjRack"></div>
+      </div>
+      <div>
+        <div class="gdj-find">
+          <input id="gdjInput" placeholder="un scrabble…" autocomplete="off" disabled>
+          <button class="primary" id="gdjGo" disabled>Proposer</button>
+        </div>
+        <div class="gdj-msg" id="gdjMsg"></div>
+        <ul class="gdj-list" id="gdjList"></ul>
+        <div style="display:flex;gap:8px;margin-top:14px">
+          <button class="btn ghost small" id="gdjReveal" disabled>Tout révéler</button>
+          <button class="btn ghost small" id="gdjNew" disabled>Nouvelle grille</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script type="module" src="./grilledujour.js?v=369"></script>
+</body>
+</html>
