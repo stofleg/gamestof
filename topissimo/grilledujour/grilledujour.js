@@ -8,7 +8,7 @@
 //  Le dictionnaire (4 Mo) n'est chargé qu'en arrière-plan, dans un worker, et
 //  seulement pour pouvoir dire « ce mot existe mais ne passe pas ici ». La page
 //  est utilisable sans l'attendre.
-import { BOARD_BONUSES } from "../scrabble/engine.js?v=372";
+import { BOARD_BONUSES, letterValue } from "../scrabble/engine.js?v=373";
 
 const $ = id => document.getElementById(id);
 const LIGNES = "ABCDEFGHIJKLMNO";
@@ -47,36 +47,46 @@ function charge(i) {
     coup: g.coup,
     scrabbles: g.scrabbles.map(s => ({ word: s.m, row: s.l, col: s.c, dir: s.d, score: s.p })),
   };
-  trouves = new Set();
+  trouves = new Set(); posees = null;
   dessineGrille(); dessineListe(); message("");
   for (const b of ["gdjGo", "gdjReveal", "gdjNew"]) $(b).disabled = false;
   $("gdjInput").disabled = false; $("gdjInput").focus();
 }
 
+const CLASSE = { ".": "normal", d: "dl", t: "tl", D: "dw", T: "tw", "*": "center" };
+const tuile = (l, blanc, cls = "") =>
+  `<div class="tile${blanc ? " blank" : ""}${cls ? " " + cls : ""}">${l}`
+  + `<span class="val">${blanc ? "" : letterValue(l)}</span></div>`;
+
+/** Mot trouvé posé en vert sur le plateau, comme un coup en cours dans Topissimo. */
+let posees = null;
+
 function dessineGrille() {
-  const cases = [];
-  for (let r = 0; r < 15; r++) for (let c = 0; c < 15; c++) {
-    const t = grille.board[r][c];
-    if (t) {
-      cases.push(`<i class="L${t.isBlank ? " jk" : ""}" data-rc="${r},${c}">${t.letter}</i>`);
-    } else {
-      const b = BOARD_BONUSES[r][c];
-      const cls = b === "*" ? "c" : (b === "." ? "" : b);
-      const txt = { T: "MT", D: "MD", t: "LT", d: "LD", "*": "★" }[b] || "";
-      cases.push(`<i class="${cls}" data-rc="${r},${c}">${txt}</i>`);
+  let h = "<table>";
+  for (let r = 0; r < 15; r++) {
+    h += "<tr>";
+    for (let c = 0; c < 15; c++) {
+      const t = grille.board[r][c];
+      const p = posees && posees.get(r * 15 + c);
+      const cls = [CLASSE[BOARD_BONUSES[r][c]] || "normal"];
+      if (t || p) cls.push("has-tile");
+      h += `<td class="${cls.join(" ")}">`
+        + (t ? tuile(t.letter, t.isBlank) : p ? tuile(p, false, "pending") : "") + "</td>";
     }
+    h += "</tr>";
   }
-  $("gdjBoard").innerHTML = cases.join("");
-  $("gdjRack").innerHTML = grille.rack.map(l => `<b>${l}</b>`).join("");
+  $("gdjBoard").innerHTML = h + "</table>";
+  $("gdjRack").innerHTML = grille.rack.map(l => tuile(l, false)).join("");
 }
 
 function souligne(s) {
-  document.querySelectorAll(".gdj-board i.hit").forEach(e => e.classList.remove("hit"));
+  posees = new Map();
   const dr = s.dir === "V" ? 1 : 0, dc = s.dir === "H" ? 1 : 0;
   for (let i = 0; i < s.word.length; i++) {
-    const e = document.querySelector(`.gdj-board i[data-rc="${s.row + i*dr},${s.col + i*dc}"]`);
-    if (e) e.classList.add("hit");
+    const r = s.row + i*dr, c = s.col + i*dc;
+    if (!grille.board[r][c]) posees.set(r * 15 + c, s.word[i]);
   }
+  dessineGrille();
 }
 
 function dessineListe() {

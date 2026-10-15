@@ -15,28 +15,43 @@
   .gdj-cols { display: grid; grid-template-columns: auto 1fr; gap: 18px; align-items: start; }
   @media (max-width: 760px) { .gdj-cols { grid-template-columns: 1fr; } }
 
-  .gdj-board { display: grid; grid-template-columns: repeat(15, var(--sz, 30px)); gap: 1px;
-               background: #cfd9dc; border: 2px solid var(--petrol-dark); border-radius: 6px;
-               padding: 1px; width: max-content; }
-  .gdj-board i { display: flex; align-items: center; justify-content: center;
-                 width: var(--sz, 30px); height: var(--sz, 30px); background: #fdfbf5;
-                 font-style: normal; font-size: .62rem; color: #8aa5af; letter-spacing: 0; }
-  .gdj-board i.T { background: #e8604c; color: #fff; }
-  .gdj-board i.D { background: #f3a08f; color: #6b2114; }
-  .gdj-board i.t { background: #4a8fb5; color: #fff; }
-  .gdj-board i.d { background: #a9d2e6; color: #19435c; }
-  .gdj-board i.c { background: #ffcf33; color: var(--petrol-dark); }
-  .gdj-board i.L { background: var(--cream); color: var(--petrol-dark);
-                   font-size: .92rem; font-weight: 700; font-family: 'Lora', serif; }
-  .gdj-board i.L.jk { color: #b06; }
-  .gdj-board i.hit { outline: 2px solid #1f6b47; outline-offset: -2px; background: #cde9d9; }
-  @media (max-width: 760px) { .gdj-board { --sz: min(6.2vw, 30px); } }
-
+  /* Plateau : reprend le rendu de Topissimo (game.css, thème par défaut). */
+  .gdj-wrap { --cell: clamp(18px, calc((100vw - 56px) / 15.5), 34px);
+    --petrol:#002E44; --tile-bg:#f5d97a; --tile-bg-2:#e8c548; --tile-text:#1f2a2e;
+    --tile-pending:#b3e5b3; --tile-pending-2:#8cd08c;
+    --bonus-dl:#a4d8e1; --bonus-tl:#3a8db5; --bonus-dw:#f0a8a8; --bonus-tw:#cc4040;
+    --normal:#ede4ce; --yellow:#FFDD00; }
+  /* deux colonnes : le plateau partage la largeur avec la liste (≈ 320 px) */
+  @media (min-width: 761px) { .gdj-wrap { --cell: clamp(22px, calc((min(100vw, 980px) - 420px) / 15.5), 36px); } }
+  .gdj-board { background: var(--petrol); padding: 6px; border-radius: 12px;
+    box-shadow: 0 10px 30px rgba(0,46,68,.25); display: inline-block; }
+  .gdj-board table { border-collapse: collapse; table-layout: fixed;
+    width: calc(15 * var(--cell) + 16px); }
+  .gdj-board td { width: var(--cell); min-width: var(--cell); max-width: var(--cell);
+    height: var(--cell); padding: 0; text-align: center; overflow: hidden;
+    border: 1px solid var(--petrol); position: relative; }
+  .gdj-board td.normal { background: var(--normal); }
+  .gdj-board td.dl { background: var(--bonus-dl); }
+  .gdj-board td.tl { background: var(--bonus-tl); }
+  .gdj-board td.dw { background: var(--bonus-dw); }
+  .gdj-board td.tw { background: var(--bonus-tw); }
+  .gdj-board td.center { background: var(--yellow); }
+  .gdj-board td.center:not(.has-tile)::before { content: "★"; font-size: calc(var(--cell) * .5); color: var(--petrol); }
+  .tile { display: inline-flex; align-items: center; justify-content: center;
+    background: linear-gradient(135deg, #fce8a8 0%, var(--tile-bg) 50%, var(--tile-bg-2) 100%);
+    color: var(--tile-text); border-radius: 4px; font-family: Georgia, serif; font-weight: 700;
+    position: relative; user-select: none; border: 1px solid rgba(138,106,31,.4);
+    box-shadow: 0 2px 4px rgba(0,0,0,.2), inset 0 1px 0 rgba(255,255,255,.5), inset 0 -2px 2px rgba(0,0,0,.08); }
+  .tile .val { position: absolute; bottom: 1px; right: 3px; font-size: .294em;
+    font-family: 'Inter', system-ui, sans-serif; font-weight: 300; opacity: .75; }
+  .tile.blank { color: #c8202a; }
+  .tile.blank .val { display: none; }
+  .gdj-board td .tile { width: 100%; height: 100%; font-size: calc(var(--cell) * .706);
+    border-radius: 0; border: none; box-shadow: inset 0 1px 0 rgba(255,255,255,.5), inset 0 -2px 2px rgba(0,0,0,.08); }
+  .gdj-board td .tile.pending {
+    background: linear-gradient(135deg, #e0f5e0, var(--tile-pending) 50%, var(--tile-pending-2)); }
   .gdj-rack { display: flex; gap: 5px; margin: 12px 0 4px; }
-  .gdj-rack b { display: flex; align-items: center; justify-content: center;
-                width: 34px; height: 38px; background: var(--cream); border-radius: 6px;
-                border-bottom: 3px solid var(--yellow); font-family: 'Lora', serif;
-                font-size: 1.15rem; color: var(--petrol-dark); }
+  .gdj-rack .tile { width: 40px; height: 40px; font-size: 28px; }
   .gdj-find { display: flex; gap: 8px; margin: 12px 0; }
   .gdj-find input { flex: 1 1 auto; text-transform: uppercase; font-size: 1rem; }
   .gdj-msg { min-height: 1.3em; font-size: .9rem; margin-bottom: 8px; }
@@ -85,6 +100,6 @@
     </div>
   </div>
 </div>
-<script type="module" src="./grilledujour.js?v=372"></script>
+<script type="module" src="./grilledujour.js?v=373"></script>
 </body>
 </html>
