@@ -233,7 +233,8 @@ export function chercheGrille(dict, opts = {}) {
           // un mot à deux endroits, ou deux mots au même endroit : on jette
           if (tous.length >= min && !doublon(tous)) {
             const gardes = eloignes(tous);
-            if (gardes.length >= min && gardes.length <= max && !tropDeS(gardes)) {
+            if (gardes.length >= min && gardes.length <= max && !tropDeS(gardes)
+                && !memeAppui(board, gardes)) {
               return { board, rack, scrabbles: gardes, coup: k + 1, ancres: a, parties: p + 1 };
             }
           }
@@ -316,6 +317,35 @@ export function rallongesDe(board, s) {
     if (avant + apres >= 2) n++;                     // mot perpendiculaire de 3+ lettres
   }
   return n;
+}
+
+/** Cases déjà occupées que le mot traverse — ses lettres d'appui, repérées. */
+export function cellulesAppui(board, s) {
+  const dr = s.dir === "V" ? 1 : 0, dc = s.dir === "H" ? 1 : 0;
+  const out = [];
+  for (let i = 0; i < s.word.length; i++) {
+    const r = s.row + i*dr, c = s.col + i*dc;
+    if (board[r][c]) out.push(r * 15 + c);
+  }
+  return out;
+}
+
+/**
+ * Vrai si TOUTES les solutions s'appuient sur une même lettre : la grille n'offre
+ * alors qu'un seul point d'accroche, et l'exercice se réduit à retourner le
+ * tirage au même endroit. Les solutions sans appui (collantes pures) suffisent
+ * à écarter ce défaut.
+ */
+export function memeAppui(board, liste) {
+  if (liste.length < 2) return false;
+  let commun = null;
+  for (const s of liste) {
+    const cells = new Set(cellulesAppui(board, s));
+    if (!cells.size) return false;                  // une collante pure : accroches variées
+    commun = commun === null ? cells : new Set([...commun].filter(x => cells.has(x)));
+    if (!commun.size) return false;
+  }
+  return true;
 }
 
 /** Lettres d'appui situées DANS le mot (cases déjà occupées qu'il traverse). */
@@ -455,6 +485,7 @@ export function chercheGrilleCiblee(dict, opts = {}) {
         const gardes = eloignes(tous);
         if (gardes.length < min || gardes.length > max || tropDeS(gardes)) continue;
         if (gardes.filter(s => viseCoup(board, s)).length < minCiblees) continue;
+        if (memeAppui(board, gardes)) continue;     // toutes sur la même lettre d'appui
         return { board, rack: [...cle], scrabbles: gardes, coup: k + 1,
                  ancres: ancres(board), parties: p + 1 };
       }
