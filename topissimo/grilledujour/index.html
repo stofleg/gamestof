@@ -62,10 +62,18 @@
   .gdj-board td .tile.pending {
     background: linear-gradient(135deg, #e0f5e0, var(--tile-pending) 50%, var(--tile-pending-2));
     border-color: #5a9a5a; }
+  /* Curseur de Topissimo : pentagone pointant dans le sens de saisie. */
+  .gdj-board td { cursor: pointer; }
+  .gdj-board td.cursor::before { content: "" !important; position: absolute; inset: 0;
+    background: no-repeat center / 100% 100%; pointer-events: none; z-index: 20; }
+  .gdj-board td.cursor.dir-h::before { background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><polygon points='7,7 58,7 93,50 58,93 7,93' fill='none' stroke='%23000000' stroke-width='11' stroke-linejoin='round'/></svg>"); }
+  .gdj-board td.cursor.dir-v::before { background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100' preserveAspectRatio='none'><polygon points='7,7 93,7 93,58 50,93 7,58' fill='none' stroke='%23000000' stroke-width='11' stroke-linejoin='round'/></svg>"); }
+  .gdj-rack .tile[data-l] { cursor: pointer; }
+  .gdj-rack .tile.used { opacity: .25; }
   .gdj-rack { display: flex; gap: 5px; margin: 12px 0 4px; }
   .gdj-rack .tile { width: 40px; height: 40px; font-size: 28px; }
   .gdj-find { display: flex; gap: 8px; margin: 12px 0; }
-  .gdj-find input { flex: 1 1 auto; text-transform: uppercase; font-size: 1rem; }
+  .gdj-find button { flex: 1 1 auto; }
   .gdj-msg { min-height: 1.3em; font-size: .9rem; margin-bottom: 8px; }
   .gdj-msg.ok { color: #1f6b47; font-weight: 600; }
   .gdj-msg.ko { color: #a3402e; }
@@ -88,7 +96,7 @@
   </div>
   <p class="gdj-sub" style="margin:0 0 14px">
     Trouve tous les scrabbles possibles — les coups qui posent les sept lettres et
-    rapportent la prime de 50.
+    rapportent la prime de 50. Clique sur une case, tape le mot, valide par Entrée.
   </p>
 
   <div class="card">
@@ -99,8 +107,8 @@
       </div>
       <div>
         <div class="gdj-find">
-          <input id="gdjInput" placeholder="un scrabble…" autocomplete="off" disabled>
-          <button class="primary" id="gdjGo" disabled>Proposer</button>
+          <button class="primary" id="gdjValide" disabled>Valider</button>
+          <button class="btn ghost" id="gdjEfface" disabled>Effacer</button>
         </div>
         <div class="gdj-msg" id="gdjMsg"></div>
         <ul class="gdj-list" id="gdjList"></ul>
@@ -112,6 +120,6 @@
     </div>
   </div>
 </div>
-<script type="module" src="./grilledujour.js?v=374"></script>
+<script type="module" src="./grilledujour.js?v=375"></script>
 </body>
 </html>
