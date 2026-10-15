@@ -276,6 +276,48 @@ export function tirable(cle, board) {
   return true;
 }
 
+/** Jetons posés le long d'une lettre déjà en place (contacts latéraux). */
+export function contactsDe(board, s) {
+  const dr = s.dir === "V" ? 1 : 0, dc = s.dir === "H" ? 1 : 0;
+  let n = 0;
+  for (let i = 0; i < s.word.length; i++) {
+    const r = s.row + i*dr, c = s.col + i*dc;
+    if (board[r][c]) continue;                     // case d'appui, pas un jeton posé
+    const vs = s.dir === "H" ? [[r-1,c],[r+1,c]] : [[r,c-1],[r,c+1]];
+    if (vs.some(([y,x]) => y>=0 && y<15 && x>=0 && x<15 && board[y][x])) n++;
+  }
+  return n;
+}
+
+/**
+ * Rallonges : jetons posés qui ALLONGENT un mot existant plutôt que de créer un
+ * mot de deux lettres. Un I devant RIEN donne IRIEN, un C devant ACTUS donne
+ * CACTUS : le mot perpendiculaire formé fait trois lettres ou plus. Deux dans le
+ * même coup, c'est la « double rallonge ».
+ */
+export function rallongesDe(board, s) {
+  const dr = s.dir === "V" ? 1 : 0, dc = s.dir === "H" ? 1 : 0;
+  const pdr = s.dir === "V" ? 0 : 1, pdc = s.dir === "V" ? 1 : 0;  // perpendiculaire
+  let n = 0;
+  for (let i = 0; i < s.word.length; i++) {
+    const r = s.row + i*dr, c = s.col + i*dc;
+    if (board[r][c]) continue;                       // case d'appui, pas un jeton posé
+    let avant = 0, apres = 0;
+    for (let k = 1; ; k++) {
+      const y = r - k*pdr, x = c - k*pdc;
+      if (y < 0 || x < 0 || !board[y][x]) break;
+      avant++;
+    }
+    for (let k = 1; ; k++) {
+      const y = r + k*pdr, x = c + k*pdc;
+      if (y > 14 || x > 14 || !board[y][x]) break;
+      apres++;
+    }
+    if (avant + apres >= 2) n++;                     // mot perpendiculaire de 3+ lettres
+  }
+  return n;
+}
+
 /** Lettres d'appui situées DANS le mot (cases déjà occupées qu'il traverse). */
 export function appuisDe(board, s) {
   const dr = s.dir === "V" ? 1 : 0, dc = s.dir === "H" ? 1 : 0;
@@ -312,14 +354,15 @@ export function emplacements(board, dict, tuiles = 7) {
           // le mot ne doit pas être tronqué par une lettre voisine
           if (occ(dir === "H" ? [l, debut - 1] : [debut - 1, l])) continue;
           if (occ(dir === "H" ? [l, debut + L] : [debut + L, l])) continue;
-          let vides = 0, gabarit = "", touche = false;
+          let vides = 0, gabarit = "", touche = false, contacts = 0;
           for (const [r, c] of cases) {
             const t = board[r][c];
             if (t) { gabarit += t.letter; touche = true; }
             else {
               gabarit += "."; vides++;
               const vs = dir === "H" ? [[r-1,c],[r+1,c]] : [[r,c-1],[r,c+1]];
-              if (vs.some(occ)) touche = true;
+              // jeton posé le long d'une lettre existante : c'est une « collante »
+              if (vs.some(occ)) { touche = true; contacts++; }
             }
           }
           if (vides !== tuiles || !touche) continue;
@@ -327,7 +370,7 @@ export function emplacements(board, dict, tuiles = 7) {
           for (const mot of motsDuGabarit(dict, gabarit)) {
             let chevalet = "";
             for (let i = 0; i < L; i++) if (gabarit[i] === ".") chevalet += mot[i];
-            res.push({ mot, dir, row: cases[0][0], col: cases[0][1], appuis,
+            res.push({ mot, dir, row: cases[0][0], col: cases[0][1], appuis, contacts,
                        cle: [...chevalet].sort().join("") });
           }
         }
@@ -340,18 +383,54 @@ export function emplacements(board, dict, tuiles = 7) {
 const nbVoyelles = s => [...s].filter(c => "AEIOU".includes(c)).length;
 
 /**
- * Cherche une grille contenant au moins `minCiblees` solutions d'une FORME
- * donnée — pour l'instant le double appui (le mot traverse deux lettres déjà
- * posées, donc neuf lettres pour sept tuiles).
- * Environ 18 secondes par grille.
+ * Décrit la forme de coup recherchée. Deux critères, cumulables :
+ *   appuis   : lettres déjà posées que le mot TRAVERSE (2 = double appui,
+ *              donc un mot de neuf lettres pour sept tuiles) ;
+ *   contacts : jetons posés LE LONG d'une lettre existante (la « collante
+ *              sur x lettres » — x contacts latéraux, donc x mots
+ *              perpendiculaires formés) ;
+ *   rallonges: parmi ces contacts, ceux qui ALLONGENT un mot existant au lieu
+ *              de créer un mot de deux lettres (I devant RIEN → IRIEN).
+ * Chacun accepte un nombre exact, ou { min, max }.
+ */
+function correspond(valeur, voulu) {
+  if (voulu == null) return true;
+  if (typeof voulu === "number") return valeur === voulu;
+  if (voulu.min != null && valeur < voulu.min) return false;
+  if (voulu.max != null && valeur > voulu.max) return false;
+  return true;
+}
+
+/**
+ * Cherche une grille contenant au moins `minCiblees` solutions de la forme
+ * demandée. L'énumération inverse fournit les chevalets candidats ; chacun est
+ * ensuite validé pour de bon par scrabblesDe(), qui seul vérifie les mots
+ * perpendiculaires.
+ *
+ *   chercheGrilleCiblee(dict, { appuis: 2 })                 double appui
+ *   chercheGrilleCiblee(dict, { contacts: 5, appuis: 0 })    collante sur 5
+ *   chercheGrilleCiblee(dict, { contacts: { min: 4 } })      collante sur 4+
+ *   chercheGrilleCiblee(dict, { appuis: 3 })                 triple appui
+ *   chercheGrilleCiblee(dict, { rallonges: { min: 2 } })     double rallonge
+ *
+ * Compter une dizaine de secondes par grille.
  */
 export function chercheGrilleCiblee(dict, opts = {}) {
-  const appuisVoulus = opts.appuis ?? 2;
-  const minCiblees   = opts.minCiblees ?? 2;
+  const vAppuis    = opts.appuis    ?? null;
+  const vContacts  = opts.contacts  ?? null;
+  const vRallonges = opts.rallonges ?? null;
+  const minCiblees = opts.minCiblees ?? 2;
   const min = opts.minScrabbles ?? MIN_SCRABBLES;
   const max = opts.maxScrabbles ?? MAX_SCRABBLES;
   const minAnc = opts.minAncres ?? MIN_ANCRES;
   const maxP = opts.maxParties ?? 400;
+  // L'énumération ne connaît pas les rallonges (elle ignore les mots
+  // perpendiculaires) : on filtre dessus plus large, puis on vérifie sur le coup.
+  const vise = e => correspond(e.appuis, vAppuis) && correspond(e.contacts, vContacts)
+    && (vRallonges == null || e.contacts >= (typeof vRallonges === "number" ? vRallonges : vRallonges.min || 1));
+  const viseCoup = (board, s) =>
+    correspond(appuisDe(board, s), vAppuis) && correspond(contactsDe(board, s), vContacts)
+    && correspond(rallongesDe(board, s), vRallonges);
 
   for (let p = 0; p < maxP; p++) {
     if (opts.onProgress) opts.onProgress(p + 1);
@@ -360,9 +439,9 @@ export function chercheGrilleCiblee(dict, opts = {}) {
     for (let k = 0; k < partie.moves.length - 3; k++) {
       board = applyMove(board, partie.moves[k].top);
       if (k < 5 || ancres(board) < minAnc) continue;
-      const vises = emplacements(board, dict, 7).filter(e => e.appuis === appuisVoulus);
       const parCle = new Map();
-      for (const e of vises) {
+      for (const e of emplacements(board, dict, 7)) {
+        if (!vise(e)) continue;
         if (!parCle.has(e.cle)) parCle.set(e.cle, new Set());
         parCle.get(e.cle).add(e.mot);
       }
@@ -375,9 +454,9 @@ export function chercheGrilleCiblee(dict, opts = {}) {
         if (tous.length < min || doublon(tous)) continue;
         const gardes = eloignes(tous);
         if (gardes.length < min || gardes.length > max || tropDeS(gardes)) continue;
-        if (gardes.filter(s => appuisDe(board, s) === appuisVoulus).length < minCiblees) continue;
+        if (gardes.filter(s => viseCoup(board, s)).length < minCiblees) continue;
         return { board, rack: [...cle], scrabbles: gardes, coup: k + 1,
-                 ancres: ancres(board), parties: p + 1, appuis: appuisVoulus };
+                 ancres: ancres(board), parties: p + 1 };
       }
     }
   }
