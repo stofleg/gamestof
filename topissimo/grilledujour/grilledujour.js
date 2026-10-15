@@ -8,7 +8,7 @@
 //  Le dictionnaire (4 Mo) n'est chargé qu'en arrière-plan, dans un worker, et
 //  seulement pour pouvoir dire « ce mot existe mais ne passe pas ici ». La page
 //  est utilisable sans l'attendre.
-import { BOARD_BONUSES } from "../scrabble/engine.js?v=371";
+import { BOARD_BONUSES } from "../scrabble/engine.js?v=372";
 
 const $ = id => document.getElementById(id);
 const LIGNES = "ABCDEFGHIJKLMNO";
@@ -17,7 +17,7 @@ let lot = [], grille = null, trouves = new Set(), iGrille = 0, enAttente = null;
 // --- worker, pour la seule vérification au dictionnaire ---------------------
 let worker = null;
 try {
-  worker = new Worker("./worker.js?v=371", { type: "module" });
+  worker = new Worker("./worker.js?v=372", { type: "module" });
   worker.onmessage = e => {
     const d = e.data || {};
     if (d.type === "verifie" && d.mot === enAttente) {
@@ -137,7 +137,7 @@ $("gdjList").onclick = e => {
 (async function init() {
   $("gdjSub").textContent = "chargement…";
   try {
-    const r = await fetch("./grilles.json?v=371");
+    const r = await fetch("./grilles.json?v=372");
     if (!r.ok) throw new Error("lot introuvable");
     lot = (await r.json()).grilles || [];
     if (!lot.length) throw new Error("lot vide");
