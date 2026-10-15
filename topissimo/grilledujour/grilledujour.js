@@ -6,7 +6,7 @@
 //  Saisie comme dans Topissimo : un clic sur une case place le curseur (second
 //  clic = changement de sens), les lettres se tapent au clavier ou se touchent
 //  sur le chevalet, elles sautent les cases déjà occupées, Retour arrière les
-//  reprend, Entrée valide, Échap annule.
+//  reprend une à une, Entrée valide — et efface le mot, qu'il soit bon ou non.
 //
 //  Le dictionnaire (4 Mo) n'est chargé qu'en arrière-plan, dans un worker, et
 //  seulement pour pouvoir dire « ce mot existe mais n'est pas un scrabble ici ».
@@ -55,7 +55,7 @@ function charge(i) {
   trouves = new Set(); montre = null; saisie = []; curseur = null;
   dessineGrille(); dessineListe();
   message("Clique sur une case, puis tape ton scrabble au clavier ou sur le chevalet.");
-  for (const b of ["gdjValide", "gdjEfface", "gdjReveal", "gdjNew"]) $(b).disabled = false;
+  for (const b of ["gdjReveal", "gdjNew"]) $(b).disabled = false;
 }
 
 // --- rendu ------------------------------------------------------------------
@@ -164,10 +164,11 @@ function retour() {
   dessineGrille();
 }
 
-function efface() {
+/** Retire tout le mot tapé ; le curseur revient sur sa première case. */
+function efface(garderMessage = false) {
   if (saisie.length) curseur = { ...curseur, row: saisie[0].r, col: saisie[0].c, hors: false };
   saisie = []; montre = null;
-  message("");
+  if (!garderMessage) message("");
   dessineGrille();
 }
 
@@ -189,20 +190,22 @@ function motForme() {
   return dedans ? { mot, row, col, dir } : null;
 }
 
+/** Entrée : on juge le mot, puis on l'efface dans tous les cas. */
 function valide() {
   if (!grille || !saisie.length) return;
-  if (saisie.length < 7) { message("Un scrabble pose les sept lettres du chevalet.", "ko"); return; }
+  if (saisie.length < 7) { message("Un scrabble pose les sept lettres du chevalet.", "ko"); efface(true); return; }
   const f = motForme();
-  if (!f) { message("Les lettres doivent former un seul mot, sur une même ligne.", "ko"); return; }
+  if (!f) { message("Les lettres doivent former un seul mot, sur une même ligne.", "ko"); efface(true); return; }
   const cible = grille.scrabbles.find(s =>
     s.word === f.mot && s.row === f.row && s.col === f.col && s.dir === f.dir);
   if (!cible) {
     enAttente = f.mot;
     if (worker) worker.postMessage({ type: "verifie", mot: f.mot });
     else message(`${f.mot} n'est pas un scrabble de cette grille à cet endroit.`, "ko");
+    efface(true);
     return;
   }
-  if (trouves.has(cible.word)) { message(`${cible.word}, déjà trouvé.`); efface(); return; }
+  if (trouves.has(cible.word)) { message(`${cible.word}, déjà trouvé.`); efface(true); return; }
   trouves.add(cible.word);
   montrer(cible);
   saisie = []; curseur = null;
@@ -236,13 +239,10 @@ document.addEventListener("keydown", e => {
   if (/^[a-zA-Z]$/.test(k)) { tape(k.toUpperCase()); e.preventDefault(); }
   else if (k === "Backspace") { retour(); e.preventDefault(); }
   else if (k === "Enter") { valide(); e.preventDefault(); }
-  else if (k === "Escape") { efface(); }
   else if (k === " " && curseur && !saisie.length) {
     curseur = { ...curseur, dir: curseur.dir === "H" ? "V" : "H" }; dessineGrille(); e.preventDefault();
   }
 });
-$("gdjValide").onclick = valide;
-$("gdjEfface").onclick = efface;
 $("gdjNew").onclick = () => charge(iGrille + 1);
 $("gdjReveal").onclick = () => {
   if (!grille) return;

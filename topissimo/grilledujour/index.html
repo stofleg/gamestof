@@ -72,8 +72,6 @@
   .gdj-rack .tile.used { opacity: .25; }
   .gdj-rack { display: flex; gap: 5px; margin: 12px 0 4px; }
   .gdj-rack .tile { width: 40px; height: 40px; font-size: 28px; }
-  .gdj-find { display: flex; gap: 8px; margin: 12px 0; }
-  .gdj-find button { flex: 1 1 auto; }
   .gdj-msg { min-height: 1.3em; font-size: .9rem; margin-bottom: 8px; }
   .gdj-msg.ok { color: #1f6b47; font-weight: 600; }
   .gdj-msg.ko { color: #a3402e; }
@@ -96,7 +94,7 @@
   </div>
   <p class="gdj-sub" style="margin:0 0 14px">
     Trouve tous les scrabbles possibles — les coups qui posent les sept lettres et
-    rapportent la prime de 50. Clique sur une case, tape le mot, valide par Entrée.
+    rapportent la prime de 50. Clique sur une case, tape le mot, valide par Entrée ; Retour arrière efface.
   </p>
 
   <div class="card">
@@ -106,10 +104,6 @@
         <div class="gdj-rack" id="gdjRack"></div>
       </div>
       <div>
-        <div class="gdj-find">
-          <button class="primary" id="gdjValide" disabled>Valider</button>
-          <button class="btn ghost" id="gdjEfface" disabled>Effacer</button>
-        </div>
         <div class="gdj-msg" id="gdjMsg"></div>
         <ul class="gdj-list" id="gdjList"></ul>
         <div style="display:flex;gap:8px;margin-top:14px">
