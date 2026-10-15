@@ -15,41 +15,53 @@
   .gdj-cols { display: grid; grid-template-columns: auto 1fr; gap: 18px; align-items: start; }
   @media (max-width: 760px) { .gdj-cols { grid-template-columns: 1fr; } }
 
-  /* Plateau : reprend le rendu de Topissimo (game.css, thème par défaut). */
+  /* Plateau : finition « DupliJeu » de Topissimo (game.css, body.theme-duplijeu) :
+     fond blanc, traits gris-bleu, cases bonus pleines avec quatre triangles
+     débordants, jetons tan unis cernés de noir, lettres sans empattement. */
   .gdj-wrap { --cell: clamp(18px, calc((100vw - 56px) / 15.5), 34px);
-    --petrol:#002E44; --tile-bg:#f5d97a; --tile-bg-2:#e8c548; --tile-text:#1f2a2e;
-    --tile-pending:#b3e5b3; --tile-pending-2:#8cd08c;
-    --bonus-dl:#a4d8e1; --bonus-tl:#3a8db5; --bonus-dw:#f0a8a8; --bonus-tw:#cc4040;
-    --normal:#ede4ce; --yellow:#FFDD00; }
+    --petrol:#002E44; --tile-pending:#b3e5b3; --tile-pending-2:#8cd08c;
+    --bonus-dl:#a4d8e1; --bonus-tl:#3a8db5; --bonus-dw:#f0a8a8; --bonus-tw:#cc4040; }
   /* deux colonnes : le plateau partage la largeur avec la liste (≈ 320 px) */
   @media (min-width: 761px) { .gdj-wrap { --cell: clamp(22px, calc((min(100vw, 980px) - 420px) / 15.5), 36px); } }
-  .gdj-board { background: var(--petrol); padding: 6px; border-radius: 12px;
-    box-shadow: 0 10px 30px rgba(0,46,68,.25); display: inline-block; }
+  .gdj-board { background: #fff; padding: 8px; border-radius: 12px;
+    box-shadow: 0 4px 16px rgba(0,46,68,.15); display: inline-block; }
   .gdj-board table { border-collapse: collapse; table-layout: fixed;
     width: calc(15 * var(--cell) + 16px); }
   .gdj-board td { width: var(--cell); min-width: var(--cell); max-width: var(--cell);
-    height: var(--cell); padding: 0; text-align: center; overflow: hidden;
-    border: 1px solid var(--petrol); position: relative; }
-  .gdj-board td.normal { background: var(--normal); }
+    height: var(--cell); padding: 0; text-align: center; position: relative;
+    border: 1px solid #b3c1ce; background: #fff; }
   .gdj-board td.dl { background: var(--bonus-dl); }
   .gdj-board td.tl { background: var(--bonus-tl); }
-  .gdj-board td.dw { background: var(--bonus-dw); }
+  .gdj-board td.dw, .gdj-board td.center { background: var(--bonus-dw); }
   .gdj-board td.tw { background: var(--bonus-tw); }
-  .gdj-board td.center { background: var(--yellow); }
-  .gdj-board td.center:not(.has-tile)::before { content: "★"; font-size: calc(var(--cell) * .5); color: var(--petrol); }
+  .gdj-board td.dl, .gdj-board td.tl, .gdj-board td.dw,
+  .gdj-board td.tw, .gdj-board td.center { overflow: visible; z-index: 1; }
+  .gdj-board td.dl::after, .gdj-board td.tl::after, .gdj-board td.dw::after,
+  .gdj-board td.tw::after, .gdj-board td.center::after {
+    content: ""; position: absolute; inset: calc(var(--cell) * -0.13);
+    background: no-repeat center / 100% 100%; pointer-events: none; z-index: 0; }
+  .gdj-board td.dl::after { background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><g fill='%23a4d8e1'><polygon points='40,12 60,12 50,0'/><polygon points='40,88 60,88 50,100'/><polygon points='12,40 12,60 0,50'/><polygon points='88,40 88,60 100,50'/></g></svg>"); }
+  .gdj-board td.tl::after { background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><g fill='%233a8db5'><polygon points='40,12 60,12 50,0'/><polygon points='40,88 60,88 50,100'/><polygon points='12,40 12,60 0,50'/><polygon points='88,40 88,60 100,50'/></g></svg>"); }
+  .gdj-board td.dw::after, .gdj-board td.center::after { background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><g fill='%23f0a8a8'><polygon points='40,12 60,12 50,0'/><polygon points='40,88 60,88 50,100'/><polygon points='12,40 12,60 0,50'/><polygon points='88,40 88,60 100,50'/></g></svg>"); }
+  .gdj-board td.tw::after { background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><g fill='%23cc4040'><polygon points='40,12 60,12 50,0'/><polygon points='40,88 60,88 50,100'/><polygon points='12,40 12,60 0,50'/><polygon points='88,40 88,60 100,50'/></g></svg>"); }
+  .gdj-board td.has-tile::after { content: none; }
+  .gdj-board td.center:not(.has-tile)::before { content: "★"; position: relative; z-index: 2;
+    font-size: calc(var(--cell) * .5); color: #111; }
   .tile { display: inline-flex; align-items: center; justify-content: center;
-    background: linear-gradient(135deg, #fce8a8 0%, var(--tile-bg) 50%, var(--tile-bg-2) 100%);
-    color: var(--tile-text); border-radius: 4px; font-family: Georgia, serif; font-weight: 700;
-    position: relative; user-select: none; border: 1px solid rgba(138,106,31,.4);
-    box-shadow: 0 2px 4px rgba(0,0,0,.2), inset 0 1px 0 rgba(255,255,255,.5), inset 0 -2px 2px rgba(0,0,0,.08); }
+    background: #d8b975; color: #111; font-family: 'Inter', system-ui, sans-serif;
+    font-weight: 700; position: relative; user-select: none;
+    border: 0.5px solid #000; border-radius: 3px; box-shadow: 0 1px 2px rgba(0,0,0,.2); }
   .tile .val { position: absolute; bottom: 1px; right: 3px; font-size: .294em;
-    font-family: 'Inter', system-ui, sans-serif; font-weight: 300; opacity: .75; }
+    font-family: 'Inter', system-ui, sans-serif; font-weight: 300; opacity: .8; }
   .tile.blank { color: #c8202a; }
   .tile.blank .val { display: none; }
-  .gdj-board td .tile { width: 100%; height: 100%; font-size: calc(var(--cell) * .706);
-    border-radius: 0; border: none; box-shadow: inset 0 1px 0 rgba(255,255,255,.5), inset 0 -2px 2px rgba(0,0,0,.08); }
+  /* ../style.css fixe .tile à 24 × 24 px (jetons de l'accueil) : on l'annule ici */
+  .gdj-board td .tile { position: absolute; inset: 0.25%; z-index: 8;
+    width: auto; height: auto;
+    font-size: calc(var(--cell) * .706); }
   .gdj-board td .tile.pending {
-    background: linear-gradient(135deg, #e0f5e0, var(--tile-pending) 50%, var(--tile-pending-2)); }
+    background: linear-gradient(135deg, #e0f5e0, var(--tile-pending) 50%, var(--tile-pending-2));
+    border-color: #5a9a5a; }
   .gdj-rack { display: flex; gap: 5px; margin: 12px 0 4px; }
   .gdj-rack .tile { width: 40px; height: 40px; font-size: 28px; }
   .gdj-find { display: flex; gap: 8px; margin: 12px 0; }
