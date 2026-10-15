@@ -1,18 +1,56 @@
 //  Grille du jour — page autonome.
-//  La recherche (une dizaine de secondes) tourne dans un worker, qui détient
-//  aussi le dictionnaire ; la page ne le charge donc pas une seconde fois.
-import { BOARD_BONUSES } from "../scrabble/engine.js?v=370";
+//
+//  Les grilles sont PRÉCALCULÉES (voir outils/genere-grilles.mjs) : la règle
+//  « un mot ↔ un emplacement » ne laisse passer que 6 % des positions, et la
+//  recherche coûte environ trois minutes. Une grille par jour ne justifiant pas
+//  une telle attente, la page lit un lot tout prêt et choisit selon la date.
+//
+//  Le dictionnaire (4 Mo) n'est chargé qu'en arrière-plan, dans un worker, et
+//  seulement pour pouvoir dire « ce mot existe mais ne passe pas ici ». La page
+//  est utilisable sans l'attendre.
+import { BOARD_BONUSES } from "../scrabble/engine.js?v=371";
 
 const $ = id => document.getElementById(id);
 const LIGNES = "ABCDEFGHIJKLMNO";
-let grille = null, trouves = new Set(), enAttente = null;
+let lot = [], grille = null, trouves = new Set(), iGrille = 0, enAttente = null;
 
-const worker = new Worker("./worker.js?v=370", { type: "module" });
+// --- worker, pour la seule vérification au dictionnaire ---------------------
+let worker = null;
+try {
+  worker = new Worker("./worker.js?v=371", { type: "module" });
+  worker.onmessage = e => {
+    const d = e.data || {};
+    if (d.type === "verifie" && d.mot === enAttente) {
+      message(d.connu
+        ? `${d.mot} est dans le dictionnaire, mais ne passe pas sur cette grille.`
+        : `${d.mot} n'est pas un scrabble de cette grille.`, "ko");
+    }
+  };
+  worker.postMessage({ type: "init" });
+} catch { worker = null; }
 
 /** Repère Scrabble : lettre = ligne, chiffre = colonne ; horizontal = lettre d'abord. */
-function repere(s) {
-  const L = LIGNES[s.row], C = s.col + 1;
-  return s.dir === "H" ? `${L}${C}` : `${C}${L}`;
+const repere = s => s.dir === "H" ? `${LIGNES[s.row]}${s.col + 1}` : `${s.col + 1}${LIGNES[s.row]}`;
+
+/** Le plateau est stocké en 15 chaînes : point = vide, minuscule = joker posé. */
+function litPlateau(lignes) {
+  return lignes.map(l => [...l].map(ch =>
+    ch === "." ? null : { letter: ch.toUpperCase(), isBlank: ch === ch.toLowerCase() }));
+}
+
+function charge(i) {
+  const g = lot[((i % lot.length) + lot.length) % lot.length];
+  iGrille = ((i % lot.length) + lot.length) % lot.length;
+  grille = {
+    board: litPlateau(g.plateau),
+    rack: [...g.rack],
+    coup: g.coup,
+    scrabbles: g.scrabbles.map(s => ({ word: s.m, row: s.l, col: s.c, dir: s.d, score: s.p })),
+  };
+  trouves = new Set();
+  dessineGrille(); dessineListe(); message("");
+  for (const b of ["gdjGo", "gdjReveal", "gdjNew"]) $(b).disabled = false;
+  $("gdjInput").disabled = false; $("gdjInput").focus();
 }
 
 function dessineGrille() {
@@ -51,10 +89,17 @@ function dessineListe() {
     </li>`;
   }).join("");
   const n = trouves.size, t = grille.scrabbles.length;
-  $("gdjSub").textContent = `${n}/${t} trouvé${n > 1 ? "s" : ""} · coup ${grille.coup} de la partie`;
+  $("gdjSub").textContent = `${n}/${t} trouvé${n > 1 ? "s" : ""} · coup ${grille.coup} de la partie`
+    + (iGrille === indexDuJour() ? " · grille du jour" : ` · grille ${iGrille + 1}/${lot.length}`);
 }
 
 function message(txt, cls = "") { const m = $("gdjMsg"); m.className = "gdj-msg " + cls; m.textContent = txt; }
+
+/** Numéro de grille correspondant à la date, pour que la journée en donne toujours la même. */
+function indexDuJour() {
+  const j = Math.floor(Date.now() / 86400000);   // jours depuis 1970, heure locale ignorée
+  return lot.length ? j % lot.length : 0;
+}
 
 function propose() {
   const mot = ($("gdjInput").value || "").trim().toUpperCase();
@@ -62,61 +107,25 @@ function propose() {
   if (!mot || !grille) return;
   const cible = grille.scrabbles.find(s => s.word === mot);
   if (!cible) {
-    enAttente = mot;                       // le worker dira s'il est au dictionnaire
-    worker.postMessage({ type: "verifie", mot });
+    enAttente = mot;
+    if (worker) worker.postMessage({ type: "verifie", mot });
+    else message(`${mot} n'est pas un scrabble de cette grille.`, "ko");
     return;
   }
   if (trouves.has(cible.word)) { message(`${cible.word}, déjà trouvé.`); return; }
   trouves.add(cible.word);
-  souligne(cible);
-  dessineListe();
+  souligne(cible); dessineListe();
   const fini = trouves.size === grille.scrabbles.length;
   message(`${mot} en ${repere(cible)} — ${cible.score} points.` + (fini ? "  Grille terminée." : ""), "ok");
 }
 
-function actif(oui) {
-  for (const b of ["gdjGo", "gdjReveal", "gdjNew"]) $(b).disabled = !oui;
-  $("gdjInput").disabled = !oui;
-  if (oui) $("gdjInput").focus();
-}
-
-function nouvelle() {
-  actif(false);
-  grille = null; trouves = new Set();
-  $("gdjList").innerHTML = "";
-  $("gdjSub").textContent = "recherche d'une grille…";
-  message("");
-  worker.postMessage({ type: "grille" });
-}
-
-worker.onmessage = (e) => {
-  const d = e.data || {};
-  if (d.type === "pret") { nouvelle(); return; }
-  if (d.type === "avance") { $("gdjSub").textContent = `recherche d'une grille… ${d.parties} parties explorées`; return; }
-  if (d.type === "grille") {
-    if (!d.grille) { $("gdjSub").textContent = "aucune grille trouvée"; $("gdjNew").disabled = false; return; }
-    grille = d.grille;
-    dessineGrille(); dessineListe(); actif(true);
-    return;
-  }
-  if (d.type === "verifie") {
-    if (d.mot !== enAttente) return;
-    message(d.connu
-      ? `${d.mot} est dans le dictionnaire, mais ne passe pas sur cette grille.`
-      : `${d.mot} n'est pas un scrabble de cette grille.`, "ko");
-    return;
-  }
-  if (d.type === "erreur") { $("gdjSub").textContent = "erreur : " + d.message; $("gdjNew").disabled = false; }
-};
-
 $("gdjGo").onclick = propose;
 $("gdjInput").onkeydown = e => { if (e.key === "Enter") propose(); };
-$("gdjNew").onclick = nouvelle;
+$("gdjNew").onclick = () => charge(iGrille + 1);
 $("gdjReveal").onclick = () => {
   if (!grille) return;
   grille.scrabbles.forEach(s => trouves.add(s.word));
-  dessineListe();
-  message("Tout est révélé.");
+  dessineListe(); message("Tout est révélé.");
 };
 $("gdjList").onclick = e => {
   const li = e.target.closest("li[data-i]");
@@ -124,5 +133,17 @@ $("gdjList").onclick = e => {
   const s = grille.scrabbles[+li.dataset.i];
   if (trouves.has(s.word)) souligne(s);
 };
-$("gdjSub").textContent = "chargement du dictionnaire…";
-worker.postMessage({ type: "init" });
+
+(async function init() {
+  $("gdjSub").textContent = "chargement…";
+  try {
+    const r = await fetch("./grilles.json?v=371");
+    if (!r.ok) throw new Error("lot introuvable");
+    lot = (await r.json()).grilles || [];
+    if (!lot.length) throw new Error("lot vide");
+  } catch (err) {
+    $("gdjSub").textContent = "aucune grille disponible — relancer outils/genere-grilles.mjs";
+    return;
+  }
+  charge(indexDuJour());
+})();

@@ -66,13 +66,33 @@ export function memeVerbe(a, b) {
   return court.length >= 3 && long.startsWith(court) && long.length - court.length <= 1;
 }
 
-/** Même famille : préfixe commun long, ou deux formes d'un même verbe. */
+/** Longueur du plus long morceau commun aux deux mots (facteur, pas préfixe). */
+export function plusLongCommun(a, b) {
+  let best = 0;
+  const prec = new Array(b.length + 1).fill(0);
+  for (let i = 1; i <= a.length; i++) {
+    let diag = 0;
+    for (let j = 1; j <= b.length; j++) {
+      const tmp = prec[j];
+      prec[j] = a[i-1] === b[j-1] ? diag + 1 : 0;
+      if (prec[j] > best) best = prec[j];
+      diag = tmp;
+    }
+  }
+  return best;
+}
+
+/** Même famille : préfixe commun long, formes d'un même verbe, ou long morceau commun. */
 export function memeFamille(a, b) {
   if (a === b) return true;
   const n = lcp(a, b), court = Math.min(a.length, b.length);
   if (n === court) return true;                   // MANGERA ⊂ MANGERAS
   if (n >= Math.max(5, court - 2)) return true;   // MANGEONS / MANGEAIT
-  return memeVerbe(a, b);                         // FOUTONS / FOUTIONS / FOUTRONS
+  if (memeVerbe(a, b)) return true;               // FOUTONS / FOUTIONS / FOUTRONS
+  // AGRANDIR, GRANDIRA et RAGRANDI n'ont ni préfixe ni racine en commun, mais
+  // partagent GRANDI(R) : six lettres d'affilée sur des mots de sept ou huit
+  // suffisent à les rendre jumeaux. RINGARDA, lui, n'en partage qu'une.
+  return plusLongCommun(a, b) >= 6;
 }
 
 /** Emplacement d'un coup : mêmes cases = même trouvaille. */
@@ -120,13 +140,19 @@ export function eloignes(liste, opts = {}) {
   return out;
 }
 
-/** Vrai si deux scrabbles remplissent les mêmes cases. */
-export function placesEnDoublon(liste) {
-  const vues = new Set();
+/**
+ * Vrai si la correspondance mot ↔ emplacement n'est pas une bijection, c'est-à-dire
+ * si un mot passe à deux endroits (FUSERONT sur le S de MALAGAS ET sur celui
+ * d'ALESEUSE) ou si deux mots remplissent les mêmes cases. Dans les deux cas la
+ * position est jetée : chaque solution doit avoir son emplacement, et chaque
+ * emplacement sa solution.
+ */
+export function doublon(liste) {
+  const mots = new Set(), places = new Set();
   for (const s of liste) {
     const k = place(s);
-    if (vues.has(k)) return true;
-    vues.add(k);
+    if (mots.has(s.word) || places.has(k)) return true;
+    mots.add(s.word); places.add(k);
   }
   return false;
 }
@@ -157,22 +183,24 @@ export function ancres(board) {
   return n;
 }
 
-/** Tous les scrabbles d'une position, un seul emplacement par mot, du + cher au - cher. */
+/**
+ * TOUS les scrabbles d'une position, sans dédoublonner : un même mot jouable à
+ * deux endroits apparaît deux fois, et c'est voulu — la position doit alors être
+ * rejetée, et on ne peut le voir qu'en les gardant.
+ */
 export function scrabblesDe(board, rack, dict) {
   if (rack.length !== 7) return [];          // sans chevalet plein, pas de prime
   const all = findTop(board, rack, dict, { all: true }) || [];
-  const parMot = new Map();
+  const out = [], vus = new Set();
   for (const c of all) {
     if (tuilesPosees(board, c.move) !== 7) continue;
-    const vu = parMot.get(c.move.word);
-    if (!vu || c.score > vu.score) {
-      parMot.set(c.move.word, {
-        word: c.move.word, row: c.move.row, col: c.move.col,
-        dir: c.move.dir, score: c.score,
-      });
-    }
+    const k = `${c.move.word}|${c.move.dir}${c.move.row}:${c.move.col}`;
+    if (vus.has(k)) continue;
+    vus.add(k);
+    out.push({ word: c.move.word, row: c.move.row, col: c.move.col,
+               dir: c.move.dir, score: c.score });
   }
-  return [...parMot.values()].sort((a, b) => b.score - a.score || a.word.localeCompare(b.word));
+  return out.sort((a, b) => b.score - a.score || a.word.localeCompare(b.word));
 }
 
 // --- recherche d'une grille -------------------------------------------------
@@ -202,8 +230,8 @@ export function chercheGrille(dict, opts = {}) {
         const a = ancres(board);
         if (a >= minAnc) {
           const tous = scrabblesDe(board, rack, dict);
-          // deux scrabbles aux mêmes cases : on jette la position, sans chercher plus loin
-          if (tous.length >= min && !placesEnDoublon(tous)) {
+          // un mot à deux endroits, ou deux mots au même endroit : on jette
+          if (tous.length >= min && !doublon(tous)) {
             const gardes = eloignes(tous);
             if (gardes.length >= min && gardes.length <= max && !tropDeS(gardes)) {
               return { board, rack, scrabbles: gardes, coup: k + 1, ancres: a, parties: p + 1 };
@@ -212,6 +240,145 @@ export function chercheGrille(dict, opts = {}) {
         }
       }
       board = applyMove(board, mv.top);
+    }
+  }
+  return null;
+}
+
+// === Énumération inverse : partir des mots, en déduire le chevalet ===========
+//
+//  La recherche classique tire un chevalet et regarde ce qu'il donne : une
+//  position sur seize convient. L'énumération inverse parcourt au contraire
+//  TOUS les emplacements où un mot du dictionnaire poserait exactement sept
+//  tuiles, et déduit de chacun le chevalet qu'il exige. Sur un plateau au
+//  9e coup : 800 000 emplacements en une demi-seconde, dont 12 000 chevalets
+//  servant trois mots différents ou plus.
+//
+//  C'est ce qui permet de COMMANDER un type de coup : chaque emplacement porte
+//  son nombre de lettres d'appui, on ne garde que ceux de la forme voulue, et
+//  on cherche un chevalet qui en serve plusieurs à la fois.
+//
+//  Attention : cette énumération ne vérifie PAS les mots perpendiculaires
+//  formés. Elle ne sert qu'à proposer des chevalets, que scrabblesDe() valide
+//  ensuite pour de bon.
+
+const SAC_FR = {A:9,B:2,C:2,D:3,E:15,F:2,G:2,H:2,I:8,J:1,K:1,L:5,M:3,N:6,O:6,
+                P:2,Q:1,R:6,S:6,T:6,U:6,V:2,W:1,X:1,Y:1,Z:1};
+
+/** Le chevalet est-il encore tirable, vu les lettres déjà posées ? */
+export function tirable(cle, board) {
+  const reste = { ...SAC_FR };
+  for (let r = 0; r < 15; r++) for (let c = 0; c < 15; c++) {
+    const t = board[r][c];
+    if (t && !t.isBlank && reste[t.letter] != null) reste[t.letter]--;
+  }
+  for (const ch of cle) { if (!reste[ch]) return false; reste[ch]--; }
+  return true;
+}
+
+/** Lettres d'appui situées DANS le mot (cases déjà occupées qu'il traverse). */
+export function appuisDe(board, s) {
+  const dr = s.dir === "V" ? 1 : 0, dc = s.dir === "H" ? 1 : 0;
+  let n = 0;
+  for (let i = 0; i < s.word.length; i++) if (board[s.row + i*dr][s.col + i*dc]) n++;
+  return n;
+}
+
+function motsDuGabarit(dict, gabarit) {
+  const L = gabarit.length, fixes = [];
+  for (let i = 0; i < L; i++) if (gabarit[i] !== ".") fixes.push([i, gabarit[i]]);
+  const out = [];
+  for (const w of (dict.byLen.get(L) || [])) {
+    let ok = true;
+    for (const [i, ch] of fixes) if (w[i] !== ch) { ok = false; break; }
+    if (ok) out.push(w);
+  }
+  return out;
+}
+
+/**
+ * Tous les emplacements posant exactement `tuiles` jetons, avec le chevalet
+ * qu'ils exigent (`cle`, lettres triées) et leur nombre de lettres d'appui.
+ */
+export function emplacements(board, dict, tuiles = 7) {
+  const res = [];
+  const occ = ([r, c]) => r >= 0 && r < 15 && c >= 0 && c < 15 && !!board[r][c];
+  for (const dir of ["H", "V"]) {
+    for (let l = 0; l < 15; l++) {
+      for (let debut = 0; debut < 15; debut++) {
+        for (let L = 2; L <= 15 - debut; L++) {
+          const cases = [];
+          for (let i = 0; i < L; i++) cases.push(dir === "H" ? [l, debut + i] : [debut + i, l]);
+          // le mot ne doit pas être tronqué par une lettre voisine
+          if (occ(dir === "H" ? [l, debut - 1] : [debut - 1, l])) continue;
+          if (occ(dir === "H" ? [l, debut + L] : [debut + L, l])) continue;
+          let vides = 0, gabarit = "", touche = false;
+          for (const [r, c] of cases) {
+            const t = board[r][c];
+            if (t) { gabarit += t.letter; touche = true; }
+            else {
+              gabarit += "."; vides++;
+              const vs = dir === "H" ? [[r-1,c],[r+1,c]] : [[r,c-1],[r,c+1]];
+              if (vs.some(occ)) touche = true;
+            }
+          }
+          if (vides !== tuiles || !touche) continue;
+          const appuis = L - vides;
+          for (const mot of motsDuGabarit(dict, gabarit)) {
+            let chevalet = "";
+            for (let i = 0; i < L; i++) if (gabarit[i] === ".") chevalet += mot[i];
+            res.push({ mot, dir, row: cases[0][0], col: cases[0][1], appuis,
+                       cle: [...chevalet].sort().join("") });
+          }
+        }
+      }
+    }
+  }
+  return res;
+}
+
+const nbVoyelles = s => [...s].filter(c => "AEIOU".includes(c)).length;
+
+/**
+ * Cherche une grille contenant au moins `minCiblees` solutions d'une FORME
+ * donnée — pour l'instant le double appui (le mot traverse deux lettres déjà
+ * posées, donc neuf lettres pour sept tuiles).
+ * Environ 18 secondes par grille.
+ */
+export function chercheGrilleCiblee(dict, opts = {}) {
+  const appuisVoulus = opts.appuis ?? 2;
+  const minCiblees   = opts.minCiblees ?? 2;
+  const min = opts.minScrabbles ?? MIN_SCRABBLES;
+  const max = opts.maxScrabbles ?? MAX_SCRABBLES;
+  const minAnc = opts.minAncres ?? MIN_ANCRES;
+  const maxP = opts.maxParties ?? 400;
+
+  for (let p = 0; p < maxP; p++) {
+    if (opts.onProgress) opts.onProgress(p + 1);
+    const partie = generateGame(dict, { mode: "duplicate" });
+    let board = emptyBoard();
+    for (let k = 0; k < partie.moves.length - 3; k++) {
+      board = applyMove(board, partie.moves[k].top);
+      if (k < 5 || ancres(board) < minAnc) continue;
+      const vises = emplacements(board, dict, 7).filter(e => e.appuis === appuisVoulus);
+      const parCle = new Map();
+      for (const e of vises) {
+        if (!parCle.has(e.cle)) parCle.set(e.cle, new Set());
+        parCle.get(e.cle).add(e.mot);
+      }
+      const cands = [...parCle.entries()]
+        .filter(([cle, s]) => s.size >= minCiblees && nbVoyelles(cle) >= 2
+                           && nbVoyelles(cle) <= 5 && tirable(cle, board))
+        .sort((a, c) => a[1].size - c[1].size);
+      for (const [cle] of cands.slice(0, 120)) {
+        const tous = scrabblesDe(board, [...cle], dict);
+        if (tous.length < min || doublon(tous)) continue;
+        const gardes = eloignes(tous);
+        if (gardes.length < min || gardes.length > max || tropDeS(gardes)) continue;
+        if (gardes.filter(s => appuisDe(board, s) === appuisVoulus).length < minCiblees) continue;
+        return { board, rack: [...cle], scrabbles: gardes, coup: k + 1,
+                 ancres: ancres(board), parties: p + 1, appuis: appuisVoulus };
+      }
     }
   }
   return null;

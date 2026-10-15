@@ -1,8 +1,7 @@
-//  Worker de la grille du jour : il détient le dictionnaire et mène la recherche,
-//  qui prend une dizaine de secondes. La page reste ainsi réactive et peut
-//  afficher la progression.
-import { Dictionary } from "../scrabble/dictionary.js?v=370";
-import { chercheGrille } from "../scrabble/grille-du-jour.js?v=370";
+//  Worker de la grille du jour : il ne sert plus qu'à porter le dictionnaire,
+//  pour distinguer « ce mot n'existe pas » de « ce mot existe mais ne passe pas
+//  ici ». Les grilles, elles, sont précalculées (outils/genere-grilles.mjs).
+import { Dictionary } from "../scrabble/dictionary.js?v=371";
 
 let dict = null;
 
@@ -14,17 +13,8 @@ self.onmessage = async (e) => {
       self.postMessage({ type: "pret", mots: dict.words.length });
       return;
     }
-    if (!dict) { self.postMessage({ type: "erreur", message: "dictionnaire non chargé" }); return; }
-    if (type === "grille") {
-      const g = chercheGrille(dict, {
-        maxParties: 2000,
-        onProgress: n => { if (n % 3 === 0) self.postMessage({ type: "avance", parties: n }); },
-      });
-      self.postMessage({ type: "grille", grille: g });
-      return;
-    }
     if (type === "verifie") {
-      self.postMessage({ type: "verifie", mot, connu: dict.has(mot) });
+      self.postMessage({ type: "verifie", mot, connu: !!dict && dict.has(mot) });
       return;
     }
   } catch (err) {
