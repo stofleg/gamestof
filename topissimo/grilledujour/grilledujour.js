@@ -206,9 +206,9 @@ function valide() {
     return;
   }
   if (trouves.has(cible.word)) { message(`${cible.word}, déjà trouvé.`); efface(true); return; }
+  // Bon scrabble : il rejoint la liste des réponses, et la grille se vide.
   trouves.add(cible.word);
-  montrer(cible);
-  saisie = []; curseur = null;
+  montre = null; saisie = []; curseur = null;
   dessineGrille(); dessineListe();
   const fini = trouves.size === grille.scrabbles.length;
   message(`${cible.word} en ${repere(cible)} — ${cible.score} points.` + (fini ? "  Grille terminée." : ""), "ok");
