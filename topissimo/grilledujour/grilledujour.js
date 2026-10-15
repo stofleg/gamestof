@@ -4,7 +4,7 @@
 //  un lot tout prêt, la grille du jour étant choisie selon la date.
 //
 //  Saisie comme dans Topissimo : un clic sur une case place le curseur (second
-//  clic = changement de sens), les lettres se tapent au clavier ou se touchent
+//  clic = changement de sens, clic droit = directement en vertical), les lettres se tapent au clavier ou se touchent
 //  sur le chevalet, elles sautent les cases déjà occupées, Retour arrière les
 //  reprend une à une, Échap les renvoie toutes au chevalet, Entrée valide — et
 //  efface le mot, qu'il soit bon ou non.
@@ -229,6 +229,18 @@ function montrer(s) {
 $("gdjBoard").addEventListener("click", e => {
   const td = e.target.closest("td[data-r]");
   if (td) cliqueCase(+td.dataset.r, +td.dataset.c);
+});
+// Clic droit : curseur directement en vertical sur la case visée.
+$("gdjBoard").addEventListener("contextmenu", e => {
+  const td = e.target.closest("td[data-r]");
+  if (!td || !grille) return;
+  e.preventDefault();
+  const r = +td.dataset.r, c = +td.dataset.c;
+  if (grille.board[r][c]) return;
+  montre = null; saisie = [];
+  curseur = { row: r, col: c, dir: "V" };
+  message("");
+  dessineGrille();
 });
 $("gdjRack").addEventListener("click", e => {
   const t = e.target.closest(".tile[data-l]");
