@@ -6,7 +6,8 @@
 //  Saisie comme dans Topissimo : un clic sur une case place le curseur (second
 //  clic = changement de sens), les lettres se tapent au clavier ou se touchent
 //  sur le chevalet, elles sautent les cases déjà occupées, Retour arrière les
-//  reprend une à une, Entrée valide — et efface le mot, qu'il soit bon ou non.
+//  reprend une à une, Échap les renvoie toutes au chevalet, Entrée valide — et
+//  efface le mot, qu'il soit bon ou non.
 //
 //  Le dictionnaire (4 Mo) n'est chargé qu'en arrière-plan, dans un worker, et
 //  seulement pour pouvoir dire « ce mot existe mais n'est pas un scrabble ici ».
@@ -239,6 +240,7 @@ document.addEventListener("keydown", e => {
   if (/^[a-zA-Z]$/.test(k)) { tape(k.toUpperCase()); e.preventDefault(); }
   else if (k === "Backspace") { retour(); e.preventDefault(); }
   else if (k === "Enter") { valide(); e.preventDefault(); }
+  else if (k === "Escape") { efface(); e.preventDefault(); }   // tout revient au chevalet
   else if (k === " " && curseur && !saisie.length) {
     curseur = { ...curseur, dir: curseur.dir === "H" ? "V" : "H" }; dessineGrille(); e.preventDefault();
   }
