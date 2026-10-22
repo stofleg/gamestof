@@ -29,11 +29,11 @@ import {
   bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName, randomBoardLayout, snakeEndpointsAfter, sablierTime, gigogneRackSize,
   setLetterValues, letterValue, valuesFor, bagFor, isCrossingCell, wordHiddenCount,
   drawVowelRack, VOWELS_NO_Y, MARATHON_TARGET, MARATHON_GAMES,
-} from "./engine.js?v=402";
-import { Dictionary } from "./dictionary.js?v=402";
-import * as invasion from "./araignees.js?v=402";
-import * as sonHalloween from "./halloween-son.js?v=402";
-import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=402";
+} from "./engine.js?v=403";
+import { Dictionary } from "./dictionary.js?v=403";
+import * as invasion from "./araignees.js?v=403";
+import * as sonHalloween from "./halloween-son.js?v=403";
+import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=403";
 
 // État du mode review (parcours coup par coup)
 const review = {
@@ -63,7 +63,7 @@ const FFSC_REVIEW = URL_PARAMS.get("ffscreview");  // revoir une partie FFSC imp
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v402";
+const BUILD_VERSION = "garenna-v403";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -349,8 +349,8 @@ function nueeChauvesSouris() {
     Object.assign(b.style, {
       top: `${Math.random() * 100}%`, width: `${taille}px`, height: `${taille * .42}px`,
       animationDelay: `${Math.random() * 1.2}s`, animationDuration: `${1.4 + Math.random() * 1.2}s`,
-      "--montee": `${-120 - Math.random() * 260}px`,
     });
+    b.style.setProperty("--montee", `${-120 - Math.random() * 260}px`);
     box.appendChild(b);
   }
   document.body.appendChild(box);
@@ -2119,7 +2119,7 @@ function handleDualValidate(move, result) {
   const officialTop = state.topMove?.score || 0;
   const officialSub = state.subTop?.score ?? null;   // null si pas de sous-top
   const s = result.score, w = move.word;
-  notePlaced(result.placed?.length || 0);
+  notePlaced(result.placed?.length || state.pending.length);
   const d = state._dual = state._dual || { best: null, second: null };
   if (!d.best || s > d.best.score) {
     if (d.best && d.best.word !== w && (!d.second || d.best.score > d.second.score)) d.second = d.best;
@@ -2453,7 +2453,7 @@ function validate() {
     move.row === topMv.row &&
     move.col === topMv.col &&
     move.dir === topMv.dir;
-  notePlaced(result.placed?.length || 0);
+  notePlaced(result.placed?.length || state.pending.length);
   if (result.score === topScore || isFirstMoveTopWord || isSameAsTopButJokerElsewhere) {
     // TOP trouvé
     recordMove({ status: "top", playerScore: topScore, playedWord: move.word, playedMove: move });
