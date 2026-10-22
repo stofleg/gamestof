@@ -5,7 +5,7 @@
 //  recouvrent tout le plateau, la partie est perdue.
 const N = 15;
 const PAS_MS = 1400;            // déplacement des araignées
-const ARRIVEE_MS = [6000, 1500]; // intervalle d'arrivée : du début vers la fin (raccourcit)
+const ARRIVEE_MS = [2500, 700];  // intervalle d'arrivée : du début vers la fin (raccourcit)
 const PONTE_MS = 15000;         // une araignée vivante pond toutes les 15 s
 
 let calque = null, plateau = null, araignees = [], minuteurs = [], debut = 0, perdu = null, numero = 0;
