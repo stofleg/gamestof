@@ -1,5 +1,5 @@
 //  Sons du thème Halloween, synthétisés avec Web Audio (aucun fichier) :
-//  orgue lugubre et plaintes de fantômes, vent en continu, tonnerre qui suit les éclairs (toutes les 20 à 45 s),
+//  musiques (enregistrements libres enchaînés), plaintes de fantômes, vent en continu, tonnerre qui suit les éclairs (toutes les 20 à 45 s),
 //  nuée de chauves-souris au scrabble, « splotch » quand on écrase une araignée.
 //  Le son ne démarre qu'après une première interaction (règle des navigateurs)
 //  et se coupe avec le bouton 🔊/🔇 (choix mémorisé).
@@ -102,6 +102,7 @@ export function ambiance(on) {
       e.stopPropagation(); coupe = !coupe;
       try { localStorage.setItem(CLE, coupe ? "off" : "on"); } catch {}
       if (ctx) maitre.gain.setTargetAtTime(coupe ? 0 : .5, ctx.currentTime, .1);
+      if (lecteur) lecteur.muted = coupe;
       majBouton();
     };
     document.body.appendChild(bouton); majBouton();
@@ -110,13 +111,13 @@ export function ambiance(on) {
   orage(on);
   if (on === actif) return;
   if (!on) {
-    actif = false; clearTimeout(tonnerreT); clearTimeout(orgueT); clearTimeout(fantomeT);
+    actif = false; clearTimeout(tonnerreT); clearTimeout(fantomeT); musique(false);
     ventNoeud?.forEach(n => { try { n.stop(); } catch {} }); ventNoeud = null;
     return;
   }
   const demarre = () => {
     initialise(); ctx.resume();
-    actif = true; vent(); orgue(); fantomes();
+    actif = true; vent(); musique(true); fantomes();
   };
   if (ctx && ctx.state === "running") demarre();
   else window.addEventListener("pointerdown", demarre, { once: true });
@@ -171,8 +172,8 @@ function orage(on) {
   orageT = setTimeout(() => { foudre(); suivant(); }, 4000);
 }
 
-// --- orgue et fantômes -------------------------------------------------------------
-let reverb = null, orgueT = null, fantomeT = null;
+// --- fantômes -------------------------------------------------------------
+let reverb = null, fantomeT = null;
 /** Réverbération d'église : réponse impulsionnelle = bruit qui décroît sur 4 s. */
 function eglise() {
   if (reverb) return reverb;
@@ -189,45 +190,6 @@ function eglise() {
   const sec = ctx.createGain(); sec.gain.value = .35; reverb.connect(sec).connect(maitre);
   return reverb;
 }
-const HZ = n => 440 * Math.pow(2, (n - 69) / 12);   // numéro MIDI → Hz
-/** Une note d'orgue : jeux de fonds (8', 4', 2', 16') avec léger tremblant. */
-function noteOrgue(midi, debut, duree, volume = .05) {
-  const f = HZ(midi), sortie = eglise();
-  const env = ctx.createGain();
-  env.gain.setValueAtTime(0, debut);
-  env.gain.linearRampToValueAtTime(volume, debut + .06);
-  env.gain.setValueAtTime(volume, debut + duree);
-  env.gain.linearRampToValueAtTime(0, debut + duree + .25);
-  const trem = ctx.createOscillator(); trem.frequency.value = 5.5;
-  const tg = ctx.createGain(); tg.gain.value = volume * .15; trem.connect(tg).connect(env.gain);
-  for (const [mult, g, type] of [[1, 1, "sine"], [2, .5, "sine"], [4, .22, "sine"], [.5, .45, "triangle"], [3, .12, "sine"]]) {
-    const o = ctx.createOscillator(); o.type = type; o.frequency.value = f * mult;
-    const og = ctx.createGain(); og.gain.value = g;
-    o.connect(og).connect(env); o.start(debut); o.stop(debut + duree + .3);
-  }
-  trem.start(debut); trem.stop(debut + duree + .3);
-  env.connect(sortie);
-}
-/** Morceau en boucle : motif façon Toccata en ré mineur, puis accords lents. */
-function orgue() {
-  if (!actif) return;
-  let t = ctx.currentTime + .2;
-  // A G A … G F E D C# D (mordant descendant), à l'octave et à la double octave
-  const motif = [[81, .12], [79, .12], [81, .9], [79, .14], [77, .14], [76, .14], [74, .14], [73, .5], [74, 1.4]];
-  for (const [m, d] of motif) { noteOrgue(m, t, d, .045); noteOrgue(m - 12, t, d, .045); t += d; }
-  noteOrgue(50, t - 1.4, 1.4, .05); noteOrgue(38, t - 1.4, 1.4, .05);
-  t += .8;
-  // accords lents : Dm – Bb – Gm – A7 – Dm (basse + accord)
-  const accords = [[38, [62, 65, 69]], [46, [62, 65, 70]], [43, [62, 67, 70]], [45, [61, 64, 67, 69]], [38, [62, 65, 69]]];
-  for (const [basse, notes] of accords) {
-    noteOrgue(basse, t, 2.6, .05);
-    for (const n of notes) noteOrgue(n, t, 2.6, .028);
-    t += 2.8;
-  }
-  // silence, puis on recommence
-  orgueT = setTimeout(orgue, (t - ctx.currentTime + 6 + Math.random() * 6) * 1000);
-}
-
 /** Plainte de fantôme : voix sinusoïdale qui glisse « hououuu » avec vibrato, au loin. */
 export function fantome() {
   if (!actif) return;
@@ -256,4 +218,31 @@ export function fantome() {
 }
 function fantomes() {
   fantomeT = setTimeout(() => { fantome(); fantomes(); }, 18000 + Math.random() * 30000);
+}
+
+// --- musique : vrais enregistrements, enchaînés dans un ordre aléatoire ----------------
+const MORCEAUX = [
+  { f: "toccata.m4a", titre: "Bach — Toccata et fugue en ré mineur", credit: "Kevin MacLeod (incompetech.com), CC BY 3.0" },
+  { f: "danse.m4a", titre: "Saint-Saëns — Danse macabre", credit: "Orchestre de Philadelphie, Stokowski — domaine public" },
+  { f: "roi.m4a", titre: "Grieg — Dans l’antre du roi de la montagne", credit: "Kevin MacLeod (incompetech.com), CC BY 3.0" },
+  { f: "montchauve.m4a", titre: "Moussorgski — Une nuit sur le mont Chauve", credit: "domaine public" },
+];
+let lecteur = null, ordre = [], legende = null;
+function musique(on) {
+  if (!on) { lecteur?.pause(); if (legende) legende.hidden = true; return; }
+  if (!lecteur) {
+    lecteur = new Audio(); lecteur.volume = .35; lecteur.preload = "auto";
+    lecteur.addEventListener("ended", morceauSuivant);
+    legende = document.createElement("div"); legende.className = "hw-legende";
+    document.body.appendChild(legende);
+  }
+  lecteur.muted = coupe; legende.hidden = false;
+  if (lecteur.src) lecteur.play().catch(() => {}); else morceauSuivant();
+}
+function morceauSuivant() {
+  if (!ordre.length) ordre = [...MORCEAUX].sort(() => Math.random() - .5);
+  const m = ordre.shift();
+  lecteur.src = new URL(`musique/${m.f}`, import.meta.url).href;
+  lecteur.play().catch(() => {});
+  legende.innerHTML = `♪ ${m.titre}<br><small>${m.credit}</small>`;
 }

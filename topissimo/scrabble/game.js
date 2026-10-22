@@ -29,11 +29,11 @@ import {
   bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName, randomBoardLayout, snakeEndpointsAfter, sablierTime, gigogneRackSize,
   setLetterValues, letterValue, valuesFor, bagFor, isCrossingCell, wordHiddenCount,
   drawVowelRack, VOWELS_NO_Y, MARATHON_TARGET, MARATHON_GAMES,
-} from "./engine.js?v=401";
-import { Dictionary } from "./dictionary.js?v=401";
-import * as invasion from "./araignees.js?v=401";
-import * as sonHalloween from "./halloween-son.js?v=401";
-import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=401";
+} from "./engine.js?v=402";
+import { Dictionary } from "./dictionary.js?v=402";
+import * as invasion from "./araignees.js?v=402";
+import * as sonHalloween from "./halloween-son.js?v=402";
+import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=402";
 
 // État du mode review (parcours coup par coup)
 const review = {
@@ -63,7 +63,7 @@ const FFSC_REVIEW = URL_PARAMS.get("ffscreview");  // revoir une partie FFSC imp
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v401";
+const BUILD_VERSION = "garenna-v402";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
