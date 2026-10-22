@@ -21,11 +21,14 @@ function place(a) {
   const b = plateau.getBoundingClientRect(), t = td.getBoundingClientRect();
   Object.assign(a.el.style, { left: `${t.left - b.left}px`, top: `${t.top - b.top}px`,
     width: `${t.width}px`, height: `${t.height}px` });
+  // tête tournée vers la case centrale (l'émoji regarde vers le haut)
+  const deg = a.r === 7 && a.c === 7 ? 0 : Math.atan2(7 - a.c, a.r - 7) * 180 / Math.PI;
+  a.el.firstChild.style.transform = `rotate(${deg}deg)`;
 }
 function ajoute(r, c) {
   const el = document.createElement("div");
   el.className = "araignee";
-  el.textContent = "🕷️";
+  el.innerHTML = `<span class="corps">🕷️</span>`;
   const a = { id: ++numero, r, c, el, ne: performance.now() };
   el.addEventListener("pointerdown", e => {          // tuée !
     e.preventDefault(); e.stopPropagation();
