@@ -147,6 +147,19 @@ export const GAME_MODES = {
   // Sinon la fin arrive après la 10e partie (classement au plus long streak).
   marathon: { label: "Marathon", rackSize: 7, maxPlayed: 7, bonuses: { 7: 50 },
     defaultTime: 120, stofOnly: true, marathon: true },
+  // Invasion : partie normale, mais des araignées arrivent sur la grille et se
+  // reproduisent. Elles masquent les cases qu'elles occupent et empêchent d'y
+  // poser un jeton : il faut les tuer d'un clic. Partie perdue si elles
+  // recouvrent tout le plateau.
+  invasion: { label: "Invasion", rackSize: 7, maxPlayed: 7, bonuses: { 7: 50 },
+    defaultTime: 120, stofOnly: true, invasion: true },
+  // Grille puzzle et grille Tetris ne sont PAS des parties duplicate : une grille
+  // finale est générée, découpée en pièces, et il faut la reconstituer le plus
+  // vite possible. Elles ont leur propre page (`page`), ouverte au lancement.
+  puzzle: { label: "Grille puzzle", rackSize: 7, maxPlayed: 7, bonuses: { 7: 50 },
+    defaultTime: 120, stofOnly: true, page: "puzzle.html" },
+  tetris: { label: "Grille Tetris", rackSize: 7, maxPlayed: 7, bonuses: { 7: 50 },
+    defaultTime: 120, stofOnly: true, page: "tetris.html" },
 };
 
 // Marathon : objectif de tops consécutifs et nombre de parties enchaînées.

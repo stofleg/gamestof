@@ -31,6 +31,7 @@ import {
   drawVowelRack, VOWELS_NO_Y, MARATHON_TARGET, MARATHON_GAMES,
 } from "./engine.js?v=376";
 import { Dictionary } from "./dictionary.js?v=376";
+import * as invasion from "./araignees.js?v=376";
 import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=376";
 
 // État du mode review (parcours coup par coup)
@@ -408,6 +409,7 @@ function renderBoard() {
   }
   html += "</table>";
   div.innerHTML = html;
+  invasion.rattache();
   div.querySelectorAll("td[data-r]").forEach(td => {
     const r = +td.dataset.r, c = +td.dataset.c;
     td.onclick = () => handleBoardClick(r, c);
@@ -1944,6 +1946,11 @@ function placeLetter(L, preferTileId = null) {
       return;
     }
     row = state.cursor.row; col = state.cursor.col;
+  }
+  // Invasion : impossible d'écrire sous une araignée, il faut d'abord la tuer.
+  if (invasion.couverte(row, col)) {
+    flashFeedback("error", "Une araignée !", "Tue-la d'abord (clic dessus).");
+    return;
   }
 
   // Mode Voyelles : les consonnes sont « libres » (hors chevalet). Une consonne
@@ -5377,6 +5384,12 @@ async function loadSupabaseClient() {
 
 function startGame() {
   if (state.started) return;   // déjà lancée (anti double-clic pendant l'attente)
+  // Formules à page dédiée (Grille puzzle, Grille Tetris) : ce ne sont pas des
+  // parties duplicate, on ouvre leur page en lui transmettant le thème.
+  if (currentMode().page) {
+    location.href = `${currentMode().page}?theme=${encodeURIComponent(state.settings.colorTheme || "classic")}`;
+    return;
+  }
   // GARDE-FOU AVANT LANCEMENT : on ne démarre pas tant que
   //   • la partie pré-tirée n'est pas chargée (sinon tirage aléatoire par erreur) ;
   //   • OU le dictionnaire n'est pas chargé (sinon le top n'est pas calculé et un
@@ -5426,6 +5439,11 @@ function startGame() {
   }
   updateMarathonHUD();
   startChrono();
+  // Invasion : les araignées arrivent dès le début ; plateau recouvert = perdu.
+  if (currentMode().invasion) invasion.demarre($("#board"), () => {
+    showTransientError("Invasion !", "Les araignées ont recouvert tout le plateau.", 3000);
+    endGame();
+  });
   nextMove();
 }
 
@@ -5862,6 +5880,7 @@ function endGame() {
     marathonStartNextGame();
     return;
   }
+  invasion.arrete();
   console.log(`[endGame] ${BUILD_VERSION} — reconstruction plateau depuis ${state.history?.length || 0} coups d'historique`);
   stopChrono();
   stopMoveTimer();
