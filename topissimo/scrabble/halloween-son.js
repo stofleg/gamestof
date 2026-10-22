@@ -107,7 +107,7 @@ export function ambiance(on) {
     };
     document.body.appendChild(bouton); majBouton();
     passer = document.createElement("button");
-    passer.className = "hw-son hw-passer"; passer.title = "Morceau suivant"; passer.textContent = "⏭";
+    passer.className = "hw-son hw-passer"; passer.title = "Morceau suivant"; passer.textContent = "⏭\uFE0E";
     passer.onclick = e => { e.stopPropagation(); morceauSuivant(); };
     document.body.appendChild(passer);
   }
