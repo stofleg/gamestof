@@ -1800,7 +1800,7 @@ body.theme-halloween {
 }
 /* collines et cimetière en silhouette, en bas de page */
 body.theme-halloween::after {
-  content: ""; position: fixed; left: 0; right: 0; bottom: 0; height: 120px; pointer-events: none; z-index: -1;
+  content: ""; position: fixed; left: 0; right: 0; bottom: 0; height: 120px; pointer-events: none; z-index: -2;
   background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1200 120' preserveAspectRatio='none'%3E%3Cpath fill='%230a0610' d='M0 120V70q150-40 300 0t300-10 300 15 300-25v70z'/%3E%3Cg fill='%230a0610'%3E%3Cpath d='M180 72v-26a12 12 0 0124 0v26z'/%3E%3Cpath d='M230 70v-18a9 9 0 0118 0v18z'/%3E%3Crect x='880' y='40' width='6' height='40'/%3E%3Crect x='870' y='50' width='26' height='6'/%3E%3Cpath d='M1020 62v-20a10 10 0 0120 0v20z'/%3E%3Cpath d='M520 70l20-60 4 20 14-10-8 30 16 4z' opacity='.9'/%3E%3C/g%3E%3C/svg%3E") bottom / 100% 100% no-repeat;
 }
 body.theme-halloween .board {
@@ -1861,10 +1861,6 @@ body.theme-halloween::before {
   filter: drop-shadow(0 0 8px rgba(255,255,255,.25));
 }
 body.theme-halloween .right-col { position: relative; }
-body.theme-halloween .right-col::after {
-  content: ""; position: absolute; right: 8px; bottom: -150px; width: 54px; height: 116px; pointer-events: none;
-  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 60 130' fill='none' stroke='%23efe6d2' stroke-width='3' stroke-linecap='round'%3E %3Ccircle cx='30' cy='14' r='10' fill='%23efe6d2' stroke='none'/%3E %3Ccircle cx='26' cy='13' r='2.6' fill='%231a1020' stroke='none'/%3E%3Ccircle cx='34' cy='13' r='2.6' fill='%231a1020' stroke='none'/%3E %3Cpath d='M30 17l-1.5 3h3z' fill='%231a1020' stroke='none'/%3E %3Cpath d='M25 21h10' stroke='%231a1020' stroke-width='1.2'/%3E %3Cpath d='M30 26v42'/%3E %3Cpath d='M20 34q10 4 20 0M19 41q11 4 22 0M20 48q10 4 20 0M22 55q8 3 16 0' stroke-width='2.2'/%3E %3Cpath d='M30 30L14 44 6 30M30 30l16 14 6 16'/%3E %3Cpath d='M22 68h16'/%3E %3Cpath d='M24 68l-4 28 2 28M36 68l4 28-2 28'/%3E %3Cpath d='M16 124h8M38 124h8'/%3E %3C/svg%3E") center / contain no-repeat; transform: rotate(-8deg); opacity: .85;
-}
 body.theme-halloween header::after {
   content: ""; position: fixed; right: 0; top: 0; width: 120px; height: 120px; pointer-events: none; z-index: 0;
   background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath d='M0 0L100.0 0.0 M0 0L96.6 25.9 M0 0L86.6 50.0 M0 0L70.7 70.7 M0 0L50.0 86.6 M0 0L25.9 96.6 M0 0L0.0 100.0 M18.0 0.0Q15.2 2.0 17.4 4.7Q14.2 5.9 15.6 9.0Q12.2 9.3 12.7 12.7Q9.3 12.2 9.0 15.6Q5.9 14.2 4.7 17.4Q2.0 15.2 0.0 18.0 M34.0 0.0Q28.7 3.8 32.8 8.8Q26.8 11.1 29.4 17.0Q23.0 17.6 24.0 24.0Q17.6 23.0 17.0 29.4Q11.1 26.8 8.8 32.8Q3.8 28.7 0.0 34.0 M52.0 0.0Q44.0 5.8 50.2 13.5Q41.0 17.0 45.0 26.0Q35.2 27.0 36.8 36.8Q27.0 35.2 26.0 45.0Q17.0 41.0 13.5 50.2Q5.8 44.0 0.0 52.0 M72.0 0.0Q60.9 8.0 69.5 18.6Q56.7 23.5 62.4 36.0Q48.7 37.4 50.9 50.9Q37.4 48.7 36.0 62.4Q23.5 56.7 18.6 69.5Q8.0 60.9 0.0 72.0 M92.0 0.0Q77.8 10.2 88.9 23.8Q72.5 30.0 79.7 46.0Q62.2 47.8 65.1 65.1Q47.8 62.2 46.0 79.7Q30.0 72.5 23.8 88.9Q10.2 77.8 0.0 92.0' fill='none' stroke='%23e8e0f0' stroke-width='.8' opacity='.75'/%3E%3C/svg%3E") center / contain no-repeat; transform: scaleX(-1);
@@ -1933,7 +1929,6 @@ body.theme-halloween .right-col::before {
 /* squelettes : plus nombreux, l'un qui danse */
 body.theme-halloween::before { animation: hw-danse .9s ease-in-out infinite alternate; transform-origin: 50% 100%; }
 @keyframes hw-danse { from { rotate: -6deg; } to { rotate: 6deg; } }
-body.theme-halloween .right-col::after { animation: hw-danse 1.3s ease-in-out infinite alternate-reverse; }
 /* plateau : lueur rouge qui palpite */
 body.theme-halloween .board {
   box-shadow: 0 0 0 3px #ff4a1a, 0 0 50px rgba(255,40,10,.5), 0 14px 40px rgba(0,0,0,.7);
@@ -1971,3 +1966,20 @@ body.theme-halloween .game-title { color: #ff5a2a; text-shadow: 0 0 10px rgba(25
 }
 .hw-son { position: fixed; left: 12px; bottom: 12px; z-index: 50; width: 40px; height: 40px; border-radius: 50%;
   border: 2px solid #ff4a1a; background: #1a0a14; font-size: 1.2rem; cursor: pointer; box-shadow: 0 0 14px rgba(255,40,10,.5); }
+
+/* ===== Halloween : fond en relief (nuages, grain, lune, plans successifs) ===== */
+body.theme-halloween {
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E %3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E %3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 .07 0'/%3E%3C/filter%3E %3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E"),
+    radial-gradient(ellipse at 50% 50%, transparent 55%, rgba(0,0,0,.65) 100%),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'%3E %3Cdefs%3E%3CradialGradient id='m' cx='40%25' cy='38%25' r='62%25'%3E%3Cstop offset='0' stop-color='%23ffe2c4'/%3E%3Cstop offset='.55' stop-color='%23f08a4a'/%3E%3Cstop offset='1' stop-color='%23a32a12'/%3E%3C/radialGradient%3E %3Cfilter id='t'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.05' numOctaves='4' seed='3'/%3E%3CfeColorMatrix values='0 0 0 0 .4 0 0 0 0 .1 0 0 0 0 .05 0 0 0 .5 0'/%3E%3CfeComposite in2='SourceGraphic' operator='in'/%3E%3C/filter%3E%3C/defs%3E %3Ccircle cx='100' cy='100' r='70' fill='url(%23m)'/%3E %3Ccircle cx='100' cy='100' r='70' fill='%23000' filter='url(%23t)'/%3E %3Cg fill='%238a2a14' opacity='.45'%3E%3Ccircle cx='78' cy='82' r='12'/%3E%3Ccircle cx='122' cy='118' r='16'/%3E%3Ccircle cx='112' cy='72' r='6'/%3E%3Ccircle cx='80' cy='128' r='8'/%3E%3C/g%3E %3Cpath d='M60 150a70 70 0 0 0 100-20a60 60 0 0 1-100 20z' fill='%235a0f08' opacity='.35'/%3E %3C/svg%3E") 90% 42% / 170px 170px no-repeat,
+    radial-gradient(circle at 92% 50%, rgba(255,90,30,.35), rgba(160,20,10,.12) 180px, transparent 340px),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='900' height='500'%3E %3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.004 .012' numOctaves='5' seed='7'/%3E %3CfeColorMatrix values='0 0 0 0 .55 0 0 0 0 .08 0 0 0 0 .1 0 0 0 1.6 -.75'/%3E%3C/filter%3E %3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E") center top / cover no-repeat,
+    radial-gradient(ellipse at 50% 120%, rgba(255,60,0,.35), transparent 60%),
+    linear-gradient(180deg, #07030b 0%, #1a0612 50%, #3a0a0a 100%);
+  background-attachment: fixed;
+}
+body.theme-halloween::after {
+  height: 300px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1200 300' preserveAspectRatio='xMidYMax slice'%3E %3Cdefs%3E %3ClinearGradient id='a' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%234a1630'/%3E%3Cstop offset='1' stop-color='%231c0814'/%3E%3C/linearGradient%3E %3ClinearGradient id='b' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%232a0c1e'/%3E%3Cstop offset='1' stop-color='%230e040a'/%3E%3C/linearGradient%3E %3ClinearGradient id='c' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%23120610'/%3E%3Cstop offset='1' stop-color='%23030103'/%3E%3C/linearGradient%3E %3ClinearGradient id='h' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%23ff5a2a' stop-opacity='.35'/%3E%3Cstop offset='1' stop-color='%23ff5a2a' stop-opacity='0'/%3E%3C/linearGradient%3E %3C/defs%3E %3Cpath fill='url(%23a)' d='M0 300V150q90-60 200-40t180-30 210 20 220-40 180 30 210-20v230z'/%3E %3Cpath fill='url(%23h)' d='M0 160q90-60 200-40t180-30 210 20 220-40 180 30 210-20v30q-100 20-210 20t-180-30-220 40-210-20-180 30-200 40-0 0z' opacity='.6'/%3E %3Cg fill='url(%23b)'%3E %3Cpath d='M0 300V200q140-50 300-15t280-25 300 20 320-30v150z'/%3E %3Cpath d='M940 190v-60l-12-14 14 8 4-22 6 24 16-18-10 26v56z'/%3E %3Cpath d='M260 200v-50l-16-10 18 4-2-18 8 20 10-14-6 18v50z'/%3E %3C/g%3E %3Cg fill='url(%23c)'%3E %3Cpath d='M0 300V240q120-40 260-10t300-20 320 25 320-35v100z'/%3E %3Cpath d='M96 250c-4-50 2-80-6-120l-36-34 40 24-2-36 12 40 26-42-14 52c6 36 4 74 8 116z'/%3E %3Cpath d='M90 140l-46-12M94 124l34-30M98 168l44-16' stroke='%23050208' stroke-width='6'/%3E %3Cpath d='M330 246v-38a18 18 0 0136 0v38z'/%3E%3Cpath d='M396 242v-28a13 13 0 0126 0v28z'/%3E %3Crect x='700' y='176' width='9' height='68'/%3E%3Crect x='684' y='192' width='41' height='9'/%3E %3Cpath d='M820 244v-34a15 15 0 0130 0v34z'/%3E %3Crect x='1050' y='184' width='8' height='60'/%3E%3Crect x='1037' y='198' width='34' height='8'/%3E %3C/g%3E %3Cg fill='%23ff2a2a'%3E%3Ccircle cx='196' cy='270' r='2.4'/%3E%3Ccircle cx='206' cy='270' r='2.4'/%3E %3Ccircle cx='600' cy='282' r='2'/%3E%3Ccircle cx='609' cy='282' r='2'/%3E %3Ccircle cx='930' cy='276' r='1.8'/%3E%3Ccircle cx='938' cy='276' r='1.8'/%3E%3C/g%3E %3C/svg%3E") bottom / cover no-repeat;
+}
