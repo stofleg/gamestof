@@ -1782,9 +1782,9 @@ body.theme-halloween {
   --petrol-2: #2a1838;
   --yellow: #ff8a1d;
   --cream: #140d1c;
-  --normal: #2b2233;
-  --bonus-dl: #4f7a3a;        /* vert sorcière */
-  --bonus-tl: #2f5a22;
+  --normal: #3d3348;
+  --bonus-dl: #a6d46a;        /* vert sorcière clair */
+  --bonus-tl: #1f5a1a;
   --bonus-dw: #8a4fb8;        /* violet */
   --bonus-tw: #e0661a;        /* citrouille */
   --tile-bg: #efe4c8;         /* os / parchemin */
@@ -1810,7 +1810,7 @@ body.theme-halloween .board {
 }
 body.theme-halloween .board td { border-color: #120c18; color: #f3e9d2; }
 body.theme-halloween .board td.normal {
-  background: #2b2233 radial-gradient(circle at 30% 25%, rgba(255,255,255,.05), transparent 60%);
+  background: #3d3348 radial-gradient(circle at 30% 25%, rgba(255,255,255,.05), transparent 60%);
 }
 body.theme-halloween .board td.center { background: #e0661a; }
 body.theme-halloween .board td.center::before { content: "🎃"; font-size: calc(var(--cell-size) * .55); }
