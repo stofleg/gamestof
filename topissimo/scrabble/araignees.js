@@ -30,12 +30,16 @@ function ajoute(r, c) {
   el.className = "araignee";
   el.innerHTML = `<span class="corps">🕷️</span>`;
   const a = { id: ++numero, r, c, el, ne: performance.now() };
-  el.addEventListener("pointerdown", e => {          // tuée !
+  const tue = e => {
     e.preventDefault(); e.stopPropagation();
+    if (!araignees.includes(a)) return;
     araignees = araignees.filter(x => x !== a);
     el.classList.add("morte");
     setTimeout(() => el.remove(), 250);
-  });
+  };
+  el.addEventListener("pointerdown", tue);
+  // pulvérisateur : bouton enfoncé, il suffit de passer sur l'araignée
+  el.addEventListener("pointerenter", e => { if (e.buttons & 1) tue(e); });
   el.addEventListener("click", e => e.stopPropagation());
   calque.appendChild(el);
   araignees.push(a);
