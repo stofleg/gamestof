@@ -29,11 +29,11 @@ import {
   bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName, randomBoardLayout, snakeEndpointsAfter, sablierTime, gigogneRackSize,
   setLetterValues, letterValue, valuesFor, bagFor, isCrossingCell, wordHiddenCount,
   drawVowelRack, VOWELS_NO_Y, MARATHON_TARGET, MARATHON_GAMES,
-} from "./engine.js?v=407";
-import { Dictionary } from "./dictionary.js?v=407";
-import * as invasion from "./araignees.js?v=407";
-import * as sonHalloween from "./halloween-son.js?v=407";
-import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=407";
+} from "./engine.js?v=408";
+import { Dictionary } from "./dictionary.js?v=408";
+import * as invasion from "./araignees.js?v=408";
+import * as sonHalloween from "./halloween-son.js?v=408";
+import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=408";
 
 // État du mode review (parcours coup par coup)
 const review = {
@@ -63,7 +63,7 @@ const FFSC_REVIEW = URL_PARAMS.get("ffscreview");  // revoir une partie FFSC imp
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v407";
+const BUILD_VERSION = "garenna-v408";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -4174,6 +4174,9 @@ function populateAdminModes() {
     // Mode « Éditeur » (construction de partie) : réservé au superadmin également.
     const edOpt = document.querySelector('#optPlayMode option[value="editor"]');
     if (edOpt) edOpt.remove();
+    // Thème Halloween : réservé au superadmin pour l'instant.
+    document.querySelector('#optColorTheme option[value="halloween"]')?.remove();
+    if (state.settings.colorTheme === "halloween") state.settings.colorTheme = "classic";
     return;
   }
   const sel = $("#optGameMode");
