@@ -1,4 +1,4 @@
-//  Socle commun des formules « Grille puzzle » et « Grille Tetris » : génère une
+//  Socle commun des formules à grille finale (« Grille puzzle ») : génère une
 //  partie duplicate complète et renvoie sa grille finale, à reconstituer.
 //  Le rendu d'une case reprend exactement le balisage de game.js (classes de
 //  bonus, jetons), pour que game.css lui donne le même aspect que dans le jeu.
