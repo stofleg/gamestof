@@ -52,6 +52,10 @@ const review = {
 //   ?prepared=ID → jouer la partie pré-tirée
 //   ?review=ID   → revoir une partie déjà jouée (lecture seule)
 const URL_PARAMS = new URLSearchParams(location.search);
+// Joueur du tournoi public (Halloween) : uniquement les parties de son tournoi,
+// en thème Halloween, et retour vers la page du tournoi.
+const PUBLIC_EVENT = localStorage.getItem("currentScope") === "halloween";
+if (PUBLIC_EVENT && !URL_PARAMS.get("prepared") && !URL_PARAMS.get("review")) location.replace("../halloween/");
 const PREPARED_ID = URL_PARAMS.get("prepared");
 const REVIEW_ID = URL_PARAMS.get("review");
 const TRAINING_ID = URL_PARAMS.get("training");
@@ -1438,6 +1442,7 @@ function applyRackPos() {
   wrap.classList.toggle("rack-bottom", state.settings.rackPos !== "top");
 }
 function applyColorTheme() {
+  if (PUBLIC_EVENT) state.settings.colorTheme = "halloween";
   document.body.classList.toggle("theme-duplijeu", state.settings.colorTheme === "duplijeu");
   document.body.classList.toggle("theme-halloween", state.settings.colorTheme === "halloween");
   sonHalloween.ambiance(state.settings.colorTheme === "halloween");
@@ -4174,9 +4179,16 @@ function populateAdminModes() {
     // Mode « Éditeur » (construction de partie) : réservé au superadmin également.
     const edOpt = document.querySelector('#optPlayMode option[value="editor"]');
     if (edOpt) edOpt.remove();
-    // Thème Halloween : réservé au superadmin pour l'instant.
-    document.querySelector('#optColorTheme option[value="halloween"]')?.remove();
-    if (state.settings.colorTheme === "halloween") state.settings.colorTheme = "classic";
+    // Thème Halloween : réservé au superadmin… et imposé au tournoi public.
+    if (PUBLIC_EVENT) { state.settings.colorTheme = "halloween"; applyColorTheme(); }
+    else {
+      document.querySelector('#optColorTheme option[value="halloween"]')?.remove();
+      if (state.settings.colorTheme === "halloween") state.settings.colorTheme = "classic";
+    }
+    if (PUBLIC_EVENT) {
+      const home = $("#btnHome");
+      if (home) { home.href = "../halloween/"; home.textContent = "← Tournoi"; }
+    }
     return;
   }
   const sel = $("#optGameMode");
@@ -6212,6 +6224,10 @@ async function saveResultIfPrepared() {
   }, { onConflict: "prepared_game_id,player_id" });
   if (e1) { console.error("Erreur sauvegarde prepared_game_results:", e1.message); return; }
 
+  if (PUBLIC_EVENT) {                      // tournoi public : pas de championnat du club
+    window._sb.rpc("note_ip", { p_evenement: "partie" }).then(() => {}, () => {});
+    return;
+  }
   // 2) Mirroir dans games + results pour que ça remonte dans le classement championnat
   await syncPreparedToChampionship(pid, totalTime);
 }

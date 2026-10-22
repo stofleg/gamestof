@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tournoi d'Halloween · Topissimo</title>
+<link rel="icon" href="../icon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Lora:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../scrabble/game.css?v=408">
+<style>
+  body { margin: 0; min-height: 100vh; font-family: 'Inter', sans-serif; }
+  .hw-page { max-width: 760px; margin: 0 auto; padding: 28px 16px 260px; }
+  .hw-page h1 { font: 700 2.1rem 'Lora', serif; margin: 0 0 4px; color: #ff6a2a; text-shadow: 0 0 14px rgba(255,40,10,.7); }
+  .hw-sous { color: #e9dcc4; opacity: .85; margin: 0 0 22px; }
+  .hw-carte { background: rgba(26,12,30,.88); border: 1px solid #5a2d63; border-radius: 14px; padding: 18px;
+    margin-bottom: 18px; color: #f3e9d2; box-shadow: 0 10px 30px rgba(0,0,0,.5); }
+  .hw-carte h2 { font: 600 1.2rem 'Lora', serif; margin: 0 0 12px; color: #ffb35c; }
+  .hw-onglets { display: flex; gap: 6px; margin-bottom: 14px; flex-wrap: wrap; }
+  .hw-onglets button { flex: 1; padding: 8px; border-radius: 8px; border: 1px solid #5a2d63; background: transparent;
+    color: #e9dcc4; font: 600 .9rem 'Inter', sans-serif; cursor: pointer; }
+  .hw-onglets button.actif { background: #e0661a; border-color: #e0661a; color: #1a1020; }
+  .hw-champ { margin-bottom: 10px; }
+  .hw-champ label { display: block; font-size: .85rem; margin-bottom: 4px; opacity: .85; }
+  .hw-champ input { width: 100%; box-sizing: border-box; padding: 10px; border-radius: 8px; border: 1px solid #5a2d63;
+    background: #140a18; color: #f3e9d2; font: 1rem 'Inter', sans-serif; }
+  .hw-btn { padding: 10px 16px; border-radius: 8px; border: 0; background: #e0661a; color: #1a1020;
+    font: 700 .95rem 'Inter', sans-serif; cursor: pointer; text-decoration: none; display: inline-block; }
+  .hw-btn.fantome { background: transparent; color: #ffb35c; border: 1px solid #e0661a; }
+  .hw-btn[disabled] { opacity: .5; cursor: default; }
+  .hw-msg { min-height: 1.2em; font-size: .9rem; margin: 6px 0 10px; }
+  .hw-msg.erreur { color: #ff7a6a; } .hw-msg.ok { color: #9fe08a; }
+  .hw-regles { font-size: .82rem; line-height: 1.5; opacity: .8; margin-top: 12px; }
+  .hw-regles li { margin-bottom: 3px; }
+  .hw-entete { display: flex; align-items: center; gap: 10px; justify-content: space-between; flex-wrap: wrap; }
+  .hw-parties { display: grid; gap: 8px; }
+  .hw-partie { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px; background: rgba(255,255,255,.04); }
+  .hw-partie .nom { flex: 1; } .hw-partie .formule { font-size: .8rem; opacity: .7; }
+  .hw-partie .fait { color: #9fe08a; font-weight: 600; font-size: .85rem; }
+  table.hw-classement { width: 100%; border-collapse: collapse; font-size: .92rem; }
+  .hw-classement th, .hw-classement td { padding: 6px 8px; text-align: left; border-bottom: 1px solid rgba(255,255,255,.08); }
+  .hw-classement td.n { text-align: right; font-variant-numeric: tabular-nums; }
+  .hw-classement tr.moi td { color: #ffb35c; font-weight: 700; }
+</style>
+</head>
+<body class="theme-halloween">
+<main class="hw-page">
+  <h1>🎃 Tournoi d'Halloween</h1>
+  <p class="hw-sous">Les formules les plus folles de Topissimo, sous la lune de sang.</p>
+
+  <section class="hw-carte" id="hwAuth" hidden>
+    <div class="hw-onglets">
+      <button data-mode="signup" class="actif">Créer mon compte</button>
+      <button data-mode="login">J'ai déjà un compte</button>
+      <button data-mode="forgot">Mot de passe oublié</button>
+    </div>
+    <form id="hwForm">
+      <div class="hw-champ" id="hwChampPseudo"><label for="hwPseudo">Pseudo (visible dans le classement)</label>
+        <input id="hwPseudo" maxlength="24" autocomplete="nickname"></div>
+      <div class="hw-champ"><label for="hwEmail">Email</label>
+        <input id="hwEmail" type="email" autocomplete="email" required></div>
+      <div class="hw-champ" id="hwChampMdp"><label for="hwMdp">Mot de passe</label>
+        <input id="hwMdp" type="password" minlength="6" autocomplete="new-password"></div>
+      <p class="hw-msg" id="hwMsg"></p>
+      <button class="hw-btn" id="hwValider" type="submit">Créer mon compte</button>
+    </form>
+    <ul class="hw-regles" id="hwRegles">
+      <li>Un seul compte par personne, confirmé par email.</li>
+      <li>Merci de jouer sans VPN.</li>
+      <li>Pour l'équité du tournoi, une empreinte de ton adresse IP (pas l'adresse elle-même) est conservée jusqu'à la fin du tournoi, puis effacée.</li>
+    </ul>
+  </section>
+
+  <div id="hwTournoi" hidden>
+    <section class="hw-carte">
+      <div class="hw-entete">
+        <h2 id="hwTitre">Tes parties</h2>
+        <span><span id="hwQui"></span> · <button class="hw-btn fantome" id="hwSortir" type="button">Se déconnecter</button></span>
+      </div>
+      <div class="hw-parties" id="hwParties"></div>
+    </section>
+    <section class="hw-carte">
+      <h2>Classement</h2>
+      <div id="hwClassement"></div>
+    </section>
+  </div>
+</main>
+<script src="../config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script type="module" src="halloween.js?v=408"></script>
+</body>
+</html>

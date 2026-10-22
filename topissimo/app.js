@@ -4160,14 +4160,24 @@ async function onSignedIn() {
     }
     if (!player) {
       // Aucun joueur à rattacher : on crée un nouveau profil.
+      // Les inscriptions libres ne créent plus de membres du club (fiches club
+      // pré-créées par l'admin, réclamées par email ci-dessus) : un compte
+      // inconnu est un joueur du tournoi public.
       const fallbackName = desiredPseudo || (session.user.email || "Joueur").split("@")[0];
       const { data: created } = await sb.from("players").insert({
         name: fallbackName, email: session.user.email, auth_user_id: userId,
-        club: meta.club || null,
+        scope: "halloween",
       }).select().single();
       player = created;
     }
   }
+  // Joueur du tournoi public : il n'a accès qu'à la page du tournoi.
+  if (!player || player.scope === "halloween") {
+    localStorage.setItem("currentScope", "halloween");
+    location.replace("halloween/");
+    return;
+  }
+  localStorage.setItem("currentScope", "club");
   currentPlayer = player;
   state.currentPlayerId = player.id;
   localStorage.setItem("currentPlayerId", player.id);
