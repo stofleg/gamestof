@@ -84,7 +84,7 @@ function lance() {
   const cs = suivante || nouvellePiece(rang);
   suivante = rang + 1 < pieces.length ? nouvellePiece(rang + 1) : null;
   const h = Math.max(...cs.map(x => x[0])) + 1;
-  chute = { cs, r: -h + 1, c: Math.floor((N - largeur(cs)) / 2) };
+  chute = { cs, r: -h, c: Math.floor((N - largeur(cs)) / 2) };
   if (!libre(cs, chute.r, chute.c)) { chute = null; rate("Plus de place pour la pièce suivante."); return; }
   dessine(); dessineCote();
 }
@@ -175,3 +175,17 @@ async function nouvelle() {
 }
 $("pzNew").onclick = nouvelle;
 nouvelle();
+
+// --- démonstration (?demo=1) : le jeu place lui-même chaque pièce ----------------
+if (new URLSearchParams(location.search).has("demo")) {
+  const bienTournee = cs => cs.every(x => x[2] - x[0] === cs[0][2] - cs[0][0] && x[3] - x[1] === cs[0][3] - cs[0][1]);
+  const touche = key => document.dispatchEvent(new KeyboardEvent("keydown", { key }));
+  setInterval(() => {
+    if (!enJeu || !chute) return;
+    if (!bienTournee(chute.cs)) { touche("ArrowUp"); return; }
+    const cible = chute.cs[0][3] - chute.cs[0][1];
+    if (chute.c < cible) touche("ArrowRight");
+    else if (chute.c > cible) touche("ArrowLeft");
+    else touche(" ");
+  }, 120);
+}

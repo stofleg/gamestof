@@ -5384,7 +5384,7 @@ async function loadSupabaseClient() {
 
 function startGame() {
   if (state.started) return;   // déjà lancée (anti double-clic pendant l'attente)
-  // Formules à page dédiée (Grille puzzle, Grille Tetris) : ce ne sont pas des
+  // Formules à page dédiée (Grille puzzle) : ce ne sont pas des
   // parties duplicate, on ouvre leur page en lui transmettant le thème.
   if (currentMode().page) {
     location.href = `${currentMode().page}?theme=${encodeURIComponent(state.settings.colorTheme || "classic")}`;

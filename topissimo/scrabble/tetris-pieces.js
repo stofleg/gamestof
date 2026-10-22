@@ -61,7 +61,10 @@ function ordre({ id, pieces }) {
   while (reste.size) {
     const prets = [...reste].filter(p => [...avant[p]].every(q => !reste.has(q)));
     if (!prets.length) return null;
-    const p = hasard(prets); out.push(p); reste.delete(p);
+    // la plus basse d'abord (le haut de pile reste régulier), un peu de hasard
+    const haut = q => Math.min(...pieces[q].map(x => x[0]));
+    const p = prets.sort((a, b) => haut(b) - haut(a) + (Math.random() - .5) * 3)[0];
+    out.push(p); reste.delete(p);
   }
   return out;
 }
