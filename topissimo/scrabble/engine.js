@@ -155,7 +155,7 @@ export const GAME_MODES = {
     defaultTime: 120, stofOnly: true, invasion: true },
   // Grille puzzle n'est PAS une partie duplicate : une grille
   // finale est générée, découpée en pièces, et il faut la reconstituer le plus
-  // vite possible. Elles ont leur propre page (`page`), ouverte au lancement.
+  // vite possible. Elle a sa propre page (`page`), ouverte au lancement.
   puzzle: { label: "Grille puzzle", rackSize: 7, maxPlayed: 7, bonuses: { 7: 50 },
     defaultTime: 120, stofOnly: true, page: "puzzle.html" },
 };
