@@ -35,6 +35,7 @@ function ajoute(r, c) {
     if (!araignees.includes(a)) return;
     araignees = araignees.filter(x => x !== a);
     el.classList.add("morte");
+    document.dispatchEvent(new Event("araignee-tuee"));
     setTimeout(() => el.remove(), 250);
   };
   el.addEventListener("pointerdown", tue);
