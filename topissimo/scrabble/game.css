@@ -1882,7 +1882,7 @@ body.theme-halloween::after {
 html:has(body.theme-halloween)::before {
   content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 2;
   background: radial-gradient(ellipse at 30% 0%, rgba(220,230,255,.9), rgba(180,190,255,.25) 50%, transparent 80%);
-  opacity: 0; animation: hw-eclair 9s infinite;
+  opacity: 0; transition: opacity .06s;
 }
 @keyframes hw-eclair {
   0%, 61%, 100% { opacity: 0; }
@@ -1983,3 +1983,7 @@ body.theme-halloween::after {
   height: 300px;
   background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1200 300' preserveAspectRatio='xMidYMax slice'%3E %3Cdefs%3E %3ClinearGradient id='a' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%234a1630'/%3E%3Cstop offset='1' stop-color='%231c0814'/%3E%3C/linearGradient%3E %3ClinearGradient id='b' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%232a0c1e'/%3E%3Cstop offset='1' stop-color='%230e040a'/%3E%3C/linearGradient%3E %3ClinearGradient id='c' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%23120610'/%3E%3Cstop offset='1' stop-color='%23030103'/%3E%3C/linearGradient%3E %3ClinearGradient id='h' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%23ff5a2a' stop-opacity='.35'/%3E%3Cstop offset='1' stop-color='%23ff5a2a' stop-opacity='0'/%3E%3C/linearGradient%3E %3C/defs%3E %3Cpath fill='url(%23a)' d='M0 300V150q90-60 200-40t180-30 210 20 220-40 180 30 210-20v230z'/%3E %3Cpath fill='url(%23h)' d='M0 160q90-60 200-40t180-30 210 20 220-40 180 30 210-20v30q-100 20-210 20t-180-30-220 40-210-20-180 30-200 40-0 0z' opacity='.6'/%3E %3Cg fill='url(%23b)'%3E %3Cpath d='M0 300V200q140-50 300-15t280-25 300 20 320-30v150z'/%3E %3Cpath d='M940 190v-60l-12-14 14 8 4-22 6 24 16-18-10 26v56z'/%3E %3Cpath d='M260 200v-50l-16-10 18 4-2-18 8 20 10-14-6 18v50z'/%3E %3C/g%3E %3Cg fill='url(%23c)'%3E %3Cpath d='M0 300V240q120-40 260-10t300-20 320 25 320-35v100z'/%3E %3Cpath d='M96 250c-4-50 2-80-6-120l-36-34 40 24-2-36 12 40 26-42-14 52c6 36 4 74 8 116z'/%3E %3Cpath d='M90 140l-46-12M94 124l34-30M98 168l44-16' stroke='%23050208' stroke-width='6'/%3E %3Cpath d='M330 246v-38a18 18 0 0136 0v38z'/%3E%3Cpath d='M396 242v-28a13 13 0 0126 0v28z'/%3E %3Crect x='700' y='176' width='9' height='68'/%3E%3Crect x='684' y='192' width='41' height='9'/%3E %3Cpath d='M820 244v-34a15 15 0 0130 0v34z'/%3E %3Crect x='1050' y='184' width='8' height='60'/%3E%3Crect x='1037' y='198' width='34' height='8'/%3E %3C/g%3E %3Cg fill='%23ff2a2a'%3E%3Ccircle cx='196' cy='270' r='2.4'/%3E%3Ccircle cx='206' cy='270' r='2.4'/%3E %3Ccircle cx='600' cy='282' r='2'/%3E%3Ccircle cx='609' cy='282' r='2'/%3E %3Ccircle cx='930' cy='276' r='1.8'/%3E%3Ccircle cx='938' cy='276' r='1.8'/%3E%3C/g%3E %3C/svg%3E") bottom / cover no-repeat;
 }
+
+/* éclairs : tracé SVG + ciel illuminé pendant le flash */
+.hw-eclair { position: fixed; inset: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 4; }
+html:has(body.theme-halloween.hw-flash)::before { opacity: .55; }
