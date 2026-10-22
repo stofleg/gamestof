@@ -1842,3 +1842,31 @@ body.theme-halloween .info-bar.two-sections .info-right { background: rgba(20,12
 body.theme-halloween .info-bar.two-sections .info-right .item .value { color: #c9b8d8; }
 body.theme-halloween .move-timer-chip:not(.urgent) { background: linear-gradient(135deg, #3a1d52, #1e1028); color: #ffb35c; border-color: #e0661a; }
 body.theme-halloween .game-title .badge { color: #1a1020; text-shadow: none; }
+
+/* Halloween : toiles d'araignées aux coins du plateau, squelettes */
+body.theme-halloween .board::before,
+body.theme-halloween .board::after {
+  content: ""; position: absolute; width: 22%; aspect-ratio: 1; pointer-events: none; z-index: 20;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath d='M0 0L100.0 0.0 M0 0L96.6 25.9 M0 0L86.6 50.0 M0 0L70.7 70.7 M0 0L50.0 86.6 M0 0L25.9 96.6 M0 0L0.0 100.0 M18.0 0.0Q15.2 2.0 17.4 4.7Q14.2 5.9 15.6 9.0Q12.2 9.3 12.7 12.7Q9.3 12.2 9.0 15.6Q5.9 14.2 4.7 17.4Q2.0 15.2 0.0 18.0 M34.0 0.0Q28.7 3.8 32.8 8.8Q26.8 11.1 29.4 17.0Q23.0 17.6 24.0 24.0Q17.6 23.0 17.0 29.4Q11.1 26.8 8.8 32.8Q3.8 28.7 0.0 34.0 M52.0 0.0Q44.0 5.8 50.2 13.5Q41.0 17.0 45.0 26.0Q35.2 27.0 36.8 36.8Q27.0 35.2 26.0 45.0Q17.0 41.0 13.5 50.2Q5.8 44.0 0.0 52.0 M72.0 0.0Q60.9 8.0 69.5 18.6Q56.7 23.5 62.4 36.0Q48.7 37.4 50.9 50.9Q37.4 48.7 36.0 62.4Q23.5 56.7 18.6 69.5Q8.0 60.9 0.0 72.0 M92.0 0.0Q77.8 10.2 88.9 23.8Q72.5 30.0 79.7 46.0Q62.2 47.8 65.1 65.1Q47.8 62.2 46.0 79.7Q30.0 72.5 23.8 88.9Q10.2 77.8 0.0 92.0' fill='none' stroke='%23e8e0f0' stroke-width='.8' opacity='.75'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+body.theme-halloween .board::before { left: -4px; top: -4px; }
+body.theme-halloween .board::after { right: -4px; bottom: -4px; transform: rotate(180deg); }
+body.theme-halloween .rack { position: relative; }
+body.theme-halloween .rack::after {
+  content: ""; position: absolute; right: -12px; top: -12px; width: 46px; height: 46px; pointer-events: none;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath d='M0 0L100.0 0.0 M0 0L96.6 25.9 M0 0L86.6 50.0 M0 0L70.7 70.7 M0 0L50.0 86.6 M0 0L25.9 96.6 M0 0L0.0 100.0 M18.0 0.0Q15.2 2.0 17.4 4.7Q14.2 5.9 15.6 9.0Q12.2 9.3 12.7 12.7Q9.3 12.2 9.0 15.6Q5.9 14.2 4.7 17.4Q2.0 15.2 0.0 18.0 M34.0 0.0Q28.7 3.8 32.8 8.8Q26.8 11.1 29.4 17.0Q23.0 17.6 24.0 24.0Q17.6 23.0 17.0 29.4Q11.1 26.8 8.8 32.8Q3.8 28.7 0.0 34.0 M52.0 0.0Q44.0 5.8 50.2 13.5Q41.0 17.0 45.0 26.0Q35.2 27.0 36.8 36.8Q27.0 35.2 26.0 45.0Q17.0 41.0 13.5 50.2Q5.8 44.0 0.0 52.0 M72.0 0.0Q60.9 8.0 69.5 18.6Q56.7 23.5 62.4 36.0Q48.7 37.4 50.9 50.9Q37.4 48.7 36.0 62.4Q23.5 56.7 18.6 69.5Q8.0 60.9 0.0 72.0 M92.0 0.0Q77.8 10.2 88.9 23.8Q72.5 30.0 79.7 46.0Q62.2 47.8 65.1 65.1Q47.8 62.2 46.0 79.7Q30.0 72.5 23.8 88.9Q10.2 77.8 0.0 92.0' fill='none' stroke='%23e8e0f0' stroke-width='.8' opacity='.75'/%3E%3C/svg%3E") center / contain no-repeat; transform: rotate(90deg);
+}
+body.theme-halloween::before {
+  content: ""; position: fixed; right: 4%; bottom: 18px; width: 70px; height: 150px; pointer-events: none; z-index: 0;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 60 130' fill='none' stroke='%23efe6d2' stroke-width='3' stroke-linecap='round'%3E %3Ccircle cx='30' cy='14' r='10' fill='%23efe6d2' stroke='none'/%3E %3Ccircle cx='26' cy='13' r='2.6' fill='%231a1020' stroke='none'/%3E%3Ccircle cx='34' cy='13' r='2.6' fill='%231a1020' stroke='none'/%3E %3Cpath d='M30 17l-1.5 3h3z' fill='%231a1020' stroke='none'/%3E %3Cpath d='M25 21h10' stroke='%231a1020' stroke-width='1.2'/%3E %3Cpath d='M30 26v42'/%3E %3Cpath d='M20 34q10 4 20 0M19 41q11 4 22 0M20 48q10 4 20 0M22 55q8 3 16 0' stroke-width='2.2'/%3E %3Cpath d='M30 30L14 44 6 30M30 30l16 14 6 16'/%3E %3Cpath d='M22 68h16'/%3E %3Cpath d='M24 68l-4 28 2 28M36 68l4 28-2 28'/%3E %3Cpath d='M16 124h8M38 124h8'/%3E %3C/svg%3E") center / contain no-repeat;
+  filter: drop-shadow(0 0 8px rgba(255,255,255,.25));
+}
+body.theme-halloween .right-col { position: relative; }
+body.theme-halloween .right-col::after {
+  content: ""; position: absolute; right: 8px; bottom: -150px; width: 54px; height: 116px; pointer-events: none;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 60 130' fill='none' stroke='%23efe6d2' stroke-width='3' stroke-linecap='round'%3E %3Ccircle cx='30' cy='14' r='10' fill='%23efe6d2' stroke='none'/%3E %3Ccircle cx='26' cy='13' r='2.6' fill='%231a1020' stroke='none'/%3E%3Ccircle cx='34' cy='13' r='2.6' fill='%231a1020' stroke='none'/%3E %3Cpath d='M30 17l-1.5 3h3z' fill='%231a1020' stroke='none'/%3E %3Cpath d='M25 21h10' stroke='%231a1020' stroke-width='1.2'/%3E %3Cpath d='M30 26v42'/%3E %3Cpath d='M20 34q10 4 20 0M19 41q11 4 22 0M20 48q10 4 20 0M22 55q8 3 16 0' stroke-width='2.2'/%3E %3Cpath d='M30 30L14 44 6 30M30 30l16 14 6 16'/%3E %3Cpath d='M22 68h16'/%3E %3Cpath d='M24 68l-4 28 2 28M36 68l4 28-2 28'/%3E %3Cpath d='M16 124h8M38 124h8'/%3E %3C/svg%3E") center / contain no-repeat; transform: rotate(-8deg); opacity: .85;
+}
+body.theme-halloween header::after {
+  content: ""; position: fixed; right: 0; top: 0; width: 120px; height: 120px; pointer-events: none; z-index: 0;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Cpath d='M0 0L100.0 0.0 M0 0L96.6 25.9 M0 0L86.6 50.0 M0 0L70.7 70.7 M0 0L50.0 86.6 M0 0L25.9 96.6 M0 0L0.0 100.0 M18.0 0.0Q15.2 2.0 17.4 4.7Q14.2 5.9 15.6 9.0Q12.2 9.3 12.7 12.7Q9.3 12.2 9.0 15.6Q5.9 14.2 4.7 17.4Q2.0 15.2 0.0 18.0 M34.0 0.0Q28.7 3.8 32.8 8.8Q26.8 11.1 29.4 17.0Q23.0 17.6 24.0 24.0Q17.6 23.0 17.0 29.4Q11.1 26.8 8.8 32.8Q3.8 28.7 0.0 34.0 M52.0 0.0Q44.0 5.8 50.2 13.5Q41.0 17.0 45.0 26.0Q35.2 27.0 36.8 36.8Q27.0 35.2 26.0 45.0Q17.0 41.0 13.5 50.2Q5.8 44.0 0.0 52.0 M72.0 0.0Q60.9 8.0 69.5 18.6Q56.7 23.5 62.4 36.0Q48.7 37.4 50.9 50.9Q37.4 48.7 36.0 62.4Q23.5 56.7 18.6 69.5Q8.0 60.9 0.0 72.0 M92.0 0.0Q77.8 10.2 88.9 23.8Q72.5 30.0 79.7 46.0Q62.2 47.8 65.1 65.1Q47.8 62.2 46.0 79.7Q30.0 72.5 23.8 88.9Q10.2 77.8 0.0 92.0' fill='none' stroke='%23e8e0f0' stroke-width='.8' opacity='.75'/%3E%3C/svg%3E") center / contain no-repeat; transform: scaleX(-1);
+}
