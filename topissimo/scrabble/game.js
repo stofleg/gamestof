@@ -29,10 +29,10 @@ import {
   bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName, randomBoardLayout, snakeEndpointsAfter, sablierTime, gigogneRackSize,
   setLetterValues, letterValue, valuesFor, bagFor, isCrossingCell, wordHiddenCount,
   drawVowelRack, VOWELS_NO_Y, MARATHON_TARGET, MARATHON_GAMES,
-} from "./engine.js?v=390";
-import { Dictionary } from "./dictionary.js?v=390";
-import * as invasion from "./araignees.js?v=390";
-import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=390";
+} from "./engine.js?v=394";
+import { Dictionary } from "./dictionary.js?v=394";
+import * as invasion from "./araignees.js?v=394";
+import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=394";
 
 // État du mode review (parcours coup par coup)
 const review = {
@@ -62,7 +62,7 @@ const FFSC_REVIEW = URL_PARAMS.get("ffscreview");  // revoir une partie FFSC imp
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v390";
+const BUILD_VERSION = "garenna-v394";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -332,6 +332,29 @@ function tileHtml(letter, value, opts = {}) {
 //  Rendu
 // ============================================================
 const ROW_LETTERS = "ABCDEFGHIJKLMNO";
+
+// Mot valide posé ce coup : on retient le nombre de jetons (scrabble ?). En thème
+// Halloween, un scrabble déclenche une nuée de chauves-souris.
+function notePlaced(n) {
+  if (n >= 7 && n > state.moveMaxPlaced && state.settings.colorTheme === "halloween") nueeChauvesSouris();
+  state.moveMaxPlaced = Math.max(state.moveMaxPlaced, n);
+}
+function nueeChauvesSouris() {
+  const box = document.createElement("div");
+  box.className = "nuee-chauves-souris";
+  for (let i = 0; i < 60; i++) {
+    const b = document.createElement("span");
+    const taille = 30 + Math.random() * 90;
+    Object.assign(b.style, {
+      top: `${Math.random() * 100}%`, width: `${taille}px`, height: `${taille * .42}px`,
+      animationDelay: `${Math.random() * 1.2}s`, animationDuration: `${1.4 + Math.random() * 1.2}s`,
+      "--montee": `${-120 - Math.random() * 260}px`,
+    });
+    box.appendChild(b);
+  }
+  document.body.appendChild(box);
+  setTimeout(() => box.remove(), 3500);
+}
 
 function renderBoard() {
   const div = $("#board");
@@ -2093,7 +2116,7 @@ function handleDualValidate(move, result) {
   const officialTop = state.topMove?.score || 0;
   const officialSub = state.subTop?.score ?? null;   // null si pas de sous-top
   const s = result.score, w = move.word;
-  state.moveMaxPlaced = Math.max(state.moveMaxPlaced, result.placed?.length || 0);
+  notePlaced(result.placed?.length || 0);
   const d = state._dual = state._dual || { best: null, second: null };
   if (!d.best || s > d.best.score) {
     if (d.best && d.best.word !== w && (!d.second || d.best.score > d.second.score)) d.second = d.best;
@@ -2145,7 +2168,7 @@ function validateDuplicate(move, mode) {
     // chrono. Les jetons restent posés, comme pour un mot valide.
     const raw = scoreMove(state.board, move, state.dict, { ...opts, raw: true });
     state._dupLast = { word: move.word, score: 0, move: null, invalid: true };
-    state.moveMaxPlaced = Math.max(state.moveMaxPlaced, result.placed?.length || state.pending.length);
+    notePlaced(result.placed?.length || state.pending.length);
     renderBoard(); renderRack();
     showFeedback("info", `<strong>${wLink(move.word)}</strong> — ${raw.score} pts retenu${wait}`, "");
     return;
@@ -2158,7 +2181,7 @@ function validateDuplicate(move, mode) {
   // Mot légal retenu (remplace le précédent). Les jetons restent visibles ; le
   // joueur peut annuler (Échap / ✕) pour proposer un autre mot.
   state._dupLast = { word: move.word, score: result.score, move, invalid: false };
-  state.moveMaxPlaced = Math.max(state.moveMaxPlaced, result.placed.length);
+  notePlaced(result.placed.length);
   renderBoard(); renderRack();
   showFeedback("info", `<strong>${wLink(move.word)}</strong> — ${result.score} pts retenu${wait}`, "");
 }
@@ -2348,7 +2371,7 @@ function validate() {
       const best = sameWord.reduce((a, b) => (b.score > a.score ? b : a));
       if (best.score >= topScore) {
         // Mot du top ou isotop (même score que le top) → validé, on enchaîne.
-        state.moveMaxPlaced = Math.max(state.moveMaxPlaced, state.pending.length);
+        notePlaced(state.pending.length);
         recordMove({ status: "top", playerScore: topScore, playedWord: move.word, playedMove: best.move });
         hideTopFeedback();
         placeTopAndAdvance(topScore, move.word, topScore, best.move);
@@ -2360,7 +2383,7 @@ function validate() {
       if (!state.bestAttempt || best.score > state.bestAttempt.score) {
         state.bestAttempt = { word: move.word, score: best.score, move: best.move };
       }
-      state.moveMaxPlaced = Math.max(state.moveMaxPlaced, state.pending.length);
+      notePlaced(state.pending.length);
       const startR = move.row, startC = move.col;
       clearPending();
       state.cursor = { row: startR, col: startC, dir: move.dir };
@@ -2427,7 +2450,7 @@ function validate() {
     move.row === topMv.row &&
     move.col === topMv.col &&
     move.dir === topMv.dir;
-  state.moveMaxPlaced = Math.max(state.moveMaxPlaced, result.placed?.length || 0);
+  notePlaced(result.placed?.length || 0);
   if (result.score === topScore || isFirstMoveTopWord || isSameAsTopButJokerElsewhere) {
     // TOP trouvé
     recordMove({ status: "top", playerScore: topScore, playedWord: move.word, playedMove: move });
