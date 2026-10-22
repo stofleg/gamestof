@@ -4,7 +4,7 @@
 //  Le son ne démarre qu'après une première interaction (règle des navigateurs)
 //  et se coupe avec le bouton 🔊/🔇 (choix mémorisé).
 const CLE = "topissimo:halloween-son";
-let ctx = null, maitre = null, actif = false, ventNoeud = null, tonnerreT = null, bouton = null;
+let passer = null, ctx = null, maitre = null, actif = false, ventNoeud = null, tonnerreT = null, bouton = null;
 let coupe = (() => { try { return localStorage.getItem(CLE) === "off"; } catch { return false; } })();
 
 function bruit(secondes) {
@@ -106,8 +106,13 @@ export function ambiance(on) {
       majBouton();
     };
     document.body.appendChild(bouton); majBouton();
+    passer = document.createElement("button");
+    passer.className = "hw-son hw-passer"; passer.title = "Morceau suivant"; passer.textContent = "⏭";
+    passer.onclick = e => { e.stopPropagation(); morceauSuivant(); };
+    document.body.appendChild(passer);
   }
   if (bouton) bouton.hidden = !on;
+  if (passer) passer.hidden = !on;
   orage(on);
   if (on === actif) return;
   if (!on) {
@@ -239,10 +244,24 @@ function musique(on) {
   lecteur.muted = coupe; legende.hidden = false;
   if (lecteur.src) lecteur.play().catch(() => {}); else morceauSuivant();
 }
-function morceauSuivant() {
-  if (!ordre.length) ordre = [...MORCEAUX].sort(() => Math.random() - .5);
-  const m = ordre.shift();
+let dernier = null;
+/** Mélange de Fisher-Yates, sans rejouer tout de suite le morceau qui vient de passer. */
+function melangeMorceaux() {
+  const a = [...MORCEAUX];
+  for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+  if (a.length > 1 && a[0] === dernier) a.push(a.shift());
+  return a;
+}
+export function morceauSuivant() {
+  if (!lecteur) return;
+  if (!ordre.length) ordre = melangeMorceaux();
+  const m = dernier = ordre.shift();
   lecteur.src = new URL(`musique/${m.f}`, import.meta.url).href;
   lecteur.play().catch(() => {});
   legende.innerHTML = `♪ ${m.titre}<br><small>${m.credit}</small>`;
+}
+/** Nouvelle partie : nouvel ordre de lecture, et on change de morceau. */
+export function nouvellePartie() {
+  ordre = [];
+  if (lecteur && actif) morceauSuivant();
 }

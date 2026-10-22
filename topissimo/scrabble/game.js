@@ -29,11 +29,11 @@ import {
   bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName, randomBoardLayout, snakeEndpointsAfter, sablierTime, gigogneRackSize,
   setLetterValues, letterValue, valuesFor, bagFor, isCrossingCell, wordHiddenCount,
   drawVowelRack, VOWELS_NO_Y, MARATHON_TARGET, MARATHON_GAMES,
-} from "./engine.js?v=404";
-import { Dictionary } from "./dictionary.js?v=404";
-import * as invasion from "./araignees.js?v=404";
-import * as sonHalloween from "./halloween-son.js?v=404";
-import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=404";
+} from "./engine.js?v=405";
+import { Dictionary } from "./dictionary.js?v=405";
+import * as invasion from "./araignees.js?v=405";
+import * as sonHalloween from "./halloween-son.js?v=405";
+import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=405";
 
 // État du mode review (parcours coup par coup)
 const review = {
@@ -63,7 +63,7 @@ const FFSC_REVIEW = URL_PARAMS.get("ffscreview");  // revoir une partie FFSC imp
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v404";
+const BUILD_VERSION = "garenna-v405";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -3997,6 +3997,7 @@ async function stopGameFromSettings() {
     state.chronoPenalty = 0;
     state.chronoFinal = null;
     state.started = false;
+    invasion.arrete();   // Invasion : plus d’araignées hors partie
     state.bag = { ...bagFor(state.settings.gameMode) };
     state.spareJokers = 0;
     $("#actionRowInGame").hidden = true;
@@ -4232,6 +4233,7 @@ async function initGame() {
   state.topMove = null;
   state.lastTop = null;
   state.started = false;
+  invasion.arrete();   // Invasion : plus d’araignées hors partie
   state.chronoStart = null;
   state.chronoPenalty = 0;
   state.chronoFinal = null;
@@ -4501,6 +4503,7 @@ async function enterTrainingReviewMode(id) {
   review.step = 1;
   review.replayMode = false;
   state.started = false;
+  invasion.arrete();   // Invasion : plus d’araignées hors partie
   state.settings.gameMode = t.mode;
   state.settings.withJoker = t.with_joker;
   state.settings.timePerMove = t.time_per_move;
@@ -4565,6 +4568,7 @@ function enterFfscReviewMode() {
   review.step = 1;
   review.replayMode = false;
   state.started = false;
+  invasion.arrete();   // Invasion : plus d’araignées hors partie
   state.settings.gameMode = fakeGame.mode;
   state.settings.withJoker = false;
   renderGameTitle();
@@ -4616,6 +4620,7 @@ async function enterReviewMode(id) {
   review.step = 1;
   review.replayMode = false;
   state.started = false;
+  invasion.arrete();   // Invasion : plus d’araignées hors partie
   // Afficher le panel review
   $("#reviewPanel").hidden = false;
   // (layout déjà en 2 colonnes — rien à faire)
@@ -5467,6 +5472,7 @@ function startGame() {
   updateMarathonHUD();
   startChrono();
   // Invasion : les araignées arrivent dès le début ; plateau recouvert = perdu.
+  sonHalloween.nouvellePartie();
   if (currentMode().invasion) invasion.demarre($("#board"), () => {
     showTransientError("Invasion !", "Les araignées ont recouvert tout le plateau.", 3000);
     endGame();
@@ -6113,6 +6119,7 @@ window.enterLocalReview = function() {
   review.step = 1;
   review.replayMode = false;
   state.started = false;
+  invasion.arrete();   // Invasion : plus d’araignées hors partie
   document.querySelector(".info-bar")?.style.setProperty("display", "none");
   $("#reviewPanel").hidden = false;
   // Activer le bouton Revoir
