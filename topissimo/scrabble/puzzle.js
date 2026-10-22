@@ -3,7 +3,7 @@
 //  chaque pièce à sa place sur la grille vide. Une pièce peut être posée partout
 //  où elle tient (même au mauvais endroit) et reprise ensuite ; la grille est
 //  validée quand chaque case correspond à la solution.
-import { chargeDico, grilleFinale, classeCase, jeton, appliqueTheme, melange, fmt } from "./grille-finale.js?v=379";
+import { chargeDico, grilleFinale, classeCase, jeton, appliqueTheme, melange, fmt } from "./grille-finale.js?v=380";
 
 const $ = id => document.getElementById(id);
 const N = 15;

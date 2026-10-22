@@ -1770,7 +1770,7 @@ body:not(.ffsc-review) .review-pick { display: none !important; }
 .araignee { position: absolute; pointer-events: auto; cursor: crosshair;
   display: flex; align-items: center; justify-content: center;
   font-size: calc(var(--cell-size) * .85);
-  background: #1d1d1d; border-radius: 4px; line-height: 1;
+  background: #1d1d1d; border-radius: 4px; box-shadow: 0 0 0 3px #1d1d1d; line-height: 1;
   transition: left 1.1s linear, top 1.1s linear, transform .2s, opacity .25s; }
 .araignee .corps { display: block; transition: transform .4s; filter: invert(1); }
 .araignee:hover { transform: scale(1.08); }
