@@ -8,7 +8,7 @@ const PAS_MS = 1400;            // déplacement des araignées
 const ARRIVEE_MS = [6000, 1500]; // intervalle d'arrivée : du début vers la fin (raccourcit)
 const PONTE_MS = 15000;         // une araignée vivante pond toutes les 15 s
 
-let calque = null, plateau = null, araignees = [], minuteurs = [], debut = 0, perdu = null, numero = 0;
+let enPause = 0, calque = null, plateau = null, araignees = [], minuteurs = [], debut = 0, perdu = null, numero = 0;
 
 const cle = (r, c) => r * N + c;
 const occupees = () => new Set(araignees.map(a => cle(a.r, a.c)));
@@ -105,5 +105,23 @@ export function arrete() {
   minuteurs.forEach(t => { clearInterval(t); clearTimeout(t); });
   minuteurs = [];
   calque?.remove();
-  calque = null; araignees = []; perdu = null;
+  calque = null; araignees = []; perdu = null; enPause = 0;
+}
+
+/** Pause de la partie : plus d'arrivées, de déplacements ni de pontes. */
+export function pause() {
+  if (!calque || enPause) return;
+  enPause = performance.now();
+  minuteurs.forEach(t => { clearInterval(t); clearTimeout(t); });
+  minuteurs = [];
+  calque.style.visibility = "hidden";       // et on ne voit pas la grille pendant la pause
+}
+export function reprise() {
+  if (!calque || !enPause) return;
+  const d = performance.now() - enPause;   // la pause ne compte pas dans les délais
+  debut += d; araignees.forEach(a => a.ne += d);
+  enPause = 0;
+  calque.style.visibility = "";
+  minuteurs.push(setInterval(pas, PAS_MS));
+  programmeArrivee();
 }

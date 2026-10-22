@@ -29,11 +29,11 @@ import {
   bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName, randomBoardLayout, snakeEndpointsAfter, sablierTime, gigogneRackSize,
   setLetterValues, letterValue, valuesFor, bagFor, isCrossingCell, wordHiddenCount,
   drawVowelRack, VOWELS_NO_Y, MARATHON_TARGET, MARATHON_GAMES,
-} from "./engine.js?v=403";
-import { Dictionary } from "./dictionary.js?v=403";
-import * as invasion from "./araignees.js?v=403";
-import * as sonHalloween from "./halloween-son.js?v=403";
-import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=403";
+} from "./engine.js?v=404";
+import { Dictionary } from "./dictionary.js?v=404";
+import * as invasion from "./araignees.js?v=404";
+import * as sonHalloween from "./halloween-son.js?v=404";
+import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=404";
 
 // État du mode review (parcours coup par coup)
 const review = {
@@ -63,7 +63,7 @@ const FFSC_REVIEW = URL_PARAMS.get("ffscreview");  // revoir une partie FFSC imp
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v403";
+const BUILD_VERSION = "garenna-v404";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -5754,6 +5754,7 @@ function pauseGame({ showModal = true } = {}) {
     if (showModal) $("#pauseModal").hidden = false;
     return;
   }
+  invasion.pause();
   state.paused = true;
   state._pauseInfo = {
     elapsed: elapsedSeconds(),
@@ -5801,6 +5802,7 @@ async function resumeGameGuarded() {
 
 function resumeGame() {
   if (!state.paused) { $("#pauseModal").hidden = true; return; }
+  invasion.reprise();
   state.paused = false;
   // Repartir le chrono à partir de l'élapsed acquis
   state.chronoStart = Date.now() - (state._pauseInfo.elapsed - state.chronoPenalty) * 1000;
