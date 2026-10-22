@@ -1769,8 +1769,9 @@ body:not(.ffsc-review) .review-pick { display: none !important; }
 .calque-araignees { position: absolute; inset: 0; pointer-events: none; z-index: 30; }
 .araignee { position: absolute; pointer-events: auto; cursor: crosshair;
   display: flex; align-items: center; justify-content: center;
-  font-size: calc(var(--cell-size) * 1.05); line-height: 1;
+  font-size: calc(var(--cell-size) * .85);
+  background: #1d1d1d; border-radius: 4px; line-height: 1;
   transition: left 1.1s linear, top 1.1s linear, transform .2s, opacity .25s; }
-.araignee .corps { display: block; transition: transform .4s; }
+.araignee .corps { display: block; transition: transform .4s; filter: invert(1); }
 .araignee:hover { transform: scale(1.08); }
 .araignee.morte { transform: scale(.3) rotate(160deg); opacity: 0; }
