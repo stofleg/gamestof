@@ -93,7 +93,7 @@ function renderBoard() {
   const n = puzzle.size, board = $('board');
   board.style.gridTemplateColumns = `repeat(${n}, 1fr)`;
   board.style.gridTemplateRows = `repeat(${n}, 1fr)`;
-  board.style.gap = n >= 10 ? '2px' : '3px';
+  board.style.gap = n >= 10 ? '1.5px' : '2px';
   board.innerHTML = '';
   for (let i = 0; i < n * n; i++) {
     const d = document.createElement('div');
