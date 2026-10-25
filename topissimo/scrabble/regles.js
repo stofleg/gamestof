@@ -69,7 +69,6 @@ export const REGLES = {
     titre: "À l'anglaise",
     points: [
       "Mots <b>français</b> (ODS), mais <b>sac et valeurs du Scrabble anglais</b> : K 5, W 4, Y 4, H 4, V 4, J 8, X 8, Q 10, Z 10, D 2, G 2…",
-      "Revois tes réflexes de placement : les lettres chères ne sont plus les mêmes.",
     ],
   },
   lettrecachee: {
@@ -77,7 +76,6 @@ export const REGLES = {
     points: [
       "Après chaque coup, <b>un jeton déjà posé est retourné</b> : tu ne vois plus sa lettre.",
       "Il reste en place, <b>jouable et compté</b> normalement : à toi de t'en souvenir.",
-      "En fin de partie (et en revue), tout est révélé.",
     ],
   },
   voyelles: {

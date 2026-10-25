@@ -2009,3 +2009,11 @@ body.theme-halloween .regles-boite { background: #1e1028; color: #f3e9d2; border
   box-shadow: 0 0 40px rgba(224,102,26,.35); }
 body.theme-halloween .regles-boite h2 { color: #ff8a3d; }
 body.theme-halloween .regles-ok { background: #e0661a; color: #1a1020; }
+
+/* Halloween : références A-O / 1-15 lisibles (le fond --petrol est clair dans ce thème) */
+body.theme-halloween .board td.coord {
+  background: transparent;
+  color: #ff9b3d;
+  text-shadow: 0 0 6px rgba(255,90,30,.7);
+}
+body.theme-halloween .board td.coord.corner { background: transparent; }
