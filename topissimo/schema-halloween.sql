@@ -85,7 +85,7 @@ language sql stable security definer set search_path = public as $$
    where g.tournament_id = p_tournament
      and est_tournoi_public(p_tournament)
      and r.paused is null                     -- partie terminée (paused = état de reprise)
-     and not p.is_admin
+     and p.name <> 'admin'                    -- comme Topissimo : seul le compte « admin » est exclu
    group by p.name
    order by sum(r.sum_neg) desc, sum(r.total_time_seconds) asc;
 $$;
