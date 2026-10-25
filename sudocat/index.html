@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Sudocat · gamestof.fr</title>
+<meta name="description" content="Sudocat : place les chats, un par ligne, par colonne et par zone, sans qu'ils se touchent.">
+<meta name="theme-color" content="#2B2622">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css?v=1">
+</head>
+<body>
+<header class="top">
+  <h1><span id="brand">Sudocat</span></h1>
+  <div id="who" hidden>
+    <span id="pseudo"></span>
+    <button id="logout" class="link" type="button">Se déconnecter</button>
+  </div>
+</header>
+
+<div id="localBanner" class="banner" hidden>Mode local de test : les comptes et la progression restent dans ce navigateur (Supabase non configuré).</div>
+
+<!-- ============ Connexion ============ -->
+<main id="authScreen" class="screen" hidden>
+  <section class="card auth">
+    <h2 id="authTitle">Connexion</h2>
+    <p class="muted" id="authIntro">Crée un compte pour enregistrer ta progression.</p>
+    <form id="authForm" autocomplete="on">
+      <label id="pseudoField" hidden>Pseudo
+        <input id="authPseudo" type="text" minlength="2" maxlength="24" autocomplete="nickname">
+      </label>
+      <label id="emailField">Email
+        <input id="authEmail" type="email" required autocomplete="email">
+      </label>
+      <label id="passwordField">Mot de passe
+        <input id="authPassword" type="password" minlength="6" autocomplete="current-password">
+      </label>
+      <p id="authError" class="error" hidden></p>
+      <p id="authInfo" class="info" hidden></p>
+      <button id="authSubmit" class="primary" type="submit">Se connecter</button>
+    </form>
+    <p class="switch">
+      <button id="toSignup" class="link" type="button">Créer un compte</button>
+      <button id="toLogin" class="link" type="button" hidden>J'ai déjà un compte</button>
+      <button id="toReset" class="link" type="button">Mot de passe oublié ?</button>
+    </p>
+  </section>
+  <section class="card rules">
+    <h2>La règle</h2>
+    <p>Place un chat dans <b>chaque ligne</b>, <b>chaque colonne</b> et <b>chaque zone de couleur</b>.
+      Deux chats ne se touchent jamais, <b>même en diagonale</b>.</p>
+  </section>
+</main>
+
+<!-- ============ Jeu ============ -->
+<main id="gameScreen" class="screen" hidden>
+  <section class="status">
+    <div class="level"><span class="muted">Niveau</span> <b id="levelNum">1</b> <span id="levelName"></span></div>
+    <div class="clock" id="clock" title="Temps">0:00</div>
+    <div class="lives" id="lives" title="Erreurs permises"></div>
+  </section>
+  <p id="goal" class="goal muted"></p>
+
+  <div id="boardWrap">
+    <div id="board" aria-label="Grille"></div>
+    <div id="loading" hidden><div class="spinner"></div><p>Préparation de la grille…</p></div>
+  </div>
+
+  <p class="help muted">Un clic (ou glisser) : croix · Double-clic : chat</p>
+
+  <div class="actions">
+    <div class="theme" role="group" aria-label="Thème">
+      <button id="themeChat" type="button">🐱 Chats</button>
+      <button id="themeChien" type="button">🐶 Chiens</button>
+    </div>
+    <button id="giveUp" class="link" type="button">Abandonner cette grille</button>
+  </div>
+
+  <section class="card stats" id="stats"></section>
+
+  <section class="card rules">
+    <h2>La règle</h2>
+    <p>Place un chat dans <b>chaque ligne</b>, <b>chaque colonne</b> et <b>chaque zone de couleur</b>.
+      Deux chats ne se touchent jamais, <b>même en diagonale</b>.</p>
+    <p>Un chat mal placé compte une erreur : à la 3<sup>e</sup>, la grille est perdue.
+      Réussis une grille <b>sans erreur et dans le temps indiqué</b> : elle était facile pour toi,
+      tu passes au niveau suivant.</p>
+  </section>
+</main>
+
+<!-- ============ Fin de partie ============ -->
+<div id="endDialog" class="overlay" hidden>
+  <div class="card end">
+    <h2 id="endTitle"></h2>
+    <p id="endText"></p>
+    <p id="endLevel" class="levelup" hidden></p>
+    <button id="nextGrid" class="primary" type="button">Grille suivante</button>
+  </div>
+</div>
+
+<!-- ============ Nouveau mot de passe (lien de réinitialisation) ============ -->
+<div id="newPasswordDialog" class="overlay" hidden>
+  <form class="card end" id="newPasswordForm">
+    <h2>Nouveau mot de passe</h2>
+    <label>Mot de passe <input id="newPassword" type="password" minlength="6" required autocomplete="new-password"></label>
+    <p id="newPasswordError" class="error" hidden></p>
+    <button class="primary" type="submit">Enregistrer</button>
+  </form>
+</div>
+
+<script src="config.js?v=1"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="moteur.js?v=1"></script>
+<script src="illustrations.js?v=1"></script>
+<script src="stockage.js?v=1"></script>
+<script src="jeu.js?v=1"></script>
+</body>
+</html>
