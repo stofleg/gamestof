@@ -97,6 +97,7 @@ export const REGLES = {
   },
   puzzle: {
     titre: "Grille puzzle 🧩",
+    sansPied: true,
     points: [
       "Une grille finale a été <b>découpée en pièces</b> mélangées à droite.",
       "<b>Glisse</b> chaque pièce à sa place sur la grille vide (pas de rotation). Clic droit sur une pièce posée : elle retourne dans la réserve.",
@@ -117,7 +118,7 @@ export function afficheRegles(cle) {
         <div class="regles-sur">Formule superoriginale</div>
         <h2 id="reglesTitre">${r.titre}</h2>
         <ul>${r.points.map(p => `<li>${p}</li>`).join("")}</ul>
-        <p class="regles-pied">Le reste : règles habituelles du topping.</p>
+        ${r.sansPied ? "" : '<p class="regles-pied">Le reste : règles habituelles du topping.</p>'}
         <button type="button" class="regles-ok">C'est parti !</button>
       </div>`;
     const ferme = () => { fond.remove(); document.removeEventListener("keydown", clavier, true); ok(); };
