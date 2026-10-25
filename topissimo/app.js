@@ -3993,12 +3993,10 @@ function setAuthMode(mode) {
   authMode = mode;
   $$(".auth-tab").forEach(t => t.classList.toggle("active", t.dataset.mode === mode));
   $("#authPseudoField").hidden = mode !== "signup";
-  $("#authClubField").hidden = mode !== "signup";
   $("#authPwField").hidden = mode === "forgot";
   // Désactiver les champs cachés pour qu'ils ne bloquent pas la validation
   // HTML5 du formulaire (sinon "An invalid form control is not focusable").
   $("#authPseudo").disabled = mode !== "signup";
-  $("#authClub").disabled   = mode !== "signup";
   $("#authPassword").disabled = mode === "forgot";
   // Champ email — toujours "Email" (la connexion par pseudo n'est plus proposée)
   $("#authEmailLabel").textContent = "Email";
@@ -4015,7 +4013,7 @@ $("#authForm").addEventListener("submit", async (e) => {
   const email = $("#authEmail").value.trim();
   const password = $("#authPassword").value;
   const pseudo = $("#authPseudo").value.trim();
-  const club = $("#authClub").value.trim();
+  const club = "";
   const msg = $("#authMsg");
   msg.className = "auth-msg"; msg.textContent = "…";
 
