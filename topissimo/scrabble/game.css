@@ -1992,3 +1992,20 @@ html:has(body.theme-halloween.hw-flash)::before { opacity: .55; }
 .hw-legende small { font-weight: 400; opacity: .8; }
 body:not(.theme-halloween) .hw-legende { display: none; }
 .hw-passer { left: 58px; color: #ffb35c; font-size: 1.15rem; font-weight: 700; line-height: 1; }
+
+/* ===== Fenêtre des règles (formules superoriginales) ===== */
+.regles-fond { position: fixed; inset: 0; z-index: 3000; background: rgba(0,20,30,.55);
+  display: flex; align-items: center; justify-content: center; padding: 16px; }
+.regles-boite { background: #fff; color: var(--petrol); border-radius: 16px; padding: 24px 26px 20px;
+  max-width: 480px; width: 100%; box-shadow: 0 20px 60px rgba(0,0,0,.35); font-family: 'Inter', sans-serif; }
+.regles-sur { font-size: .75rem; letter-spacing: .08em; text-transform: uppercase; opacity: .6; }
+.regles-boite h2 { font: 700 1.5rem 'Lora', serif; margin: 2px 0 12px; }
+.regles-boite ul { margin: 0 0 12px; padding-left: 20px; line-height: 1.5; }
+.regles-boite li { margin-bottom: 6px; }
+.regles-pied { font-size: .85rem; opacity: .65; margin: 0 0 16px; }
+.regles-ok { width: 100%; padding: 11px; border: 0; border-radius: 10px; background: var(--yellow); color: var(--petrol);
+  font: 700 1rem 'Inter', sans-serif; cursor: pointer; }
+body.theme-halloween .regles-boite { background: #1e1028; color: #f3e9d2; border: 1px solid #e0661a;
+  box-shadow: 0 0 40px rgba(224,102,26,.35); }
+body.theme-halloween .regles-boite h2 { color: #ff8a3d; }
+body.theme-halloween .regles-ok { background: #e0661a; color: #1a1020; }

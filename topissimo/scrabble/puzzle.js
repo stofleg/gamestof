@@ -3,7 +3,8 @@
 //  chaque pièce à sa place sur la grille vide. Une pièce peut être posée partout
 //  où elle tient (même au mauvais endroit) et reprise ensuite ; la grille est
 //  validée quand chaque case correspond à la solution.
-import { chargeDico, grilleFinale, classeCase, jeton, appliqueTheme, melange, fmt } from "./grille-finale.js?v=409";
+import { afficheRegles } from "./regles.js?v=410";
+import { chargeDico, grilleFinale, classeCase, jeton, appliqueTheme, melange, fmt } from "./grille-finale.js?v=410";
 
 const $ = id => document.getElementById(id);
 const N = 15;
@@ -219,4 +220,4 @@ async function nouvelle() {
   $("pzNew").disabled = false;
 }
 $("pzNew").onclick = nouvelle;
-nouvelle();
+afficheRegles("puzzle").then(nouvelle);

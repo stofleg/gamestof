@@ -29,11 +29,12 @@ import {
   bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName, randomBoardLayout, snakeEndpointsAfter, sablierTime, gigogneRackSize,
   setLetterValues, letterValue, valuesFor, bagFor, isCrossingCell, wordHiddenCount,
   drawVowelRack, VOWELS_NO_Y, MARATHON_TARGET, MARATHON_GAMES,
-} from "./engine.js?v=409";
-import { Dictionary } from "./dictionary.js?v=409";
-import * as invasion from "./araignees.js?v=409";
-import * as sonHalloween from "./halloween-son.js?v=409";
-import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=409";
+} from "./engine.js?v=410";
+import { Dictionary } from "./dictionary.js?v=410";
+import * as invasion from "./araignees.js?v=410";
+import { REGLES, afficheRegles } from "./regles.js?v=410";
+import * as sonHalloween from "./halloween-son.js?v=410";
+import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=410";
 
 // État du mode review (parcours coup par coup)
 const review = {
@@ -67,7 +68,7 @@ const FFSC_REVIEW = URL_PARAMS.get("ffscreview");  // revoir une partie FFSC imp
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v409";
+const BUILD_VERSION = "garenna-v410";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -5429,10 +5430,19 @@ async function loadSupabaseClient() {
   window._sb = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
 }
 
+const reglesVues = new Set();
 function startGame() {
   if (state.started) return;   // déjà lancée (anti double-clic pendant l'attente)
   // Formules à page dédiée (Grille puzzle) : ce ne sont pas des
   // parties duplicate, on ouvre leur page en lui transmettant le thème.
+  // Formule superoriginale : fenêtre des règles particulières avant le départ
+  // (une fois par formule et par page ; le chrono n'est pas encore lancé).
+  const cleMode = state.settings.gameMode;
+  if (REGLES[cleMode] && !reglesVues.has(cleMode) && !currentMode().page) {
+    reglesVues.add(cleMode);
+    afficheRegles(cleMode).then(() => startGame());
+    return;
+  }
   if (currentMode().page) {
     location.href = `${currentMode().page}?theme=${encodeURIComponent(state.settings.colorTheme || "classic")}`;
     return;
