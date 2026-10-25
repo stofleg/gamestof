@@ -3,8 +3,8 @@
 //  chaque pièce à sa place sur la grille vide. Une pièce peut être posée partout
 //  où elle tient (même au mauvais endroit) et reprise ensuite ; la grille est
 //  validée quand chaque case correspond à la solution.
-import { afficheRegles } from "./regles.js?v=415";
-import { chargeDico, grilleFinale, classeCase, jeton, appliqueTheme, melange, fmt } from "./grille-finale.js?v=415";
+import { afficheRegles } from "./regles.js?v=416";
+import { chargeDico, grilleFinale, classeCase, jeton, appliqueTheme, melange, fmt } from "./grille-finale.js?v=416";
 
 const $ = id => document.getElementById(id);
 const N = 15;

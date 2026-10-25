@@ -12,7 +12,7 @@
 //     aussi les mots croisés) et on garde le maximum.
 // ============================================================
 
-import { BOARD_SIZE, BOARD_BONUSES, CENTER, scoreMove, applyMove, LETTER_VALUE, VOWELS, VOWELS_NO_Y, CONSONANTS_FR, isSimplePath, isSnakeMove } from "./engine.js?v=415";
+import { BOARD_SIZE, BOARD_BONUSES, CENTER, scoreMove, applyMove, LETTER_VALUE, VOWELS, VOWELS_NO_Y, CONSONANTS_FR, isSimplePath, isSnakeMove } from "./engine.js?v=416";
 
 // Un coup PROLONGE le serpent s'il s'accroche à une extrémité (isSnakeMove ; les
 // mots croisés latéraux sont permis), OU s'il garde un chemin simple (extension
@@ -1440,7 +1440,9 @@ export function findTop(board, rack, dict, opts = {}) {
           layout: opts.layout,
           freeCons: opts.freeCons,
           freeConsBudget,
-          consLeft: opts.consAvail || null,   // Voyelles : consonnes encore dans le sac
+          consAvail: opts.consAvail || null,   // Voyelles : consonnes encore dans le sac
+          jokersAvail: opts.jokersAvail || 0,  // … et jokers (remplacent une consonne épuisée)
+          consNeed: null, consExcess: 0,
           consUsed: 0,
           anchorCovered: false,
           candidates, seenMoves, zone,
@@ -1484,6 +1486,41 @@ function findAnchors(board) {
   return out;
 }
 
+/**
+ * Voyelles : pour un mot qui demande plus d'exemplaires d'une consonne que le sac n'en
+ * a, choisit QUELLES tuiles de cette lettre sont des jokers (0 point) de façon à
+ * maximiser le score. Renvoie { blanks, result } ou null (impossible / invalide).
+ */
+function meilleurePlaceJokers(board, move, consAvail, dict, sopts) {
+  const dr = move.dir === "V" ? 1 : 0, dc = move.dir === "H" ? 1 : 0;
+  const parLettre = {};                       // lettre → indices des tuiles NEUVES
+  for (let i = 0; i < move.word.length; i++) {
+    const r = move.row + i * dr, c = move.col + i * dc;
+    if (board[r][c]) continue;
+    const L = move.word[i];
+    if (consAvail[L] === undefined) continue; // voyelle : jamais joker
+    (parLettre[L] ||= []).push(i);
+  }
+  const groupes = [];                         // [{ indices, k }] : k jokers à placer parmi indices
+  for (const L in parLettre) {
+    const k = parLettre[L].length - (consAvail[L] || 0);
+    if (k > 0) groupes.push({ indices: parLettre[L], k });
+  }
+  const combis = (arr, k) => k === 0 ? [[]] : arr.flatMap((x, i) => combis(arr.slice(i + 1), k - 1).map(t => [x, ...t]));
+  let best = null;
+  const essaie = (g, acc) => {
+    if (g === groupes.length) {
+      const blanks = acc.slice().sort((a, b) => a - b);
+      const result = scoreMove(board, { ...move, blanks }, dict, sopts);
+      if (result.errors.length === 0 && (!best || result.score > best.result.score)) best = { blanks, result };
+      return;
+    }
+    for (const t of combis(groupes[g].indices, groupes[g].k)) essaie(g + 1, acc.concat(t));
+  };
+  essaie(0, []);
+  return best;
+}
+
 function extend(ctx) {
   const { board, dict, rack, dir, dr, dc, ar, ac, startR, startC,
           r, c, currentWord, blanksAt, tilesUsed, maxTilesUsed, bonuses,
@@ -1499,8 +1536,17 @@ function extend(ctx) {
     if (!seenMoves.has(key)) {
       seenMoves.add(key);
       const move = { word: currentWord, row: startR, col: startC, dir, blanks: [...blanksAt] };
-      const result = scoreMove(board, move, dict, { bonuses, jokerPays: ctx.jokerPays, layout: ctx.layout });
-      if (result.errors.length === 0) {
+      const sopts = { bonuses, jokerPays: ctx.jokerPays, layout: ctx.layout };
+      let result;
+      if (ctx.consAvail && ctx.consExcess > 0) {
+        // Voyelles, consonne épuisée (ex. deux Y) : les exemplaires manquants sont des
+        // jokers. On teste chaque façon de les répartir et on garde la plus payante.
+        const meilleur = meilleurePlaceJokers(board, move, ctx.consAvail, dict, sopts);
+        if (meilleur) { move.blanks = meilleur.blanks; result = meilleur.result; }
+      } else {
+        result = scoreMove(board, move, dict, sopts);
+      }
+      if (result && result.errors.length === 0) {
         candidates.push({ score: result.score, move, words: result.words, placedCount: result.placed.length });
       }
     }
@@ -1538,14 +1584,21 @@ function extend(ctx) {
       for (const L of CONSONANTS_FR) {
         if (triedC.has(L)) continue;
         triedC.add(L);
-        if (ctx.consLeft && !(ctx.consLeft[L] > 0)) continue;   // plus de cette lettre dans le sac
+        // Sac limité : au-delà des exemplaires restants, il faut un joker.
+        let need = ctx.consNeed, excess = ctx.consExcess || 0;
+        if (ctx.consAvail) {
+          const n = ((ctx.consNeed && ctx.consNeed[L]) || 0) + 1;
+          if (n > (ctx.consAvail[L] || 0)) excess++;
+          if (excess > ctx.jokersAvail) continue;          // plus assez de jokers
+          need = { ...(ctx.consNeed || {}), [L]: n };
+        }
         if (!crossWordOk(board, r, c, L, dir, dict)) continue;
         extend({
           ...ctx,
           r: r + dr, c: c + dc,
           currentWord: currentWord + L,
           tilesUsed: tilesUsed + 1,
-          consLeft: ctx.consLeft ? { ...ctx.consLeft, [L]: ctx.consLeft[L] - 1 } : null,
+          consNeed: need, consExcess: excess,
           consUsed: (ctx.consUsed || 0) + 1,
           anchorCovered: anchorCovered || (r === ar && c === ac),
         });

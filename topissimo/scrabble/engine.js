@@ -173,6 +173,12 @@ export const VOWELS_NO_Y = new Set(["A", "E", "I", "O", "U"]);
  * sont jamais tirées : seules celles posées sur le plateau (tops précédents) sont
  * sorties du sac, donc le plateau suffit à les décompter. Un joker posé ne compte pas.
  */
+export function jokersDisponibles(board) {
+  let posés = 0;
+  for (const ligne of board) for (const c of ligne) if (c && c.isBlank) posés++;
+  return Math.max(0, (LETTER_BAG["?"] || 0) - posés);
+}
+
 export function consonnesDisponibles(board) {
   const reste = {};
   for (const L of "BCDFGHJKLMNPQRSTVWXYZ") reste[L] = LETTER_BAG[L] || 0;

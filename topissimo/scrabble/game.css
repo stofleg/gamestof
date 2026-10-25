@@ -2029,3 +2029,16 @@ body.theme-halloween .board td.coord.corner { background: transparent; }
 .bag-chip.low .ct { background: #c8202a; }          /* dernier exemplaire */
 body.theme-halloween .bag-chip .ct { background: #1a0a22; color: #ffb35c; box-shadow: 0 0 0 1px #e0661a; }
 body.theme-halloween .bag-chip.low .ct { background: #e0231a; color: #fff; box-shadow: 0 0 0 1px #ff8a3d; }
+
+/* Halloween : cadre du top bien visible (le crème du thème se confondait avec les jetons) */
+body.theme-halloween .board .top-frame {
+  border: 4px solid #ff4a1a;
+  border-radius: 6px;
+  box-shadow: 0 0 0 2px rgba(255,255,255,.85), 0 0 18px 4px rgba(255,74,26,.9), inset 0 0 12px rgba(255,74,26,.55);
+  animation: hw-top-pulse 1.2s ease-in-out infinite;
+}
+@keyframes hw-top-pulse {
+  0%, 100% { box-shadow: 0 0 0 2px rgba(255,255,255,.85), 0 0 14px 2px rgba(255,74,26,.8), inset 0 0 10px rgba(255,74,26,.5); }
+  50%      { box-shadow: 0 0 0 2px #fff, 0 0 26px 7px rgba(255,120,40,1), inset 0 0 16px rgba(255,120,40,.7); }
+}
+@media (prefers-reduced-motion: reduce) { body.theme-halloween .board .top-frame { animation: none; } }

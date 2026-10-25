@@ -28,13 +28,13 @@ import {
   VOWELS, drawForDuplicate, scoreMove, applyMove,
   bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName, randomBoardLayout, snakeEndpointsAfter, sablierTime, gigogneRackSize,
   setLetterValues, letterValue, valuesFor, bagFor, isCrossingCell, wordHiddenCount,
-  drawVowelRack, VOWELS_NO_Y, MARATHON_TARGET, MARATHON_GAMES, consonnesDisponibles,
-} from "./engine.js?v=415";
-import { Dictionary } from "./dictionary.js?v=415";
-import * as invasion from "./araignees.js?v=415";
-import { REGLES, afficheRegles } from "./regles.js?v=415";
-import * as sonHalloween from "./halloween-son.js?v=415";
-import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=415";
+  drawVowelRack, VOWELS_NO_Y, MARATHON_TARGET, MARATHON_GAMES, consonnesDisponibles, jokersDisponibles,
+} from "./engine.js?v=416";
+import { Dictionary } from "./dictionary.js?v=416";
+import * as invasion from "./araignees.js?v=416";
+import { REGLES, afficheRegles } from "./regles.js?v=416";
+import * as sonHalloween from "./halloween-son.js?v=416";
+import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=416";
 
 // État du mode review (parcours coup par coup)
 const review = {
@@ -68,7 +68,7 @@ const FFSC_REVIEW = URL_PARAMS.get("ffscreview");  // revoir une partie FFSC imp
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v415";
+const BUILD_VERSION = "garenna-v416";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -370,6 +370,42 @@ function consonnesLimitees() {
   return !state.prepared || !!state.prepared.moves?.[0]?._consBag;
 }
 
+/** Voyelles : parmi des consonnes posées (lettres), combien manquent dans le sac ?
+ *  Chaque manquante doit être couverte par un joker. */
+function excedentConsonnes(lettres) {
+  const dispo = consonnesDisponibles(state.board), n = {};
+  for (const L of lettres) if (!VOWELS_NO_Y.has(L)) n[L] = (n[L] || 0) + 1;
+  let total = 0;
+  for (const L in n) total += Math.max(0, n[L] - (dispo[L] || 0));
+  return total;
+}
+/** Voyelles : les consonnes épuisées sont remplacées par des jokers (0 point). On
+ *  désigne d'abord les premières tuiles concernées ; bestJokerVariant déplace ensuite
+ *  le joker à l'endroit le plus payant. Renvoie un message d'erreur ou null. */
+function placeJokersVoyelles(move) {
+  if (!currentMode().voyelles || !consonnesLimitees()) return null;
+  const dispo = consonnesDisponibles(state.board);
+  const dr = move.dir === "V" ? 1 : 0, dc = move.dir === "H" ? 1 : 0;
+  const parLettre = {};
+  for (let i = 0; i < move.word.length; i++) {
+    if (state.board[move.row + i * dr][move.col + i * dc]) continue;     // déjà posée
+    const L = move.word[i];
+    if (VOWELS_NO_Y.has(L)) continue;
+    (parLettre[L] ||= []).push(i);
+  }
+  const blanks = [];
+  for (const L in parLettre) {
+    const k = parLettre[L].length - (dispo[L] || 0);
+    if (k > 0) blanks.push(...parLettre[L].slice(0, k));
+  }
+  if (blanks.length > jokersDisponibles(state.board)) {
+    return blanks.length === 1 ? "Plus de joker pour remplacer la consonne manquante."
+      : `Il manque ${blanks.length} consonnes au sac et il ne reste que ${jokersDisponibles(state.board)} joker(s).`;
+  }
+  move.blanks = [...new Set([...(move.blanks || []), ...blanks])].sort((a, b) => a - b);
+  return null;
+}
+
 function renderBoard() {
   const div = $("#board");
   // Sur mobile (< 700 px) on supprime les coords pour gagner de la place
@@ -383,6 +419,10 @@ function renderBoard() {
   if (state.pending.length > 0) {
     const mv = buildMoveFromPending();
     if (mv) {
+      // Voyelles : une consonne épuisée est un joker → score affiché à la meilleure place.
+      if (placeJokersVoyelles(mv) === null && mv.blanks.length) {
+        try { bestJokerVariant(state.board, mv, null, { bonuses: currentMode().bonuses, layout: state.boardLayout, raw: true }); } catch { /* affichage seulement */ }
+      }
       const r0 = scoreMove(state.board, mv, null, { bonuses: currentMode().bonuses, jokerPays: currentMode().jokerPays, layout: state.boardLayout, raw: true });
       badgeScore = r0.score;
       badgeDir = mv.dir;
@@ -1101,7 +1141,10 @@ function renderBag() {
     counts = { ...state.bag };
     // Voyelles : les consonnes ne sont pas tirées, mais elles sortent du sac quand
     // elles sont posées → on les décompte depuis le plateau.
-    if (consonnesLimitees()) Object.assign(counts, consonnesDisponibles(state.board));
+    if (consonnesLimitees()) {
+      Object.assign(counts, consonnesDisponibles(state.board));
+      counts["?"] = jokersDisponibles(state.board);
+    }
     if (effJoker() && state.spareJokers > 0) {
       counts["?"] = (counts["?"] || 0) + state.spareJokers;
     }
@@ -2002,11 +2045,12 @@ function placeLetter(L, preferTileId = null) {
   // consommer de tuile. Les voyelles, elles, viennent obligatoirement du chevalet.
   if (currentMode().voyelles && !state.jokerPending && L !== "?" && !VOWELS_NO_Y.has(L)) {
     if (consonnesLimitees()) {
-      const dispo = consonnesDisponibles(state.board)[L] || 0;
-      const dejaPosees = state.pending.filter(p => p.letter === L).length;
-      if (dejaPosees >= dispo) {
+      // Au-delà des exemplaires du sac, la consonne doit être un joker (s'il en reste).
+      const lettres = state.pending.map(p => p.letter).concat(L);
+      if (excedentConsonnes(lettres) > jokersDisponibles(state.board)) {
+        const dispo = consonnesDisponibles(state.board)[L] || 0;
         flashFeedback("error", dispo ? `Plus assez de ${L} dans le sac` : `Plus de ${L} dans le sac`,
-          dispo ? `Il n'en reste que ${dispo}.` : "Choisis une autre consonne.");
+          "Plus de joker pour la remplacer : choisis une autre consonne.");
         return;
       }
     }
@@ -2362,6 +2406,9 @@ function validate() {
     return;
   }
   const mode = currentMode();
+  // Voyelles : consonnes épuisées → jokers (place optimisée par bestJokerVariant).
+  const erreurJokers = placeJokersVoyelles(move);
+  if (erreurJokers) { showTransientError("Consonnes insuffisantes", erreurJokers); return; }
   // Mode Horizontal/Vertical : un mot validé dans le MAUVAIS sens compte 0
   // (gros panneau « changement de sens » clignotant pour alerter le joueur).
   if (mode.alternateDir) {
@@ -2395,6 +2442,7 @@ function validate() {
       all: true, maxTilesUsed: mode.maxPlayed, bonuses: mode.bonuses,
       jokerPays: mode.jokerPays, layout: state.boardLayout, freeCons: mode.voyelles,
       consAvail: consonnesLimitees() ? consonnesDisponibles(state.board) : null,
+      jokersAvail: jokersDisponibles(state.board),
     }) || [];
     const sameWord = allMoves.filter(c => c.move.word === move.word);
     if (sameWord.length) {
@@ -2451,18 +2499,6 @@ function validate() {
   // (le chevalet fait 7 « cases » : voyelles + consonnes libres). Ex. 5 voyelles
   // → au plus 2 consonnes. On compte les consonnes NOUVELLES posées (Y compris).
   if (mode.voyelles) {
-    if (consonnesLimitees()) {
-      const dispo = consonnesDisponibles(state.board);
-      for (const p of state.pending) {
-        if (VOWELS_NO_Y.has(p.letter)) continue;
-        const n = state.pending.filter(q => q.letter === p.letter).length;
-        if (n > (dispo[p.letter] || 0)) {
-          showTransientError(`Plus assez de ${p.letter} dans le sac`,
-            `Il en reste ${dispo[p.letter] || 0}, tu en poses ${n}.`);
-          return;
-        }
-      }
-    }
     const budget = Math.max(0, maxPlayedNow() - state.rack.length);
     const consPlayed = state.pending.filter(p => !VOWELS_NO_Y.has(p.letter)).length;
     if (consPlayed > budget) {
@@ -3268,6 +3304,7 @@ function computeTop() {
     state.topMove = findTopRanked(state.board, rackLetters, state.dict, state.bag, {
       maxTilesUsed: mode.maxPlayed, bonuses: mode.bonuses, layout, freeCons: true,
       consAvail: consonnesLimitees() ? consonnesDisponibles(state.board) : null,
+      jokersAvail: jokersDisponibles(state.board),
     });
     return true;
   }

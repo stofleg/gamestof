@@ -11,9 +11,9 @@ import {
   emptyBoard, LETTER_BAG, drawForDuplicate, applyMove,
   bagTotalVowels, bagTotalConsonants, GAME_MODES, randomBoardLayout, snakeEndpointsAfter, gigogneRackSize,
   bagFor, valuesFor, setLetterValues, LETTER_VALUE, isCrossingCell, wordHiddenCount,
-  drawVowelRack, MARATHON_GAMES, consonnesDisponibles,
-} from "./engine.js?v=415";
-import { findTopRanked, findTop, snakeBestTop } from "./topfinder.js?v=415";
+  drawVowelRack, MARATHON_GAMES, consonnesDisponibles, jokersDisponibles,
+} from "./engine.js?v=416";
+import { findTopRanked, findTop, snakeBestTop } from "./topfinder.js?v=416";
 
 const VOWELS_GEN = new Set(["A", "E", "I", "O", "U", "Y"]);
 
@@ -145,6 +145,7 @@ export function generateGame(dict, options = {}, onProgress = null) {
         top = findTopRanked(board, rackLetters, dict, bag, {
           maxTilesUsed: mode.maxPlayed, bonuses: mode.bonuses, freeCons: true,
           consAvail: consonnesDisponibles(board),   // les consonnes viennent du sac
+          jokersAvail: jokersDisponibles(board),    // … et un joker remplace une consonne épuisée
         });
         if (top) break;
       }

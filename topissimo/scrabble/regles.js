@@ -84,6 +84,7 @@ export const REGLES = {
       "Seules les <b>voyelles</b> des tirages sont fournies.",
       "Tu choisis les <b>consonnes de ton choix</b>, mais le tirage doit toujours compter <b>7 lettres</b> (voyelles incluses) et les consonnes doivent être <b>disponibles dans le sac</b>.",
       "Le <b>Y</b> est une consonne.",
+      "Si le sac n'a plus assez d'exemplaires d'une consonne (par exemple <b>deux Y</b> dans un mot), les manquants sont des <b>jokers</b> (0 point), placés automatiquement à l'endroit le plus avantageux. Les <b>2 jokers du sac</b> sont les seuls disponibles.",
     ],
   },
   invasion: {
