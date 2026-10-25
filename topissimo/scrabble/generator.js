@@ -48,6 +48,19 @@ export function generateGame(dict, options = {}, onProgress = null) {
     }
     return { moves: allMoves, totalTopScore: totalTop };
   }
+  // Sablier : le chrono tombe à 5 s au 24e coup → on ne retient qu'une partie
+  // qui se TERMINE naturellement en 24 coups au plus (on en tire d'autres sinon).
+  // En dernier recours (très improbable), la plus courte, coupée à 24 coups.
+  if (mode.sablier && !options._sablierEssai) {
+    let plusCourte = null;
+    for (let essai = 0; essai < 40; essai++) {
+      const g = generateGame(dict, { ...options, _sablierEssai: true }, onProgress);
+      if (g.moves.length <= 24) return g;
+      if (!plusCourte || g.moves.length < plusCourte.moves.length) plusCourte = g;
+    }
+    const moves = plusCourte.moves.slice(0, 24);
+    return { ...plusCourte, moves, totalTopScore: moves.reduce((t, m) => t + (m.top?.score || 0), 0) };
+  }
   const jokerPays = !!mode.jokerPays;          // mode « Joker payant »
   const alternateDir = !!mode.alternateDir;    // mode « Horizontal/Vertical »
   const dualTop = !!mode.dualTop;              // mode « Top/sous-top »
@@ -78,8 +91,6 @@ export function generateGame(dict, options = {}, onProgress = null) {
   const estimatedMoves = 28; // pour le calcul de progress
 
   while (true) {
-    // Sablier : partie limitée à 24 coups (le chrono décroissant atteint 5 s au 24e).
-    if (mode.sablier && moves.length >= 24) break;
     // Double joker infini : la partie s'arrête quand il n'y a plus AUCUNE lettre
     // réelle (ni dans le sac, ni dans le chevalet) — tout a été posé sur la grille.
     if (infJoker) {

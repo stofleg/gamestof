@@ -12,7 +12,7 @@ export const REGLES = {
   "7sur15": {
     titre: "7 sur 15",
     points: [
-      "Tirage de <b>15 lettres</b> (au moins 4 voyelles), dont tu poses <b>7 au maximum</b>.",
+      "Tirage de <b>15 lettres</b>, dont tu poses <b>7 au maximum</b>.",
       "Prime de 50 pour 7 lettres posées, comme d'habitude.",
     ],
   },
@@ -20,7 +20,6 @@ export const REGLES = {
     titre: "Joker payant",
     points: [
       "Le joker <b>vaut les points de la lettre qu'il remplace</b> (un joker en Z rapporte 10).",
-      "Le top tient compte de cette valeur : le choix de la lettre du joker compte.",
     ],
   },
   horizvert: {
@@ -33,8 +32,8 @@ export const REGLES = {
   topsoustop: {
     titre: "Top / sous-top",
     points: [
-      "Il faut trouver <b>le top ET le sous-top</b> (le meilleur score strictement inférieur au top).",
-      "Ton score du coup = top + sous-top trouvés.",
+      "Il faut trouver <b>le top ET le sous-top</b>.",
+      "En cas d'isotops, le sous-top est le <b>score immédiatement inférieur</b> : un deuxième isotop ne compte pas.",
     ],
   },
   infjoker: {
@@ -48,7 +47,7 @@ export const REGLES = {
   grillerandom: {
     titre: "Grille random",
     points: [
-      "Les <b>cases bonus sont redistribuées au hasard</b> : la grille habituelle ne vaut plus rien.",
+      "Les <b>cases bonus sont redistribuées au hasard</b>.",
       "Le premier coup passe toujours par la case centrale ★.",
     ],
   },
@@ -56,7 +55,6 @@ export const REGLES = {
     titre: "Sablier",
     points: [
       "Le temps <b>diminue de 5 s à chaque coup</b> : 120 s au premier, 115 s au deuxième… jusqu'à 5 s minimum.",
-      "Partie limitée à <b>24 coups</b>.",
     ],
   },
   gigogne: {
