@@ -221,7 +221,7 @@ let myGamesSort = {
 async function loadMyGames() {
   if (!state.currentPlayerId) return;
   const pid = +state.currentPlayerId;
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=421");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=422");
 
   // Tournoi : prepared_game_results jointes avec prepared_games. Colonnes explicites
   // (pas de details/diagnostics → egress) ; `summary` sert juste à savoir si des
@@ -1433,7 +1433,7 @@ async function loadMyStats() {
   const pid = +state.currentPlayerId;
 
   body.innerHTML = `<p class="muted">⏳ Calcul…</p>`;
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=421");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=422");
 
   // Tournois « démo » à EXCLURE des stats (résultats importés FFSC, hors Topissimo).
   const _tlist = await cachedQuery("tournaments", () => sb.from("tournaments").select("id,name").then(r => r.data || []));
@@ -2059,7 +2059,7 @@ async function loadSolosAndStreaks() {
   const slowest = Object.values(worstByPid).sort((a, b) => b.time - a.time);
 
   // ===== Agrégats par joueur : parties au top, % coups au top, négatif moyen/cat =====
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=421");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=422");
   const catOf = (mode, joker, tpm) => {
     const m = mode || "duplicate";
     if (m === "blitz") return { key: "blitz", label: "Blitz" };
@@ -2495,7 +2495,7 @@ async function loadTournamentDetail(tournamentId) {
   // S'assurer qu'au moins une ligne de formule est présente dans le générateur.
   if (canGenerate() && $("#pgRecipe") && !$("#pgRecipe").children.length) pgAddRecipeLine();
 
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=421");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=422");
   const btnStyle = "text-decoration:none;padding:5px 10px;border-radius:6px;font-weight:600;font-size:.85rem";
   const admin = superAdmin();     // stof en mode admin : joue + teste + supprime
   const genOnly = isAdmin();       // compte "admin" : génération seule, pas de jeu
@@ -2928,13 +2928,13 @@ async function loadTournamentLeaderboard(tournamentId, games, tournamentName, mo
   if (opts.scoreMort && genEligible.length) {
     const tMin = Math.min(...genEligible.map(p => p.total.time));
     for (const p of genEligible) {
-      p.retardMin = Math.max(0, p.total.time - tMin) / 60;
+      p.retardMin = Math.floor(Math.max(0, p.total.time - tMin) / 60);   // minutes entières
       // Points marqués (positif, le vainqueur en a le plus) moins le retard en minutes.
       p.points = games.reduce((a, g) => a + ((p.perGame[g.id] || {}).totalScore || 0), 0);
       p.scoreFinal = p.points - p.retardMin;
     }
   }
-  const rankTotalNeg    = rankAmong(genEligible, p => opts.scoreMort ? p.scoreFinal : p.total.neg);
+  const rankTotalNeg    = rankAmong(genEligible, p => opts.scoreMort ? p.scoreFinal - p.total.time / 1e7 : p.total.neg);   // à égalité, le plus rapide devant
   const rankNegSeul     = rankAmong(genEligible, p => p.total.neg);   // classement au négatif seul
   const rankTotalTime   = rankAmong(genEligible, p => p.total.time, true);
   const rankTotalMissed = rankAmong(genEligible, p => p.total.missed, true);
@@ -3002,7 +3002,7 @@ async function loadTournamentLeaderboard(tournamentId, games, tournamentName, mo
       row += `<td class="cat-cell"><span class="cat-neg">${cd.neg}</span><span class="cat-rank">${cr ? "rang " + cr : "—"}</span></td>`;
     }
     row += `<td><strong>${p.total.neg || 0}</strong></td>`;
-    if (opts.scoreMort) row += `<td title="Points marqués − 1 point par minute de retard sur le plus rapide"><strong>${p.scoreFinal != null ? p.scoreFinal.toFixed(1) : "–"}</strong></td>`;
+    if (opts.scoreMort) row += `<td title="Points marqués − 1 point par minute de retard sur le plus rapide"><strong>${p.scoreFinal != null ? p.scoreFinal : "–"}</strong></td>`;
     row += `<td>${fmtT(p.total.time)}</td>
             <td>${p.total.missed}</td>
             ${opts.scoreMort ? `<td class="rank ${rankClass(rankNegSeul[p.id])}" title="Rang au négatif seul">${rankNegSeul[p.id] || "–"}</td>` : ""}
@@ -3343,7 +3343,7 @@ async function loadTournamentStats(tournamentId, games) {
   // On détermine « le top est un scrabble » en REjouant le plateau coup par coup
   // (nombre de NOUVELLES tuiles posées par le top == clé de prime du mode), ce qui
   // est fiable même sur d'anciennes parties (le hadBonus stocké est non fiable).
-  const { emptyBoard, applyMove, GAME_MODES } = await import("./scrabble/engine.js?v=421");
+  const { emptyBoard, applyMove, GAME_MODES } = await import("./scrabble/engine.js?v=422");
   const gameById = {};
   for (const g of games) gameById[g.id] = g;
   const bonusesOf = (gid) => (GAME_MODES[gameById[gid]?.mode] || GAME_MODES.duplicate).bonuses || { 7: 50 };
@@ -3537,9 +3537,9 @@ $("#pgCreate").onclick = async () => {
     let mods;
     try {
       mods = await Promise.all([
-        import("./scrabble/dictionary.js?v=421"),
-        import("./scrabble/generator.js?v=421"),
-        import("./scrabble/engine.js?v=421"),
+        import("./scrabble/dictionary.js?v=422"),
+        import("./scrabble/generator.js?v=422"),
+        import("./scrabble/engine.js?v=422"),
       ]);
     } catch (e) {
       $("#pgStatus").innerHTML = `<span style="color:#a02525">Échec de chargement des modules : ${escapeHtml(e.message)}</span>`;
@@ -3606,7 +3606,7 @@ window.recomputeAllNeg = async function(force = false) {
 
   let recomputeResult;
   try {
-    ({ recomputeResult } = await import("./scrabble/recompute.js?v=421"));
+    ({ recomputeResult } = await import("./scrabble/recompute.js?v=422"));
   } catch (e) {
     statusEl.textContent = "❌ Impossible de charger recompute.js : " + e.message;
     return;
@@ -3860,7 +3860,7 @@ window.recomputeAllJokerNeg = async function() {
 
   let recomputeResult;
   try {
-    ({ recomputeResult } = await import("./scrabble/recompute.js?v=421"));
+    ({ recomputeResult } = await import("./scrabble/recompute.js?v=422"));
   } catch (e) {
     statusEl.textContent = "❌ Impossible de charger recompute.js : " + e.message;
     return;

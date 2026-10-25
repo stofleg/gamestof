@@ -29,12 +29,12 @@ import {
   bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName, randomBoardLayout, snakeEndpointsAfter, sablierTime, gigogneRackSize,
   setLetterValues, letterValue, valuesFor, bagFor, isCrossingCell, wordHiddenCount,
   drawVowelRack, VOWELS_NO_Y, MARATHON_TARGET, MARATHON_GAMES, consonnesDisponibles, jokersDisponibles,
-} from "./engine.js?v=421";
-import { Dictionary } from "./dictionary.js?v=421";
-import * as invasion from "./araignees.js?v=421";
-import { REGLES, afficheRegles } from "./regles.js?v=421";
-import * as sonHalloween from "./halloween-son.js?v=421";
-import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=421";
+} from "./engine.js?v=422";
+import { Dictionary } from "./dictionary.js?v=422";
+import * as invasion from "./araignees.js?v=422";
+import { REGLES, afficheRegles } from "./regles.js?v=422";
+import * as sonHalloween from "./halloween-son.js?v=422";
+import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=422";
 
 // État du mode review (parcours coup par coup)
 const review = {
@@ -68,7 +68,7 @@ const FFSC_REVIEW = URL_PARAMS.get("ffscreview");  // revoir une partie FFSC imp
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v421";
+const BUILD_VERSION = "garenna-v422";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
