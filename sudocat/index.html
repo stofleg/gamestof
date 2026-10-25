@@ -2,119 +2,119 @@
 <html lang="fr">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <title>Sudocat · gamestof.fr</title>
 <meta name="description" content="Sudocat : place les chats, un par ligne, par colonne et par zone, sans qu'ils se touchent.">
-<meta name="theme-color" content="#2B2622">
+<meta name="theme-color" content="#0F0E17">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Sudocat">
+<link rel="manifest" href="manifest.json?v=2">
+<link rel="apple-touch-icon" href="icon-180.png?v=2">
+<link rel="icon" href="icon-192.png?v=2">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=1">
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css?v=2">
 </head>
 <body>
-<header class="top">
-  <h1><span id="brand">Sudocat</span></h1>
-  <div id="who" hidden>
-    <span id="pseudo"></span>
-    <button id="logout" class="link" type="button">Se déconnecter</button>
-  </div>
-</header>
+<div class="app">
 
-<div id="localBanner" class="banner" hidden>Mode local de test : les comptes et la progression restent dans ce navigateur (Supabase non configuré).</div>
-
-<!-- ============ Connexion ============ -->
-<main id="authScreen" class="screen" hidden>
-  <section class="card auth">
-    <h2 id="authTitle">Connexion</h2>
-    <p class="muted" id="authIntro">Crée un compte pour enregistrer ta progression.</p>
-    <form id="authForm" autocomplete="on">
-      <label id="pseudoField" hidden>Pseudo
-        <input id="authPseudo" type="text" minlength="2" maxlength="24" autocomplete="nickname">
-      </label>
-      <label id="emailField">Email
-        <input id="authEmail" type="email" required autocomplete="email">
-      </label>
-      <label id="passwordField">Mot de passe
-        <input id="authPassword" type="password" minlength="6" autocomplete="current-password">
-      </label>
+  <!-- ============ Connexion ============ -->
+  <main id="authScreen" class="auth" hidden>
+    <div class="logo"><img src="icon-192.png?v=2" alt=""><span id="authBrand">Sudocat</span></div>
+    <p class="tagline">Un chat par ligne, par colonne et par zone.<br>Jamais deux qui se touchent.</p>
+    <form id="authForm" class="panel" autocomplete="on">
+      <h2 id="authTitle">Connexion</h2>
+      <input id="authPseudo" type="text" minlength="2" maxlength="24" placeholder="Pseudo" autocomplete="nickname" hidden>
+      <input id="authEmail" type="email" required placeholder="Email" autocomplete="email">
+      <input id="authPassword" type="password" minlength="6" placeholder="Mot de passe" autocomplete="current-password">
       <p id="authError" class="error" hidden></p>
       <p id="authInfo" class="info" hidden></p>
-      <button id="authSubmit" class="primary" type="submit">Se connecter</button>
+      <button id="authSubmit" class="btn primary" type="submit">Se connecter</button>
+      <div class="switch">
+        <button id="toSignup" class="link" type="button">Créer un compte</button>
+        <button id="toLogin" class="link" type="button" hidden>J'ai déjà un compte</button>
+        <button id="toReset" class="link" type="button">Mot de passe oublié ?</button>
+      </div>
     </form>
-    <p class="switch">
-      <button id="toSignup" class="link" type="button">Créer un compte</button>
-      <button id="toLogin" class="link" type="button" hidden>J'ai déjà un compte</button>
-      <button id="toReset" class="link" type="button">Mot de passe oublié ?</button>
-    </p>
-  </section>
-  <section class="card rules">
-    <h2>La règle</h2>
-    <p>Place un chat dans <b>chaque ligne</b>, <b>chaque colonne</b> et <b>chaque zone de couleur</b>.
-      Deux chats ne se touchent jamais, <b>même en diagonale</b>.</p>
-  </section>
-</main>
+    <p id="localBanner" class="note" hidden>Mode local de test : comptes enregistrés dans ce navigateur seulement.</p>
+  </main>
 
-<!-- ============ Jeu ============ -->
-<main id="gameScreen" class="screen" hidden>
-  <section class="status">
-    <div class="level"><span class="muted">Niveau</span> <b id="levelNum">1</b> <span id="levelName"></span></div>
-    <div class="clock" id="clock" title="Temps">0:00</div>
-    <div class="lives" id="lives" title="Erreurs permises"></div>
-  </section>
-  <p id="goal" class="goal muted"></p>
+  <!-- ============ Jeu ============ -->
+  <main id="gameScreen" class="game" hidden>
+    <header class="bar">
+      <div class="brand"><img src="icon-192.png?v=2" alt=""><span id="brand">Sudocat</span></div>
+      <div class="tools">
+        <button id="themeBtn" class="icon" type="button" title="Chats ou chiens">🐱</button>
+        <button id="menuBtn" class="icon" type="button" title="Menu" aria-label="Menu">
+          <svg viewBox="0 0 24 24" width="22" height="22"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+    </header>
 
-  <div id="boardWrap">
-    <div id="board" aria-label="Grille"></div>
-    <div id="loading" hidden><div class="spinner"></div><p>Préparation de la grille…</p></div>
-  </div>
+    <nav id="players" class="players" hidden></nav>
 
-  <p class="help muted">Un clic (ou glisser) : croix · Double-clic : chat</p>
+    <section class="status">
+      <div class="palier"><b id="palierNum">1</b><span id="palierName">Facile</span></div>
+      <div class="lives" id="lives"></div>
+    </section>
+    <div id="goal" class="goal"></div>
 
-  <div class="actions">
-    <div class="theme" role="group" aria-label="Thème">
-      <button id="themeChat" type="button">🐱 Chats</button>
-      <button id="themeChien" type="button">🐶 Chiens</button>
+    <div class="boardArea">
+      <div id="board" aria-label="Grille"></div>
+      <div id="loading" hidden><div class="spinner"></div></div>
     </div>
-    <button id="giveUp" class="link" type="button">Abandonner cette grille</button>
+
+    <p class="hint">Touche : croix · Glisse : croix · Double-touche : chat</p>
+    <p id="problem" class="problem" hidden></p>
+  </main>
+</div>
+
+<!-- ============ Menu ============ -->
+<div id="menu" class="sheet" hidden>
+  <div class="sheetBody">
+    <div class="sheetHead"><b id="menuWho"></b><button id="closeMenu" class="icon" type="button" aria-label="Fermer">✕</button></div>
+    <div class="stats" id="stats"></div>
+    <details class="rules">
+      <summary>Règle du jeu</summary>
+      <p>Place un chat dans chaque ligne, chaque colonne et chaque zone de couleur. Deux chats ne se touchent jamais, même en diagonale.</p>
+      <p>Touche une case pour y mettre une croix (glisse pour en mettre plusieurs), touche deux fois pour poser un chat. Trois erreurs et la grille est perdue.</p>
+      <p>Sans faute, tu passes au palier suivant (100 paliers). Avec une ou deux erreurs, tu restes au même palier. Grille perdue ou abandonnée : retour au palier précédent.</p>
+    </details>
+    <button id="giveUp" class="btn ghost" type="button">Abandonner cette grille</button>
+    <button id="logout" class="btn ghost danger" type="button">Se déconnecter</button>
   </div>
-
-  <section class="card stats" id="stats"></section>
-
-  <section class="card rules">
-    <h2>La règle</h2>
-    <p>Place un chat dans <b>chaque ligne</b>, <b>chaque colonne</b> et <b>chaque zone de couleur</b>.
-      Deux chats ne se touchent jamais, <b>même en diagonale</b>.</p>
-    <p>Un chat mal placé compte une erreur : à la 3<sup>e</sup>, la grille est perdue.
-      Réussis une grille <b>sans erreur et dans le temps indiqué</b> : elle était facile pour toi,
-      tu passes au niveau suivant.</p>
-  </section>
-</main>
+</div>
 
 <!-- ============ Fin de partie ============ -->
-<div id="endDialog" class="overlay" hidden>
-  <div class="card end">
+<div id="endDialog" class="sheet" hidden>
+  <div class="sheetBody end">
+    <div class="endIcon" id="endIcon">🎉</div>
     <h2 id="endTitle"></h2>
     <p id="endText"></p>
     <p id="endLevel" class="levelup" hidden></p>
-    <button id="nextGrid" class="primary" type="button">Grille suivante</button>
+    <button id="nextGrid" class="btn primary" type="button">Grille suivante</button>
   </div>
 </div>
 
-<!-- ============ Nouveau mot de passe (lien de réinitialisation) ============ -->
-<div id="newPasswordDialog" class="overlay" hidden>
-  <form class="card end" id="newPasswordForm">
+<!-- ============ Nouveau mot de passe ============ -->
+<div id="newPasswordDialog" class="sheet" hidden>
+  <form class="sheetBody" id="newPasswordForm">
     <h2>Nouveau mot de passe</h2>
-    <label>Mot de passe <input id="newPassword" type="password" minlength="6" required autocomplete="new-password"></label>
+    <input id="newPassword" type="password" minlength="6" required placeholder="Mot de passe" autocomplete="new-password">
     <p id="newPasswordError" class="error" hidden></p>
-    <button class="primary" type="submit">Enregistrer</button>
+    <button class="btn primary" type="submit">Enregistrer</button>
   </form>
 </div>
 
-<script src="config.js?v=1"></script>
+<script src="config.js?v=2"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
-<script src="moteur.js?v=1"></script>
-<script src="illustrations.js?v=1"></script>
-<script src="stockage.js?v=1"></script>
-<script src="jeu.js?v=1"></script>
+<script src="moteur.js?v=2"></script>
+<script src="mascottes.js?v=2"></script>
+<script src="progression.js?v=2"></script>
+<script src="stockage.js?v=2"></script>
+<script src="jeu.js?v=2"></script>
 </body>
 </html>

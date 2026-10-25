@@ -5,30 +5,40 @@ placer un chat (ou un chien) par ligne, colonne et zone, sans que deux se touche
 
 ## Comment on joue
 
-- **Un clic** sur une case : pose ou retire une croix. **Glisser** sur plusieurs cases :
-  croix sur toutes (ou les retire, si la première case en avait une).
-- **Double-clic** (double tape sur téléphone) : pose un chat. Un chat mal placé compte une
-  **erreur** (croix rouge) ; à la **3ᵉ**, la grille est perdue et la solution s'affiche.
-- La partie en cours est enregistrée en continu : on la retrouve en revenant, même sur un
-  autre appareil (avec Supabase). Le chrono ne tourne que quand la page est affichée.
+- **Toucher** une case : pose ou retire une croix. **Glisser** sur plusieurs cases : croix sur
+  toutes (ou les retire, si la première case en avait une).
+- **Toucher deux fois** : pose un chat. Un chat mal placé compte une **erreur** (croix rouge) ;
+  à la **3ᵉ**, la grille est perdue et la solution s'affiche.
+- Pas de chrono affiché (la durée est seulement enregistrée). La partie en cours est
+  sauvegardée en continu : on la retrouve en revenant, sur n'importe quel appareil.
+- Deux mascottes dessinées pour le site (`mascottes.js`) : le chat calico et le chien. Le bouton
+  🐱/🐶 change de thème (mémorisé par joueur).
+- Installable sur l'écran d'accueil (iPhone : Partager → Sur l'écran d'accueil) : plein écran,
+  icône Sudocat (`manifest.json`, `icon-*.png`).
 
-## Niveaux
+## Les 100 paliers
 
-Le joueur commence au niveau 1. La taille de la grille est tirée selon le niveau (5–6 en
-niveau 1 … 10–12 en niveau 6, cf. `SIZE_RANGES` du moteur).
+Chaque joueur avance sur **100 paliers** (`progression.js`) : chacun associe un type de
+raisonnement du moteur (niveau 1 à 6) et une taille de grille (5×5 au début, 12×12 à la fin),
+sur 36 étapes.
 
-Une grille réussie **sans erreur et en moins du temps cible** est « facile » pour le joueur :
-il passe au niveau suivant. Sinon (erreurs, temps dépassé, grille perdue ou abandonnée), il
-reste au même niveau — **il ne redescend jamais**.
+| Résultat de la grille | Effet |
+|---|---|
+| Réussie **sans faute** | palier suivant |
+| Réussie avec 1 ou 2 erreurs | même palier |
+| **Perdue** (3 erreurs) ou abandonnée | palier précédent (jamais sous le 1) |
 
-Temps cible = taille de la grille × secondes par ligne (`SECONDES_PAR_LIGNE` en tête de `jeu.js`) :
+## Joueurs d'un même compte
 
-| Niveau | 1 | 2 | 3 | 4 | 5 | 6 |
-|---|---|---|---|---|---|---|
-| Secondes par ligne | 15 | 20 | 25 | 30 | 35 | 40 |
-| Exemple | 6×6 : 1:30 | 7×7 : 2:20 | 8×8 : 3:20 | 9×9 : 4:30 | 10×10 : 5:50 | 12×12 : 8:00 |
+Un compte peut porter des **joueurs secondaires** (ex. les enfants) : des boutons à leur nom
+apparaissent en haut de l'écran, chacun garde son palier, son thème et sa partie en cours, sans
+se déconnecter. Ils se créent en SQL (voir `schema-v2.sql`, partie 3 : Soline et Emile sur le
+compte de Marion) :
 
-Valeurs de départ, à ajuster après quelques parties.
+```sql
+insert into public.sudocat_joueurs (user_id, nom)
+select user_id, 'Prénom' from public.sudocat_profils where lower(pseudo) = 'pseudo du compte';
+```
 
 ## Mise en service des comptes (projet Supabase dédié)
 
@@ -41,8 +51,8 @@ progression dans le navigateur seulement (un bandeau l'indique).
 3. **Authentication → URL Configuration** :
    - Site URL : `https://gamestof.fr/sudocat/`
    - Redirect URLs : `https://gamestof.fr/sudocat/` (lien « mot de passe oublié »)
-4. **SQL Editor → New query** : coller `schema.sql` → **Run** (tables `sudocat_profils`,
-   `sudocat_parties`, droits : chacun ne voit que ses données).
+4. **SQL Editor → New query** : coller `schema.sql` → **Run**, puis de même `schema-v2.sql`
+   (paliers, joueurs secondaires). Droits : chacun ne voit que ses données.
 5. **Project Settings → API** : copier *Project URL* et la clé *anon public* dans `config.js`.
 
 La clé *anon* est publique par nature (elle est aussi dans `topissimo/config.js`) ; la
@@ -55,12 +65,15 @@ protection vient des règles RLS du SQL.
 
 | Fichier | Rôle |
 |---|---|
-| `index.html`, `style.css`, `jeu.js` | page, plateau, gestes, chrono, progression |
+| `index.html`, `style.css`, `jeu.js` | page, plateau, gestes, joueurs, progression |
+| `progression.js` | les 100 paliers (niveau du moteur + taille) |
+| `mascottes.js` | les deux dessins (chat calico, chien) |
+| `manifest.json`, `icon-*.png`, `icon.svg` | appli installable sur l'écran d'accueil |
 | `stockage.js` | comptes et sauvegarde : Supabase, ou mode local si `config.js` est vide |
 | `worker.js` | génère les grilles en tâche de fond (jusqu'à quelques secondes en niveau 6) |
-| `moteur.js`, `illustrations.js` | **copies** du générateur (`generateur.js`, `illustrations.js`) |
-| `maj-moteur.sh` | recopie ces deux fichiers depuis le générateur |
-| `schema.sql`, `config.js` | base Supabase et ses identifiants |
+| `moteur.js` | **copie** du moteur du générateur (`generateur.js`) |
+| `maj-moteur.sh` | recopie le moteur depuis le générateur |
+| `schema.sql`, `schema-v2.sql`, `config.js` | base Supabase (v1 puis mise à jour v2) et ses identifiants |
 
-Après une modification du moteur ou des dessins dans le générateur : `./maj-moteur.sh`, puis
+Après une modification du moteur dans le générateur : `./maj-moteur.sh`, puis
 augmenter `?v=` dans `index.html` (et dans `worker.js` pour `moteur.js`).

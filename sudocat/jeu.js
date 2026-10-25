@@ -1,53 +1,39 @@
 /* =========================================================================
    Sudocat — le jeu (gamestof.fr/sudocat)
-   Dépend de : moteur.js (generatePuzzle, imageOrder, randomSizeFor, LEVELS…),
-   illustrations.js (ILLUSTRATIONS), stockage.js (makeStore).
+   Dépend de : moteur.js (generatePuzzle, LEVELS…), mascottes.js (MASCOTTES),
+   progression.js (palierInfo, MAX_PALIER), stockage.js (makeStore).
    ========================================================================= */
 
 const MAX_ERREURS = 3;
-// Temps cible par ligne de grille : réussir sans erreur et sous ce temps = grille « facile »
-// pour le joueur, qui passe alors au niveau suivant (il ne redescend jamais).
-const SECONDES_PAR_LIGNE = { 1: 15, 2: 20, 3: 25, 4: 30, 5: 35, 6: 40 };
 const DOUBLE_TAP_MS = 350;
+// Couleurs vives des zones (écran uniquement ; l'impression garde ses pastels).
 const ZONE_COLORS = [
-  '#F6C1C1', '#BFE3C6', '#F9DFA5', '#BCD4F2', '#E3C8EE', '#FBD0A8',
-  '#B9E6E3', '#E6E6A8', '#D7C9B5', '#F2C3DE', '#C7D3B0', '#CFCBEF',
+  '#FF6B6B', '#FFD43B', '#4DABF7', '#69DB7C', '#B197FC', '#FF922B',
+  '#3BC9DB', '#F783AC', '#A9E34B', '#748FFC', '#FFA8A8', '#63E6BE',
 ];
 
 const $ = (id) => document.getElementById(id);
 const store = makeStore();
 
-let profil = null;     // { pseudo, niveau, theme }
+let players = [];      // [{ j, nom, palier, theme }] — principal en premier
+let player = null;     // joueur actif
 let game = null;       // ligne de la partie en cours (stockage)
 let puzzle = null;     // grille (generatePuzzle)
 let st = null;         // { marks, cats, bad: Set, errors, elapsed, over }
-let images = null;     // dessin de chaque ligne (tous différents)
+let accountId = null;
 
 /* ------------------------------ Utilitaires ------------------------------ */
-function fmtTime(ms) {
-  const s = Math.floor(ms / 1000);
-  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
-}
-function targetMs(p) { return p.size * SECONDES_PAR_LIGNE[p.targetLevel] * 1000; }
-function themePool() { return ILLUSTRATIONS[profil && profil.theme === 'chien' ? 'chien' : 'chat']; }
-function animal(n = 1) { return (profil && profil.theme === 'chien' ? 'chien' : 'chat') + (n > 1 ? 's' : ''); }
-
-function problem(msg) {
-  let el = $('problem');
-  if (!el) {
-    el = document.createElement('div');
-    el.id = 'problem'; el.className = 'banner'; el.style.background = '#FBE3E0'; el.style.color = '#8A1F14';
-    document.body.insertBefore(el, document.body.children[1]);
-  }
-  el.textContent = msg;
-  el.hidden = !msg;
-}
+function themeKey() { return player && player.theme === 'chien' ? 'chien' : 'chat'; }
+function mascotte() { return MASCOTTES[themeKey()]; }
+function problem(msg) { $('problem').textContent = msg || ''; $('problem').hidden = !msg; }
+function rememberPlayer() { try { localStorage.setItem('sudocat-actif-' + accountId, JSON.stringify(player.j)); } catch { /* */ } }
+function rememberedPlayer() { try { return JSON.parse(localStorage.getItem('sudocat-actif-' + accountId)); } catch { return null; } }
 
 /* ------------------------------ Génération (tâche de fond) ------------------------------ */
 let worker = null, reqId = 0;
 const waiting = new Map();
 try {
-  worker = new Worker('worker.js?v=1');
+  worker = new Worker('worker.js?v=2');
   worker.onmessage = (e) => {
     const w = waiting.get(e.data.id);
     if (!w) return;
@@ -66,23 +52,15 @@ function buildPuzzle(size, level, seed) {
   });
 }
 
-/* ------------------------------ Chronomètre ------------------------------ */
-let runningSince = null, tickTimer = null;
+/* ------------------------------ Temps de jeu (enregistré, pas affiché) ------------------------------ */
+let runningSince = null;
 function elapsedNow() { return st ? st.elapsed + (runningSince ? performance.now() - runningSince : 0) : 0; }
 function clockStart() {
-  if (!st || st.over || runningSince || document.hidden) return;
+  if (!st || st.over || runningSince || document.hidden || !$('menu').hidden) return;
   runningSince = performance.now();
-  if (!tickTimer) tickTimer = setInterval(showClock, 250);
 }
 function clockStop() {
-  if (runningSince) { st.elapsed += performance.now() - runningSince; runningSince = null; }
-  showClock();
-}
-function showClock() {
-  if (!st) return;
-  const t = elapsedNow();
-  $('clock').textContent = fmtTime(t);
-  $('goal').classList.toggle('missed', st.errors > 0 || t > targetMs(puzzle));
+  if (st && runningSince) { st.elapsed += performance.now() - runningSince; runningSince = null; }
 }
 document.addEventListener('visibilitychange', () => {
   if (document.hidden) { clockStop(); saveNow(); } else clockStart();
@@ -124,43 +102,40 @@ function renderBoard() {
     d.style.background = ZONE_COLORS[puzzle.region[i] % ZONE_COLORS.length];
     board.appendChild(d);
   }
-  const pool = themePool();
-  images = imageOrder(puzzle.seed, n, pool.length).map((k) => pool[k]);
   for (let i = 0; i < n * n; i++) renderCell(i);
-  board.classList.toggle('over', st.over);
+  if (st.over && st.errors >= MAX_ERREURS) showSolution();
 }
 
 function renderCell(i, opts = {}) {
   const el = $('board').children[i];
   if (!el) return;
   const r = Math.floor(i / puzzle.size);
+  const showCat = st.cats.has(i) || (opts.hint && puzzle.solution[r] === i % puzzle.size);
   el.classList.toggle('x', st.marks.has(i));
   el.classList.toggle('bad', st.bad.has(i));
-  const showCat = st.cats.has(i) || (opts.hint && puzzle.solution[r] === i % puzzle.size);
   el.classList.toggle('cat', st.cats.has(i));
   el.classList.toggle('hint', !st.cats.has(i) && !!opts.hint && showCat);
-  el.innerHTML = showCat ? catSvg(images[r]) : '';
+  el.innerHTML = showCat ? catSvg(mascotte()) : '';
 }
+function showSolution() { for (let r = 0; r < puzzle.size; r++) renderCell(r * puzzle.size + puzzle.solution[r], { hint: true }); }
 
 function renderLives() {
   $('lives').innerHTML = Array.from({ length: MAX_ERREURS }, (_, k) =>
     `<span class="${k < MAX_ERREURS - st.errors ? '' : 'lost'}">❤️</span>`).join('');
-  $('lives').title = `${MAX_ERREURS - st.errors} erreur(s) encore permise(s)`;
 }
 
 function renderStatus() {
-  const lv = puzzle.targetLevel;
-  $('levelNum').textContent = lv;
-  $('levelName').textContent = LEVELS[lv].label;
-  const next = profil.niveau < MAX_LEVEL
-    ? `pour passer au niveau ${profil.niveau + 1}`
-    : '(niveau maximum)';
-  $('goal').textContent = `Objectif : sans erreur en moins de ${fmtTime(targetMs(puzzle))} ${next}`;
+  const pal = game.palier || player.palier;
+  $('palierNum').textContent = pal;
+  $('palierName').textContent = `${LEVELS[puzzle.targetLevel].label} · ${puzzle.size}×${puzzle.size}`;
+  $('goal').classList.toggle('missed', st.errors > 0);
+  $('goal').textContent = player.palier < MAX_PALIER
+    ? `🎯 Sans faute → palier ${player.palier + 1}`
+    : '🎯 Palier maximum';
   renderLives();
-  showClock();
 }
 
-/* ------------------------------ Gestes : croix, glisser, double-clic ------------------------------ */
+/* ------------------------------ Gestes : croix, glisser, double-touche ------------------------------ */
 let drag = null;                     // { mode: 'add' | 'remove', seen: Set }
 let lastTap = { i: -1, t: 0, before: false };
 
@@ -183,7 +158,7 @@ $('board').addEventListener('pointerdown', (e) => {
   e.preventDefault();
   const now = performance.now();
   if (lastTap.i === i && now - lastTap.t < DOUBLE_TAP_MS) {
-    // Double-clic : on annule la croix posée par le premier clic, puis on pose un chat.
+    // Double-touche : on annule la croix du premier appui, puis on pose un chat.
     if (!locked(i)) { if (lastTap.before) st.marks.add(i); else st.marks.delete(i); }
     lastTap = { i: -1, t: 0, before: false };
     drag = null;
@@ -201,7 +176,7 @@ $('board').addEventListener('pointermove', (e) => {
   const i = cellAt(e.clientX, e.clientY);
   if (i < 0 || drag.seen.has(i)) return;
   drag.seen.add(i);
-  lastTap = { i: -1, t: 0, before: false };   // un glissé n'est pas un double-clic
+  lastTap = { i: -1, t: 0, before: false };   // un glissé n'est pas un double-touche
   applyMark(i, drag.mode);
 });
 function endDrag() { if (drag) { drag = null; saveSoon(); } }
@@ -217,48 +192,55 @@ function placeCat(i) {
   if (puzzle.solution[r] === c) {
     st.cats.add(i);
     renderCell(i);
+    if (navigator.vibrate) navigator.vibrate(10);
     if (st.cats.size === n) return finish(true);
   } else {
     st.errors++;
     st.bad.add(i);
     renderCell(i);
     renderLives();
-    showClock();
+    $('goal').classList.add('missed');
+    if (navigator.vibrate) navigator.vibrate([30, 40, 30]);
     if (st.errors >= MAX_ERREURS) return finish(false);
   }
   saveNow();
 }
 
+/**
+ * Progression : sans faute → palier suivant ; 1 ou 2 erreurs → même palier ;
+ * perdue (3 erreurs) ou abandonnée → palier précédent (jamais sous le 1).
+ */
+async function movePalier(delta) {
+  const gamePalier = game.palier || player.palier;
+  if (gamePalier !== player.palier) return '';            // vieille partie reprise : pas d'effet
+  const next = Math.min(MAX_PALIER, Math.max(1, player.palier + delta));
+  if (next === player.palier) return delta > 0 ? 'Sans faute au palier maximum !' : '';
+  player.palier = next;
+  try { await store.updatePlayer(player.j, { palier: next }); } catch (e) { problem('Palier non enregistré : ' + e.message); }
+  return delta > 0 ? `Palier ${next} débloqué !` : `Retour au palier ${next}.`;
+}
+
 async function finish(won) {
   clockStop();
   st.over = true;
-  $('board').classList.add('over');
-  const t = st.elapsed, lv = puzzle.targetLevel;
-  const facile = won && st.errors === 0 && t <= targetMs(puzzle);
-  let levelMsg = '';
-  if (facile && profil.niveau < MAX_LEVEL && lv === profil.niveau) {
-    profil.niveau++;
-    levelMsg = `Grille facile pour toi : tu passes au niveau ${profil.niveau} (${LEVELS[profil.niveau].label}) !`;
-    try { await store.updateProfile({ niveau: profil.niveau }); } catch (e) { problem('Niveau non enregistré : ' + e.message); }
-  } else if (facile) {
-    levelMsg = 'Sans erreur et dans le temps, au niveau maximum : chapeau !';
-  }
-  await saveNow({ resultat: won ? 'gagnee' : 'perdue', facile, finie_le: new Date().toISOString() });
+  const sansFaute = won && st.errors === 0;
+  const levelMsg = await movePalier(sansFaute ? 1 : won ? 0 : -1);
+  await saveNow({ resultat: won ? 'gagnee' : 'perdue', facile: sansFaute, finie_le: new Date().toISOString() });
 
   if (won) {
-    $('endTitle').textContent = 'Bravo !';
-    $('endText').textContent = `Grille résolue en ${fmtTime(t)} avec ${st.errors} erreur${st.errors > 1 ? 's' : ''}.` +
-      (facile ? '' : ` Pour progresser : aucune erreur et moins de ${fmtTime(targetMs(puzzle))}.`);
+    $('endIcon').textContent = sansFaute ? '🏆' : '🎉';
+    $('endTitle').textContent = sansFaute ? 'Sans faute !' : 'Bravo !';
+    $('endText').textContent = sansFaute ? 'Grille résolue sans la moindre erreur.'
+      : `Résolue avec ${st.errors} erreur${st.errors > 1 ? 's' : ''} : tu restes au palier ${player.palier}. Sans faute, tu monteras.`;
   } else {
-    // Solution montrée en transparence.
-    for (let r = 0; r < puzzle.size; r++) renderCell(r * puzzle.size + puzzle.solution[r], { hint: true });
+    showSolution();
+    $('endIcon').textContent = '😿';
     $('endTitle').textContent = 'Perdu…';
-    $('endText').textContent = `${MAX_ERREURS} erreurs : la grille est perdue. Tu restes au niveau ${profil.niveau}.`;
+    $('endText').textContent = `${MAX_ERREURS} erreurs : la grille est perdue.`;
   }
   $('endLevel').textContent = levelMsg;
   $('endLevel').hidden = !levelMsg;
   $('endDialog').hidden = false;
-  renderStats();
 }
 
 /* ------------------------------ Parties ------------------------------ */
@@ -273,21 +255,25 @@ async function newGrid() {
   clockStop();
   st = null; puzzle = null;
   $('board').innerHTML = '';
-  const niveau = profil.niveau;
+  const who = player;
+  const info = palierInfo(who.palier);
   const graine = 1 + Math.floor(Math.random() * 2147483646);
-  const taille = Math.min(themePool().length, randomSizeFor(niveau, graine));
+  const taille = info.taille;
   try {
-    const p = await loadPuzzle(taille, niveau, graine);
-    game = await store.startGame({ niveau, taille, graine, theme: profil.theme });
+    const p = await loadPuzzle(taille, info.niveau, graine);
+    if (who !== player) return;                       // joueur changé entre-temps
+    game = await store.startGame(who.j, { niveau: info.niveau, palier: info.palier, taille, graine, theme: who.theme });
     begin(p, null);
     saveNow();
   } catch (e) { problem('Impossible de préparer la grille : ' + e.message); }
 }
 
 async function resume(row) {
-  game = row;
+  const who = player;
   try {
     const p = await loadPuzzle(row.taille, row.niveau, Number(row.graine));
+    if (who !== player) return;
+    game = row;
     begin(p, row.etat);
   } catch (e) { problem('Impossible de reprendre la grille : ' + e.message); }
 }
@@ -303,69 +289,110 @@ function begin(p, etat) {
     elapsed: e.elapsed || 0,
     over: false,
   };
-  for (const g of p.givens) st.cats.add(g);         // chats donnés, toujours présents
+  for (const g of p.givens) st.cats.add(g);
   renderBoard();
   renderStatus();
   clockStart();
 }
 
 $('nextGrid').addEventListener('click', newGrid);
+
+/* ------------------------------ Joueurs ------------------------------ */
+function renderPlayers() {
+  const nav = $('players');
+  nav.hidden = players.length < 2;
+  nav.innerHTML = '';
+  for (const pl of players) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = pl.nom;
+    b.classList.toggle('on', pl === player);
+    b.addEventListener('click', () => switchPlayer(pl));
+    nav.appendChild(b);
+  }
+}
+
+async function switchPlayer(pl) {
+  if (pl === player) return;
+  if (st && !st.over) { clockStop(); await saveNow(); }
+  player = pl;
+  rememberPlayer();
+  game = null; st = null; puzzle = null;
+  $('board').innerHTML = '';
+  $('endDialog').hidden = true;
+  renderPlayers();
+  renderTheme();
+  const row = await store.currentGame(player.j);
+  if (player !== pl) return;
+  if (row) await resume(row); else await newGrid();
+}
+
+/* ------------------------------ Thème ------------------------------ */
+function renderTheme() {
+  const chien = themeKey() === 'chien';
+  $('themeBtn').textContent = chien ? '🐶' : '🐱';
+  $('brand').textContent = chien ? 'Sudodog' : 'Sudocat';
+  document.title = (chien ? 'Sudodog' : 'Sudocat') + ' · gamestof.fr';
+}
+$('themeBtn').addEventListener('click', async () => {
+  const next = themeKey() === 'chien' ? 'chat' : 'chien';
+  player.theme = next;
+  renderTheme();
+  if (puzzle && st) renderBoard();
+  try { await store.updatePlayer(player.j, { theme: next }); } catch (e) { problem('Thème non enregistré : ' + e.message); }
+});
+
+/* ------------------------------ Menu ------------------------------ */
+$('menuBtn').addEventListener('click', async () => {
+  clockStop();
+  $('menuWho').textContent = player.nom;
+  $('menu').hidden = false;
+  $('stats').innerHTML = '';
+  try {
+    const s = await store.stats(player.j);
+    $('stats').innerHTML =
+      `<div><b>${player.palier}</b><span>palier</span></div>` +
+      `<div><b>${s.jouees}</b><span>jouées</span></div>` +
+      `<div><b>${s.gagnees}</b><span>réussies</span></div>` +
+      `<div><b>${s.faciles}</b><span>sans faute</span></div>`;
+  } catch (e) { problem(e.message); }
+});
+function closeMenu() { $('menu').hidden = true; clockStart(); }
+$('closeMenu').addEventListener('click', closeMenu);
+$('menu').addEventListener('click', (e) => { if (e.target === $('menu')) closeMenu(); });
+
 $('giveUp').addEventListener('click', async () => {
-  if (!st || st.over) return newGrid();
-  if (!confirm('Abandonner cette grille ? Elle ne compte ni comme gagnée ni comme perdue.')) return;
+  if (!st || st.over) { $('menu').hidden = true; return newGrid(); }
+  if (!confirm(player.palier > 1 ? `Abandonner cette grille ? Elle compte comme perdue : retour au palier ${player.palier - 1}.`
+    : 'Abandonner cette grille ? Elle compte comme perdue.')) return;
+  $('menu').hidden = true;
   clockStop();
   st.over = true;
+  await movePalier(-1);
   await saveNow({ resultat: 'abandon', finie_le: new Date().toISOString() });
   newGrid();
 });
 
-/* ------------------------------ Thème, profil, statistiques ------------------------------ */
-function renderTheme() {
-  const chien = profil.theme === 'chien';
-  $('themeChat').classList.toggle('on', !chien);
-  $('themeChien').classList.toggle('on', chien);
-  $('brand').textContent = chien ? 'Sudodog' : 'Sudocat';
-  document.title = (chien ? 'Sudodog' : 'Sudocat') + ' · gamestof.fr';
-}
-async function setTheme(t) {
-  if (profil.theme === t) return;
-  profil.theme = t;
-  renderTheme();
-  if (puzzle && st) {
-    if (themePool().length < puzzle.size) problem(`Pas assez de dessins de ${animal(2)} pour cette grille.`);
-    else { renderBoard(); if (st.over && st.errors >= MAX_ERREURS) for (let r = 0; r < puzzle.size; r++) renderCell(r * puzzle.size + puzzle.solution[r], { hint: true }); }
-  }
-  try { await store.updateProfile({ theme: t }); } catch (e) { problem('Thème non enregistré : ' + e.message); }
-}
-$('themeChat').addEventListener('click', () => setTheme('chat'));
-$('themeChien').addEventListener('click', () => setTheme('chien'));
-
-async function renderStats() {
-  try {
-    const s = await store.stats();
-    $('stats').innerHTML =
-      `<div><b>${profil.niveau}</b><span>niveau</span></div>` +
-      `<div><b>${s.jouees}</b><span>grilles jouées</span></div>` +
-      `<div><b>${s.gagnees}</b><span>réussies</span></div>` +
-      `<div><b>${s.faciles}</b><span>sans faute dans le temps</span></div>`;
-  } catch (e) { problem(e.message); }
-}
+$('logout').addEventListener('click', async () => {
+  $('menu').hidden = true;
+  if (st && !st.over) await saveNow();
+  await store.signOut();
+  players = []; player = game = puzzle = st = null;
+  showAuth('login');
+});
 
 /* ------------------------------ Connexion ------------------------------ */
 let authMode = 'login';
 function showAuth(mode) {
   authMode = mode;
-  $('gameScreen').hidden = true; $('who').hidden = true; $('authScreen').hidden = false;
+  $('gameScreen').hidden = true; $('authScreen').hidden = false;
   $('authTitle').textContent = { login: 'Connexion', signup: 'Créer un compte', reset: 'Mot de passe oublié' }[mode];
-  $('authIntro').textContent = mode === 'reset'
-    ? 'Indique ton email : tu recevras un lien pour choisir un nouveau mot de passe.'
-    : 'Crée un compte pour enregistrer ta progression.';
-  $('pseudoField').hidden = mode !== 'signup';
+  $('authPseudo').hidden = mode !== 'signup';
   $('authPseudo').required = mode === 'signup';
-  $('passwordField').hidden = mode === 'reset';
+  $('authPassword').hidden = mode === 'reset';
   $('authPassword').required = mode !== 'reset';
   $('authPassword').autocomplete = mode === 'signup' ? 'new-password' : 'current-password';
-  $('authSubmit').textContent = { login: 'Se connecter', signup: 'Créer mon compte', reset: 'Envoyer le lien' }[mode];
+  $('authSubmit').textContent = { login: 'Se connecter', signup: 'Créer mon compte', reset: 'Recevoir un lien' }[mode];
   $('toSignup').hidden = mode === 'signup';
   $('toLogin').hidden = mode === 'login';
   $('toReset').hidden = mode !== 'login';
@@ -405,13 +432,6 @@ $('authForm').addEventListener('submit', async (e) => {
   } finally { $('authSubmit').disabled = false; }
 });
 
-$('logout').addEventListener('click', async () => {
-  if (st && !st.over) { clockStop(); await saveNow(); }
-  await store.signOut();
-  profil = game = puzzle = st = null;
-  showAuth('login');
-});
-
 // Lien « mot de passe oublié » : Supabase ramène ici en mode récupération.
 if (!store.local) {
   store.sb.auth.onAuthStateChange((event) => {
@@ -429,24 +449,31 @@ $('newPasswordForm').addEventListener('submit', async (e) => {
 
 /* ------------------------------ Démarrage ------------------------------ */
 async function enterGame() {
-  profil = await store.profile();
+  accountId = (await store.user()).id;
+  players = await store.players();
+  const remembered = rememberedPlayer();
+  player = players.find((p) => p.j === remembered) || players[0];
   $('authScreen').hidden = true;
   $('gameScreen').hidden = false;
-  $('who').hidden = false;
-  $('pseudo').textContent = profil.pseudo;
+  renderPlayers();
   renderTheme();
-  renderStats();
-  const row = await store.currentGame();
+  const row = await store.currentGame(player.j);
   if (row) await resume(row); else await newGrid();
 }
 
 (async function init() {
   if (window.SUDOCAT_SUPABASE_URL && !window.supabase) {
-    problem('Connexion au serveur impossible (bibliothèque Supabase non chargée). Vérifie ta connexion puis recharge la page.');
+    showAuth('login');
+    $('authError').textContent = 'Connexion au serveur impossible. Vérifie ton réseau puis relance l’appli.';
+    $('authError').hidden = false;
     return;
   }
   $('localBanner').hidden = !store.local;
   try {
     if (await store.user()) await enterGame(); else showAuth('login');
-  } catch (e) { problem(e.message); showAuth('login'); }
+  } catch (e) {
+    showAuth('login');
+    $('authError').textContent = e.message;
+    $('authError').hidden = false;
+  }
 })();
