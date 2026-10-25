@@ -10,10 +10,10 @@
 //     pour tous. Un seul essai ; l'heure de départ est enregistrée en base, si bien
 //     qu'un rechargement ne remet pas le chrono à zéro. Le temps réalisé est
 //     enregistré comme résultat (0 point, 0 négatif) et s'ajoute au temps général.
-import { afficheRegles } from "./regles.js?v=422";
-import { chargeDico, grilleFinale, classeCase, jeton, appliqueTheme, fmt } from "./grille-finale.js?v=422";
-import { decoupeRegions, piecesDepuisRegions } from "./puzzle-pieces.js?v=422";
-import { emptyBoard, applyMove, modeDisplayName } from "./engine.js?v=422";
+import { afficheRegles } from "./regles.js?v=423";
+import { chargeDico, grilleFinale, classeCase, jeton, appliqueTheme, fmt } from "./grille-finale.js?v=423";
+import { decoupeRegions, piecesDepuisRegions } from "./puzzle-pieces.js?v=423";
+import { emptyBoard, applyMove, modeDisplayName } from "./engine.js?v=423";
 
 const $ = id => document.getElementById(id);
 const N = 15;
@@ -62,9 +62,48 @@ function dessineGrille() {
   $("pzBoard").innerHTML = s + "</table>";
 }
 
+// La réserve est une zone libre : chaque pièce garde la place où on l'a posée (x, y en
+// pixels dans la réserve), pour que le joueur puisse les trier et les regrouper.
+let zMax = 1;
 function dessineReserve() {
-  $("pzTray").innerHTML = pieces.filter(p => !p.pose)
-    .map(p => `<div class="board piece" data-id="${p.id}">${htmlPiece(p)}</div>`).join("");
+  const tray = $("pzTray");
+  const enReserve = pieces.filter(p => !p.pose);
+  const style = p => p.x == null ? "" : ` style="left:${p.x}px;top:${p.y}px;z-index:${p.z || 1}"`;
+  tray.innerHTML = enReserve.map(p => `<div class="board piece" data-id="${p.id}"${style(p)}>${htmlPiece(p)}</div>`).join("");
+  // Premier affichage : le navigateur range les pièces en rangées, puis on fige ces
+  // positions et la réserve passe en placement libre.
+  if (enReserve.some(p => p.x == null)) {
+    tray.classList.remove("libre");
+    for (const el of tray.children) {
+      const p = pieces[+el.dataset.id];
+      p.x = el.offsetLeft; p.y = el.offsetTop;
+    }
+    tray.classList.add("libre");
+    for (const el of tray.children) {
+      const p = pieces[+el.dataset.id];
+      Object.assign(el.style, { left: p.x + "px", top: p.y + "px" });
+    }
+  }
+  ajusteReserve();
+}
+/** La réserve s'agrandit pour contenir la pièce la plus basse. */
+function ajusteReserve() {
+  const tray = $("pzTray");
+  let bas = 0;
+  for (const el of tray.children) bas = Math.max(bas, el.offsetTop + el.offsetHeight);
+  tray.style.height = tray.classList.contains("libre") ? Math.max(bas + 16, tray.dataset.hInit || 0) + "px" : "";
+}
+/** Lâcher dans la réserve : la case saisie de la pièce arrive sous le pointeur. */
+function deposeEnReserve(p, e, dr, dc) {
+  const tray = $("pzTray"), box = tray.getBoundingClientRect();
+  if (e.clientX < box.left || e.clientX > box.right || e.clientY < box.top || e.clientY > box.bottom + 40) return false;
+  const td = $("pzBoard").querySelector("td");
+  const cs = (td ? td.getBoundingClientRect().width : 30) * 0.8;   // les pièces de la réserve sont à 80 %
+  const w = (Math.max(...p.cells.map(x => x[1])) + 1) * cs;
+  p.x = Math.round(Math.min(Math.max(0, e.clientX - box.left - (dc + .5) * cs), Math.max(0, box.width - w)));
+  p.y = Math.round(Math.max(0, e.clientY - box.top - (dr + .5) * cs));
+  p.z = ++zMax;
+  return true;
 }
 
 // --- glisser-déposer ----------------------------------------------------------------
@@ -93,6 +132,8 @@ function lache(e) {
   if (sous) {
     const r = +sous.dataset.r - dr, c = +sous.dataset.c - dc;
     if (tient(p, r, c)) pose(p, r, c);
+  } else {
+    deposeEnReserve(p, e, dr, dc);   // rangement libre dans la réserve (sinon elle garde sa place)
   }
   dessineGrille(); dessineReserve(); verifie();
 }
@@ -118,6 +159,7 @@ $("pzTray").addEventListener("pointerdown", e => {
   const td = e.target.closest("td[data-dr]"), el = e.target.closest(".piece");
   if (!td || !el) return;
   e.preventDefault();
+  el.style.visibility = "hidden";       // la pièce « suit » le pointeur pendant le glisser
   prend(pieces[+el.dataset.id], e, +td.dataset.dr, +td.dataset.dc);
 });
 $("pzBoard").addEventListener("pointerdown", e => {
