@@ -84,7 +84,7 @@ language sql stable security definer set search_path = public as $$
     join players p        on p.id = r.player_id
    where g.tournament_id = p_tournament
      and est_tournoi_public(p_tournament)
-     and coalesce(r.paused, false) = false
+     and r.paused is null                     -- partie terminée (paused = état de reprise)
      and not p.is_admin
    group by p.name
    order by sum(r.sum_neg) desc, sum(r.total_time_seconds) asc;
