@@ -2,7 +2,7 @@
 //  directement les parties du tournoi et le classement. Les comptes créés ici
 //  sont des comptes « halloween » : la base ne leur ouvre que les tournois
 //  publics (cf. schema-halloween.sql), et Topissimo les renvoie ici.
-import { modeDisplayName } from "../scrabble/engine.js?v=420";
+import { modeDisplayName } from "../scrabble/engine.js?v=421";
 
 const $ = id => document.getElementById(id);
 const sb = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
@@ -106,17 +106,27 @@ async function afficheTournoi() {
   $("hwTitre").textContent = t.name;
 
   const { data: parties } = await sb.from("prepared_games").select("id,name,mode,created_at").eq("tournament_id", t.id);
-  const liste = (parties || []).sort((a, b) => a.name.localeCompare(b.name, "fr", { numeric: true }));
+  // Jigsaw (grille puzzle) se joue en DERNIER : placé en fin de liste et verrouillé tant
+  // que les autres parties ne sont pas terminées. Son temps s'ajoute au temps général.
+  const estJigsaw = g => g.mode === "puzzle";
+  const liste = (parties || []).sort((a, b) => (estJigsaw(a) - estJigsaw(b)) || a.name.localeCompare(b.name, "fr", { numeric: true }));
   const { data: miens } = await sb.from("prepared_game_results")
-    .select("prepared_game_id,sum_neg,summary,paused").eq("player_id", joueur.id);
+    .select("prepared_game_id,sum_neg,summary,paused,total_time_seconds").eq("player_id", joueur.id);
   const etat = new Map((miens || []).map(r => [r.prepared_game_id, r]));
+  const finie = g => { const r = etat.get(g.id); return !!(r && r.summary && Array.isArray(r.summary.mv) && r.summary.mv.length > 0 && !r.paused); };
+  const resteAvantJigsaw = liste.filter(g => !estJigsaw(g) && !finie(g)).length;
+  const duree = s => `${Math.floor(s / 60)} min ${String(Math.round(s % 60)).padStart(2, "0")} s`;
 
   $("hwParties").innerHTML = liste.map(g => {
     const r = etat.get(g.id);
-    const fini = r && r.summary && Array.isArray(r.summary.mv) && r.summary.mv.length > 0 && !r.paused;
+    const fini = finie(g);
     const action = fini
-      ? `<span class="fait">✔ ${r.sum_neg ?? 0}</span> <a class="hw-btn fantome" href="../scrabble/game.html?review=${g.id}&tid=${t.id}">Revoir</a>`
-      : `<a class="hw-btn" href="../scrabble/game.html?prepared=${g.id}&tid=${t.id}">${r?.paused ? "Reprendre" : "Jouer"}</a>`;
+      ? (estJigsaw(g)
+          ? `<span class="fait">✔ ${duree(r.total_time_seconds || 0)}</span>`
+          : `<span class="fait">✔ ${r.sum_neg ?? 0}</span> <a class="hw-btn fantome" href="../scrabble/game.html?review=${g.id}&tid=${t.id}">Revoir</a>`)
+      : estJigsaw(g) && resteAvantJigsaw > 0
+        ? `<span class="verrou" title="Termine d'abord les autres parties">🔒 encore ${resteAvantJigsaw} partie${resteAvantJigsaw > 1 ? "s" : ""}</span>`
+        : `<a class="hw-btn" href="../scrabble/game.html?prepared=${g.id}&tid=${t.id}">${r?.paused ? "Reprendre" : "Jouer"}</a>`;
     return `<div class="hw-partie"><div class="nom">${echappe(g.name)}<div class="formule">${echappe(modeDisplayName(g.mode, false, true))}</div></div>${action}</div>`;
   }).join("") || "<p>Aucune partie pour l'instant.</p>";
 

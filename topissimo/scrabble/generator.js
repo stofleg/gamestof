@@ -12,8 +12,9 @@ import {
   bagTotalVowels, bagTotalConsonants, GAME_MODES, randomBoardLayout, snakeEndpointsAfter, gigogneRackSize,
   bagFor, valuesFor, setLetterValues, LETTER_VALUE, isCrossingCell, wordHiddenCount,
   drawVowelRack, MARATHON_GAMES, consonnesDisponibles, jokersDisponibles,
-} from "./engine.js?v=420";
-import { findTopRanked, findTop, snakeBestTop } from "./topfinder.js?v=420";
+} from "./engine.js?v=421";
+import { findTopRanked, findTop, snakeBestTop } from "./topfinder.js?v=421";
+import { decoupeRegions } from "./puzzle-pieces.js?v=421";
 
 const VOWELS_GEN = new Set(["A", "E", "I", "O", "U", "Y"]);
 
@@ -328,6 +329,9 @@ export function generateGame(dict, options = {}, onProgress = null) {
   // Voyelles : marque les parties où les consonnes sont limitées par le sac (les
   // parties générées avant n'ont pas cette contrainte et sont rejouées telles quelles).
   if (mode.voyelles && moves.length) moves[0]._consBag = true;
+  // Grille puzzle (Jigsaw) : la grille finale est découpée en pièces une fois pour
+  // toutes, pour que tous les joueurs du tournoi aient exactement le même puzzle.
+  if (mode.page === "puzzle.html" && moves.length) moves[0]._puzzle = decoupeRegions();
   // On expose aussi l'état final du sac et du chevalet pour debug/vérification
   const finalRack = rack.map(t => t.letter);
 

@@ -29,12 +29,12 @@ import {
   bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName, randomBoardLayout, snakeEndpointsAfter, sablierTime, gigogneRackSize,
   setLetterValues, letterValue, valuesFor, bagFor, isCrossingCell, wordHiddenCount,
   drawVowelRack, VOWELS_NO_Y, MARATHON_TARGET, MARATHON_GAMES, consonnesDisponibles, jokersDisponibles,
-} from "./engine.js?v=420";
-import { Dictionary } from "./dictionary.js?v=420";
-import * as invasion from "./araignees.js?v=420";
-import { REGLES, afficheRegles } from "./regles.js?v=420";
-import * as sonHalloween from "./halloween-son.js?v=420";
-import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=420";
+} from "./engine.js?v=421";
+import { Dictionary } from "./dictionary.js?v=421";
+import * as invasion from "./araignees.js?v=421";
+import { REGLES, afficheRegles } from "./regles.js?v=421";
+import * as sonHalloween from "./halloween-son.js?v=421";
+import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=421";
 
 // État du mode review (parcours coup par coup)
 const review = {
@@ -68,7 +68,7 @@ const FFSC_REVIEW = URL_PARAMS.get("ffscreview");  // revoir une partie FFSC imp
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v420";
+const BUILD_VERSION = "garenna-v421";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -4694,6 +4694,7 @@ async function enterReviewMode(id) {
   if (!window._sb) await loadSupabaseClient();
   const { data: game, error: e1 } = await window._sb.from("prepared_games").select("*").eq("id", id).single();
   if (e1) throw new Error(e1.message);
+  if (game.mode === "puzzle") { location.replace(`puzzle.html?prepared=${id}`); return new Promise(() => {}); }
   const pid = +(localStorage.getItem("currentPlayerId") || 0);
   let result = null;
   if (pid) {
@@ -5436,6 +5437,8 @@ async function loadPreparedGame(id) {
   }
   const { data, error } = await window._sb.from("prepared_games").select("*").eq("id", id).single();
   if (error) throw new Error(error.message);
+  // Grille puzzle (Jigsaw) : ce n'est pas une partie de topping, elle a sa propre page.
+  if (data.mode === "puzzle") { location.replace(`puzzle.html?prepared=${id}`); return new Promise(() => {}); }
   // Réinitialisation COMPLÈTE de l'état de jeu : évite qu'un reliquat d'une partie
   // précédente (plateau, tirage, index) ne déborde si l'état n'a pas été remis à zéro
   // (cache navigateur / réentrée). C'est la cause du « 1er tirage erroné » corrigé au refresh.
