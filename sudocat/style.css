@@ -73,11 +73,8 @@ input { font: inherit; }
 .palier { display: flex; flex-direction: column; line-height: 1.05; }
 .palier b { font-size: 26px; font-weight: 800; }
 .palier b::before { content: "Palier "; font-size: 13px; font-weight: 600; color: var(--muted); }
-.palier span { font-size: 13px; color: var(--accent); font-weight: 600; }
 .lives { text-align: right; font-size: 22px; letter-spacing: 2px; }
 .lives .lost { opacity: .18; filter: grayscale(1); }
-.goal { align-self: center; font-size: 13px; font-weight: 600; color: var(--muted); background: var(--surface); padding: 5px 12px; border-radius: 999px; }
-.goal.missed { opacity: .45; text-decoration: line-through; }
 
 /* Plateau : le plus grand carré qui tient dans l'espace restant. */
 .boardArea { flex: 1; min-height: 0; position: relative; container-type: size; display: flex; align-items: center; justify-content: center; }
