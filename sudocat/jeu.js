@@ -127,11 +127,6 @@ function renderLives() {
 function renderStatus() {
   const pal = game.palier || player.palier;
   $('palierNum').textContent = pal;
-  $('palierName').textContent = `${LEVELS[puzzle.targetLevel].label} · ${puzzle.size}×${puzzle.size}`;
-  $('goal').classList.toggle('missed', st.errors > 0);
-  $('goal').textContent = player.palier < MAX_PALIER
-    ? `🎯 Sans faute → palier ${player.palier + 1}`
-    : '🎯 Palier maximum';
   renderLives();
 }
 
@@ -199,7 +194,6 @@ function placeCat(i) {
     st.bad.add(i);
     renderCell(i);
     renderLives();
-    $('goal').classList.add('missed');
     if (navigator.vibrate) navigator.vibrate([30, 40, 30]);
     if (st.errors >= MAX_ERREURS) return finish(false);
   }
