@@ -2,7 +2,7 @@
 //  directement les parties du tournoi et le classement. Les comptes créés ici
 //  sont des comptes « halloween » : la base ne leur ouvre que les tournois
 //  publics (cf. schema-halloween.sql), et Topissimo les renvoie ici.
-import { modeDisplayName } from "../scrabble/engine.js?v=419";
+import { modeDisplayName } from "../scrabble/engine.js?v=420";
 
 const $ = id => document.getElementById(id);
 const sb = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
@@ -123,12 +123,32 @@ async function afficheTournoi() {
   const { data: cl, error } = await sb.rpc("classement_public", { p_tournament: t.id });
   if (error || !cl?.length) { $("hwClassement").innerHTML = "<p>Personne n'a encore osé jouer.</p>"; return; }
   const heures = s => { const m = Math.round(s / 60); return m >= 60 ? `${Math.floor(m / 60)} h ${String(m % 60).padStart(2, "0")}` : `${m} min`; };
-  $("hwClassement").innerHTML = `<table class="hw-classement"><tr><th>#</th><th>Joueur</th><th class="n">Parties</th><th class="n">Négatif</th><th class="n">Temps</th><th class="n">Retard</th><th class="n">Score final</th></tr>` +
-    cl.map(l => `<tr class="${l.joueur === joueur.name ? "moi" : ""}"><td>${l.rang ?? "–"}</td><td>${echappe(l.joueur)}</td>` +
-      `<td class="n">${l.parties}/${l.total_parties}</td><td class="n">${l.total_neg}</td><td class="n">${heures(l.temps_total || 0)}</td>` +
+  // Trois classements, tous sur les joueurs ayant terminé les 14 parties : le score final
+  // (négatif − 1 point par minute de retard), le négatif seul et le temps seul.
+  const finis = cl.filter(l => l.rang != null), autres = cl.filter(l => l.rang == null);
+  const vues = {
+    final: { nom: "Score final", tri: (a, b) => a.rang - b.rang, mise: "score_final" },
+    neg:   { nom: "Négatif", tri: (a, b) => b.total_neg - a.total_neg || a.temps_total - b.temps_total, mise: "total_neg" },
+    temps: { nom: "Temps", tri: (a, b) => a.temps_total - b.temps_total || b.total_neg - a.total_neg, mise: "temps_total" },
+  };
+  const dessine = cle => {
+    const v = vues[cle], classes = finis.slice().sort(v.tri);
+    const ligne = (l, rang) => `<tr class="${l.joueur === joueur.name ? "moi" : ""}"><td>${rang ?? "–"}</td><td>${echappe(l.joueur)}</td>` +
+      `<td class="n">${l.parties}/${l.total_parties}</td>` +
+      `<td class="n">${l.total_points}</td>` +
+      `<td class="n${cle === "neg" ? " cle" : ""}">${l.total_neg}</td>` +
+      `<td class="n${cle === "temps" ? " cle" : ""}">${heures(l.temps_total || 0)}</td>` +
       `<td class="n">${l.retard_min != null ? "+" + Math.round(l.retard_min) + " min" : "–"}</td>` +
-      `<td class="n"><strong>${l.score_final != null ? Number(l.score_final).toFixed(1) : "–"}</strong></td></tr>`).join("") + "</table>" +
-    `<p class="hw-regles">Score final = négatif total − 1 point par minute de retard sur le joueur le plus rapide. Seuls les joueurs ayant terminé toutes les parties sont classés. Le temps de Jigsaw, la dernière partie, s'ajoute au temps général.</p>`;
+      `<td class="n${cle === "final" ? " cle" : ""}"><strong>${l.score_final != null ? Number(l.score_final).toFixed(1) : "–"}</strong></td></tr>`;
+    $("hwClassementCorps").innerHTML = `<div class="hw-defile"><table class="hw-classement"><tr><th>#</th><th>Joueur</th><th class="n">Parties</th><th class="n">Points</th><th class="n">Négatif</th><th class="n">Temps</th><th class="n">Retard</th><th class="n">Score final</th></tr>` +
+      classes.map((l, i) => ligne(l, i + 1)).join("") + autres.map(l => ligne(l, null)).join("") + "</table></div>";
+    document.querySelectorAll("#hwClassement .hw-onglets button").forEach(b => b.classList.toggle("actif", b.dataset.vue === cle));
+  };
+  $("hwClassement").innerHTML = `<div class="hw-onglets">${Object.entries(vues).map(([k, v]) => `<button data-vue="${k}" type="button">${v.nom}</button>`).join("")}</div>` +
+    `<div id="hwClassementCorps"></div>` +
+    `<p class="hw-regles">Classement général : score final = points marqués − 1 point par minute de retard sur le joueur le plus rapide (le vainqueur a le score le plus élevé). Les classements « Négatif » et « Temps » comptent chaque critère seul. Seuls les joueurs ayant terminé toutes les parties sont classés. Le temps de Jigsaw, la dernière partie, s'ajoute au temps général.</p>`;
+  document.querySelectorAll("#hwClassement .hw-onglets button").forEach(b => b.onclick = () => dessine(b.dataset.vue));
+  dessine("final");
 }
 
 // --- démarrage -----------------------------------------------------------------------
