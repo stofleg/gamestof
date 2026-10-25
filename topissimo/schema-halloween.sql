@@ -199,6 +199,9 @@ drop policy if exists "auth read" on prepared_games;
 create policy "auth read" on prepared_games
   for select using (is_club() or (auth.uid() is not null and est_tournoi_public(tournament_id)));
 
+-- Ancienne règle qui reconnaissait l'admin à son PSEUDO : doublon de
+-- « owner update » (qui inclut déjà is_admin()), on la retire.
+drop policy if exists "admin can update any prepared_game_result" on prepared_game_results;
 drop policy if exists "auth read"    on prepared_game_results;
 drop policy if exists "self insert"  on prepared_game_results;
 create policy "auth read" on prepared_game_results

@@ -48,7 +48,8 @@ drop function if exists public.classement_public(bigint);
 drop function if exists public.note_ip(text);
 drop function if exists public.pseudo_libre(text);
 
--- Réclamation par pseudo (supprimée par la migration) : non recréée.
+-- Réclamation par pseudo et règle « admin can update any prepared_game_result »
+-- (supprimées par la migration) : non recréées, « owner update » couvre l'admin.
 
 -- Pour tout effacer :
 -- drop table if exists ip_traces;
