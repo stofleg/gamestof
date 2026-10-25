@@ -12,7 +12,7 @@
 //     aussi les mots croisés) et on garde le maximum.
 // ============================================================
 
-import { BOARD_SIZE, BOARD_BONUSES, CENTER, scoreMove, applyMove, LETTER_VALUE, VOWELS, VOWELS_NO_Y, CONSONANTS_FR, isSimplePath, isSnakeMove } from "./engine.js?v=411";
+import { BOARD_SIZE, BOARD_BONUSES, CENTER, scoreMove, applyMove, LETTER_VALUE, VOWELS, VOWELS_NO_Y, CONSONANTS_FR, isSimplePath, isSnakeMove } from "./engine.js?v=412";
 
 // Un coup PROLONGE le serpent s'il s'accroche à une extrémité (isSnakeMove ; les
 // mots croisés latéraux sont permis), OU s'il garde un chemin simple (extension
@@ -1440,6 +1440,7 @@ export function findTop(board, rack, dict, opts = {}) {
           layout: opts.layout,
           freeCons: opts.freeCons,
           freeConsBudget,
+          consLeft: opts.consAvail || null,   // Voyelles : consonnes encore dans le sac
           consUsed: 0,
           anchorCovered: false,
           candidates, seenMoves, zone,
@@ -1537,12 +1538,14 @@ function extend(ctx) {
       for (const L of CONSONANTS_FR) {
         if (triedC.has(L)) continue;
         triedC.add(L);
+        if (ctx.consLeft && !(ctx.consLeft[L] > 0)) continue;   // plus de cette lettre dans le sac
         if (!crossWordOk(board, r, c, L, dir, dict)) continue;
         extend({
           ...ctx,
           r: r + dr, c: c + dc,
           currentWord: currentWord + L,
           tilesUsed: tilesUsed + 1,
+          consLeft: ctx.consLeft ? { ...ctx.consLeft, [L]: ctx.consLeft[L] - 1 } : null,
           consUsed: (ctx.consUsed || 0) + 1,
           anchorCovered: anchorCovered || (r === ar && c === ac),
         });

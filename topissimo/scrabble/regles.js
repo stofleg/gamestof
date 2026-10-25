@@ -81,9 +81,8 @@ export const REGLES = {
   voyelles: {
     titre: "Voyelles",
     points: [
-      "Le tirage ne contient <b>que des voyelles</b> (2 à 5, puis 1 à 6 à partir du coup 15).",
-      "Les <b>consonnes sont libres et illimitées</b> : tape celles que tu veux, elles comptent leur valeur normale.",
-      "7 lettres posées au maximum ; le top utilise une partie des voyelles du tirage.",
+      "Seules les <b>voyelles</b> des tirages sont fournies.",
+      "Tu choisis les <b>consonnes de ton choix</b>, mais le tirage doit toujours compter <b>7 lettres</b> (voyelles incluses) et les consonnes doivent être <b>disponibles dans le sac</b>.",
     ],
   },
   invasion: {

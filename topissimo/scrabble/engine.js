@@ -167,6 +167,21 @@ export const MARATHON_GAMES = 10;
 // Mode Voyelles : le Y est traité comme une CONSONNE. Les voyelles sont donc
 // A E I O U seulement (tirées dans le chevalet), et Y rejoint les consonnes libres.
 export const VOWELS_NO_Y = new Set(["A", "E", "I", "O", "U"]);
+
+/**
+ * Mode Voyelles : consonnes (Y compris) encore disponibles dans le sac. Elles ne
+ * sont jamais tirées : seules celles posées sur le plateau (tops précédents) sont
+ * sorties du sac, donc le plateau suffit à les décompter. Un joker posé ne compte pas.
+ */
+export function consonnesDisponibles(board) {
+  const reste = {};
+  for (const L of "BCDFGHJKLMNPQRSTVWXYZ") reste[L] = LETTER_BAG[L] || 0;
+  for (const ligne of board) for (const c of ligne) {
+    if (c && !c.isBlank && reste[c.letter] !== undefined) reste[c.letter]--;
+  }
+  for (const L in reste) if (reste[L] < 0) reste[L] = 0;
+  return reste;
+}
 export const CONSONANTS_FR = ["B","C","D","F","G","H","J","K","L","M","N","P","Q","R","S","T","V","W","X","Y","Z"];
 
 // Mode Voyelles : tire un chevalet de voyelles seules (A E I O U, sans Y) depuis

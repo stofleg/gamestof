@@ -11,9 +11,9 @@ import {
   emptyBoard, LETTER_BAG, drawForDuplicate, applyMove,
   bagTotalVowels, bagTotalConsonants, GAME_MODES, randomBoardLayout, snakeEndpointsAfter, gigogneRackSize,
   bagFor, valuesFor, setLetterValues, LETTER_VALUE, isCrossingCell, wordHiddenCount,
-  drawVowelRack, MARATHON_GAMES,
-} from "./engine.js?v=411";
-import { findTopRanked, findTop, snakeBestTop } from "./topfinder.js?v=411";
+  drawVowelRack, MARATHON_GAMES, consonnesDisponibles,
+} from "./engine.js?v=412";
+import { findTopRanked, findTop, snakeBestTop } from "./topfinder.js?v=412";
 
 const VOWELS_GEN = new Set(["A", "E", "I", "O", "U", "Y"]);
 
@@ -144,6 +144,7 @@ export function generateGame(dict, options = {}, onProgress = null) {
         freshRack = true;
         top = findTopRanked(board, rackLetters, dict, bag, {
           maxTilesUsed: mode.maxPlayed, bonuses: mode.bonuses, freeCons: true,
+          consAvail: consonnesDisponibles(board),   // les consonnes viennent du sac
         });
         if (top) break;
       }
@@ -323,6 +324,9 @@ export function generateGame(dict, options = {}, onProgress = null) {
   // Grille random : on grave la disposition des bonus sur le 1er coup (stockée
   // avec la partie, relue au jeu et à la review).
   if (layout && moves.length) moves[0]._layout = layout;
+  // Voyelles : marque les parties où les consonnes sont limitées par le sac (les
+  // parties générées avant n'ont pas cette contrainte et sont rejouées telles quelles).
+  if (mode.voyelles && moves.length) moves[0]._consBag = true;
   // On expose aussi l'état final du sac et du chevalet pour debug/vérification
   const finalRack = rack.map(t => t.letter);
 

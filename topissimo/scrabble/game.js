@@ -28,13 +28,13 @@ import {
   VOWELS, drawForDuplicate, scoreMove, applyMove,
   bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName, randomBoardLayout, snakeEndpointsAfter, sablierTime, gigogneRackSize,
   setLetterValues, letterValue, valuesFor, bagFor, isCrossingCell, wordHiddenCount,
-  drawVowelRack, VOWELS_NO_Y, MARATHON_TARGET, MARATHON_GAMES,
-} from "./engine.js?v=411";
-import { Dictionary } from "./dictionary.js?v=411";
-import * as invasion from "./araignees.js?v=411";
-import { REGLES, afficheRegles } from "./regles.js?v=411";
-import * as sonHalloween from "./halloween-son.js?v=411";
-import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=411";
+  drawVowelRack, VOWELS_NO_Y, MARATHON_TARGET, MARATHON_GAMES, consonnesDisponibles,
+} from "./engine.js?v=412";
+import { Dictionary } from "./dictionary.js?v=412";
+import * as invasion from "./araignees.js?v=412";
+import { REGLES, afficheRegles } from "./regles.js?v=412";
+import * as sonHalloween from "./halloween-son.js?v=412";
+import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=412";
 
 // État du mode review (parcours coup par coup)
 const review = {
@@ -68,7 +68,7 @@ const FFSC_REVIEW = URL_PARAMS.get("ffscreview");  // revoir une partie FFSC imp
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v411";
+const BUILD_VERSION = "garenna-v412";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -361,6 +361,13 @@ function nueeChauvesSouris() {
   document.body.appendChild(box);
   sonHalloween.nuee();
   setTimeout(() => box.remove(), 3500);
+}
+
+// Voyelles : les consonnes doivent exister dans le sac. Sauf pour les anciennes
+// parties pré-tirées (générées avec des consonnes illimitées), rejouées telles quelles.
+function consonnesLimitees() {
+  if (!currentMode().voyelles) return false;
+  return !state.prepared || !!state.prepared.moves?.[0]?._consBag;
 }
 
 function renderBoard() {
@@ -1092,6 +1099,9 @@ function renderBag() {
     counts = computeRemainingBagFromBoard();
   } else {
     counts = { ...state.bag };
+    // Voyelles : les consonnes ne sont pas tirées, mais elles sortent du sac quand
+    // elles sont posées → on les décompte depuis le plateau.
+    if (consonnesLimitees()) Object.assign(counts, consonnesDisponibles(state.board));
     if (effJoker() && state.spareJokers > 0) {
       counts["?"] = (counts["?"] || 0) + state.spareJokers;
     }
@@ -1990,6 +2000,15 @@ function placeLetter(L, preferTileId = null) {
   // tapée est posée directement comme jeton virtuel (à sa vraie valeur), sans
   // consommer de tuile. Les voyelles, elles, viennent obligatoirement du chevalet.
   if (currentMode().voyelles && !state.jokerPending && L !== "?" && !VOWELS_NO_Y.has(L)) {
+    if (consonnesLimitees()) {
+      const dispo = consonnesDisponibles(state.board)[L] || 0;
+      const dejaPosees = state.pending.filter(p => p.letter === L).length;
+      if (dejaPosees >= dispo) {
+        flashFeedback("error", dispo ? `Plus assez de ${L} dans le sac` : `Plus de ${L} dans le sac`,
+          dispo ? `Il n'en reste que ${dispo}.` : "Choisis une autre consonne.");
+        return;
+      }
+    }
     state.pending.push({ row, col, letter: L, rackId: null, isBlank: false });
     advanceCursor();
     renderBoard();
@@ -2374,6 +2393,7 @@ function validate() {
     const allMoves = findTop(state.board, rackLetters, state.dict, {
       all: true, maxTilesUsed: mode.maxPlayed, bonuses: mode.bonuses,
       jokerPays: mode.jokerPays, layout: state.boardLayout, freeCons: mode.voyelles,
+      consAvail: consonnesLimitees() ? consonnesDisponibles(state.board) : null,
     }) || [];
     const sameWord = allMoves.filter(c => c.move.word === move.word);
     if (sameWord.length) {
@@ -2430,6 +2450,18 @@ function validate() {
   // (le chevalet fait 7 « cases » : voyelles + consonnes libres). Ex. 5 voyelles
   // → au plus 2 consonnes. On compte les consonnes NOUVELLES posées (Y compris).
   if (mode.voyelles) {
+    if (consonnesLimitees()) {
+      const dispo = consonnesDisponibles(state.board);
+      for (const p of state.pending) {
+        if (VOWELS_NO_Y.has(p.letter)) continue;
+        const n = state.pending.filter(q => q.letter === p.letter).length;
+        if (n > (dispo[p.letter] || 0)) {
+          showTransientError(`Plus assez de ${p.letter} dans le sac`,
+            `Il en reste ${dispo[p.letter] || 0}, tu en poses ${n}.`);
+          return;
+        }
+      }
+    }
     const budget = Math.max(0, maxPlayedNow() - state.rack.length);
     const consPlayed = state.pending.filter(p => !VOWELS_NO_Y.has(p.letter)).length;
     if (consPlayed > budget) {
@@ -3234,6 +3266,7 @@ function computeTop() {
     // consonnes libres (freeCons), au plus 7 lettres posées.
     state.topMove = findTopRanked(state.board, rackLetters, state.dict, state.bag, {
       maxTilesUsed: mode.maxPlayed, bonuses: mode.bonuses, layout, freeCons: true,
+      consAvail: consonnesLimitees() ? consonnesDisponibles(state.board) : null,
     });
     return true;
   }
