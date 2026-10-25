@@ -2017,3 +2017,15 @@ body.theme-halloween .board td.coord {
   text-shadow: 0 0 6px rgba(255,90,30,.7);
 }
 body.theme-halloween .board td.coord.corner { background: transparent; }
+
+/* ===== Sac : quantités bien lisibles ===== */
+.bag-chip { font-size: 1.05rem; padding: 3px 5px 3px 7px; }
+.bag-chip .ct {
+  background: #12263a; color: #fff;
+  font-size: .85rem; font-weight: 800; letter-spacing: .01em;
+  min-width: 1.35em; text-align: center; padding: 2px 6px; margin-left: 5px;
+  box-shadow: 0 0 0 1px rgba(255,255,255,.35);
+}
+.bag-chip.low .ct { background: #c8202a; }          /* dernier exemplaire */
+body.theme-halloween .bag-chip .ct { background: #1a0a22; color: #ffb35c; box-shadow: 0 0 0 1px #e0661a; }
+body.theme-halloween .bag-chip.low .ct { background: #e0231a; color: #fff; box-shadow: 0 0 0 1px #ff8a3d; }

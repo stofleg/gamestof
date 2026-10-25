@@ -29,12 +29,12 @@ import {
   bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName, randomBoardLayout, snakeEndpointsAfter, sablierTime, gigogneRackSize,
   setLetterValues, letterValue, valuesFor, bagFor, isCrossingCell, wordHiddenCount,
   drawVowelRack, VOWELS_NO_Y, MARATHON_TARGET, MARATHON_GAMES, consonnesDisponibles,
-} from "./engine.js?v=412";
-import { Dictionary } from "./dictionary.js?v=412";
-import * as invasion from "./araignees.js?v=412";
-import { REGLES, afficheRegles } from "./regles.js?v=412";
-import * as sonHalloween from "./halloween-son.js?v=412";
-import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=412";
+} from "./engine.js?v=415";
+import { Dictionary } from "./dictionary.js?v=415";
+import * as invasion from "./araignees.js?v=415";
+import { REGLES, afficheRegles } from "./regles.js?v=415";
+import * as sonHalloween from "./halloween-son.js?v=415";
+import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=415";
 
 // État du mode review (parcours coup par coup)
 const review = {
@@ -68,7 +68,7 @@ const FFSC_REVIEW = URL_PARAMS.get("ffscreview");  // revoir une partie FFSC imp
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v412";
+const BUILD_VERSION = "garenna-v415";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -1117,6 +1117,7 @@ function renderBag() {
     if (n <= 0) return "";   // jamais de compteur négatif (double-décompte transitoire)
     const cls = ["bag-chip"];
     if (l === "?") cls.push("joker");
+    if (n === 1) cls.push("low");
     if (picking) cls.push("pickable");
     const attr = picking ? ` data-pick="${l}" role="button" tabindex="0"` : "";
     return `<span class="${cls.join(" ")}"${attr}>${l}<span class="ct">${n}</span></span>`;
