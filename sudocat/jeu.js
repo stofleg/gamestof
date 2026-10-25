@@ -93,13 +93,26 @@ function renderBoard() {
   const n = puzzle.size, board = $('board');
   board.style.gridTemplateColumns = `repeat(${n}, 1fr)`;
   board.style.gridTemplateRows = `repeat(${n}, 1fr)`;
-  board.style.gap = n >= 10 ? '2px' : '3px';
   board.innerHTML = '';
+  // Pas de quadrillage sombre régulier (il fait voir des points gris aux croisements) :
+  // séparateur sombre seulement entre deux zones, simple trait léger à l'intérieur d'une zone.
+  const zone = (r, c) => (r < 0 || c < 0 || r >= n || c >= n ? -1 : puzzle.region[r * n + c]);
+  const edge = n >= 10 ? 1.5 : 2;                     // demi-épaisseur du séparateur entre zones (px)
+  const round = n >= 10 ? 5 : 8;                      // arrondi des coins extérieurs des zones (px)
   for (let i = 0; i < n * n; i++) {
+    const r = Math.floor(i / n), c = i % n, k = puzzle.region[i];
+    const top = zone(r - 1, c) !== k, right = zone(r, c + 1) !== k, bottom = zone(r + 1, c) !== k, left = zone(r, c - 1) !== k;
+    const shadows = [];
+    if (top) shadows.push(`inset 0 ${edge}px 0 var(--bg)`);
+    if (bottom) shadows.push(`inset 0 -${edge}px 0 var(--bg)`); else shadows.push('inset 0 -1px 0 rgba(0, 0, 0, .14)');
+    if (left) shadows.push(`inset ${edge}px 0 0 var(--bg)`);
+    if (right) shadows.push(`inset -${edge}px 0 0 var(--bg)`); else shadows.push('inset -1px 0 0 rgba(0, 0, 0, .14)');
     const d = document.createElement('div');
     d.className = 'cell';
     d.dataset.i = i;
-    d.style.background = ZONE_COLORS[puzzle.region[i] % ZONE_COLORS.length];
+    d.style.background = ZONE_COLORS[k % ZONE_COLORS.length];
+    d.style.boxShadow = shadows.join(', ');
+    d.style.borderRadius = [top && left, top && right, bottom && right, bottom && left].map((b) => (b ? round + 'px' : '0')).join(' ');
     board.appendChild(d);
   }
   for (let i = 0; i < n * n; i++) renderCell(i);
