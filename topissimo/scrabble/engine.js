@@ -221,7 +221,28 @@ export function gigogneRackSize(moveNo) {
   return (moveNo || 1) + 1;
 }
 // Nom affiché en combinant mode + joker
-export function modeDisplayName(modeKey, withJoker) {
+// Titres du « tournoi de la Mort » (tournoi public d'Halloween) : ils remplacent le nom
+// habituel de la formule, uniquement pour les parties de ce tournoi.
+export const TITRES_MORT = {
+  "6lettres": "666",
+  "7sur15": "Se7en",
+  jokerpayant: "Sympathy for the Joker",
+  horizvert: "The Walking Dead",
+  topsoustop: "Renfield",
+  infjoker: "Happy Birthdeath",
+  grillerandom: "House on Haunted Hill",
+  sablier: "Countdown",
+  gigogne: "Gremlins",
+  anglaise: "From Hell",
+  lettrecachee: "The Goonies",
+  voyelles: "Scream",
+  invasion: "Arachnophobia",
+  puzzle: "Jigsaw",
+};
+
+/** Nom affiché d'une formule. `mort` : partie du tournoi de la Mort → titre Halloween. */
+export function modeDisplayName(modeKey, withJoker, mort = false) {
+  if (mort && TITRES_MORT[modeKey]) return TITRES_MORT[modeKey];
   const m = GAME_MODES[modeKey] || GAME_MODES.duplicate;
   if (!withJoker) return m.label;
   if (modeKey === "duplicate") return "Joker";

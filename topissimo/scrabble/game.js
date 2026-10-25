@@ -29,12 +29,12 @@ import {
   bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName, randomBoardLayout, snakeEndpointsAfter, sablierTime, gigogneRackSize,
   setLetterValues, letterValue, valuesFor, bagFor, isCrossingCell, wordHiddenCount,
   drawVowelRack, VOWELS_NO_Y, MARATHON_TARGET, MARATHON_GAMES, consonnesDisponibles, jokersDisponibles,
-} from "./engine.js?v=417";
-import { Dictionary } from "./dictionary.js?v=417";
-import * as invasion from "./araignees.js?v=417";
-import { REGLES, afficheRegles } from "./regles.js?v=417";
-import * as sonHalloween from "./halloween-son.js?v=417";
-import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=417";
+} from "./engine.js?v=418";
+import { Dictionary } from "./dictionary.js?v=418";
+import * as invasion from "./araignees.js?v=418";
+import { REGLES, afficheRegles } from "./regles.js?v=418";
+import * as sonHalloween from "./halloween-son.js?v=418";
+import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=418";
 
 // État du mode review (parcours coup par coup)
 const review = {
@@ -68,7 +68,7 @@ const FFSC_REVIEW = URL_PARAMS.get("ffscreview");  // revoir une partie FFSC imp
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v417";
+const BUILD_VERSION = "garenna-v418";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -1503,10 +1503,26 @@ function applyColorTheme() {
   sonHalloween.ambiance(state.settings.colorTheme === "halloween");
 }
 
+// Parties du « tournoi de la Mort » (tournoi public) : titres Halloween à la place des
+// noms de formules. Les joueurs du tournoi public y sont toujours ; pour les membres du
+// club, on lit le drapeau est_public du tournoi de la partie.
+let titresMort = PUBLIC_EVENT;
+async function majTitresMort(tournamentId) {
+  titresMort = PUBLIC_EVENT;
+  if (!titresMort && tournamentId && window._sb) {
+    try {
+      const { data } = await window._sb.from("tournaments").select("est_public").eq("id", tournamentId).maybeSingle();
+      titresMort = !!data?.est_public;
+    } catch { /* titres d'origine */ }
+  }
+  renderGameTitle();
+}
+const nomFormule = (cle, joker) => modeDisplayName(cle, joker, titresMort);
+
 function renderGameTitle() {
   const el = $("#gameTitle");
   if (!el) return;
-  const modeLabel = modeDisplayName(state.settings.gameMode, state.settings.withJoker);
+  const modeLabel = nomFormule(state.settings.gameMode, state.settings.withJoker);
   const timeLabel = state.settings.timePerMove > 0 ? ` · ${state.settings.timePerMove}s/coup` : "";
   // .gt-context = badge + nom (masqué sur mobile) ; .gt-params = mode + temps
   // (toujours affiché, y compris sur mobile).
@@ -4697,6 +4713,7 @@ async function enterReviewMode(id) {
   state.settings.gameMode = game.mode;
   state.settings.withJoker = game.with_joker;
   state.settings.timePerMove = game.time_per_move;
+  await majTitresMort(game.tournament_id);
   renderGameTitle();
   // Masquer la barre d'info (non pertinente en review)
   document.querySelector(".info-bar")?.style.setProperty("display", "none");
@@ -5447,6 +5464,7 @@ async function loadPreparedGame(id) {
     timePerMove: data.time_per_move,
     moves: data.moves,
   };
+  await majTitresMort(data.tournament_id);
   // Grille random : disposition des bonus stockée sur le 1er coup.
   state.boardLayout = data.moves?.[0]?._layout || null;
   // Diagnostic : tracer la partie chargée et le nombre de coups stockés.
@@ -5511,7 +5529,7 @@ function startGame() {
   const cleMode = state.settings.gameMode;
   if (REGLES[cleMode] && !reglesVues.has(cleMode) && !currentMode().page) {
     reglesVues.add(cleMode);
-    afficheRegles(cleMode).then(() => startGame());
+    afficheRegles(cleMode, titresMort ? nomFormule(cleMode, false) : null).then(() => startGame());
     return;
   }
   if (currentMode().page) {

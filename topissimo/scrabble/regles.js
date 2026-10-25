@@ -108,15 +108,15 @@ export const REGLES = {
 
 /** Fenêtre des règles. `parent` : élément où l'insérer ; renvoie une promesse
  *  résolue à la fermeture. */
-export function afficheRegles(cle) {
+export function afficheRegles(cle, titre = null) {
   const r = REGLES[cle];
   if (!r) return Promise.resolve();
   return new Promise(ok => {
     const fond = document.createElement("div");
     fond.className = "regles-fond";
     fond.innerHTML = `<div class="regles-boite" role="dialog" aria-modal="true" aria-labelledby="reglesTitre">
-        <div class="regles-sur">Formule superoriginale</div>
-        <h2 id="reglesTitre">${r.titre}</h2>
+        <div class="regles-sur">${titre ? "Le tournoi de la Mort" : "Formule superoriginale"}</div>
+        <h2 id="reglesTitre">${titre || r.titre}</h2>
         <ul>${r.points.map(p => `<li>${p}</li>`).join("")}</ul>
         ${r.sansPied ? "" : '<p class="regles-pied">Le reste : règles habituelles du topping.</p>'}
         <button type="button" class="regles-ok">C'est parti !</button>
