@@ -224,7 +224,7 @@ let myGamesSort = {
 async function loadMyGames() {
   if (!state.currentPlayerId) return;
   const pid = +state.currentPlayerId;
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=425");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=427");
 
   // Tournoi : prepared_game_results jointes avec prepared_games. Colonnes explicites
   // (pas de details/diagnostics → egress) ; `summary` sert juste à savoir si des
@@ -486,7 +486,8 @@ function renderDirect(enCours, aVenir) {
     const etat = p.status === "en cours" ? `<span class="direct-badge">● en cours</span>`
       : p.status === "à venir" ? `<span class="muted">${escapeHtml(p.label)}</span>` : `<span class="muted">terminée</span>`;
     const bouton = p.status === "à venir" ? ""
-      : `<button class="btn ghost small" onclick="directClassement('${id}', ${p.numero}, 1)">Classement</button>`;
+      : `<span class="direct-actions"><button class="btn small" onclick="directVoirPartie('${id}', ${p.numero})">👁 Voir la partie</button>
+         <button class="btn ghost small" onclick="directClassement('${id}', ${p.numero}, 1)">Classement</button></span>`;
     return `<div class="direct-partie"><span><strong>Partie ${p.numero}</strong> ${etat}</span>${bouton}</div>
       <div class="direct-classement" id="directCl-${id}-${p.numero}" hidden></div>`;
   };
@@ -498,6 +499,38 @@ function renderDirect(enCours, aVenir) {
       <ul class="direct-avenir">${aVenir.map(t => `<li>${escapeHtml(t.name)} <span class="muted">— ${escapeHtml(t.festival)}</span></li>`).join("")}</ul>` : "";
   return outils + (cartes || `<p class="muted">Aucun tournoi retransmis en ce moment.</p>`) + avenir;
 }
+
+// Grille de la partie, coup par coup (coups publiés jusqu'ici), dans le mode « revoir ».
+window.directVoirPartie = function(id, numero) {
+  const t = _directTournois[id] || { id, name: "Tournoi FFSc" };
+  location.href = `scrabble/game.html?ffscreview=1&direct=${encodeURIComponent(t.id)}&numero=${numero}&nom=${encodeURIComponent(t.name)}`;
+};
+
+// Feuille de route d'un joueur sur une partie (coups joués, score, top, négatif), lue
+// sur endirect par l'import FFSc ; bouton pour la revoir sur la grille avec ses coups.
+window.directFeuille = async function(tid, numero, nom) {
+  const cle = `direct|${tid}|${nom}`;
+  $("#ffscRouteTitle").textContent = `📋 ${nom} — Partie ${numero}`;
+  $("#ffscRouteBody").innerHTML = `<p class="muted">Lecture de la feuille de route…</p>`;
+  $("#ffscRouteModal").hidden = false;
+  try {
+    if (!_ffscDataCache[cle]) {
+      const data = await ffscCall("import", { tournoi: tid, nom });
+      if (!data || !data.parties) throw new Error("feuille de route introuvable");
+      data.tournoi = (_directTournois[tid] || {}).name || data.tournoi;
+      _ffscDataCache[cle] = data;
+    }
+    const data = _ffscDataCache[cle];
+    const idx = data.parties.findIndex(p => +p.numero === +numero);
+    if (idx < 0) { $("#ffscRouteBody").innerHTML = `<p class="muted">Pas encore de coups publiés pour ${escapeHtml(nom)} sur cette partie.</p>`; return; }
+    showFfscRoute(cle, idx);
+    $("#ffscRouteTitle").textContent = `📋 ${nom}${data.serie ? " (série " + data.serie + ")" : ""} — Partie ${numero}`;
+    $("#ffscRouteBody").insertAdjacentHTML("beforeend",
+      `<p style="text-align:center;margin-top:10px"><button class="btn small" onclick="reviewFfscPartie('${escapeHtml(cle).replace(/'/g, "\\'")}', ${idx})">👁 Revoir sur la grille avec ses coups</button></p>`);
+  } catch (e) {
+    $("#ffscRouteBody").innerHTML = `<p class="error">Feuille de route indisponible : ${escapeHtml(e.message)}</p>`;
+  }
+};
 
 // ---- Résultats publiés sur endirect (page « resultats », classement par partie) ----
 // Chaque partie a son classement (classement=P01, P02…), 50 joueurs par page, avec une
@@ -520,7 +553,7 @@ async function lireResultats(tournoiId, numero, { debut = 1, nom = "" } = {}) {
 const tableResultats = (r, lignes, avecPartie = false) => `<table class="direct-table"><thead><tr>
     ${avecPartie ? "<th>Tournoi / partie</th>" : ""}<th>Place</th><th>Joueur</th><th>Série</th><th>Score</th><th>Écart au top</th><th>Club</th></tr></thead><tbody>${
     lignes.map(l => `<tr>${avecPartie ? `<td>${escapeHtml(l.partie)}</td>` : ""}<td>${l.place}${l.joueurs ? `<span class="muted">/${l.joueurs}</span>` : ""}</td>
-      <td>${escapeHtml(l.joueur)}</td><td>${escapeHtml(l.serie)}</td><td>${l.score}</td>
+      <td><a href="#" class="direct-nom" title="Voir sa feuille de route" onclick="event.preventDefault(); directFeuille('${escapeHtml(l.tid)}', ${l.numero}, this.dataset.nom)" data-nom="${escapeHtml(l.joueur)}">${escapeHtml(l.joueur)}</a></td><td>${escapeHtml(l.serie)}</td><td>${l.score}</td>
       <td>${(l.top ?? r?.top) != null ? l.score - (l.top ?? r.top) : "—"}</td><td>${escapeHtml(l.club)}</td></tr>`).join("")
   }</tbody></table>`;
 
@@ -533,6 +566,7 @@ window.directClassement = async function(tournoiId, numero, debut = 1) {
   try {
     const r = await lireResultats(tournoiId, numero, { debut });
     if (!r.lignes.length) { box.innerHTML = `<p class="muted">Pas encore de résultats publiés pour cette partie.</p>`; return; }
+    r.lignes.forEach(l => { l.tid = tournoiId; l.numero = numero; });
     box.innerHTML = `<p class="muted direct-entete">${r.joueurs ?? "?"} joueurs · top ${r.top ?? "?"}${r.partiel ? " · <strong>résultats partiels</strong>" : ""}</p>`
       + tableResultats(r, r.lignes)
       + `<div class="direct-pages">${debut > 1 ? `<button class="btn ghost small" onclick="directClassement('${tournoiId}', ${numero}, ${Math.max(1, debut - 50)})">← précédents</button>` : ""}
@@ -554,7 +588,7 @@ window.directResultatsJoueur = async function() {
   for (const t of Object.values(_directTournois)) for (const p of (t.parties || [])) {
     if (p.status === "à venir") continue;
     taches.push(lireResultats(t.id, p.numero, { nom }).then(r => r.lignes.map(l => ({
-      ...l, top: r.top, joueurs: r.joueurs, partie: `${t.name} — partie ${p.numero}${r.partiel ? " (partiel)" : ""}`,
+      ...l, top: r.top, joueurs: r.joueurs, tid: t.id, numero: p.numero, partie: `${t.name} — partie ${p.numero}${r.partiel ? " (partiel)" : ""}`,
     }))).catch(() => []));
   }
   const lignes = (await Promise.all(taches)).flat();
@@ -1262,6 +1296,7 @@ window.reviewFfscPartie = function(tournoiId, idx) {
   sessionStorage.setItem("ffscReview", JSON.stringify({
     player: data.player, serie: data.serie, tournoi: data.tournoi,
     tournoiId: data._id || null, partie,
+    retour: String(tournoiId).startsWith("direct|") ? "direct" : null,   // ouvert depuis l'onglet En direct
   }));
   // On marque l'URL courante avec le tournoi pour que le retour navigateur (←)
   // revienne à la liste des parties plutôt qu'à l'accueil.
@@ -1613,7 +1648,7 @@ async function loadMyStats() {
   const pid = +state.currentPlayerId;
 
   body.innerHTML = `<p class="muted">⏳ Calcul…</p>`;
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=425");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=427");
 
   // Tournois « démo » à EXCLURE des stats (résultats importés FFSC, hors Topissimo).
   const _tlist = await cachedQuery("tournaments", () => sb.from("tournaments").select("id,name").then(r => r.data || []));
@@ -2239,7 +2274,7 @@ async function loadSolosAndStreaks() {
   const slowest = Object.values(worstByPid).sort((a, b) => b.time - a.time);
 
   // ===== Agrégats par joueur : parties au top, % coups au top, négatif moyen/cat =====
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=425");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=427");
   const catOf = (mode, joker, tpm) => {
     const m = mode || "duplicate";
     if (m === "blitz") return { key: "blitz", label: "Blitz" };
@@ -2675,7 +2710,7 @@ async function loadTournamentDetail(tournamentId) {
   // S'assurer qu'au moins une ligne de formule est présente dans le générateur.
   if (canGenerate() && $("#pgRecipe") && !$("#pgRecipe").children.length) pgAddRecipeLine();
 
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=425");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=427");
   const btnStyle = "text-decoration:none;padding:5px 10px;border-radius:6px;font-weight:600;font-size:.85rem";
   const admin = superAdmin();     // stof en mode admin : joue + teste + supprime
   const genOnly = isAdmin();       // compte "admin" : génération seule, pas de jeu
@@ -3523,7 +3558,7 @@ async function loadTournamentStats(tournamentId, games) {
   // On détermine « le top est un scrabble » en REjouant le plateau coup par coup
   // (nombre de NOUVELLES tuiles posées par le top == clé de prime du mode), ce qui
   // est fiable même sur d'anciennes parties (le hadBonus stocké est non fiable).
-  const { emptyBoard, applyMove, GAME_MODES } = await import("./scrabble/engine.js?v=425");
+  const { emptyBoard, applyMove, GAME_MODES } = await import("./scrabble/engine.js?v=427");
   const gameById = {};
   for (const g of games) gameById[g.id] = g;
   const bonusesOf = (gid) => (GAME_MODES[gameById[gid]?.mode] || GAME_MODES.duplicate).bonuses || { 7: 50 };
@@ -3717,9 +3752,9 @@ $("#pgCreate").onclick = async () => {
     let mods;
     try {
       mods = await Promise.all([
-        import("./scrabble/dictionary.js?v=425"),
-        import("./scrabble/generator.js?v=425"),
-        import("./scrabble/engine.js?v=425"),
+        import("./scrabble/dictionary.js?v=427"),
+        import("./scrabble/generator.js?v=427"),
+        import("./scrabble/engine.js?v=427"),
       ]);
     } catch (e) {
       $("#pgStatus").innerHTML = `<span style="color:#a02525">Échec de chargement des modules : ${escapeHtml(e.message)}</span>`;
@@ -3786,7 +3821,7 @@ window.recomputeAllNeg = async function(force = false) {
 
   let recomputeResult;
   try {
-    ({ recomputeResult } = await import("./scrabble/recompute.js?v=425"));
+    ({ recomputeResult } = await import("./scrabble/recompute.js?v=427"));
   } catch (e) {
     statusEl.textContent = "❌ Impossible de charger recompute.js : " + e.message;
     return;
@@ -4040,7 +4075,7 @@ window.recomputeAllJokerNeg = async function() {
 
   let recomputeResult;
   try {
-    ({ recomputeResult } = await import("./scrabble/recompute.js?v=425"));
+    ({ recomputeResult } = await import("./scrabble/recompute.js?v=427"));
   } catch (e) {
     statusEl.textContent = "❌ Impossible de charger recompute.js : " + e.message;
     return;

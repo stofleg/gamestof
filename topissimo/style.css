@@ -1139,3 +1139,6 @@ th.sortable:hover { color: var(--petrol, #002E44); }
 .direct-pages { display:flex; gap:8px; justify-content:center; margin-top:6px; }
 .direct-joueur { margin:0 0 14px; overflow-x:auto; }
 .direct-classement { overflow-x:auto; }
+.direct-actions { display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end; }
+.direct-nom { color: inherit; text-decoration: underline dotted; cursor: pointer; }
+.direct-nom:hover { color: var(--petrol, #002E44); text-decoration: underline; }
