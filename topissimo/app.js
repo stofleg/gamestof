@@ -181,6 +181,8 @@ function restoreLastTab() {
   // Sinon : onglet (et sous-onglet « prepared ») mémorisés → même page après reload.
   let tab = null, ptab = null;
   try { tab = localStorage.getItem("topissimo:tab"); ptab = localStorage.getItem("topissimo:ptab"); } catch (_) {}
+  // Un onglet masqué (ex. « En direct ») ne se rouvre pas tout seul au rechargement.
+  if (tab && document.querySelector(`nav button[data-tab="${tab}"]`)?.hasAttribute("data-masque")) tab = null;
   if (tab) activateTab(tab, false);
   if ((tab === "prepared" || !tab) && ptab) switchPreparedTab(ptab);
 }
@@ -224,7 +226,7 @@ let myGamesSort = {
 async function loadMyGames() {
   if (!state.currentPlayerId) return;
   const pid = +state.currentPlayerId;
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=427");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=430");
 
   // Tournoi : prepared_game_results jointes avec prepared_games. Colonnes explicites
   // (pas de details/diagnostics → egress) ; `summary` sert juste à savoir si des
@@ -1648,7 +1650,7 @@ async function loadMyStats() {
   const pid = +state.currentPlayerId;
 
   body.innerHTML = `<p class="muted">⏳ Calcul…</p>`;
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=427");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=430");
 
   // Tournois « démo » à EXCLURE des stats (résultats importés FFSC, hors Topissimo).
   const _tlist = await cachedQuery("tournaments", () => sb.from("tournaments").select("id,name").then(r => r.data || []));
@@ -2274,7 +2276,7 @@ async function loadSolosAndStreaks() {
   const slowest = Object.values(worstByPid).sort((a, b) => b.time - a.time);
 
   // ===== Agrégats par joueur : parties au top, % coups au top, négatif moyen/cat =====
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=427");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=430");
   const catOf = (mode, joker, tpm) => {
     const m = mode || "duplicate";
     if (m === "blitz") return { key: "blitz", label: "Blitz" };
@@ -2710,7 +2712,7 @@ async function loadTournamentDetail(tournamentId) {
   // S'assurer qu'au moins une ligne de formule est présente dans le générateur.
   if (canGenerate() && $("#pgRecipe") && !$("#pgRecipe").children.length) pgAddRecipeLine();
 
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=427");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=430");
   const btnStyle = "text-decoration:none;padding:5px 10px;border-radius:6px;font-weight:600;font-size:.85rem";
   const admin = superAdmin();     // stof en mode admin : joue + teste + supprime
   const genOnly = isAdmin();       // compte "admin" : génération seule, pas de jeu
@@ -3558,7 +3560,7 @@ async function loadTournamentStats(tournamentId, games) {
   // On détermine « le top est un scrabble » en REjouant le plateau coup par coup
   // (nombre de NOUVELLES tuiles posées par le top == clé de prime du mode), ce qui
   // est fiable même sur d'anciennes parties (le hadBonus stocké est non fiable).
-  const { emptyBoard, applyMove, GAME_MODES } = await import("./scrabble/engine.js?v=427");
+  const { emptyBoard, applyMove, GAME_MODES } = await import("./scrabble/engine.js?v=430");
   const gameById = {};
   for (const g of games) gameById[g.id] = g;
   const bonusesOf = (gid) => (GAME_MODES[gameById[gid]?.mode] || GAME_MODES.duplicate).bonuses || { 7: 50 };
@@ -3752,9 +3754,9 @@ $("#pgCreate").onclick = async () => {
     let mods;
     try {
       mods = await Promise.all([
-        import("./scrabble/dictionary.js?v=427"),
-        import("./scrabble/generator.js?v=427"),
-        import("./scrabble/engine.js?v=427"),
+        import("./scrabble/dictionary.js?v=430"),
+        import("./scrabble/generator.js?v=430"),
+        import("./scrabble/engine.js?v=430"),
       ]);
     } catch (e) {
       $("#pgStatus").innerHTML = `<span style="color:#a02525">Échec de chargement des modules : ${escapeHtml(e.message)}</span>`;
@@ -3821,7 +3823,7 @@ window.recomputeAllNeg = async function(force = false) {
 
   let recomputeResult;
   try {
-    ({ recomputeResult } = await import("./scrabble/recompute.js?v=427"));
+    ({ recomputeResult } = await import("./scrabble/recompute.js?v=430"));
   } catch (e) {
     statusEl.textContent = "❌ Impossible de charger recompute.js : " + e.message;
     return;
@@ -4075,7 +4077,7 @@ window.recomputeAllJokerNeg = async function() {
 
   let recomputeResult;
   try {
-    ({ recomputeResult } = await import("./scrabble/recompute.js?v=427"));
+    ({ recomputeResult } = await import("./scrabble/recompute.js?v=430"));
   } catch (e) {
     statusEl.textContent = "❌ Impossible de charger recompute.js : " + e.message;
     return;
@@ -4194,7 +4196,8 @@ function applyRoleUI() {
   // onglets, ni le bouton « S'entraîner ».
   const adminOnly = isAdmin();
   document.querySelectorAll('nav button[data-tab]').forEach(b => {
-    b.hidden = adminOnly && b.dataset.tab !== "prepared";
+    // data-masque : onglet conservé mais invisible (ex. « En direct », via #tab=direct).
+    b.hidden = b.hasAttribute("data-masque") || (adminOnly && b.dataset.tab !== "prepared");
   });
   const playBtn = document.querySelector("header .play-btn");
   if (playBtn) playBtn.style.display = adminOnly ? "none" : "";

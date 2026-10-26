@@ -1142,3 +1142,6 @@ th.sortable:hover { color: var(--petrol, #002E44); }
 .direct-actions { display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end; }
 .direct-nom { color: inherit; text-decoration: underline dotted; cursor: pointer; }
 .direct-nom:hover { color: var(--petrol, #002E44); text-decoration: underline; }
+
+/* Onglets masqués (ex. « En direct », conservé mais invisible) */
+nav button[hidden] { display: none !important; }

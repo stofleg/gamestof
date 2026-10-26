@@ -15,7 +15,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Lora:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=427">
+<link rel="stylesheet" href="style.css?v=430">
 </head>
 <body>
 
@@ -75,7 +75,9 @@
 
 <nav>
   <button data-tab="prepared" class="active"><span class="ico">🎮</span>Tournois</button>
-  <button data-tab="direct"><span class="ico">📡</span>Direct</button>
+  <!-- Onglet « En direct » (tournois FFSc retransmis) : conservé mais masqué.
+       Accessible par index.html#tab=direct. -->
+  <button data-tab="direct" data-masque hidden><span class="ico">📡</span>Direct</button>
   <button data-tab="games"><span class="ico">📅</span>Mes parties</button>
   <button data-tab="mystats"><span class="ico">⭐</span>Mes stats</button>
   <button data-tab="stats"><span class="ico">📊</span>Stats du club</button>
@@ -428,6 +430,6 @@
 
 <script src="config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script src="app.js?v=427"></script>
+<script src="app.js?v=430"></script>
 </body>
 </html>
