@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Lora:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="game.css?v=409">
+<link rel="stylesheet" href="game.css?v=424">
 <style>
   body { margin: 0; --cell-size-plateau: clamp(20px, calc((100vh - 120px) / 15.5), 36px); --cell-size: var(--cell-size-plateau); }
   .pz-top { display: flex; align-items: center; gap: 14px; padding: 10px 16px; flex-wrap: wrap; }
@@ -29,12 +29,22 @@
   .board.piece td.trou::before, .board.piece td.trou::after { content: none !important; }
   .board.piece td:not(.trou) { box-shadow: inset 0 0 0 1px rgba(0,46,68,.35); }
   .pz-tray .board.piece { --cell-size: calc(var(--cell-size-plateau) * .8); }
+  /* Réserve libre : les pièces gardent la place où le joueur les a rangées */
+  .pz-tray { position: relative; }
+  .pz-tray.libre { display: block; }
+  .pz-tray.libre .board.piece { position: absolute; }
   .board.piece.drag { position: fixed; z-index: 1000; pointer-events: none; opacity: .9;
     filter: drop-shadow(0 6px 10px rgba(0,0,0,.3)); }
   #pzBoard td.vide { background: #f6f3ea !important; }
   #pzBoard td.vide::before, #pzBoard td.vide::after { content: none !important; }
   #pzBoard td.posee { cursor: grab; }
   #pzBoard.gagne { outline: 4px solid #2f9e5c; }
+  /* Halloween (Jigsaw, tournoi de la Mort) : pas de toiles sur chaque pièce, grille vide sombre */
+  body.theme-halloween .board.piece::before, body.theme-halloween .board.piece::after { content: none !important; }
+  body.theme-halloween .board.piece { animation: none !important; }
+  body.theme-halloween #pzBoard td.vide { background: #2b2233 !important; border-color: #120c18 !important; }
+  body.theme-halloween .pz-tray { background: rgba(20,10,28,.55); }
+  body.theme-halloween .pz-msg { color: #ffb35c; }
 </style>
 </head>
 <body>
@@ -44,12 +54,12 @@
     <span class="pz-msg" id="pzMsg">Génération de la grille…</span>
     <span class="sp"></span>
     <button class="pz-btn ghost" id="pzNew" disabled>Nouvelle grille</button>
-    <button class="pz-btn ghost" onclick="location.href='game.html'">Retour</button>
+    <button class="pz-btn ghost" id="pzRetour" onclick="location.href='game.html'">Retour</button>
   </div>
   <div class="pz-main">
     <div class="board" id="pzBoard"></div>
     <div class="pz-tray" id="pzTray"></div>
   </div>
-<script type="module" src="puzzle.js?v=409"></script>
+<script type="module" src="puzzle.js?v=424"></script>
 </body>
 </html>

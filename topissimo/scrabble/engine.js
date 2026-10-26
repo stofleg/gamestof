@@ -167,6 +167,27 @@ export const MARATHON_GAMES = 10;
 // Mode Voyelles : le Y est traité comme une CONSONNE. Les voyelles sont donc
 // A E I O U seulement (tirées dans le chevalet), et Y rejoint les consonnes libres.
 export const VOWELS_NO_Y = new Set(["A", "E", "I", "O", "U"]);
+
+/**
+ * Mode Voyelles : consonnes (Y compris) encore disponibles dans le sac. Elles ne
+ * sont jamais tirées : seules celles posées sur le plateau (tops précédents) sont
+ * sorties du sac, donc le plateau suffit à les décompter. Un joker posé ne compte pas.
+ */
+export function jokersDisponibles(board) {
+  let posés = 0;
+  for (const ligne of board) for (const c of ligne) if (c && c.isBlank) posés++;
+  return Math.max(0, (LETTER_BAG["?"] || 0) - posés);
+}
+
+export function consonnesDisponibles(board) {
+  const reste = {};
+  for (const L of "BCDFGHJKLMNPQRSTVWXYZ") reste[L] = LETTER_BAG[L] || 0;
+  for (const ligne of board) for (const c of ligne) {
+    if (c && !c.isBlank && reste[c.letter] !== undefined) reste[c.letter]--;
+  }
+  for (const L in reste) if (reste[L] < 0) reste[L] = 0;
+  return reste;
+}
 export const CONSONANTS_FR = ["B","C","D","F","G","H","J","K","L","M","N","P","Q","R","S","T","V","W","X","Y","Z"];
 
 // Mode Voyelles : tire un chevalet de voyelles seules (A E I O U, sans Y) depuis
@@ -200,7 +221,28 @@ export function gigogneRackSize(moveNo) {
   return (moveNo || 1) + 1;
 }
 // Nom affiché en combinant mode + joker
-export function modeDisplayName(modeKey, withJoker) {
+// Titres du « tournoi de la Mort » (tournoi public d'Halloween) : ils remplacent le nom
+// habituel de la formule, uniquement pour les parties de ce tournoi.
+export const TITRES_MORT = {
+  "6lettres": "666",
+  "7sur15": "Se7en",
+  jokerpayant: "Sympathy for the Joker",
+  horizvert: "The Walking Dead",
+  topsoustop: "Renfield",
+  infjoker: "Happy Birthdeath",
+  grillerandom: "House on Haunted Hill",
+  sablier: "Countdown",
+  gigogne: "Gremlins",
+  anglaise: "From Hell",
+  lettrecachee: "The Goonies",
+  voyelles: "Scream",
+  invasion: "Arachnophobia",
+  puzzle: "Jigsaw",
+};
+
+/** Nom affiché d'une formule. `mort` : partie du tournoi de la Mort → titre Halloween. */
+export function modeDisplayName(modeKey, withJoker, mort = false) {
+  if (mort && TITRES_MORT[modeKey]) return TITRES_MORT[modeKey];
   const m = GAME_MODES[modeKey] || GAME_MODES.duplicate;
   if (!withJoker) return m.label;
   if (modeKey === "duplicate") return "Joker";

@@ -1116,3 +1116,15 @@ th.sortable:hover { color: var(--petrol, #002E44); }
   filter: grayscale(1); opacity: .45; transition: opacity .12s ease;
 }
 .fav-remove:hover { filter: none; opacity: 1; }
+
+/* ===== Onglet Direct ===== */
+.direct-tools { display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-bottom:12px; }
+.direct-tools select { margin-left:6px; }
+.direct-tournoi { border:1px solid rgba(0,0,0,.08); border-radius:10px; padding:10px 12px; margin-bottom:10px; }
+.direct-tournoi h3 { margin:0 0 6px; font-size:1rem; }
+.direct-tournoi h3 small { font-weight:400; }
+.direct-partie { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:6px 0; border-top:1px solid rgba(0,0,0,.06); }
+.direct-partie:first-of-type { border-top:0; }
+.direct-badge { color:#c0261a; font-weight:600; font-size:.82rem; }
+.direct-sous-titre { font-size:.95rem; margin:16px 0 6px; }
+.direct-avenir { margin:0; padding-left:18px; font-size:.9rem; }

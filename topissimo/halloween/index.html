@@ -3,12 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Tournoi d'Halloween · Topissimo</title>
+<title>Le tournoi de la Mort · Topissimo</title>
 <link rel="icon" href="../icon.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Lora:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="../scrabble/game.css?v=409">
+<link rel="stylesheet" href="../scrabble/game.css?v=424">
 <style>
   body { margin: 0; min-height: 100vh; font-family: 'Inter', sans-serif; }
   .hw-page { max-width: 760px; margin: 0 auto; padding: 28px 16px 260px; }
@@ -37,16 +37,19 @@
   .hw-parties { display: grid; gap: 8px; }
   .hw-partie { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px; background: rgba(255,255,255,.04); }
   .hw-partie .nom { flex: 1; } .hw-partie .formule { font-size: .8rem; opacity: .7; }
+  .hw-partie .verrou { font-size: .85rem; opacity: .75; }
   .hw-partie .fait { color: #9fe08a; font-weight: 600; font-size: .85rem; }
   table.hw-classement { width: 100%; border-collapse: collapse; font-size: .92rem; }
   .hw-classement th, .hw-classement td { padding: 6px 8px; text-align: left; border-bottom: 1px solid rgba(255,255,255,.08); }
   .hw-classement td.n { text-align: right; font-variant-numeric: tabular-nums; }
+  .hw-defile { overflow-x: auto; }
+  .hw-classement td.cle { color: #ffb35c; }
   .hw-classement tr.moi td { color: #ffb35c; font-weight: 700; }
 </style>
 </head>
 <body class="theme-halloween">
 <main class="hw-page">
-  <h1>🎃 Tournoi d'Halloween</h1>
+  <h1>💀 Le tournoi de la Mort</h1>
   <p class="hw-sous">Les formules les plus folles de Topissimo, sous la lune de sang.</p>
 
   <section class="hw-carte" id="hwAuth" hidden>
@@ -88,6 +91,6 @@
 </main>
 <script src="../config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
-<script type="module" src="halloween.js?v=409"></script>
+<script type="module" src="halloween.js?v=424"></script>
 </body>
 </html>

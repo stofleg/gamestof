@@ -28,12 +28,13 @@ import {
   VOWELS, drawForDuplicate, scoreMove, applyMove,
   bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName, randomBoardLayout, snakeEndpointsAfter, sablierTime, gigogneRackSize,
   setLetterValues, letterValue, valuesFor, bagFor, isCrossingCell, wordHiddenCount,
-  drawVowelRack, VOWELS_NO_Y, MARATHON_TARGET, MARATHON_GAMES,
-} from "./engine.js?v=409";
-import { Dictionary } from "./dictionary.js?v=409";
-import * as invasion from "./araignees.js?v=409";
-import * as sonHalloween from "./halloween-son.js?v=409";
-import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=409";
+  drawVowelRack, VOWELS_NO_Y, MARATHON_TARGET, MARATHON_GAMES, consonnesDisponibles, jokersDisponibles,
+} from "./engine.js?v=424";
+import { Dictionary } from "./dictionary.js?v=424";
+import * as invasion from "./araignees.js?v=424";
+import { REGLES, afficheRegles } from "./regles.js?v=424";
+import * as sonHalloween from "./halloween-son.js?v=424";
+import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=424";
 
 // État du mode review (parcours coup par coup)
 const review = {
@@ -63,11 +64,12 @@ const PUZZLE_GAME_ID = URL_PARAMS.get("puzzle");
 const PUZZLE_MOVE_NO = +URL_PARAMS.get("move") || 1;
 const TOURNAMENT_ID = URL_PARAMS.get("tid");  // ID du tournoi pour le retour
 const FFSC_REVIEW = URL_PARAMS.get("ffscreview");  // revoir une partie FFSC importée
+const FFSC_LIVE = URL_PARAMS.get("ffsclive");      // jouer une partie FFSC en direct
 
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v409";
+const BUILD_VERSION = "garenna-v424";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -362,6 +364,49 @@ function nueeChauvesSouris() {
   setTimeout(() => box.remove(), 3500);
 }
 
+// Voyelles : les consonnes doivent exister dans le sac. Sauf pour les anciennes
+// parties pré-tirées (générées avec des consonnes illimitées), rejouées telles quelles.
+function consonnesLimitees() {
+  if (!currentMode().voyelles) return false;
+  return !state.prepared || !!state.prepared.moves?.[0]?._consBag;
+}
+
+/** Voyelles : parmi des consonnes posées (lettres), combien manquent dans le sac ?
+ *  Chaque manquante doit être couverte par un joker. */
+function excedentConsonnes(lettres) {
+  const dispo = consonnesDisponibles(state.board), n = {};
+  for (const L of lettres) if (!VOWELS_NO_Y.has(L)) n[L] = (n[L] || 0) + 1;
+  let total = 0;
+  for (const L in n) total += Math.max(0, n[L] - (dispo[L] || 0));
+  return total;
+}
+/** Voyelles : les consonnes épuisées sont remplacées par des jokers (0 point). On
+ *  désigne d'abord les premières tuiles concernées ; bestJokerVariant déplace ensuite
+ *  le joker à l'endroit le plus payant. Renvoie un message d'erreur ou null. */
+function placeJokersVoyelles(move) {
+  if (!currentMode().voyelles || !consonnesLimitees()) return null;
+  const dispo = consonnesDisponibles(state.board);
+  const dr = move.dir === "V" ? 1 : 0, dc = move.dir === "H" ? 1 : 0;
+  const parLettre = {};
+  for (let i = 0; i < move.word.length; i++) {
+    if (state.board[move.row + i * dr][move.col + i * dc]) continue;     // déjà posée
+    const L = move.word[i];
+    if (VOWELS_NO_Y.has(L)) continue;
+    (parLettre[L] ||= []).push(i);
+  }
+  const blanks = [];
+  for (const L in parLettre) {
+    const k = parLettre[L].length - (dispo[L] || 0);
+    if (k > 0) blanks.push(...parLettre[L].slice(0, k));
+  }
+  if (blanks.length > jokersDisponibles(state.board)) {
+    return blanks.length === 1 ? "Plus de joker pour remplacer la consonne manquante."
+      : `Il manque ${blanks.length} consonnes au sac et il ne reste que ${jokersDisponibles(state.board)} joker(s).`;
+  }
+  move.blanks = [...new Set([...(move.blanks || []), ...blanks])].sort((a, b) => a - b);
+  return null;
+}
+
 function renderBoard() {
   const div = $("#board");
   // Sur mobile (< 700 px) on supprime les coords pour gagner de la place
@@ -375,6 +420,10 @@ function renderBoard() {
   if (state.pending.length > 0) {
     const mv = buildMoveFromPending();
     if (mv) {
+      // Voyelles : une consonne épuisée est un joker → score affiché à la meilleure place.
+      if (placeJokersVoyelles(mv) === null && mv.blanks.length) {
+        try { bestJokerVariant(state.board, mv, null, { bonuses: currentMode().bonuses, layout: state.boardLayout, raw: true }); } catch { /* affichage seulement */ }
+      }
       const r0 = scoreMove(state.board, mv, null, { bonuses: currentMode().bonuses, jokerPays: currentMode().jokerPays, layout: state.boardLayout, raw: true });
       badgeScore = r0.score;
       badgeDir = mv.dir;
@@ -920,6 +969,7 @@ function paceCumul(details) {
 }
 
 async function loadPaceData() {
+  if (state.live || !state.prepared?.id) return;   // direct FFSc : pas de partie en base
   if (pace.state === "loading" || pace.state === "ready") return;
   pace.state = "loading";
   pace.gameId = state.prepared.id;
@@ -958,6 +1008,7 @@ async function loadPaceData() {
 }
 
 function renderPace() {
+  if (state.live) { renderLivePace(); return; }   // direct FFSc : classement du club
   const col = $("#paceCol");
   if (!col) return;
   const show = v => { col.hidden = !v; document.body.classList.toggle("with-pace", v); };
@@ -1091,6 +1142,12 @@ function renderBag() {
     counts = computeRemainingBagFromBoard();
   } else {
     counts = { ...state.bag };
+    // Voyelles : les consonnes ne sont pas tirées, mais elles sortent du sac quand
+    // elles sont posées → on les décompte depuis le plateau.
+    if (consonnesLimitees()) {
+      Object.assign(counts, consonnesDisponibles(state.board));
+      counts["?"] = jokersDisponibles(state.board);
+    }
     if (effJoker() && state.spareJokers > 0) {
       counts["?"] = (counts["?"] || 0) + state.spareJokers;
     }
@@ -1106,6 +1163,7 @@ function renderBag() {
     if (n <= 0) return "";   // jamais de compteur négatif (double-décompte transitoire)
     const cls = ["bag-chip"];
     if (l === "?") cls.push("joker");
+    if (n === 1) cls.push("low");
     if (picking) cls.push("pickable");
     const attr = picking ? ` data-pick="${l}" role="button" tabindex="0"` : "";
     return `<span class="${cls.join(" ")}"${attr}>${l}<span class="ct">${n}</span></span>`;
@@ -1222,6 +1280,7 @@ function stopMoveTimer() {
 // Coup non trouvé dans le temps : on révèle le top sans pénalité supplémentaire
 function timeoutAdvance() {
   if (!state.started) return;
+  if (state.live) { liveTimeUp(); return; }   // direct : on attend le top officiel
   // Mode duplicate : fin de chrono → sélection du top puis coup suivant.
   if (playMode() === "duplicate") { duplicateChronoEnd(); return; }
   ensureTopReady();
@@ -1448,10 +1507,26 @@ function applyColorTheme() {
   sonHalloween.ambiance(state.settings.colorTheme === "halloween");
 }
 
+// Parties du « tournoi de la Mort » (tournoi public) : titres Halloween à la place des
+// noms de formules. Les joueurs du tournoi public y sont toujours ; pour les membres du
+// club, on lit le drapeau est_public du tournoi de la partie.
+let titresMort = PUBLIC_EVENT;
+async function majTitresMort(tournamentId) {
+  titresMort = PUBLIC_EVENT;
+  if (!titresMort && tournamentId && window._sb) {
+    try {
+      const { data } = await window._sb.from("tournaments").select("est_public").eq("id", tournamentId).maybeSingle();
+      titresMort = !!data?.est_public;
+    } catch { /* titres d'origine */ }
+  }
+  renderGameTitle();
+}
+const nomFormule = (cle, joker) => modeDisplayName(cle, joker, titresMort);
+
 function renderGameTitle() {
   const el = $("#gameTitle");
   if (!el) return;
-  const modeLabel = modeDisplayName(state.settings.gameMode, state.settings.withJoker);
+  const modeLabel = nomFormule(state.settings.gameMode, state.settings.withJoker);
   const timeLabel = state.settings.timePerMove > 0 ? ` · ${state.settings.timePerMove}s/coup` : "";
   // .gt-context = badge + nom (masqué sur mobile) ; .gt-params = mode + temps
   // (toujours affiché, y compris sur mobile).
@@ -1989,6 +2064,16 @@ function placeLetter(L, preferTileId = null) {
   // tapée est posée directement comme jeton virtuel (à sa vraie valeur), sans
   // consommer de tuile. Les voyelles, elles, viennent obligatoirement du chevalet.
   if (currentMode().voyelles && !state.jokerPending && L !== "?" && !VOWELS_NO_Y.has(L)) {
+    if (consonnesLimitees()) {
+      // Au-delà des exemplaires du sac, la consonne doit être un joker (s'il en reste).
+      const lettres = state.pending.map(p => p.letter).concat(L);
+      if (excedentConsonnes(lettres) > jokersDisponibles(state.board)) {
+        const dispo = consonnesDisponibles(state.board)[L] || 0;
+        flashFeedback("error", dispo ? `Plus assez de ${L} dans le sac` : `Plus de ${L} dans le sac`,
+          "Plus de joker pour la remplacer : choisis une autre consonne.");
+        return;
+      }
+    }
     state.pending.push({ row, col, letter: L, rackId: null, isBlank: false });
     advanceCursor();
     renderBoard();
@@ -2329,6 +2414,12 @@ function dupConfirmSelection() {
 function validate() {
   // Tirage manuel en cours : « ✓ » valide le tirage (et lance le chrono).
   if (state._drawPhase) { confirmManualDraw(); return; }
+  if (state.live && (state.live.frozen || state.live.awaiting)) {
+    showTransientError(state.live.awaiting ? "Pas encore de tirage" : "Temps écoulé",
+      state.live.awaiting ? "Le prochain tirage n'est pas encore publié par la FFSc."
+                          : "Ton mot est retenu, on attend le top officiel.");
+    return;
+  }
   ensureTopReady();
   if (!state.pending.length) {
     showTransientError("Rien à valider", "Place d'abord des lettres sur la grille.");
@@ -2341,6 +2432,9 @@ function validate() {
     return;
   }
   const mode = currentMode();
+  // Voyelles : consonnes épuisées → jokers (place optimisée par bestJokerVariant).
+  const erreurJokers = placeJokersVoyelles(move);
+  if (erreurJokers) { showTransientError("Consonnes insuffisantes", erreurJokers); return; }
   // Mode Horizontal/Vertical : un mot validé dans le MAUVAIS sens compte 0
   // (gros panneau « changement de sens » clignotant pour alerter le joueur).
   if (mode.alternateDir) {
@@ -2373,6 +2467,8 @@ function validate() {
     const allMoves = findTop(state.board, rackLetters, state.dict, {
       all: true, maxTilesUsed: mode.maxPlayed, bonuses: mode.bonuses,
       jokerPays: mode.jokerPays, layout: state.boardLayout, freeCons: mode.voyelles,
+      consAvail: consonnesLimitees() ? consonnesDisponibles(state.board) : null,
+      jokersAvail: jokersDisponibles(state.board),
     }) || [];
     const sameWord = allMoves.filter(c => c.move.word === move.word);
     if (sameWord.length) {
@@ -2806,6 +2902,7 @@ function revealTop() {
   }
   // En duplicate, « Voir le top » termine le coup (sélection du top puis suivant),
   // sans pénalité de temps — utile notamment si le chrono est illimité.
+  if (state.live) { liveTimeUp(); return; }   // direct : le top n'est pas encore connu
   if (playMode() === "duplicate") { stopMoveTimer(); duplicateChronoEnd(); return; }
   ensureTopReady();
   if (!state.topMove) return;
@@ -2951,6 +3048,7 @@ function nextMove() {
   // Le coup du joueur n'affecte que son score — jamais le plateau ni le chevalet.
   if (state.prepared) {
     if (state.preparedIdx >= state.prepared.moves.length) {
+      if (state.live) { liveAwaitRack(); return; }   // direct : tirage pas encore publié
       endGame();
       return;
     }
@@ -3200,7 +3298,8 @@ function computeTop() {
   // Mode pré-tiré : utiliser le top stocké, pas de calcul
   if (state.prepared) {
     const m = state.prepared.moves[state.preparedIdx];
-    if (!m) { state.topMove = null; state.subTop = null; return true; }
+    // Direct FFSc : le top du coup en cours n'est connu qu'à sa publication.
+    if (!m || !m.top) { state.topMove = null; state.subTop = null; return true; }
     state.topMove = {
       score: m.top.score,
       move: { word: m.top.word, row: m.top.row, col: m.top.col, dir: m.top.dir, blanks: m.top.blanks || [] },
@@ -3233,6 +3332,8 @@ function computeTop() {
     // consonnes libres (freeCons), au plus 7 lettres posées.
     state.topMove = findTopRanked(state.board, rackLetters, state.dict, state.bag, {
       maxTilesUsed: mode.maxPlayed, bonuses: mode.bonuses, layout, freeCons: true,
+      consAvail: consonnesLimitees() ? consonnesDisponibles(state.board) : null,
+      jokersAvail: jokersDisponibles(state.board),
     });
     return true;
   }
@@ -3271,6 +3372,7 @@ function effJoker() { return state.settings.withJoker || !!currentMode().jokerPa
 // Axe « mode de jeu ». N'a de sens qu'en ENTRAÎNEMENT : en tournoi/puzzle/review,
 // on reste en logique topping historique.
 function playMode() {
+  if (state.live && !review.active) return "duplicate";   // direct FFSc
   if (state.prepared || state.isPuzzle || review.active) return "topping";
   const pm = state.settings.playMode || "topping";
   // Éditeur en sourdine pour le moment (à retravailler) → on le ramène à topping,
@@ -4353,6 +4455,15 @@ async function initGame() {
     }
     return;
   }
+  // Direct FFSc : jouer une partie de tournoi en même temps que la salle
+  if (FFSC_LIVE) {
+    try {
+      await enterFfscLiveMode();
+    } catch (e) {
+      showFeedback("error", "Impossible de suivre la partie en direct", e.message);
+    }
+    return;
+  }
   // Mode REVIEW d'un entraînement
   if (TRAINING_ID) {
     try {
@@ -4601,11 +4712,585 @@ function enterFfscReviewMode() {
   renderReviewStep();
 }
 
+// ============================================================
+//  DIRECT FFSc : jouer une partie de tournoi en même temps que la salle
+// ============================================================
+//  game.html?ffsclive=1&tournoi=26922&numero=1&nom=Coupe%20de%20Savoie[&t=180]
+//
+//  Une « partie préparée » dont les coups arrivent au fil de l'eau. On rejoint
+//  au coup en cours, les tops précédents déjà posés. Le tirage s'affiche dès
+//  que la FFSc le publie ; on joue comme en duplicate (le dernier mot validé est
+//  retenu et peut être remplacé) ; le coup se clôt à la publication du top
+//  officiel, qui est posé sur la grille : la partie reste calée sur la salle.
+//  Rien n'est enregistré dans les résultats de tournoi du club.
+//
+//  &rejeu=S [&depuis=K] : rejoue une partie TERMINÉE comme si elle était en
+//  direct (chaque tirage reste S secondes avant son top), à partir du coup K.
+//  Sert aux essais et à la démonstration.
+// ============================================================
+const LIVE_POLL_MS = 15000;       // un coup dure ~3 min : 15 s suffisent
+const LIVE_STATUS_MS = 60000;     // « partie à venir / en cours / terminée »
+
+function ffscFnUrl() { return `${window.SUPABASE_URL}/functions/v1/smart-worker`; }
+
+// L'action « raw » de la fonction serveur relaie une page endirect telle quelle
+// (le navigateur ne peut pas appeler ffsc.fr directement, CORS).
+async function ffscRaw(path) {
+  const r = await fetch(`${ffscFnUrl()}?action=raw&path=${encodeURIComponent(path)}`, { cache: "no-store" });
+  if (!r.ok) throw new Error(`site FFSc indisponible (${r.status})`);
+  return r.text();
+}
+
+const LIVE_ROWS = "ABCDEFGHIJKLMNO";
+// « H 5 » = horizontal (ligne puis colonne), « 5E » = vertical.
+function liveParsePos(label) {
+  const s = String(label || "").replace(/\s+/g, "").toUpperCase();
+  let m = /^([A-O])(\d{1,2})$/.exec(s);
+  if (m) return { row: LIVE_ROWS.indexOf(m[1]), col: +m[2] - 1, dir: "H", pos: s };
+  m = /^(\d{1,2})([A-O])$/.exec(s);
+  if (m) return { row: LIVE_ROWS.indexOf(m[2]), col: +m[1] - 1, dir: "V", pos: s };
+  return null;
+}
+// « ALC(O)VE » : la lettre entre parenthèses est le joker.
+function liveParseWord(raw) {
+  const word = [], blanks = [];
+  let inBlank = false;
+  for (const ch of String(raw)) {
+    if (ch === "(") { inBlank = true; continue; }
+    if (ch === ")") { inBlank = false; continue; }
+    if (!/[A-Za-z]/.test(ch)) continue;
+    if (inBlank) blanks.push(word.length);
+    word.push(ch.toUpperCase());
+  }
+  return { word: word.join(""), blanks };
+}
+// « -ETWUIAB » = rejet du reliquat ; « ENO+TIOP » = reliquat ENO + tirage TIOP.
+function liveParseRack(field) {
+  let s = String(field || "").trim();
+  const freshRack = s.startsWith("-");
+  if (freshRack) s = s.slice(1);
+  let kept = "";
+  if (s.includes("+")) { const [k, d] = s.split("+"); kept = (k || "").toUpperCase(); s = (k || "") + (d || ""); }
+  return { rack: s.toUpperCase(), freshRack, kept };
+}
+
+// Export texte de la FFSc → coups. Particularité du format : la ligne N porte le
+// tirage du coup N mais le top du coup N−1 ; le top du dernier coup vient sur une
+// ligne non numérotée. Un tirage peut donc être publié sans top : c'est le coup
+// en cours de réflexion dans la salle.
+function liveParseExport(txt) {
+  const rackBy = {}, topBy = {};
+  let last = 0, max = 0, label = "";
+  for (const line of String(txt).replace(/\r/g, "").split("\n")) {
+    if (!line.trim() || /prime de Scrabble/i.test(line)) continue;
+    if (!label && !/^\s*\d+\./.test(line) && !line.includes("\t")) { label = line.trim(); continue; }
+    const f = line.split("\t");
+    const nm = /^(\d+)\.$/.exec((f[0] || "").trim());
+    const w = (f[2] || "").trim();
+    const top = w ? { raw: w, pos: (f[3] || "").trim(), score: +(f[4] || 0) } : null;
+    if (nm) {
+      const k = +nm[1]; last = k; max = Math.max(max, k);
+      if ((f[1] || "").trim()) rackBy[k] = f[1].trim();
+      if (top && k > 1) topBy[k - 1] = top;
+    } else if (top && last) {
+      topBy[last] = top;
+    }
+  }
+  const moves = [];
+  for (let k = 1; k <= max; k++) {
+    if (!rackBy[k]) break;
+    const r = liveParseRack(rackBy[k]);
+    let top = null;
+    const t = topBy[k];
+    if (t) {
+      const p = liveParsePos(t.pos), w = liveParseWord(t.raw);
+      if (p && w.word) {
+        top = { word: w.word, blanks: w.blanks, row: p.row, col: p.col, dir: p.dir,
+                pos: p.pos, score: t.score, words: [{ word: w.word, score: t.score }] };
+      }
+    }
+    moves.push({ moveNo: k, rack: r.rack, freshRack: r.freshRack, kept: r.kept, top });
+    if (!top) break;                 // seul le dernier coup publié peut être sans top
+  }
+  return { label, moves };
+}
+
+// Liste des parties d'un tournoi : « Partie 1 (en cours) », « Partie 2 : début
+// lundi 26/10 à 14:00 », puis un simple lien « Partie 3 » une fois terminée.
+function liveParseStatus(html, numero) {
+  const s = String(html);
+  if (new RegExp(`Partie ${numero} \\(en cours\\)`).test(s)) return { status: "en cours" };
+  const m = new RegExp(`Partie ${numero}\\s*:\\s*(début[^<]+)`).exec(s);
+  if (m) return { status: "à venir", label: m[1].trim() };
+  if (new RegExp(`numero=${numero}"[^>]*>\\s*Partie ${numero}\\s*<`).test(s)) return { status: "terminée" };
+  return { status: "inconnu" };
+}
+
+const liveExportPath = () =>
+  `endirect.parties.exporter.php?tournoi_id=${encodeURIComponent(state.live.tournoi)}&numero=${state.live.numero}`;
+
+// Coups publiés à cet instant. En rejeu, on tronque l'export d'une partie
+// terminée selon le temps écoulé : à chaque top publié, le tirage suivant
+// apparaît en même temps (c'est ainsi que la FFSc les diffuse).
+async function liveFetchMoves() {
+  const L = state.live;
+  if (L.rejeu) {
+    if (!L.full) L.full = liveParseExport(await ffscRaw(liveExportPath())).moves.filter(m => m.top);
+    if (!L.full.length) throw new Error("cette partie n'a encore aucun coup à rejouer");
+    const t = (Date.now() - L.rejeuStart) / 1000;
+    const n = Math.min(L.full.length, (L.rejeuFrom - 1) + Math.floor(t / L.rejeu));
+    const moves = L.full.slice(0, n).map(m => ({ ...m }));
+    if (n < L.full.length) moves.push({ ...L.full[n], top: null });
+    else L.status = "terminée";
+    L.lastCheck = new Date();
+    return moves;
+  }
+  const { moves } = liveParseExport(await ffscRaw(liveExportPath()));
+  L.lastCheck = new Date();
+  return moves;
+}
+
+async function liveRefreshStatus() {
+  const L = state.live;
+  if (!L || L.rejeu) return;
+  try {
+    const html = await ffscRaw(`endirect.php?tournoi_id=${encodeURIComponent(L.tournoi)}&page=parties`);
+    const s = liveParseStatus(html, L.numero);
+    L.status = s.status;
+    L.statusLabel = s.label || "";
+  } catch (e) {
+    L.error = e.message || String(e);
+  }
+  renderLiveBar();
+  if (L.status === "terminée") liveAdvance();
+}
+
+async function enterFfscLiveMode() {
+  const tournoi = URL_PARAMS.get("tournoi"), numero = +URL_PARAMS.get("numero");
+  if (!tournoi || !numero) throw new Error("Lien incomplet : il faut le tournoi et le numéro de partie.");
+  if (!window.SUPABASE_URL) await loadSupabaseClient();
+  const T = +URL_PARAMS.get("t") || 180;
+  const rejeu = +URL_PARAMS.get("rejeu") || 0;
+  state.live = {
+    tournoi, numero, nom: URL_PARAMS.get("nom") || "Tournoi FFSc",
+    rejeu, rejeuStart: Date.now(), rejeuFrom: Math.max(1, +URL_PARAMS.get("depuis") || 1), full: null,
+    status: rejeu ? "en cours" : "inconnu", statusLabel: "",
+    awaiting: false, frozen: false, closing: false, polling: false,
+    lastCheck: null, error: null, joinedAt: 1, pollTimer: null, statusTimer: null,
+  };
+  showFeedback("", "Connexion au direct de la FFSc…", "");
+  const moves = await liveFetchMoves();
+  if (!rejeu) await liveRefreshStatus();
+  const done = moves.filter(m => m.top);
+
+  // État vierge, puis grille au coup en cours : les tops déjà joués sont posés.
+  state.board = emptyBoard();
+  state.rack = []; state.pending = []; state.cursor = null; state.history = [];
+  state.totalScore = 0; state.sumNeg = 0; state.topMove = null; state.subTop = null;
+  state.bestAttempt = null; state._dual = null; state._dupLast = null;
+  state._topPending = false; state.chronoFinal = null; state.boardLayout = null;
+  for (const m of done) state.board = applyMove(state.board, m.top);
+  const prev = done[done.length - 1];
+  if (prev) {
+    const t = prev.top;
+    state.lastTop = { word: t.word, row: t.row, col: t.col, dir: t.dir, score: t.score };
+    state.lastTopCells = Array.from({ length: t.word.length }, (_, i) => ({
+      row: t.row + (t.dir === "V" ? i : 0), col: t.col + (t.dir === "H" ? i : 0),
+    }));
+  }
+  // « Revoir » repartira de cette grille (comme pour un solo) : l'historique ne
+  // contient que les coups joués depuis l'arrivée.
+  state._puzzleBaseBoard = state.board.map(r => r.slice());
+  state.prepared = {
+    id: null,
+    name: `${state.live.nom} — Partie ${numero}${rejeu ? " (rejeu)" : " (direct)"}`,
+    mode: "duplicate", withJoker: false, timePerMove: T, moves,
+  };
+  state.preparedIdx = done.length;
+  state.moveNo = done.length + 1;
+  state.live.joinedAt = state.moveNo;
+  state.settings.gameMode = "duplicate";
+  state.settings.withJoker = false;
+  state.settings.timePerMove = T;
+  renderGameTitle(); renderBoard(); renderRack(); renderBag(); renderInfo();
+  hideFeedback();
+
+  if (state.live.status === "terminée" && !moves.some(m => !m.top)) {
+    renderLiveBar();
+    showFeedback("info", "Cette partie est terminée",
+      "Choisis « Rejouer comme en direct » dans l'onglet Direct pour la jouer coup par coup.");
+    return;
+  }
+  const pollMs = rejeu ? Math.min(LIVE_POLL_MS, Math.max(1500, rejeu * 250)) : LIVE_POLL_MS;
+  state.live.pollTimer = setInterval(livePoll, pollMs);
+  if (!rejeu) state.live.statusTimer = setInterval(liveRefreshStatus, LIVE_STATUS_MS);
+  startGame();
+  // Pas de pause : la salle continue sans nous. Masquée par la classe in-live
+  // (game.css) : « hidden » ne suffit pas, une règle !important des boutons l'emporte.
+  document.body.classList.add("in-live");
+  const retour = $("#btnBackToTournament");
+  if (retour) retour.textContent = "← Direct";
+  renderLiveBar();
+}
+
+async function livePoll() {
+  const L = state.live;
+  if (!L || L.polling || state.chronoFinal != null) return;
+  L.polling = true;
+  try {
+    const fresh = await liveFetchMoves();
+    L.error = null;
+    const P = state.prepared;
+    for (const m of fresh) {
+      const cur = P.moves[m.moveNo - 1];
+      if (!cur) P.moves[m.moveNo - 1] = m;
+      else if (!cur.top && m.top) cur.top = m.top;
+    }
+    liveAdvance();
+    liveLoadBoard();
+    liveLoadFfsc();
+  } catch (e) {
+    L.error = e.message || String(e);
+  } finally {
+    L.polling = false;
+    renderLiveBar();
+  }
+}
+
+// Fait avancer la partie au rythme de la salle. Boucle (et non récursion) : si
+// l'onglet a dormi, plusieurs coups ont pu se clore entre deux lectures.
+function liveAdvance() {
+  const L = state.live;
+  for (let garde = 0; garde < 200; garde++) {
+    if (!L || L.closing || !state.started || state.chronoFinal != null) return;
+    const cur = state.prepared.moves[state.preparedIdx];
+    if (L.awaiting) {
+      if (!cur) { if (L.status === "terminée") endGame(); return; }
+      L.awaiting = false; L.frozen = false;
+      nextMove();                    // nouveau tirage affiché
+      continue;                      // …dont le top est peut-être déjà publié
+    }
+    if (cur && cur.top) { closeLiveMove(); continue; }
+    return;
+  }
+}
+
+// Top officiel publié : clôture du coup comme une fin de chrono duplicate
+// (négatif calculé sur le dernier mot retenu), avec le top de la salle.
+function closeLiveMove() {
+  const L = state.live;
+  L.closing = true;
+  try {
+    stopMoveTimer();
+    computeTop();
+    if (!state.topMove) return;
+    liveRecordScore();
+    finishDuplicateMove(state.topMove.move);   // enregistre, pose le top, coup suivant
+    L.frozen = false;
+  } finally {
+    L.closing = false;
+  }
+}
+
+// Plus de tirage publié pour l'instant (entre deux coups, ou avant le début).
+function liveAwaitRack() {
+  const L = state.live;
+  L.awaiting = true;
+  L.frozen = false;
+  stopMoveTimer();
+  state.rack = []; state.pending = [];
+  renderRack(); renderBoard(); renderLiveBar();
+}
+
+// Fin du chrono local (ou « Voir le top ») : le mot retenu est figé, on attend
+// le top officiel. Le chrono est indicatif : le tirage est détecté avec le
+// décalage de la lecture périodique.
+function liveTimeUp() {
+  const L = state.live;
+  if (!L || L.frozen || L.awaiting) return;
+  L.frozen = true;
+  stopMoveTimer();
+  const d = state._dupLast;
+  showFeedback("info", "⏱ Temps écoulé — en attente du top officiel",
+    d ? `Mot retenu : <strong>${wLink(d.word)}</strong>${d.invalid ? "" : ` — ${d.score} pts`}` : "Aucun mot retenu pour ce coup.");
+  renderLiveBar();
+  livePoll();                        // le top est peut-être déjà publié
+}
+
+function liveStop() {
+  const L = state.live;
+  if (!L) return;
+  if (L.pollTimer) clearInterval(L.pollTimer);
+  if (L.statusTimer) clearInterval(L.statusTimer);
+  L.pollTimer = L.statusTimer = null;
+}
+
+function renderLiveBar() {
+  const L = state.live;
+  let bar = document.getElementById("liveBar");
+  if (!L) { if (bar) bar.hidden = true; return; }
+  if (!bar) {
+    bar = document.createElement("div");
+    bar.id = "liveBar";
+    bar.className = "live-bar";
+    document.getElementById("gameTitle")?.after(bar);
+  }
+  bar.hidden = false;
+  const cur = state.prepared?.moves[state.preparedIdx];
+  let etat;
+  if (state.chronoFinal != null || (L.status === "terminée" && L.awaiting)) etat = "partie terminée";
+  else if (L.status === "à venir" && !cur) etat = `partie à venir — ${escapeHtmlS(L.statusLabel)}`;
+  else if (L.awaiting || !state.started) etat = `⏳ en attente du tirage du coup ${state.moveNo}`;
+  else if (L.frozen) etat = `⏱ coup ${state.moveNo} — en attente du top officiel`;
+  else etat = `🎯 coup ${state.moveNo} — à toi de jouer`;
+  const vu = L.lastCheck ? L.lastCheck.toLocaleTimeString("fr-FR") : "—";
+  const rangs = [liveBoard.resume, liveFfsc.resume].filter(Boolean).join(" · ");
+  const meta = [
+    rangs ? `🏅 ${rangs}` : "",
+    L.rejeu ? `rejeu (${L.rejeu} s par coup)` : `vérifié à ${vu}`,
+    L.joinedAt > 1 ? `rejoint au coup ${L.joinedAt}` : "",
+    L.error ? `⚠️ ${escapeHtmlS(L.error)}` : "",
+  ].filter(Boolean).join(" · ");
+  bar.classList.toggle("live-off", state.chronoFinal != null);
+  bar.innerHTML = `<span class="live-dot"></span><strong>${L.rejeu ? "REJEU" : "DIRECT"}</strong>
+    <span class="live-etat">${etat}</span><span class="live-meta">${meta}</span>`;
+}
+
+// ============================================================
+//  Classement « Garenna en direct » (table ffsc_live_scores)
+// ============================================================
+// À chaque coup clos, on publie ses points sur le coup. Le panneau de droite,
+// celui du suivi « pace » des parties préparées, classe alors les joueurs du
+// club connectés à la même partie, par négatif cumulé. Le rejeu n'écrit rien :
+// c'est de l'entraînement personnel, il fausserait le classement du direct.
+const liveBoard = { state: "idle", rows: [], error: null };
+
+function liveRecordScore() {
+  const L = state.live;
+  if (!L || L.rejeu || !state.topMove) return;
+  const me = +(localStorage.getItem("currentPlayerId") || 0);
+  if (!me) return;
+  const d = state._dupLast;
+  // Ligne construite tout de suite : le coup suivant va modifier l'état.
+  const row = {
+    tournoi: String(L.tournoi), numero: L.numero, player_id: me, move_no: state.moveNo,
+    score: d && !d.invalid ? d.score : 0, top_score: state.topMove.score,
+    word: d ? d.word : null, updated_at: new Date().toISOString(),
+  };
+  // Affichage immédiat, sans attendre l'aller-retour vers la base.
+  liveBoard.rows = liveBoard.rows.filter(r => !(r.player_id === me && r.move_no === row.move_no));
+  liveBoard.rows.push({ ...row, players: { name: paceMyLabel() } });
+  (async () => {
+    try {
+      if (!window._sb) await loadSupabaseClient();
+      const { error } = await window._sb.from("ffsc_live_scores")
+        .upsert(row, { onConflict: "tournoi,numero,player_id,move_no" });
+      if (error) throw error;
+    } catch (e) {
+      liveBoard.error = e?.message || String(e);
+      console.warn("[direct] score non publié :", liveBoard.error);
+    }
+    liveLoadBoard();
+  })();
+}
+
+async function liveLoadBoard() {
+  const L = state.live;
+  if (!L || L.rejeu || liveBoard.state === "loading") return;
+  liveBoard.state = "loading";
+  try {
+    if (!window._sb) await loadSupabaseClient();
+    const { data, error } = await window._sb.from("ffsc_live_scores")
+      .select("player_id, move_no, score, top_score, word, players(name)")
+      .eq("tournoi", String(L.tournoi)).eq("numero", L.numero);
+    if (error) throw error;
+    liveBoard.rows = data || [];
+    liveBoard.error = null;
+  } catch (e) {
+    liveBoard.error = e?.message || String(e);
+  }
+  liveBoard.state = "ready";
+  renderPace();
+}
+
+function renderLivePace() {
+  const col = $("#paceCol");
+  if (!col) return;
+  const L = state.live;
+  const show = v => { col.hidden = !v; document.body.classList.toggle("with-pace", v); };
+  if (!L || state.settings.showPace === false || review.active) { show(false); return; }
+  const [boxClub, boxSalle] = col.querySelectorAll(".pace-box");
+  if (L.rejeu) {
+    // Rejeu : entraînement perso, pas de classement du club.
+    if (boxClub) boxClub.hidden = true;
+    liveBoard.resume = "";
+    const empty = $("#paceEmpty");
+    if (empty) empty.hidden = true;
+  } else {
+    renderLiveClub(boxClub);
+  }
+  renderLiveSalle(boxSalle);
+  show(true);
+  renderLiveBar();
+}
+
+function renderLiveClub(box) {
+  if (!box) return;
+  if (liveBoard.state === "idle") liveLoadBoard();
+  box.hidden = false;
+  const title = box.querySelector(".pace-title");
+  if (title) title.textContent = "Garenna en direct";
+
+  const me = +(localStorage.getItem("currentPlayerId") || 0);
+  const parJoueur = new Map();
+  for (const r of liveBoard.rows) {
+    let p = parJoueur.get(r.player_id);
+    if (!p) parJoueur.set(r.player_id, p = { id: r.player_id, name: r.players?.name || "?", neg: 0, coups: 0, tops: 0 });
+    p.neg += (r.score || 0) - (r.top_score || 0);
+    p.coups++;
+    if (r.score === r.top_score) p.tops++;
+  }
+  if (me && !parJoueur.has(me)) parJoueur.set(me, { id: me, name: paceMyLabel(), neg: null, coups: 0, tops: 0 });
+  // −3 vaut mieux que −12 ; à négatif égal, celui qui a joué le plus de coups
+  // passe devant. Les joueurs encore sans coup clos ferment la marche.
+  const rows = [...parJoueur.values()].sort((a, b) =>
+    ((b.neg ?? -1e9) - (a.neg ?? -1e9)) || (b.coups - a.coups) || a.name.localeCompare(b.name));
+  let pos = 0;
+  for (const r of rows) if (r.neg != null) r.pos = ++pos;
+  const moi = rows.find(r => r.id === me);
+  $("#paceNegList").innerHTML = rows.map(r =>
+    `<div class="pace-row${r.id === me ? " me" : ""}${r.neg == null ? " out" : ""}">`
+    + `<span class="p">${r.pos ?? "–"}</span>`
+    + `<span class="n">${escapeHtmlS(r.name)}</span>`
+    + `<span class="v" title="${r.coups} coup(s) · ${r.tops} top(s)">${r.neg == null ? "—" : (r.neg > 0 ? "+" + r.neg : r.neg)}`
+    + `<small class="live-coups"> ${r.coups} c.</small></span></div>`).join("");
+  const rang = moi?.pos ? `${moi.pos}${moi.pos === 1 ? "er" : "e"} / ${pos}` : `— / ${pos}`;
+  $("#paceNegRank").textContent = rang;
+  liveBoard.resume = pos > 1 && moi?.pos ? `club ${rang.replace(/\s/g, "")}` : "";
+  $("#paceNegList").querySelector(".pace-row.me")?.scrollIntoView({ block: "nearest" });
+
+  const empty = $("#paceEmpty");
+  if (empty) {
+    const err = liveBoard.error || "";
+    empty.textContent = err
+      ? (/ffsc_live_scores|relation|schema cache/i.test(err)
+          ? "Classement du club indisponible : la table du direct n'est pas encore créée dans Supabase."
+          : /JWT|auth|permission|row-level/i.test(err)
+            ? "Connecte-toi à Topissimo pour apparaître dans le classement du club."
+            : `Classement du club indisponible (${err}).`)
+      : "Aucun autre joueur du club sur ce direct pour l'instant.";
+    empty.hidden = !err && rows.length > 1;
+  }
+}
+
+// ============================================================
+//  Classement « salle » FFSc simulé (2e encadré, rang dans le bandeau)
+// ============================================================
+// Pour chaque coup clos, la FFSc publie le négatif de chaque joueur du tournoi.
+// On les cumule sur les coups que TU as joués (de ton arrivée au dernier coup
+// clos) : c'est la seule comparaison à armes égales quand on rejoint en cours de
+// partie. Chaque nom ouvre la feuille de route officielle du joueur.
+const liveFfsc = { negs: {}, loading: false, error: null, resume: "" };
+
+function liveDecode(s) {
+  const t = document.createElement("textarea");
+  t.innerHTML = s;
+  return t.value;
+}
+
+// « Détail des négatifs du coup N » : table, joueur (lien vers sa feuille de
+// route), négatif (« Top » ou « -3 »), série.
+function liveParseNegatifs(html) {
+  const out = [];
+  const re = /<td class='first'>(\d+)\.<\/td><td><a href="([^"]+)">([^<]+)<\/a><\/td><td>([^<]*)<\/td><td>([^<]*)<\/td>/g;
+  let m;
+  while ((m = re.exec(html))) {
+    const t = m[4].trim();
+    out.push({ table: +m[1], href: liveDecode(m[2]), name: liveDecode(m[3]).trim(),
+               neg: /^[-+]?\d+$/.test(t) ? +t : 0, serie: m[5].trim() });
+  }
+  return out;
+}
+
+async function liveLoadFfsc() {
+  const L = state.live;
+  if (!L || liveFfsc.loading) return;
+  const coups = state.history.map(h => h.moveNo).filter(n => !(n in liveFfsc.negs));
+  if (!coups.length) return;
+  liveFfsc.loading = true;
+  try {
+    for (const n of coups) {
+      const html = await ffscRaw(`endirect.php?tournoi_id=${encodeURIComponent(L.tournoi)}`
+        + `&page=parties&numero=${L.numero}&coup=${n}&action=scores&tri=table`);
+      const rows = liveParseNegatifs(html);
+      // Négatifs pas encore saisis par l'arbitrage : on retentera à la prochaine lecture.
+      if (rows.length) liveFfsc.negs[n] = rows;
+    }
+    liveFfsc.error = null;
+  } catch (e) {
+    liveFfsc.error = e.message || String(e);
+  } finally {
+    liveFfsc.loading = false;
+  }
+  renderPace();
+}
+
+function renderLiveSalle(box) {
+  if (!box) return;
+  liveLoadFfsc();
+  const title = box.querySelector(".pace-title");
+  const coups = state.history.map(h => h.moveNo).filter(n => liveFfsc.negs[n]);
+  if (!coups.length) {
+    box.hidden = !state.history.length;
+    if (title) title.textContent = "Salle FFSc";
+    $("#paceTimeRank").textContent = "—";
+    $("#paceTimeList").innerHTML = `<div class="pace-row out"><span class="p">–</span>`
+      + `<span class="n">négatifs de la salle en attente…</span><span class="v"></span></div>`;
+    liveFfsc.resume = "";
+    return;
+  }
+  box.hidden = false;
+  const cumul = new Map();
+  for (const n of coups) for (const r of liveFfsc.negs[n]) {
+    let p = cumul.get(r.table);
+    if (!p) cumul.set(r.table, p = { ...r, neg: 0 });
+    p.neg += r.neg;
+  }
+  const monNeg = state.history.filter(h => coups.includes(h.moveNo)).reduce((s, h) => s + (h.neg || 0), 0);
+  const joueurs = [...cumul.values()].sort((a, b) => (b.neg - a.neg) || (a.table - b.table));
+  const rangDe = neg => joueurs.filter(p => p.neg > neg).length + 1;
+  const monRang = rangDe(monNeg);
+  const total = joueurs.length + 1;
+  // Liste : les 3 premiers, puis ton voisinage (3 au-dessus, 3 au-dessous).
+  const lignes = joueurs.map(p => ({ ...p, pos: rangDe(p.neg), me: false }));
+  const k = lignes.findIndex(p => p.neg <= monNeg);
+  const at = k < 0 ? lignes.length : k;
+  lignes.splice(at, 0, { name: paceMyLabel(), neg: monNeg, pos: monRang, me: true });
+  const garder = new Set([0, 1, 2]);
+  for (let d = -3; d <= 3; d++) garder.add(at + d);
+  let html = "", prec = -1;
+  lignes.forEach((r, i) => {
+    if (!garder.has(i)) return;
+    if (prec >= 0 && i > prec + 1) html += `<div class="pace-row out"><span class="p">…</span><span class="n"></span><span class="v"></span></div>`;
+    prec = i;
+    const nom = r.me ? escapeHtmlS(r.name)
+      : `<a href="https://www.ffsc.fr/endirect/${escapeHtmlS(r.href)}" target="_blank" rel="noopener" title="Feuille de route (table ${r.table}, série ${escapeHtmlS(r.serie)})">${escapeHtmlS(r.name)}</a>`;
+    html += `<div class="pace-row${r.me ? " me" : ""}"><span class="p">${r.pos}</span>`
+      + `<span class="n">${nom}</span><span class="v">${r.neg > 0 ? "+" + r.neg : r.neg}</span></div>`;
+  });
+  if (title) title.textContent = coups.length > 1 ? `Salle FFSc · coups ${coups[0]}→${coups[coups.length - 1]}` : `Salle FFSc · coup ${coups[0]}`;
+  const rang = `${monRang}${monRang === 1 ? "er" : "e"} / ${total}`;
+  $("#paceTimeRank").textContent = rang;
+  $("#paceTimeList").innerHTML = html;
+  liveFfsc.resume = `salle ${rang.replace(/\s/g, "")}`;
+}
+
 async function enterReviewMode(id) {
   showFeedback("", "Chargement de la partie…", "");
   if (!window._sb) await loadSupabaseClient();
   const { data: game, error: e1 } = await window._sb.from("prepared_games").select("*").eq("id", id).single();
   if (e1) throw new Error(e1.message);
+  if (game.mode === "puzzle") { location.replace(`puzzle.html?prepared=${id}`); return new Promise(() => {}); }
   const pid = +(localStorage.getItem("currentPlayerId") || 0);
   let result = null;
   if (pid) {
@@ -4625,6 +5310,7 @@ async function enterReviewMode(id) {
   state.settings.gameMode = game.mode;
   state.settings.withJoker = game.with_joker;
   state.settings.timePerMove = game.time_per_move;
+  await majTitresMort(game.tournament_id);
   renderGameTitle();
   // Masquer la barre d'info (non pertinente en review)
   document.querySelector(".info-bar")?.style.setProperty("display", "none");
@@ -4657,7 +5343,7 @@ async function enterReviewMode(id) {
 // Plateau de départ pour la review : vide en général, mais en review d'un SOLO
 // (puzzle) on part du contexte des coups précédents pour afficher toute la grille.
 function reviewBaseBoard() {
-  return (state.isPuzzle && review._puzzleBase) ? review._puzzleBase.map(r => r.slice()) : emptyBoard();
+  return ((state.isPuzzle || state.live) && review._puzzleBase) ? review._puzzleBase.map(r => r.slice()) : emptyBoard();
 }
 
 function renderReviewStep() {
@@ -5347,6 +6033,8 @@ async function loadPreparedGame(id) {
   }
   const { data, error } = await window._sb.from("prepared_games").select("*").eq("id", id).single();
   if (error) throw new Error(error.message);
+  // Grille puzzle (Jigsaw) : ce n'est pas une partie de topping, elle a sa propre page.
+  if (data.mode === "puzzle") { location.replace(`puzzle.html?prepared=${id}`); return new Promise(() => {}); }
   // Réinitialisation COMPLÈTE de l'état de jeu : évite qu'un reliquat d'une partie
   // précédente (plateau, tirage, index) ne déborde si l'état n'a pas été remis à zéro
   // (cache navigateur / réentrée). C'est la cause du « 1er tirage erroné » corrigé au refresh.
@@ -5375,6 +6063,7 @@ async function loadPreparedGame(id) {
     timePerMove: data.time_per_move,
     moves: data.moves,
   };
+  await majTitresMort(data.tournament_id);
   // Grille random : disposition des bonus stockée sur le 1er coup.
   state.boardLayout = data.moves?.[0]?._layout || null;
   // Diagnostic : tracer la partie chargée et le nombre de coups stockés.
@@ -5429,10 +6118,19 @@ async function loadSupabaseClient() {
   window._sb = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
 }
 
+const reglesVues = new Set();
 function startGame() {
   if (state.started) return;   // déjà lancée (anti double-clic pendant l'attente)
   // Formules à page dédiée (Grille puzzle) : ce ne sont pas des
   // parties duplicate, on ouvre leur page en lui transmettant le thème.
+  // Formule superoriginale : fenêtre des règles particulières avant le départ
+  // (une fois par formule et par page ; le chrono n'est pas encore lancé).
+  const cleMode = state.settings.gameMode;
+  if (REGLES[cleMode] && !reglesVues.has(cleMode) && !currentMode().page) {
+    reglesVues.add(cleMode);
+    afficheRegles(cleMode, titresMort ? nomFormule(cleMode, false) : null).then(() => startGame());
+    return;
+  }
   if (currentMode().page) {
     location.href = `${currentMode().page}?theme=${encodeURIComponent(state.settings.colorTheme || "classic")}`;
     return;
@@ -5579,7 +6277,7 @@ function isSuperAdminSession() {
 }
 
 function saveTrainingState() {
-  if (state.isPuzzle) return;   // puzzles non persistés ; entraînement ET tournoi le sont
+  if (state.isPuzzle || state.live) return;   // puzzles non persistés ; entraînement ET tournoi le sont
   // Ceinture de sécurité : partie TERMINÉE → on n'enregistre plus d'état de pause
   // (sinon une sauvegarde tardive pourrait ré-écraser le résultat avec un négatif
   // partiel et re-marquer la partie « en pause », cf. bug v347).
@@ -5862,7 +6560,7 @@ function resumeGame() {
 window.addEventListener("beforeunload", (e) => {
   // Pas d'avertissement pour un solo (puzzle). Ni si la partie est déjà en PAUSE :
   // elle est sauvegardée « à reprendre » (on quitte sans rien perdre).
-  if (state.prepared && state.started && state.chronoFinal == null && !state.isPuzzle && !state.paused) {
+  if (state.prepared && state.started && state.chronoFinal == null && !state.isPuzzle && !state.live && !state.paused) {
     e.preventDefault();
     e.returnValue = "";   // déclenche la confirmation native du navigateur
     return "";
@@ -5875,7 +6573,7 @@ window.addEventListener("beforeunload", (e) => {
 // (flouté) s'affiche ; si on a quitté l'app, la partie apparaît en « Continuer »
 // dans le tournoi.
 function autoPauseIfPlaying(showModal) {
-  if (state.started && state.chronoFinal == null && !state.isPuzzle && !state.paused && !review.active) {
+  if (state.started && state.chronoFinal == null && !state.isPuzzle && !state.live && !state.paused && !review.active) {
     pauseGame({ showModal });
   }
 }
@@ -5889,7 +6587,7 @@ window.addEventListener("pagehide", () => autoPauseIfPlaying(false));
 // au 1er coup. (Le beforeunload reste le filet pour le bouton recharger natif ;
 // certains navigateurs réservent Cmd+R et l'ignoreront — best effort.)
 window.addEventListener("keydown", (e) => {
-  const inTournamentGame = state.prepared && state.started && state.chronoFinal == null && !review.active && !state.isPuzzle;
+  const inTournamentGame = state.prepared && state.started && state.chronoFinal == null && !review.active && !state.isPuzzle && !state.live;
   if (!inTournamentGame) return;
   const isReload = e.key === "F5" || ((e.ctrlKey || e.metaKey) && (e.key === "r" || e.key === "R"));
   if (isReload) {
@@ -5949,7 +6647,9 @@ function endGame() {
   // que le plateau (state.board) contient déjà tout le contexte des coups
   // précédents + le top posé. Reconstruire depuis l'historique effacerait ce
   // contexte → on saute la reconstruction (le plateau est déjà correct).
-  if (!state.isPuzzle && !currentMode().marathon && Array.isArray(state.history) && state.history.length) {
+  // Direct FFSc : l'historique ne couvre que les coups joués depuis l'arrivée →
+  // on garde la grille telle quelle (elle porte déjà tous les tops).
+  if (!state.isPuzzle && !state.live && !currentMode().marathon && Array.isArray(state.history) && state.history.length) {
     const playedTops = state.history.filter(h => h?.top?.word);
     let board = emptyBoard();
     let lastNewCells = [], lastAllCells = [], lastReliquat = null;
@@ -6023,6 +6723,14 @@ function endGame() {
   // toute la grille (contexte des coups précédents inclus) et les solutions.
   if (state.isPuzzle) { enterLocalReview(); return; }
   $("#endModal").hidden = false;
+  // Direct FFSc : pas de résultat de tournoi du club à enregistrer.
+  if (state.live) {
+    liveStop(); renderLiveBar();
+    for (const id of ["#endModalResults", "#endModalNextGame"]) { const b = $(id); if (b) b.hidden = true; }
+    if (state.live.joinedAt > 1) $("#endSummary").insertAdjacentHTML("beforeend",
+      `<div>Partie rejointe au coup ${state.live.joinedAt}</div>`);
+    return;
+  }
   // Partie terminée → plus rien « à reprendre ».
   if (state.prepared) clearSuspendedPrepared(state.prepared.id); else clearSavedTraining();
   // Si c'est une partie pré-tirée → sauvegarder le résultat
@@ -6126,7 +6834,7 @@ window.enterLocalReview = function() {
   document.body.classList.add("in-review");
   $("#bagDisplay") && ($("#bagDisplay").hidden = true);   // pas de sac en review
   // Solo : conserver le contexte des coups précédents pour afficher toute la grille.
-  review._puzzleBase = state.isPuzzle ? (state._puzzleBaseBoard || null) : null;
+  review._puzzleBase = (state.isPuzzle || state.live) ? (state._puzzleBaseBoard || null) : null;
   review.game = fakeGame;
   review.result = fakeResult;
   review.historyByMove = {};
@@ -6447,6 +7155,7 @@ if (headerAccueilLink) {
 
 // ── Navigation tournoi ──────────────────────────────────────────────────────
 window.goBackToTournament = function() {
+  if (state.live) { location.href = "../index.html#tab=direct"; return; }   // direct FFSc
   const tid = state._soloTid || TOURNAMENT_ID;
   pauseAndNavigate(tid ? `../index.html#tid=${tid}` : "../index.html#tab=prepared");
 };
@@ -6775,3 +7484,4 @@ if ("serviceWorker" in navigator) {
 // GAME_VERSION) a été retiré — il provoquait un rechargement parasite à chaque
 // nouvelle version. La détection de version et l'auto-réparation sont désormais
 // gérées proprement par captureSwVersion()/registerSwUpdates() (BUILD_VERSION).
+
