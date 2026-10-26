@@ -427,6 +427,74 @@ function generatePuzzle(opts) {
   };
 }
 
+/* ---------- Couleurs des zones : voisines aussi différentes que possible ---------- */
+// Écarts mesurés dans l'espace OKLab (distance proche de la perception de l'œil).
+function hexToOklab(hex) {
+  const lin = (c) => { c /= 255; return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; };
+  const r = lin(parseInt(hex.slice(1, 3), 16)), g = lin(parseInt(hex.slice(3, 5), 16)), b = lin(parseInt(hex.slice(5, 7), 16));
+  const l = Math.cbrt(0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b);
+  const m = Math.cbrt(0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b);
+  const q = Math.cbrt(0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b);
+  return [0.2104542553 * l + 0.7936177850 * m - 0.0040720468 * q,
+    1.9779984951 * l - 2.4285922050 * m + 0.4505937099 * q,
+    0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * q];
+}
+function colorDistance(h1, h2) {
+  const a = hexToOklab(h1), b = hexToOklab(h2);
+  return Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+}
+
+/** Paires de zones qui se touchent (par un côté de case). */
+function zoneNeighbors(region, n) {
+  const pairs = new Set();
+  for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) {
+    const k = region[r * n + c];
+    for (const [rr, cc] of [[r + 1, c], [r, c + 1]]) {
+      if (rr >= n || cc >= n) continue;
+      const q = region[rr * n + cc];
+      if (q !== k) pairs.add(k < q ? k * 64 + q : q * 64 + k);
+    }
+  }
+  return [...pairs].map((x) => [Math.floor(x / 64), x % 64]);
+}
+
+/**
+ * Couleur de chaque zone : colors[k] = indice dans palette. Toutes les zones ont une
+ * couleur différente, et l'on maximise l'écart entre zones voisines (d'abord le plus
+ * petit écart entre deux voisines, puis l'écart moyen). Le résultat ne dépend que de la
+ * forme des zones : la même grille garde toujours les mêmes couleurs.
+ */
+function zoneColors(region, n, palette) {
+  const P = palette.length;
+  if (P < n) throw new Error(`Il faut au moins ${n} couleurs (la palette en a ${P}).`);
+  const D = palette.map((a) => palette.map((b) => colorDistance(a, b)));
+  const adj = zoneNeighbors(region, n);
+  const score = (perm) => {
+    let min = Infinity, sum = 0;
+    for (const [a, b] of adj) { const d = D[perm[a]][perm[b]]; if (d < min) min = d; sum += d; }
+    return [min, sum];
+  };
+  const better = (x, y) => x[0] > y[0] + 1e-9 || (Math.abs(x[0] - y[0]) <= 1e-9 && x[1] > y[1] + 1e-9);
+  let h = 2166136261;
+  for (const k of region) { h ^= k + 1; h = Math.imul(h, 16777619); }
+  const rng = makeRng(h >>> 0);
+  let best = null, bestScore = null;
+  for (let restart = 0; restart < 30; restart++) {
+    const perm = shuffledCopy(range(P), rng);          // perm[0..n-1] : couleurs utilisées
+    let cur = score(perm), improved = true;
+    while (improved) {
+      improved = false;
+      for (let i = 0; i < n; i++) for (let j = i + 1; j < P; j++) {
+        [perm[i], perm[j]] = [perm[j], perm[i]];
+        const sc = score(perm);
+        if (better(sc, cur)) { cur = sc; improved = true; } else [perm[i], perm[j]] = [perm[j], perm[i]];
+      }
+    }
+    if (!best || better(cur, bestScore)) { best = perm.slice(0, n); bestScore = cur; }
+  }
+  return best;
+}
+
 /* ---------- Images : un animal différent par ligne de la grille ---------- */
 /**
  * Indices (dans la liste d'images du thème) de l'animal posé sur chaque ligne :
@@ -457,6 +525,6 @@ function puzzleToText(p, withSolution = false) {
 }
 
 if (typeof module !== 'undefined') {
-  module.exports = { makeRng, imageOrder, MIN_SIZE, MAX_SIZE, LEVELS, MAX_LEVEL, SIZE_RANGES, randomSizeFor, TECHNIQUE_LABELS, levelOfTier, randomPlacement, growRegions,
+  module.exports = { makeRng, imageOrder, zoneColors, zoneNeighbors, colorDistance, MIN_SIZE, MAX_SIZE, LEVELS, MAX_LEVEL, SIZE_RANGES, randomSizeFor, TECHNIQUE_LABELS, levelOfTier, randomPlacement, growRegions,
     regionConnected, solveAll, makeUnique, humanSolve, generatePuzzle, puzzleToText };
 }

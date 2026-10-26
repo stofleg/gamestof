@@ -6,10 +6,12 @@
 
 const MAX_ERREURS = 3;
 const DOUBLE_TAP_MS = 350;
-// Couleurs vives des zones (écran uniquement ; l'impression garde ses pastels).
+// 12 couleurs vives choisies par calcul pour être aussi distinctes que possible (écart minimal
+// en OKLab : 0,136, contre 0,078 pour l'ancienne palette), jaune vif imposé. Leur répartition
+// sur les zones (zoneColors, moteur.js) écarte au maximum les zones voisines.
 const ZONE_COLORS = [
-  '#FF6B6B', '#FFD43B', '#4DABF7', '#69DB7C', '#B197FC', '#FF922B',
-  '#3BC9DB', '#F783AC', '#A9E34B', '#748FFC', '#FFA8A8', '#63E6BE',
+  '#FFD43B', '#5B71F0', '#DA452C', '#0F9B23', '#ED77DF', '#40BECF',
+  '#B1913C', '#A6669D', '#FB817C', '#87C010', '#0F8DB1', '#A2A1EE',
 ];
 
 const $ = (id) => document.getElementById(id);
@@ -95,11 +97,12 @@ function renderBoard() {
   board.style.gridTemplateRows = `repeat(${n}, 1fr)`;
   board.style.gap = n >= 10 ? '1.5px' : '2px';
   board.innerHTML = '';
+  const zoneColor = zoneColors(puzzle.region, n, ZONE_COLORS);
   for (let i = 0; i < n * n; i++) {
     const d = document.createElement('div');
     d.className = 'cell';
     d.dataset.i = i;
-    d.style.background = ZONE_COLORS[puzzle.region[i] % ZONE_COLORS.length];
+    d.style.background = ZONE_COLORS[zoneColor[puzzle.region[i]]];
     board.appendChild(d);
   }
   for (let i = 0; i < n * n; i++) renderCell(i);
