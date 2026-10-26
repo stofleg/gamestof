@@ -29,12 +29,12 @@ import {
   bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName, randomBoardLayout, snakeEndpointsAfter, sablierTime, gigogneRackSize,
   setLetterValues, letterValue, valuesFor, bagFor, isCrossingCell, wordHiddenCount,
   drawVowelRack, VOWELS_NO_Y, MARATHON_TARGET, MARATHON_GAMES, consonnesDisponibles, jokersDisponibles,
-} from "./engine.js?v=428";
-import { Dictionary } from "./dictionary.js?v=428";
-import * as invasion from "./araignees.js?v=428";
-import { REGLES, afficheRegles } from "./regles.js?v=428";
-import * as sonHalloween from "./halloween-son.js?v=428";
-import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=428";
+} from "./engine.js?v=427";
+import { Dictionary } from "./dictionary.js?v=427";
+import * as invasion from "./araignees.js?v=427";
+import { REGLES, afficheRegles } from "./regles.js?v=427";
+import * as sonHalloween from "./halloween-son.js?v=427";
+import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=427";
 
 // État du mode review (parcours coup par coup)
 const review = {
@@ -64,12 +64,15 @@ const PUZZLE_GAME_ID = URL_PARAMS.get("puzzle");
 const PUZZLE_MOVE_NO = +URL_PARAMS.get("move") || 1;
 const TOURNAMENT_ID = URL_PARAMS.get("tid");  // ID du tournoi pour le retour
 const FFSC_REVIEW = URL_PARAMS.get("ffscreview");  // revoir une partie FFSC importée
+// Onglet « En direct » : revoir une partie d'un tournoi FFSc retransmis (coups publiés
+// jusqu'ici, lus à chaque ouverture sur le site endirect) : ?ffscreview=1&direct=ID&numero=N
+const FFSC_DIRECT = URL_PARAMS.get("direct");
 const FFSC_LIVE = URL_PARAMS.get("ffsclive");      // jouer une partie FFSC en direct
 
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v428";
+const BUILD_VERSION = "garenna-v427";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -4449,6 +4452,7 @@ async function initGame() {
   // Mode REVIEW d'une partie FFSC importée (handoff via sessionStorage)
   if (FFSC_REVIEW) {
     try {
+      if (FFSC_DIRECT) await chargePartieDirect();
       enterFfscReviewMode();
     } catch (e) {
       showFeedback("error", "Impossible d'afficher la partie", e.message);
@@ -4641,13 +4645,32 @@ async function enterTrainingReviewMode(id) {
   renderReviewStep();
 }
 
+// Onglet « En direct » : lit la partie (tirages + tops publiés) via la fonction FFSc et
+// la passe au mode « revoir » comme une partie importée.
+async function chargePartieDirect() {
+  showFeedback("", "Lecture de la partie sur le site en direct…", "");
+  if (!window.SUPABASE_URL) await loadSupabaseClient();
+  const url = new URL(`${window.SUPABASE_URL}/functions/v1/smart-worker`);
+  url.searchParams.set("action", "partie");
+  url.searchParams.set("tournoi", FFSC_DIRECT);
+  url.searchParams.set("numero", URL_PARAMS.get("numero") || "1");
+  const res = await fetch(url, { cache: "no-store" });
+  if (!res.ok) throw new Error(`site FFSc indisponible (HTTP ${res.status})`);
+  const data = await res.json();
+  if (!data.moves?.length) throw new Error("Aucun coup publié pour l'instant.");
+  sessionStorage.setItem("ffscReview", JSON.stringify({
+    player: null, serie: null, tournoi: URL_PARAMS.get("nom") || "Tournoi FFSc", tournoiId: FFSC_DIRECT,
+    partie: { numero: +(URL_PARAMS.get("numero") || 1), meta: data.meta || {}, moves: data.moves, coups: [], total: null, topTotal: null },
+  }));
+}
+
 // Revoir une partie FFSC importée (données passées via sessionStorage par app.js).
 // Aucun appel réseau : on reconstitue fakeGame/historyByMove à partir des
 // tirages + tops (export TXT) et de la feuille de route (coups joués / négatifs).
 function enterFfscReviewMode() {
   const raw = sessionStorage.getItem("ffscReview");
   if (!raw) throw new Error("Aucune partie à afficher (relance l'import).");
-  const { player, serie, tournoi, tournoiId, partie } = JSON.parse(raw);
+  const { player, serie, tournoi, tournoiId, partie, retour } = JSON.parse(raw);
   if (!partie || !partie.moves) throw new Error("Données de partie incomplètes.");
   // Clé stable de persistance des saisies (id tournoi + n° partie).
   review._ffscKey = `${tournoiId || tournoi || "x"}:${partie.numero}`;
@@ -4704,7 +4727,20 @@ function enterFfscReviewMode() {
   // Le bouton « ← Accueil » revient à la LISTE DES PARTIES du tournoi (onglet
   // perso ré-ouvert + ré-import), au lieu de l'accueil Tournois.
   const _home = $("#btnHome");
-  if (_home && tournoiId) { _home.href = `../index.html?ffscTournoi=${encodeURIComponent(tournoiId)}`; _home.textContent = "← Parties"; }
+  if (FFSC_DIRECT) {
+    // Partie suivie en direct : retour à l'onglet, et on s'ouvre sur le DERNIER coup
+    // publié (on remonte ensuite jusqu'au premier avec la navigation).
+    if (_home) { _home.href = "../index.html#tab=direct"; _home.textContent = "← En direct"; }
+    $("#reviewPanel").hidden = false;
+    review.step = fakeGame.moves.length;
+    const topTotal = fakeGame.moves.reduce((a, m) => a + (m.top?.score || 0), 0);
+    showFeedback("success", `📡 ${tournoi || ""} — Partie ${partie.numero}`,
+      `${fakeGame.moves.length} coup${fakeGame.moves.length > 1 ? "s" : ""} publié${fakeGame.moves.length > 1 ? "s" : ""} · Top cumulé : <strong>${topTotal}</strong> · recharge la page pour les coups suivants`);
+    renderReviewStep();
+    return;
+  }
+  if (_home && retour === "direct") { _home.href = "../index.html#tab=direct"; _home.textContent = "← En direct"; }
+  else if (_home && tournoiId) { _home.href = `../index.html?ffscTournoi=${encodeURIComponent(tournoiId)}`; _home.textContent = "← Parties"; }
   $("#reviewPanel").hidden = false;
   const negTot = (partie.total != null && partie.topTotal != null) ? partie.total - partie.topTotal : null;
   showFeedback("success", `📺 ${player || ""} — Partie ${partie.numero}`,
