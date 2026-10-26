@@ -15,7 +15,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Lora:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=427">
+<link rel="stylesheet" href="style.css?v=428">
 </head>
 <body>
 
@@ -75,7 +75,6 @@
 
 <nav>
   <button data-tab="prepared" class="active"><span class="ico">🎮</span>Tournois</button>
-  <button data-tab="direct"><span class="ico">📡</span>Direct</button>
   <button data-tab="games"><span class="ico">📅</span>Mes parties</button>
   <button data-tab="mystats"><span class="ico">⭐</span>Mes stats</button>
   <button data-tab="stats"><span class="ico">📊</span>Stats du club</button>
@@ -361,15 +360,6 @@
   </div>
 </section>
 
-<section data-tab="direct" class="tab" hidden>
-  <div class="card">
-    <h2>📡 En direct</h2>
-    <p class="muted" style="margin:-4px 0 14px">Les tournois FFSc retransmis sur le site « en direct » :
-      état des parties, classement de chaque partie et résultats d'un joueur.</p>
-    <div id="directBody"><p class="muted">Chargement…</p></div>
-  </div>
-</section>
-
 <section data-tab="mystats" class="tab" hidden>
   <div class="card">
     <h2>⭐ Mes statistiques</h2>
@@ -428,6 +418,6 @@
 
 <script src="config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script src="app.js?v=427"></script>
+<script src="app.js?v=428"></script>
 </body>
 </html>
