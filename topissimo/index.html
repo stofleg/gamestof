@@ -75,6 +75,7 @@
 
 <nav>
   <button data-tab="prepared" class="active"><span class="ico">🎮</span>Tournois</button>
+  <button data-tab="direct"><span class="ico">📡</span>Direct</button>
   <button data-tab="games"><span class="ico">📅</span>Mes parties</button>
   <button data-tab="mystats"><span class="ico">⭐</span>Mes stats</button>
   <button data-tab="stats"><span class="ico">📊</span>Stats du club</button>
@@ -357,6 +358,16 @@
         </table>
       </div>
     </div>
+  </div>
+</section>
+
+<section data-tab="direct" class="tab" hidden>
+  <div class="card">
+    <h2>📡 Jouer en direct</h2>
+    <p class="muted" style="margin:-4px 0 14px">Joue une partie de tournoi FFSc en même temps que la salle :
+      chaque tirage s'affiche dès sa publication, ton dernier mot validé est retenu,
+      et le coup se clôt au top officiel. Les joueurs du club connectés sont classés entre eux.</p>
+    <div id="directBody"><p class="muted">Chargement…</p></div>
   </div>
 </section>
 

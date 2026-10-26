@@ -2042,3 +2042,33 @@ body.theme-halloween .board .top-frame {
   50%      { box-shadow: 0 0 0 2px #fff, 0 0 26px 7px rgba(255,120,40,1), inset 0 0 16px rgba(255,120,40,.7); }
 }
 @media (prefers-reduced-motion: reduce) { body.theme-halloween .board .top-frame { animation: none; } }
+
+/* ===== Direct FFSc : bandeau d'état sous le titre ===== */
+.live-bar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px;
+  margin: 6px 0 4px; padding: 6px 10px; border-radius: 8px;
+  background: #fff4f2; border: 1px solid #f3c4bc; color: #5b1d14;
+  font-size: .86rem; line-height: 1.3;
+}
+.live-bar strong { letter-spacing: .06em; color: #c0261a; }
+.live-bar .live-etat { font-weight: 600; }
+.live-bar .live-meta { opacity: .7; font-size: .78rem; }
+.live-bar .live-dot {
+  width: 9px; height: 9px; border-radius: 50%; background: #e0352b;
+  box-shadow: 0 0 0 0 rgba(224, 53, 43, .6); animation: livePulse 1.6s infinite;
+}
+.live-bar.live-off { background: #f2f4f5; border-color: #d5dbdf; color: #43535c; }
+.live-bar.live-off strong { color: #43535c; }
+.live-bar.live-off .live-dot { background: #8a979e; animation: none; }
+@keyframes livePulse {
+  0%   { box-shadow: 0 0 0 0 rgba(224, 53, 43, .55); }
+  70%  { box-shadow: 0 0 0 8px rgba(224, 53, 43, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(224, 53, 43, 0); }
+}
+@media (prefers-reduced-motion: reduce) { .live-bar .live-dot { animation: none; } }
+.pace-row .v .live-coups { opacity: .55; font-size: .72em; font-weight: 400; }
+.pace-row .n a { color: inherit; text-decoration: none; border-bottom: 1px dotted rgba(255,255,255,.35); }
+.pace-row .n a:hover { border-bottom-color: currentColor; }
+/* Direct FFSc : pas de pause, la salle continue sans nous. Deux identifiants pour
+   passer devant la règle !important qui affiche les boutons d'action. */
+body.in-live #actionRowInGame #btnPause { display: none !important; }

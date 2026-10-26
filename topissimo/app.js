@@ -154,6 +154,7 @@ function activateTab(name, persist = true) {
   if (name === "stats") loadClubStats();
   if (name === "prepared") loadPreparedGames();
   if (name === "mystats") loadMyStats();
+  if (name === "direct") loadDirect();
   if (persist) { try { localStorage.setItem("topissimo:tab", name); } catch (_) {} }
 }
 $$("nav button").forEach(b => b.onclick = () => activateTab(b.dataset.tab));
@@ -170,8 +171,10 @@ function restoreLastTab() {
     if (tid) openTournament(tid).catch(() => {});
     return;
   }
-  if (h === "#tab=prepared") {
-    activateTab("prepared", false);
+  // #tab=NOM : ouvrir un onglet précis (ex. retour du direct → #tab=direct).
+  const mTab = /^#tab=(\w+)$/.exec(h);
+  if (mTab && document.querySelector(`nav button[data-tab="${mTab[1]}"]`)) {
+    activateTab(mTab[1], false);
     history.replaceState(null, "", location.pathname);
     return;
   }
@@ -382,6 +385,130 @@ function ffscFavs() {
   const f = playerSettings().ffscTournois;
   return Array.isArray(f) ? f : [];
 }
+
+// ============================================================
+//  Direct — jouer une partie FFSc en même temps que la salle
+// ============================================================
+// La page d'accueil « endirect » de la FFSc a deux rubriques : « Les tournois en
+// cours » et « Les tournois à venir ». Pour chaque tournoi en cours, la liste de
+// ses parties donne leur état : « Partie 1 (en cours) », « Partie 2 : début
+// lundi 26/10 à 14:00 », ou un simple lien « Partie 3 » une fois terminée.
+const _directTournois = {};
+let _directLoading = false;
+
+async function ffscRawText(path) {
+  const url = new URL(FFSC_FN);
+  url.searchParams.set("action", "raw");
+  url.searchParams.set("path", path);
+  const res = await fetch(url, { cache: "no-store" });
+  if (!res.ok) throw new Error(`site FFSc indisponible (HTTP ${res.status})`);
+  return res.text();
+}
+
+function decodeHtml(s) {
+  const t = document.createElement("textarea");
+  t.innerHTML = s;
+  return t.value;
+}
+
+function parseDirectIndex(html) {
+  const section = (titre) => {
+    const i = html.indexOf(titre);
+    if (i < 0) return "";
+    const j = html.indexOf("<h2", i + titre.length);
+    return html.slice(i, j < 0 ? undefined : j);
+  };
+  const lire = (bloc) => {
+    const out = [];
+    const festRe = /<li><a href="#">([^<]+)<\/a>\s*<ul class="subMenu">([\s\S]*?)<\/ul>/g;
+    let f;
+    while ((f = festRe.exec(bloc))) {
+      const tRe = /tournoi_id=([\w-]+)">([^<]+)<\/a>/g;
+      let t;
+      while ((t = tRe.exec(f[2]))) {
+        out.push({ id: t[1], name: decodeHtml(t[2]).trim(), festival: decodeHtml(f[1]).trim() });
+      }
+    }
+    return out;
+  };
+  return { enCours: lire(section("Les tournois en cours")), aVenir: lire(section("Les tournois à venir")) };
+}
+
+function parseDirectParties(html) {
+  const m = /<ul class="vert_310">([\s\S]*?)<\/ul>/.exec(html);
+  const out = [];
+  if (!m) return out;
+  const liRe = /<li[^>]*>([\s\S]*?)<\/li>/g;
+  let li;
+  while ((li = liRe.exec(m[1]))) {
+    const txt = decodeHtml(li[1].replace(/<[^>]+>/g, "")).replace(/\s+/g, " ").trim();
+    let r;
+    if ((r = /^Partie (\d+) \(en cours\)$/.exec(txt))) out.push({ numero: +r[1], status: "en cours" });
+    else if ((r = /^Partie (\d+)\s*:\s*(début.+)$/.exec(txt))) out.push({ numero: +r[1], status: "à venir", label: r[2] });
+    else if ((r = /^Partie (\d+)$/.exec(txt))) out.push({ numero: +r[1], status: "terminée" });
+  }
+  return out;
+}
+
+async function loadDirect() {
+  const body = $("#directBody");
+  if (!body || _directLoading) return;
+  _directLoading = true;
+  body.innerHTML = `<p class="muted">Lecture du direct de la FFSc…</p>`;
+  try {
+    const idx = parseDirectIndex(await ffscRawText(""));
+    const enCours = await Promise.all(idx.enCours.map(async t => ({
+      ...t, parties: parseDirectParties(await ffscRawText(`endirect.php?tournoi_id=${encodeURIComponent(t.id)}&page=parties`)),
+    })));
+    for (const t of [...enCours, ...idx.aVenir]) _directTournois[t.id] = t;
+    body.innerHTML = renderDirect(enCours, idx.aVenir);
+  } catch (e) {
+    body.innerHTML = `<p class="error">Impossible de lire le direct de la FFSc : ${escapeHtml(e.message)}</p>
+      <button class="btn ghost small" onclick="loadDirect()">Réessayer</button>`;
+  } finally {
+    _directLoading = false;
+  }
+}
+window.loadDirect = loadDirect;
+
+function renderDirect(enCours, aVenir) {
+  const tempo = `<div class="direct-tools">
+      <label>Temps par coup
+        <select id="directTempo">
+          <option value="60">1 min</option><option value="120">2 min</option>
+          <option value="180" selected>3 min</option>
+        </select></label>
+      <button class="btn ghost small" onclick="loadDirect()">↻ Actualiser</button>
+    </div>`;
+  const ligne = (t, p) => {
+    const id = escapeHtml(t.id);
+    if (p.status === "en cours") return `<div class="direct-partie">
+        <span><strong>Partie ${p.numero}</strong> <span class="direct-badge">● en cours</span></span>
+        <button class="btn small" onclick="playDirect('${id}', ${p.numero})">▶ Jouer en direct</button></div>`;
+    if (p.status === "à venir") return `<div class="direct-partie">
+        <span><strong>Partie ${p.numero}</strong> <span class="muted">${escapeHtml(p.label)}</span></span>
+        <button class="btn ghost small" onclick="playDirect('${id}', ${p.numero})" title="Le premier tirage s'affichera dès le début de la partie">⏳ Attendre le début</button></div>`;
+    return `<div class="direct-partie">
+        <span><strong>Partie ${p.numero}</strong> <span class="muted">terminée</span></span>
+        <button class="btn ghost small" onclick="playDirect('${id}', ${p.numero}, true)" title="Rejoue la partie coup par coup, au rythme choisi">↻ Rejouer comme en direct</button></div>`;
+  };
+  const cartes = enCours.map(t => `<div class="direct-tournoi">
+      <h3>${escapeHtml(t.name)} <small class="muted">${escapeHtml(t.festival)}</small></h3>
+      ${t.parties.length ? t.parties.map(p => ligne(t, p)).join("") : `<p class="muted">Aucune partie annoncée.</p>`}
+    </div>`).join("");
+  const avenir = aVenir.length ? `<h3 class="direct-sous-titre">À venir</h3>
+      <ul class="direct-avenir">${aVenir.map(t => `<li>${escapeHtml(t.name)} <span class="muted">— ${escapeHtml(t.festival)}</span></li>`).join("")}</ul>` : "";
+  return tempo + (cartes || `<p class="muted">Aucun tournoi retransmis en ce moment.</p>`) + avenir;
+}
+
+window.playDirect = function(id, numero, rejeu = false) {
+  const t = _directTournois[id] || { id, name: "Tournoi FFSc" };
+  const sec = +($("#directTempo")?.value || 180);
+  // En rejeu, le top « tombe » 10 s après la fin du temps, comme dans la salle.
+  const extra = rejeu ? `&rejeu=${sec + 10}` : "";
+  location.href = `scrabble/game.html?ffsclive=1&tournoi=${encodeURIComponent(t.id)}&numero=${numero}`
+    + `&nom=${encodeURIComponent(t.name)}&t=${sec}${extra}`;
+};
 
 window.switchPreparedTab = function(which) {
   try { localStorage.setItem("topissimo:ptab", which); } catch (_) {}
