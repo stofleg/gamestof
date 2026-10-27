@@ -10,11 +10,11 @@
 //     pour tous. Un seul essai ; l'heure de départ est enregistrée en base, si bien
 //     qu'un rechargement ne remet pas le chrono à zéro. Le temps réalisé est
 //     enregistré comme résultat (0 point, 0 négatif) et s'ajoute au temps général.
-import { afficheRegles } from "./regles.js?v=435";
-import { chargeDico, grilleFinale, classeCase, jeton, appliqueTheme, fmt } from "./grille-finale.js?v=435";
-import { decoupeRegions, piecesDepuisRegions } from "./puzzle-pieces.js?v=435";
-import { emptyBoard, applyMove, modeDisplayName, modeNomOrigine } from "./engine.js?v=435";
-import * as sonHalloween from "./halloween-son.js?v=435";
+import { afficheRegles } from "./regles.js?v=436";
+import { chargeDico, grilleFinale, classeCase, jeton, appliqueTheme, fmt } from "./grille-finale.js?v=436";
+import { decoupeRegions, piecesDepuisRegions } from "./puzzle-pieces.js?v=436";
+import { emptyBoard, applyMove, modeDisplayName, modeNomOrigine } from "./engine.js?v=436";
+import * as sonHalloween from "./halloween-son.js?v=436";
 
 const $ = id => document.getElementById(id);
 const N = 15;
@@ -375,6 +375,23 @@ if (PREPARED_ID) {
   lanceTournoi().catch(e => annonce(`Erreur : ${e.message}`));
 } else {
   $("pzNew").onclick = nouvelle;
-  afficheRegles("puzzle").then(nouvelle);
+  // stof en mode admin : aperçu de l'interface du tournoi de la Mort (rien n'est enregistré).
+  const apercuMort = (localStorage.getItem("currentPseudo") || "").toLowerCase() === "stof"
+    && localStorage.getItem("topissimo:superadmin") === "1";
+  if (apercuMort) {
+    document.body.classList.add("theme-halloween", "pz-mort");
+    sansBonus = true;
+    sonHalloween.ambiance(true);
+    $("pzAbandon").hidden = false;
+    $("pzAbandon").onclick = () => {
+      if (fini || !confirm("Abandonner ? (aperçu : rien n'est enregistré)")) return;
+      fini = true; clearInterval(minuteur);
+      afficheSolution();
+      annonce("Jigsaw abandonné (aperçu).");
+    };
+    $("pzFinBouton").textContent = "Nouvelle grille";
+    $("pzFinBouton").onclick = () => { $("pzFin").hidden = true; nouvelle(); };
+  }
+  afficheRegles("puzzle", apercuMort ? modeDisplayName("puzzle", false, true) : null, apercuMort ? modeNomOrigine("puzzle") : null).then(nouvelle);
 }
 
