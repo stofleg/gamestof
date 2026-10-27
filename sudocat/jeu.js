@@ -5,6 +5,8 @@
    ========================================================================= */
 
 const MAX_ERREURS = 3;
+// Version du moteur de grilles : une partie enregistrée avec une autre version n'est pas reprise.
+const MOTEUR_VERSION = 2;
 const DOUBLE_TAP_MS = 350;
 // 12 couleurs vives choisies par calcul pour être aussi distinctes que possible (écart minimal
 // en OKLab : 0,136, contre 0,078 pour l'ancienne palette), jaune vif imposé. Leur répartition
@@ -72,7 +74,7 @@ document.addEventListener('visibilitychange', () => {
 let saveTimer = null;
 function snapshot() {
   return {
-    etat: { marks: [...st.marks], cats: [...st.cats], bad: [...st.bad], elapsed: Math.round(elapsedNow()) },
+    etat: { v: MOTEUR_VERSION, marks: [...st.marks], cats: [...st.cats], bad: [...st.bad], elapsed: Math.round(elapsedNow()) },
     erreurs: st.errors, duree_ms: Math.round(elapsedNow()),
   };
 }
@@ -267,6 +269,13 @@ async function newGrid() {
 
 async function resume(row) {
   const who = player;
+  // Partie commencée avec un ancien moteur : la même graine ne redonne plus la même grille.
+  // On la clôt sans effet sur le palier et on en propose une nouvelle.
+  if (!row.etat || row.etat.v !== MOTEUR_VERSION) {
+    try { await store.saveGame(row.id, { resultat: 'abandon', finie_le: new Date().toISOString() }); } catch { /* */ }
+    if (who === player) await newGrid();
+    return;
+  }
   try {
     const p = await loadPuzzle(row.taille, row.niveau, Number(row.graine));
     if (who !== player) return;
