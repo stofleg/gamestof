@@ -7,9 +7,9 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Lora:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="game.css?v=436">
+<link rel="stylesheet" href="game.css?v=437">
 <style>
-  body { margin: 0; --cell-size-plateau: clamp(20px, calc((100vh - 120px) / 15.5), 36px); --cell-size: var(--cell-size-plateau); }
+  body { margin: 0; --cell-size-plateau: clamp(16px, min(calc((100vh - 70px) / 20), calc((100vw - 48px) / 15.5)), 34px); --cell-size: var(--cell-size-plateau); }
   .pz-top { display: flex; align-items: center; gap: 14px; padding: 10px 16px; flex-wrap: wrap; }
   .pz-top h1 { font-family: 'Lora', serif; font-size: 1.3rem; margin: 0; color: var(--petrol); }
   .pz-chrono { font: 700 1.3rem/1 'Inter', sans-serif; color: var(--petrol); font-variant-numeric: tabular-nums; }
@@ -18,9 +18,11 @@
   .pz-btn { font: 600 .9rem 'Inter', sans-serif; padding: 8px 14px; border-radius: 8px; border: 0;
     background: var(--petrol); color: #fff; cursor: pointer; }
   .pz-btn.ghost { background: transparent; color: var(--petrol); border: 1px solid var(--petrol); }
-  .pz-main { display: flex; gap: 18px; padding: 0 16px 16px; align-items: flex-start; }
-  .pz-tray { flex: 1; min-height: calc(15 * var(--cell-size) + 16px); display: flex; flex-wrap: wrap;
-    gap: 14px; align-content: flex-start; padding: 12px; border-radius: 12px;
+  /* La réserve couvre toute la page ; la grille y est centrée (position calculée en JS)
+     et les pièces sont rangées tout autour. */
+  .pz-main { position: relative; padding: 0 16px 16px; }
+  #pzBoard { position: absolute; left: 0; top: 0; z-index: 2; }
+  .pz-tray { position: relative; min-height: calc(100vh - 70px); border-radius: 12px;
     background: rgba(0,46,68,.06); }
   /* pièce : un petit plateau dont seules les cases de la pièce sont visibles */
   .board.piece { width: auto !important; height: auto !important; padding: 0; background: transparent !important; border: 0 !important; box-shadow: none !important; border-radius: 0;
@@ -30,9 +32,7 @@
   .board.piece td:not(.trou) { box-shadow: inset 0 0 0 1px rgba(0,46,68,.35); }
   .pz-tray .board.piece { --cell-size: calc(var(--cell-size-plateau) * .8); }
   /* Réserve libre : les pièces gardent la place où le joueur les a rangées */
-  .pz-tray { position: relative; }
-  .pz-tray.libre { display: block; }
-  .pz-tray.libre .board.piece { position: absolute; }
+  .pz-tray .board.piece { position: absolute; }
   .board.piece.drag { position: fixed; z-index: 1000; pointer-events: none; opacity: .9;
     filter: drop-shadow(0 6px 10px rgba(0,0,0,.3)); }
   #pzBoard td.vide { background: #f6f3ea !important; }
@@ -46,14 +46,12 @@
   body.theme-halloween .pz-tray { background: rgba(20,10,28,.55); }
   body.theme-halloween .pz-msg { color: #ffb35c; }
   /* ===== Tournoi de la Mort : interface épurée (chrono + Abandonner), grille réduite
-     sans cases multiplicatrices, pièces rangeables partout, y compris sous la grille ===== */
-  body.pz-mort { --cell-size-plateau: clamp(16px, calc((100vh - 64px) / 21), 28px); }
+     sans cases multiplicatrices, pièces à taille réelle ===== */
+  body.pz-mort { --cell-size-plateau: clamp(16px, min(calc((100vh - 64px) / 23), calc((100vw - 48px) / 15.5)), 28px); }
   body.pz-mort .pz-top { padding: 6px 16px; justify-content: space-between; }
   body.pz-mort .pz-top h1, body.pz-mort #pzMsg, body.pz-mort #pzNew, body.pz-mort #pzRetour, body.pz-mort .pz-top .sp { display: none; }
   body.pz-mort .pz-chrono { font-size: 1.6rem; color: #ffb35c; text-shadow: 0 0 10px rgba(255,90,30,.6); }
-  body.pz-mort .pz-main { position: relative; display: block; padding: 0 16px 16px; }
-  body.pz-mort #pzBoard { position: absolute; left: 16px; top: 0; z-index: 2; }
-  body.pz-mort .pz-tray { position: relative; min-height: calc(100vh - 64px); padding: 0; border-radius: 0; background: transparent !important; }
+  body.pz-mort .pz-tray { min-height: calc(100vh - 64px); border-radius: 0; background: transparent !important; }
   body.pz-mort .pz-tray .board.piece { --cell-size: var(--cell-size-plateau); }
   body.pz-mort .board.piece td:not(.trou) { box-shadow: inset 0 0 0 1px rgba(255,170,90,.5); }
   body.pz-mort #pzAbandon { border-color: #e0661a; color: #ffb35c; }
@@ -79,6 +77,6 @@
     <div class="board" id="pzBoard"></div>
     <div class="pz-tray" id="pzTray"></div>
   </div>
-<script type="module" src="puzzle.js?v=436"></script>
+<script type="module" src="puzzle.js?v=437"></script>
 </body>
 </html>
