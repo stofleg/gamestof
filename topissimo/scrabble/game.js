@@ -26,15 +26,15 @@
 import {
   emptyBoard, BOARD_BONUSES, BOARD_SIZE, CENTER, LETTER_VALUE, LETTER_BAG,
   VOWELS, drawForDuplicate, scoreMove, applyMove,
-  bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName, randomBoardLayout, snakeEndpointsAfter, sablierTime, gigogneRackSize,
+  bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName, modeNomOrigine, randomBoardLayout, snakeEndpointsAfter, sablierTime, gigogneRackSize,
   setLetterValues, letterValue, valuesFor, bagFor, isCrossingCell, wordHiddenCount,
   drawVowelRack, VOWELS_NO_Y, MARATHON_TARGET, MARATHON_GAMES, consonnesDisponibles, jokersDisponibles,
-} from "./engine.js?v=430";
-import { Dictionary } from "./dictionary.js?v=430";
-import * as invasion from "./araignees.js?v=430";
-import { REGLES, afficheRegles } from "./regles.js?v=430";
-import * as sonHalloween from "./halloween-son.js?v=430";
-import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=430";
+} from "./engine.js?v=432";
+import { Dictionary } from "./dictionary.js?v=432";
+import * as invasion from "./araignees.js?v=432";
+import { REGLES, afficheRegles } from "./regles.js?v=432";
+import * as sonHalloween from "./halloween-son.js?v=432";
+import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=432";
 
 // État du mode review (parcours coup par coup)
 const review = {
@@ -72,7 +72,7 @@ const FFSC_LIVE = URL_PARAMS.get("ffsclive");      // jouer une partie FFSC en d
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v430";
+const BUILD_VERSION = "garenna-v432";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -1234,17 +1234,72 @@ function renderChrono() {
     $("#chrono").textContent = "—";
     return;
   }
+  // Formule à durée totale limitée (« 666 ») : le chrono général DÉCOMPTE.
+  const total = currentMode().chronoTotal;
+  if (total) {
+    const reste = Math.max(0, total - elapsedSeconds());
+    $("#chrono").textContent = fmtChrono(reste);
+    $("#chrono").classList.toggle("chrono-urgent", reste <= 60);
+    if (reste <= 0 && state.started && state.chronoFinal == null && !state._finTempsTotal) finTempsTotal();
+    return;
+  }
   $("#chrono").textContent = fmtChrono(elapsedSeconds());
+}
+
+/** Formule à durée totale limitée : le temps général est écoulé. Le coup en cours est
+ *  clos comme un temps écoulé (le meilleur essai compte) ; les coups suivants ne sont
+ *  pas joués : leur top s'ajoute au négatif. Puis fin de partie. */
+function finTempsTotal() {
+  state._finTempsTotal = true;
+  stopMoveTimer();
+  ensureTopReady();
+  if (state.topMove) {
+    let playerScore = 0, playedWord = null;
+    if (state.pending.length) {
+      const m = buildMoveFromPending();
+      if (m) {
+        const r = scoreMove(state.board, m, state.dict, { bonuses: currentMode().bonuses, layout: state.boardLayout });
+        if (!r.errors.length) { playerScore = r.score; playedWord = m.word; }
+      }
+    }
+    if (state.bestAttempt && state.bestAttempt.score > playerScore) { playerScore = state.bestAttempt.score; playedWord = state.bestAttempt.word; }
+    let playedMoveObj = state.pending.length ? buildMoveFromPending() : null;
+    if (!playedMoveObj && state.bestAttempt?.move) playedMoveObj = state.bestAttempt.move;
+    recordMove({ status: "timeout", playerScore, playedWord, playedMove: playedMoveObj });
+    placeTopAndAdvance(playerScore, playedWord || null, playedWord ? playerScore : null, playedMoveObj);
+  }
+  // Coups restants de la partie pré-tirée : non joués, top perdu.
+  if (state.prepared) {
+    const moves = state.prepared.moves || [];
+    for (let i = state.preparedIdx; i < moves.length; i++) {
+      const t = moves[i]?.top;
+      if (!t) continue;
+      state.sumNeg -= (t.score || 0);
+      state.history.push({
+        moveNo: state.moveNo, rack: moves[i].rack || "", freshRack: !!moves[i].freshRack, kept: moves[i].kept || "",
+        top: { word: t.word, score: t.score, row: t.row, col: t.col, dir: t.dir, blanks: t.blanks || [], words: t.words || [] },
+        played: null, playedPos: null, placedCount: 0, gotBonus: false,
+        playerScore: 0, neg: -(t.score || 0), status: "timeout", invalidCount: 0, timeMs: 0, horsTemps: true, v: 2,
+      });
+      state.moveNo++;
+    }
+    state.preparedIdx = moves.length;
+  }
+  showFeedback("miss", "💀 Les 666 secondes sont écoulées", "Les coups non joués comptent dans le négatif.");
+  endGame();
 }
 
 let chronoTimer = null;
 function startChrono() {
   state.chronoStart = Date.now();
+  state._finTempsTotal = false;
   if (chronoTimer) clearInterval(chronoTimer);
   chronoTimer = setInterval(renderChrono, 1000);
 }
 function stopChrono() {
   state.chronoFinal = elapsedSeconds();
+  // Formule à durée totale limitée (« 666 ») : le temps compté ne dépasse jamais la limite.
+  if (currentMode().chronoTotal) state.chronoFinal = Math.min(state.chronoFinal, currentMode().chronoTotal);
   clearInterval(chronoTimer);
   chronoTimer = null;
 }
@@ -1522,6 +1577,7 @@ async function majTitresMort(tournamentId) {
       titresMort = !!data?.est_public;
     } catch { /* titres d'origine */ }
   }
+  document.body.classList.toggle("sans-pause", titresMort);   // pas de pause dans ce tournoi
   renderGameTitle();
 }
 const nomFormule = (cle, joker) => modeDisplayName(cle, joker, titresMort);
@@ -1529,7 +1585,8 @@ const nomFormule = (cle, joker) => modeDisplayName(cle, joker, titresMort);
 function renderGameTitle() {
   const el = $("#gameTitle");
   if (!el) return;
-  const modeLabel = nomFormule(state.settings.gameMode, state.settings.withJoker);
+  const modeLabel = nomFormule(state.settings.gameMode, state.settings.withJoker)
+    + (titresMort ? ` <small class="gt-origine">(${modeNomOrigine(state.settings.gameMode)})</small>` : "");
   const timeLabel = state.settings.timePerMove > 0 ? ` · ${state.settings.timePerMove}s/coup` : "";
   // .gt-context = badge + nom (masqué sur mobile) ; .gt-params = mode + temps
   // (toujours affiché, y compris sur mobile).
@@ -2636,6 +2693,7 @@ function bestJokerVariant(board, move, dict, opts) {
 // renvoie au chevalet. Affiche le meilleur essai en cours s'il existe,
 // sinon conserve le feedback précédent tel quel.
 function flashInvalidWord(detail, invalidCells) {
+  sonHalloween.rire();   // thème Halloween : « Ah ah ah ah ! »
   state.moveInvalidCount++;  // compteur de mots hors dico
   // Point de départ de la saisie + direction → on y replace le curseur pour que
   // le joueur puisse reprendre immédiatement (ex. AXAO raté en B2 → curseur B2).
@@ -6164,7 +6222,7 @@ function startGame() {
   const cleMode = state.settings.gameMode;
   if (REGLES[cleMode] && !reglesVues.has(cleMode) && !currentMode().page) {
     reglesVues.add(cleMode);
-    afficheRegles(cleMode, titresMort ? nomFormule(cleMode, false) : null).then(() => startGame());
+    afficheRegles(cleMode, titresMort ? nomFormule(cleMode, false) : null, titresMort ? modeNomOrigine(cleMode) : null).then(() => startGame());
     return;
   }
   if (currentMode().page) {
@@ -6501,6 +6559,8 @@ async function restorePausedPrepared(preparedId) {
 }
 
 function pauseGame({ showModal = true } = {}) {
+  // Tournoi de la Mort : pas de pause (ni bouton, ni pause automatique en quittant l'onglet).
+  if (titresMort) return;
   // Pause autorisée en entraînement ET en tournoi (pas en puzzle). L'état est
   // persisté (saveTrainingState) → au rechargement / retour d'une autre appli,
   // on se retrouve au coup exact (restorePausedTraining / restorePausedPrepared).

@@ -10,10 +10,11 @@
 //     pour tous. Un seul essai ; l'heure de départ est enregistrée en base, si bien
 //     qu'un rechargement ne remet pas le chrono à zéro. Le temps réalisé est
 //     enregistré comme résultat (0 point, 0 négatif) et s'ajoute au temps général.
-import { afficheRegles } from "./regles.js?v=430";
-import { chargeDico, grilleFinale, classeCase, jeton, appliqueTheme, fmt } from "./grille-finale.js?v=430";
-import { decoupeRegions, piecesDepuisRegions } from "./puzzle-pieces.js?v=430";
-import { emptyBoard, applyMove, modeDisplayName } from "./engine.js?v=430";
+import { afficheRegles } from "./regles.js?v=432";
+import { chargeDico, grilleFinale, classeCase, jeton, appliqueTheme, fmt } from "./grille-finale.js?v=432";
+import { decoupeRegions, piecesDepuisRegions } from "./puzzle-pieces.js?v=432";
+import { emptyBoard, applyMove, modeDisplayName, modeNomOrigine } from "./engine.js?v=432";
+import * as sonHalloween from "./halloween-son.js?v=432";
 
 const $ = id => document.getElementById(id);
 const N = 15;
@@ -25,6 +26,9 @@ let pieces = [];          // { id, cells: [[dr,dc]...], r0, c0 (place correcte),
 let occupe = [];          // occupe[r][c] = id de la pièce posée, ou null
 let t0 = 0, minuteur = null, fini = false;
 let tournoi = null;       // { sb, partie, pid, debut } en mode tournoi
+let sansBonus = false;    // tournoi de la Mort : la grille n'affiche pas les cases multiplicatrices
+const cls = (R, C) => sansBonus ? "normal" : classeCase(R, C);
+const PENALITE_ABANDON = 600;   // s ajoutées au temps écoulé en cas d'abandon (à confirmer)
 
 appliqueTheme();
 
@@ -38,7 +42,7 @@ function htmlPiece(p) {
     for (let c = 0; c < w; c++) {
       if (!dans.has(r * N + c)) { s += `<td class="trou"></td>`; continue; }
       const R = p.r0 + r, C = p.c0 + c, t = solution[R][C];
-      s += `<td class="${classeCase(R, C)}${t ? " has-tile" : ""}" data-dr="${r}" data-dc="${c}">${jeton(t)}</td>`;
+      s += `<td class="${cls(R, C)}${t ? " has-tile" : ""}" data-dr="${r}" data-dc="${c}">${jeton(t)}</td>`;
     }
     s += "</tr>";
   }
@@ -55,7 +59,7 @@ function dessineGrille() {
       // la case montre le contenu de la pièce posée, pas forcément la solution
       const p = pieces[id], dr = r - p.pose.r, dc = c - p.pose.c;
       const R = p.r0 + dr, C = p.c0 + dc, t = solution[R][C];
-      s += `<td class="${classeCase(R, C)}${t ? " has-tile" : ""} posee" data-r="${r}" data-c="${c}" data-id="${id}">${jeton(t)}</td>`;
+      s += `<td class="${cls(R, C)}${t ? " has-tile" : ""} posee" data-r="${r}" data-c="${c}" data-id="${id}">${jeton(t)}</td>`;
     }
     s += "</tr>";
   }
@@ -73,18 +77,40 @@ function dessineReserve() {
   // Premier affichage : le navigateur range les pièces en rangées, puis on fige ces
   // positions et la réserve passe en placement libre.
   if (enReserve.some(p => p.x == null)) {
-    tray.classList.remove("libre");
-    for (const el of tray.children) {
-      const p = pieces[+el.dataset.id];
-      p.x = el.offsetLeft; p.y = el.offsetTop;
+    if (document.body.classList.contains("pz-mort")) rangeAutourDeLaGrille(tray);
+    else {
+      tray.classList.remove("libre");
+      for (const el of tray.children) {
+        const p = pieces[+el.dataset.id];
+        p.x = el.offsetLeft; p.y = el.offsetTop;
+      }
+      tray.classList.add("libre");
     }
-    tray.classList.add("libre");
     for (const el of tray.children) {
       const p = pieces[+el.dataset.id];
       Object.assign(el.style, { left: p.x + "px", top: p.y + "px" });
     }
   }
   ajusteReserve();
+}
+/** Tournoi de la Mort : la réserve couvre toute la page, la grille (réduite) est posée
+ *  en haut à gauche. Premier rangement en rangées : à droite de la grille, puis dessous. */
+function rangeAutourDeLaGrille(tray) {
+  tray.classList.add("libre");
+  const board = $("pzBoard"), ecart = 14;
+  const bx1 = board.offsetWidth + ecart, by1 = board.offsetHeight + ecart, W = tray.clientWidth;
+  let x = bx1, y = 0, hRangee = 0;
+  for (const el of tray.children) {
+    const p = pieces[+el.dataset.id], w = el.offsetWidth, h = el.offsetHeight;
+    const debutRangee = () => (y < by1 ? bx1 : 0);
+    if (x + w > W) {                       // rangée pleine : on passe à la suivante
+      y += hRangee + ecart; hRangee = 0; x = debutRangee();
+    }
+    if (y < by1 && y + h > by1 - ecart && x < bx1) x = bx1;   // jamais sur la grille
+    if (x + w > W && y < by1) { y = by1; x = 0; }             // trop large à côté de la grille : dessous
+    p.x = x; p.y = y;
+    x += w + ecart; hRangee = Math.max(hRangee, h);
+  }
 }
 /** La réserve s'agrandit pour contenir la pièce la plus basse. */
 function ajusteReserve() {
@@ -97,8 +123,9 @@ function ajusteReserve() {
 function deposeEnReserve(p, e, dr, dc) {
   const tray = $("pzTray"), box = tray.getBoundingClientRect();
   if (e.clientX < box.left || e.clientX > box.right || e.clientY < box.top || e.clientY > box.bottom + 40) return false;
-  const td = $("pzBoard").querySelector("td");
-  const cs = (td ? td.getBoundingClientRect().width : 30) * 0.8;   // les pièces de la réserve sont à 80 %
+  // Taille d'une case dans la réserve (80 % de la grille en entraînement, 100 % dans le tournoi).
+  const ref = tray.querySelector(".piece td:not(.trou)"), td = $("pzBoard").querySelector("td");
+  const cs = ref ? ref.getBoundingClientRect().width : (td ? td.getBoundingClientRect().width : 30) * 0.8;
   const w = (Math.max(...p.cells.map(x => x[1])) + 1) * cs;
   p.x = Math.round(Math.min(Math.max(0, e.clientX - box.left - (dc + .5) * cs), Math.max(0, box.width - w)));
   p.y = Math.round(Math.max(0, e.clientY - box.top - (dr + .5) * cs));
@@ -190,16 +217,24 @@ function verifie() {
     if (id == null) return;
     const p = pieces[id], R = p.r0 + r - p.pose.r, C = p.c0 + c - p.pose.c;
     const a = solution[R][C], b = solution[r][c];
-    if (classeCase(R, C) !== classeCase(r, c)) return;
+    if (!sansBonus && classeCase(R, C) !== classeCase(r, c)) return;   // sans multiplicateurs : seules les lettres comptent
     if (!!a !== !!b || (a && (a.letter !== b.letter || !!a.isBlank !== !!b.isBlank))) return;
   }
   fini = true;
   clearInterval(minuteur);
   const s = tournoi ? (Date.now() - tournoi.debut) / 1000 : (performance.now() - t0) / 1000;
   $("pzChrono").textContent = fmt(s);
-  $("pzMsg").textContent = `Grille reconstituée en ${fmt(s)} !`;
   $("pzBoard").classList.add("gagne");
-  if (tournoi) enregistreResultat(Math.round(s));
+  $("pzAbandon").hidden = true;
+  if (tournoi) enregistreResultat(Math.round(s)).then(ok => annonce(`🧩 Grille reconstituée en <strong>${fmt(s)}</strong> !${ok ? "<br>Ton temps est enregistré." : ""}`));
+  else $("pzMsg").textContent = `Grille reconstituée en ${fmt(s)} !`;
+}
+
+/** Message : bandeau en entraînement, fenêtre centrale dans le tournoi de la Mort (interface épurée). */
+function annonce(html) {
+  if (!document.body.classList.contains("pz-mort")) { $("pzMsg").innerHTML = html; return; }
+  $("pzFinTexte").innerHTML = html;
+  $("pzFin").hidden = false;
 }
 
 // --- entraînement : grille au hasard ---------------------------------------------------
@@ -242,26 +277,38 @@ function afficheSolution() {
   let s = "<table>";
   for (let r = 0; r < N; r++) {
     s += "<tr>";
-    for (let c = 0; c < N; c++) { const t = solution[r][c]; s += `<td class="${classeCase(r, c)}${t ? " has-tile" : ""}">${jeton(t)}</td>`; }
+    for (let c = 0; c < N; c++) { const t = solution[r][c]; s += `<td class="${cls(r, c)}${t ? " has-tile" : ""}">${jeton(t)}</td>`; }
     s += "</tr>";
   }
   $("pzBoard").innerHTML = s + "</table>";
   $("pzTray").innerHTML = "";
 }
 
-async function enregistreResultat(secondes) {
+async function enregistreResultat(secondes, abandon = false) {
   const { sb, partie, pid } = tournoi;
   const { error } = await sb.from("prepared_game_results").upsert({
     prepared_game_id: partie.id, player_id: pid,
     total_score: 0, sum_neg: 0, total_time_seconds: secondes,
-    details: [{ moveNo: 1, status: "top", playerScore: 0, neg: 0, timeMs: secondes * 1000, top: null, puzzle: true, v: 2 }],
-    summary: { v: 1, mv: [1], tp: [1], ab: false, puzzle: true },
+    details: [{ moveNo: 1, status: abandon ? "giveup" : "top", playerScore: 0, neg: 0, timeMs: secondes * 1000, top: null, puzzle: true, v: 2 }],
+    summary: { v: 1, mv: [1], tp: abandon ? [] : [1], ab: abandon, puzzle: true },
     paused: null,
     played_on_mobile: matchMedia("(max-width: 700px)").matches,
   }, { onConflict: "prepared_game_id,player_id" });
-  if (error) { $("pzMsg").textContent = `⚠️ Temps non enregistré : ${error.message}`; return; }
+  if (error) { annonce(`⚠️ Temps non enregistré : ${error.message}`); return false; }
   if (PUBLIC_EVENT) sb.rpc("note_ip", { p_evenement: "partie" }).then(() => {}, () => {});
-  $("pzMsg").textContent += " Temps enregistré.";
+  return true;
+}
+
+/** Abandon (tournoi) : le temps écoulé plus une pénalité est enregistré. */
+async function abandonne() {
+  if (fini || !tournoi?.debut) return;
+  if (!confirm(`Abandonner Jigsaw ? Ton temps sera compté : temps écoulé + ${PENALITE_ABANDON / 60} minutes de pénalité.`)) return;
+  fini = true;
+  clearInterval(minuteur);
+  const s = Math.round((Date.now() - tournoi.debut) / 1000) + PENALITE_ABANDON;
+  $("pzAbandon").hidden = true;
+  const ok = await enregistreResultat(s, true);
+  if (ok) annonce(`Jigsaw abandonné.<br>Temps compté : <strong>${fmt(s)}</strong> (pénalité comprise).`);
 }
 
 async function lanceTournoi() {
@@ -279,46 +326,53 @@ async function lanceTournoi() {
     const { data: t } = await sb.from("tournaments").select("est_public").eq("id", partie.tournament_id).maybeSingle();
     mort = !!t?.est_public;
   }
+  const versTournoi = () => { location.href = PUBLIC_EVENT ? "../halloween/" : "../index.html"; };
   if (mort) {
-    document.body.classList.add("theme-halloween");
-    document.querySelector(".pz-top h1").textContent = `🧩 ${modeDisplayName("puzzle", false, true)}`;
+    // Interface Halloween épurée : chrono + Abandonner, grille réduite sans multiplicateurs.
+    document.body.classList.add("theme-halloween", "pz-mort");
+    sansBonus = true;
     document.title = `${modeDisplayName("puzzle", false, true)} · Le tournoi de la Mort`;
+    sonHalloween.ambiance(true);
+    $("pzAbandon").hidden = false;
+    $("pzAbandon").onclick = abandonne;
+    $("pzFinBouton").onclick = versTournoi;
   }
   const retour = $("pzRetour");
-  retour.onclick = () => { location.href = PUBLIC_EVENT ? "../halloween/" : "../index.html"; };
+  retour.onclick = versTournoi;
   retour.textContent = PUBLIC_EVENT || mort ? "← Tournoi" : "Retour";
 
   let b = emptyBoard();
   for (const m of partie.moves) b = applyMove(b, m.top);
   solution = b;
   tournoi = { sb, partie, pid, debut: null };
-  if (!pid) { $("pzMsg").textContent = "Connecte-toi d'abord pour jouer cette partie."; return; }
+  if (!pid) { annonce("Connecte-toi d'abord pour jouer cette partie."); return; }
 
   const { data: res } = await sb.from("prepared_game_results")
     .select("paused, summary, total_time_seconds").eq("prepared_game_id", partie.id).eq("player_id", pid).maybeSingle();
   if (res && !res.paused && res.summary?.puzzle) {          // déjà terminée : on montre le résultat
     afficheSolution();
     $("pzChrono").textContent = fmt(res.total_time_seconds || 0);
-    $("pzMsg").textContent = `Grille déjà reconstituée en ${fmt(res.total_time_seconds || 0)}.`;
+    $("pzAbandon").hidden = true;
+    annonce(res.summary.ab ? `Jigsaw abandonné : temps compté ${fmt(res.total_time_seconds || 0)}.` : `Grille déjà reconstituée en ${fmt(res.total_time_seconds || 0)}.`);
     fini = true;
     return;
   }
   if (res?.paused?.puzzleDebut) {                           // reprise : le chrono continue
     tournoi.debut = res.paused.puzzleDebut;
   } else {
-    await afficheRegles("puzzle", mort ? modeDisplayName("puzzle", false, true) : null);
+    await afficheRegles("puzzle", mort ? modeDisplayName("puzzle", false, true) : null, mort ? modeNomOrigine("puzzle") : null);
     tournoi.debut = Date.now();
     const { error: e2 } = await sb.from("prepared_game_results").upsert({
       prepared_game_id: partie.id, player_id: pid, total_score: 0, sum_neg: 0, total_time_seconds: 0,
       details: [], summary: null, paused: { puzzleDebut: tournoi.debut },
     }, { onConflict: "prepared_game_id,player_id" });
-    if (e2) { $("pzMsg").textContent = `Impossible de démarrer : ${e2.message}`; return; }
+    if (e2) { annonce(`Impossible de démarrer : ${e2.message}`); return; }
   }
   demarre(piecesDepuisRegions(regions), 0);
 }
 
 if (PREPARED_ID) {
-  lanceTournoi().catch(e => { $("pzMsg").textContent = `Erreur : ${e.message}`; });
+  lanceTournoi().catch(e => annonce(`Erreur : ${e.message}`));
 } else {
   $("pzNew").onclick = nouvelle;
   afficheRegles("puzzle").then(nouvelle);

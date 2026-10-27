@@ -2072,3 +2072,26 @@ body.theme-halloween .board .top-frame {
 /* Direct FFSc : pas de pause, la salle continue sans nous. Deux identifiants pour
    passer devant la règle !important qui affiche les boutons d'action. */
 body.in-live #actionRowInGame #btnPause { display: none !important; }
+
+/* Formule à durée totale limitée (666) : dernière minute du décompte */
+#chrono.chrono-urgent { color: #c8202a; font-weight: 800; }
+body.sans-pause #btnPause { display: none !important; }
+.regles-origine { font: 500 .9rem 'Inter', sans-serif; opacity: .65; margin-left: 4px; }
+.gt-origine { font-size: .75em; opacity: .7; font-weight: 500; }
+
+/* Halloween : deux morts-vivants à la place du squelette qui danse (le pendu reste) */
+body.theme-halloween::before {
+  right: 2%; bottom: 14px; width: 210px; height: 132px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 230 145'%3E%3Cg transform='translate(0 0) scale(1)'%3E %3Cpath d='M44 140 L48 98 L58 98 L70 140 L62 140 L54 108 L52 140 Z' fill='%232a2433'/%3E %3Cpath d='M38 98 L40 52 Q50 44 62 50 L66 98 L60 92 L56 99 L50 92 L44 100 Z' fill='%234a3f5c'/%3E %3Cpath d='M42 60 L40 74 M60 64 L63 80' stroke='%232a2433' stroke-width='2'/%3E %3Cpath d='M58 54 Q76 54 96 58' stroke='%238fae76' stroke-width='7' stroke-linecap='round' fill='none'/%3E %3Cpath d='M56 62 Q74 64 94 70' stroke='%237d9a6a' stroke-width='7' stroke-linecap='round' fill='none'/%3E %3Cpath d='M96 58 l7 -2 M96 58 l7 2 M94 70 l7 -1 M94 70 l6 3' stroke='%238fae76' stroke-width='2.5' stroke-linecap='round'/%3E %3Ccircle cx='52' cy='36' r='13' fill='%238fae76'/%3E %3Cpath d='M40 30 Q48 18 62 26' stroke='%232a2433' stroke-width='4' fill='none'/%3E %3Ccircle cx='57' cy='35' r='2.6' fill='%23ff2a2a'/%3E%3Ccircle cx='49' cy='34' r='2.2' fill='%23ff2a2a'/%3E %3Cpath d='M47 44 Q53 47 59 43' stroke='%232a1a1a' stroke-width='2' fill='none'/%3E %3Cpath d='M44 40 l3 3 M60 30 l-2 3' stroke='%235c7a4a' stroke-width='1.5'/%3E %3C/g%3E%3Cg transform='translate(118 0) scale(0.82)'%3E %3Cpath d='M44 140 L48 98 L58 98 L70 140 L62 140 L54 108 L52 140 Z' fill='%232a2433'/%3E %3Cpath d='M38 98 L40 52 Q50 44 62 50 L66 98 L60 92 L56 99 L50 92 L44 100 Z' fill='%234a3f5c'/%3E %3Cpath d='M42 60 L40 74 M60 64 L63 80' stroke='%232a2433' stroke-width='2'/%3E %3Cpath d='M58 54 Q76 54 96 58' stroke='%238fae76' stroke-width='7' stroke-linecap='round' fill='none'/%3E %3Cpath d='M56 62 Q74 64 94 70' stroke='%237d9a6a' stroke-width='7' stroke-linecap='round' fill='none'/%3E %3Cpath d='M96 58 l7 -2 M96 58 l7 2 M94 70 l7 -1 M94 70 l6 3' stroke='%238fae76' stroke-width='2.5' stroke-linecap='round'/%3E %3Ccircle cx='52' cy='36' r='13' fill='%238fae76'/%3E %3Cpath d='M40 30 Q48 18 62 26' stroke='%232a2433' stroke-width='4' fill='none'/%3E %3Ccircle cx='57' cy='35' r='2.6' fill='%23ff2a2a'/%3E%3Ccircle cx='49' cy='34' r='2.2' fill='%23ff2a2a'/%3E %3Cpath d='M47 44 Q53 47 59 43' stroke='%232a1a1a' stroke-width='2' fill='none'/%3E %3Cpath d='M44 40 l3 3 M60 30 l-2 3' stroke='%235c7a4a' stroke-width='1.5'/%3E %3C/g%3E%3C/svg%3E") center bottom / contain no-repeat;
+  filter: drop-shadow(0 0 6px rgba(120,200,90,.25));
+  transform-origin: 50% 100%;
+  animation: hw-zombies 5s ease-in-out infinite alternate;
+}
+@keyframes hw-zombies {
+  0%   { transform: translateX(0) rotate(-2deg); }
+  25%  { transform: translateX(-6px) rotate(1.5deg); }
+  50%  { transform: translateX(-12px) rotate(-1.5deg); }
+  75%  { transform: translateX(-18px) rotate(2deg); }
+  100% { transform: translateX(-24px) rotate(-1deg); }
+}
+@media (prefers-reduced-motion: reduce) { body.theme-halloween::before { animation: none; } }

@@ -7,6 +7,8 @@ export const REGLES = {
     points: [
       "Tirages de <b>6 lettres</b> au lieu de 7.",
       "Pas de scrabble : <b>aucune prime de 50</b>, même en posant les 6 lettres.",
+      "<b>66 secondes</b> par coup, et <b>666 secondes</b> pour toute la partie : le chrono général décompte de 666 à 0.",
+      "À zéro, la partie s'arrête : les coups non joués comptent dans le <b>négatif</b> (leur top est perdu).",
     ],
   },
   "7sur15": {
@@ -101,6 +103,7 @@ export const REGLES = {
     points: [
       "Une grille finale a été <b>découpée en pièces</b> mélangées à droite.",
       "<b>Glisse</b> chaque pièce à sa place sur la grille vide (pas de rotation). Clic droit sur une pièce posée : elle retourne dans la réserve.",
+      "Range les pièces où tu veux autour de la grille, même en dessous.",
       "Le chrono s'arrête quand la grille est entièrement reconstituée.",
     ],
   },
@@ -108,7 +111,7 @@ export const REGLES = {
 
 /** Fenêtre des règles. `parent` : élément où l'insérer ; renvoie une promesse
  *  résolue à la fermeture. */
-export function afficheRegles(cle, titre = null) {
+export function afficheRegles(cle, titre = null, origine = null) {
   const r = REGLES[cle];
   if (!r) return Promise.resolve();
   return new Promise(ok => {
@@ -116,7 +119,7 @@ export function afficheRegles(cle, titre = null) {
     fond.className = "regles-fond";
     fond.innerHTML = `<div class="regles-boite" role="dialog" aria-modal="true" aria-labelledby="reglesTitre">
         <div class="regles-sur">${titre ? "Le tournoi de la Mort" : "Formule superoriginale"}</div>
-        <h2 id="reglesTitre">${titre || r.titre}</h2>
+        <h2 id="reglesTitre">${titre || r.titre}${origine ? ` <small class="regles-origine">${origine}</small>` : ""}</h2>
         <ul>${r.points.map(p => `<li>${p}</li>`).join("")}</ul>
         ${r.sansPied ? "" : '<p class="regles-pied">Le reste : règles habituelles du topping.</p>'}
         <button type="button" class="regles-ok">C'est parti !</button>

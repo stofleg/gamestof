@@ -83,7 +83,9 @@ export const GAME_MODES = {
   "789":     { label: "7, 8 et 9", rackSize: 9, maxPlayed: 9, bonuses: { 7: 50, 8: 75, 9: 100 }, defaultTime: 120 },
   // ----- Formules « superoriginales » (génération de tournoi réservée à l'admin) -----
   // 6 lettres : duplicate à 6 jetons, jamais de prime de scrabble.
-  "6lettres":  { label: "6 lettres",  rackSize: 6,  maxPlayed: 6,  bonuses: {}, defaultTime: 120, stofOnly: true },
+  // 6 lettres (« 666 ») : 66 s par coup, et la partie entière ne dépasse pas 666 s
+  // (chrono général en décompte ; à zéro, les coups non joués comptent au négatif).
+  "6lettres":  { label: "6 lettres",  rackSize: 6,  maxPlayed: 6,  bonuses: {}, defaultTime: 66, chronoTotal: 666, stofOnly: true },
   // Hyperblitz : blitz à 30 s/coup.
   hyperblitz:  { label: "Hyperblitz", rackSize: 7,  maxPlayed: 7,  bonuses: { 7: 50 }, defaultTime: 30, stofOnly: true, hidden: true },
   // 7 sur 15 : tirage de 15, max 7 jouées (sur le modèle 7 sur 8). Min 4 voyelles.
@@ -239,6 +241,11 @@ export const TITRES_MORT = {
   invasion: "Arachnophobia",
   puzzle: "Jigsaw",
 };
+
+/** Nom d'origine d'une formule (sous-titre des titres du tournoi de la Mort). */
+export function modeNomOrigine(modeKey) {
+  return (GAME_MODES[modeKey] || GAME_MODES.duplicate).label;
+}
 
 /** Nom affiché d'une formule. `mort` : partie du tournoi de la Mort → titre Halloween. */
 export function modeDisplayName(modeKey, withJoker, mort = false) {

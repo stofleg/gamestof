@@ -226,7 +226,7 @@ let myGamesSort = {
 async function loadMyGames() {
   if (!state.currentPlayerId) return;
   const pid = +state.currentPlayerId;
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=430");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=432");
 
   // Tournoi : prepared_game_results jointes avec prepared_games. Colonnes explicites
   // (pas de details/diagnostics → egress) ; `summary` sert juste à savoir si des
@@ -1650,7 +1650,7 @@ async function loadMyStats() {
   const pid = +state.currentPlayerId;
 
   body.innerHTML = `<p class="muted">⏳ Calcul…</p>`;
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=430");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=432");
 
   // Tournois « démo » à EXCLURE des stats (résultats importés FFSC, hors Topissimo).
   const _tlist = await cachedQuery("tournaments", () => sb.from("tournaments").select("id,name").then(r => r.data || []));
@@ -2276,7 +2276,7 @@ async function loadSolosAndStreaks() {
   const slowest = Object.values(worstByPid).sort((a, b) => b.time - a.time);
 
   // ===== Agrégats par joueur : parties au top, % coups au top, négatif moyen/cat =====
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=430");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=432");
   const catOf = (mode, joker, tpm) => {
     const m = mode || "duplicate";
     if (m === "blitz") return { key: "blitz", label: "Blitz" };
@@ -2712,7 +2712,7 @@ async function loadTournamentDetail(tournamentId) {
   // S'assurer qu'au moins une ligne de formule est présente dans le générateur.
   if (canGenerate() && $("#pgRecipe") && !$("#pgRecipe").children.length) pgAddRecipeLine();
 
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=430");
+  const { modeDisplayName, modeNomOrigine } = await import("./scrabble/engine.js?v=432");
   const btnStyle = "text-decoration:none;padding:5px 10px;border-radius:6px;font-weight:600;font-size:.85rem";
   const admin = superAdmin();     // stof en mode admin : joue + teste + supprime
   const genOnly = isAdmin();       // compte "admin" : génération seule, pas de jeu
@@ -2789,7 +2789,9 @@ async function loadTournamentDetail(tournamentId) {
 
   // Regroupement des parties par TYPE (formule + temps).
   const catKey = g => `${g.mode}|${g.with_joker ? 1 : 0}|${g.time_per_move || 0}`;
-  const catLabel = g => `${modeDisplayName(g.mode, g.with_joker, !!t.est_public)} · ${g.time_per_move ? g.time_per_move + ' s' : 'illimité'}`;
+  // Tournoi de la Mort : titre Halloween suivi du nom de la formule (ex. « Scream (Voyelles) »).
+  const nomFormule = (m, j) => t.est_public ? `${modeDisplayName(m, j, true)} (${modeNomOrigine(m)})` : modeDisplayName(m, j);
+  const catLabel = g => `${nomFormule(g.mode, g.with_joker)} · ${g.time_per_move ? g.time_per_move + ' s' : 'illimité'}`;
   const groups = []; const byKey = {};
   for (const g of (games || [])) {
     const k = catKey(g);
@@ -2833,7 +2835,7 @@ async function loadTournamentDetail(tournamentId) {
   $("#pgBody").innerHTML = progHTML + groupsHTML;
 
   loadTournamentStats(tournamentId, games || []);
-  loadTournamentLeaderboard(tournamentId, games || [], t.name, (m, j) => modeDisplayName(m, j, !!t.est_public), { scoreMort: !!t.est_public });
+  loadTournamentLeaderboard(tournamentId, games || [], t.name, nomFormule, { scoreMort: !!t.est_public });
 }
 
 // Classement d'UNE partie : modale listant les joueurs ayant déjà joué cette
@@ -3560,7 +3562,7 @@ async function loadTournamentStats(tournamentId, games) {
   // On détermine « le top est un scrabble » en REjouant le plateau coup par coup
   // (nombre de NOUVELLES tuiles posées par le top == clé de prime du mode), ce qui
   // est fiable même sur d'anciennes parties (le hadBonus stocké est non fiable).
-  const { emptyBoard, applyMove, GAME_MODES } = await import("./scrabble/engine.js?v=430");
+  const { emptyBoard, applyMove, GAME_MODES } = await import("./scrabble/engine.js?v=432");
   const gameById = {};
   for (const g of games) gameById[g.id] = g;
   const bonusesOf = (gid) => (GAME_MODES[gameById[gid]?.mode] || GAME_MODES.duplicate).bonuses || { 7: 50 };
@@ -3689,7 +3691,7 @@ const PG_STD_MODES = ["duplicate", "blitz", "7sur8", "7et8", "789"];   // modes 
 // relit GAME_MODES, mais l'UI a besoin d'une valeur immédiate, sans import async).
 const PG_DEFAULT_TIME = {
   duplicate: 120, blitz: 60, "7sur8": 120, "7et8": 120, "789": 120,
-  "6lettres": 120, hyperblitz: 30, "7sur15": 240, jokerpayant: 120,
+  "6lettres": 66, hyperblitz: 30, "7sur15": 240, jokerpayant: 120,
   horizvert: 120, topsoustop: 180, infjoker: 120, grillerandom: 120, sablier: 120, gigogne: 120, anglaise: 120, lettrecachee: 120, voyelles: 120, marathon: 120,
   invasion: 120, puzzle: 120,
 };
@@ -3754,9 +3756,9 @@ $("#pgCreate").onclick = async () => {
     let mods;
     try {
       mods = await Promise.all([
-        import("./scrabble/dictionary.js?v=430"),
-        import("./scrabble/generator.js?v=430"),
-        import("./scrabble/engine.js?v=430"),
+        import("./scrabble/dictionary.js?v=432"),
+        import("./scrabble/generator.js?v=432"),
+        import("./scrabble/engine.js?v=432"),
       ]);
     } catch (e) {
       $("#pgStatus").innerHTML = `<span style="color:#a02525">Échec de chargement des modules : ${escapeHtml(e.message)}</span>`;
@@ -3823,7 +3825,7 @@ window.recomputeAllNeg = async function(force = false) {
 
   let recomputeResult;
   try {
-    ({ recomputeResult } = await import("./scrabble/recompute.js?v=430"));
+    ({ recomputeResult } = await import("./scrabble/recompute.js?v=432"));
   } catch (e) {
     statusEl.textContent = "❌ Impossible de charger recompute.js : " + e.message;
     return;
@@ -4077,7 +4079,7 @@ window.recomputeAllJokerNeg = async function() {
 
   let recomputeResult;
   try {
-    ({ recomputeResult } = await import("./scrabble/recompute.js?v=430"));
+    ({ recomputeResult } = await import("./scrabble/recompute.js?v=432"));
   } catch (e) {
     statusEl.textContent = "❌ Impossible de charger recompute.js : " + e.message;
     return;

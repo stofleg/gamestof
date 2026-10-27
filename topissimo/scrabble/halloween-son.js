@@ -284,3 +284,12 @@ export function nouvellePartie() {
   ordre = [];
   if (lecteur && actif) morceauSuivant();
 }
+
+// --- mot faux : rire machiavélique (enregistrement CC0, Wikimedia Commons « WAPP-Evil Laugh ») ---
+let rireAudio = null;
+export function rire() {
+  if (!actif || coupe) return;
+  if (!rireAudio) { rireAudio = new Audio(new URL("musique/rire-machiavelique.m4a", import.meta.url).href); rireAudio.volume = .9; }
+  try { rireAudio.currentTime = 0; } catch {}
+  rireAudio.play().catch(() => {});
+}

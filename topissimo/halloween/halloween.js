@@ -2,7 +2,7 @@
 //  directement les parties du tournoi et le classement. Les comptes créés ici
 //  sont des comptes « halloween » : la base ne leur ouvre que les tournois
 //  publics (cf. schema-halloween.sql), et Topissimo les renvoie ici.
-import { modeDisplayName } from "../scrabble/engine.js?v=430";
+import { modeDisplayName, modeNomOrigine } from "../scrabble/engine.js?v=432";
 
 const $ = id => document.getElementById(id);
 const sb = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
@@ -127,7 +127,7 @@ async function afficheTournoi() {
       : estJigsaw(g) && resteAvantJigsaw > 0
         ? `<span class="verrou" title="Termine d'abord les autres parties">🔒 encore ${resteAvantJigsaw} partie${resteAvantJigsaw > 1 ? "s" : ""}</span>`
         : `<a class="hw-btn" href="../scrabble/game.html?prepared=${g.id}&tid=${t.id}">${r?.paused ? "Reprendre" : "Jouer"}</a>`;
-    return `<div class="hw-partie"><div class="nom">${echappe(g.name)}<div class="formule">${echappe(modeDisplayName(g.mode, false, true))}</div></div>${action}</div>`;
+    return `<div class="hw-partie"><div class="nom">${echappe(g.name)}<div class="formule">${echappe(modeDisplayName(g.mode, false, true))} <span class="origine">· ${echappe(modeNomOrigine(g.mode))}</span></div></div>${action}</div>`;
   }).join("") || "<p>Aucune partie pour l'instant.</p>";
 
   const { data: cl, error } = await sb.rpc("classement_public", { p_tournament: t.id });
