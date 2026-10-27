@@ -367,8 +367,8 @@ function popcount(x) { let c = 0; while (x) { x &= x - 1; c++; } return c; }
 /* ---------- Profil de résolution (le ressenti du joueur) ---------- */
 /*
  * On rejoue la résolution comme un joueur (humanSolve) et l'on mesure :
- *   départs   chats déjà visibles + chats trouvables directement au début
- *             (0 : il faut éliminer d'abord)
+ *   départs   chats déjà visibles + chats trouvables directement au début sans leur aide
+ *             (un chat débloqué par un visible est la première étape, pas un départ)
  *   trouvables à chaque pose, nombre de chats trouvables directement à ce moment-là
  *   blocages  nombre de fois où aucun chat n'est trouvable : il faut raisonner par élimination
  * Un chat « trouvable » : une ligne, une colonne ou une zone n'a plus qu'une case possible.
@@ -380,17 +380,26 @@ function puzzleProfile(region, n, givens) {
   const opts = tr.filter((x) => x.t === 'chat').map((x) => x.options);
   let blocages = 0;
   for (let i = 0; i < tr.length; i++) if (tr[i].t !== 'chat' && (i === 0 || tr[i - 1].t === 'chat')) blocages++;
-  // Départs = chats déjà visibles + chats trouvables d'emblée (le joueur compte les deux).
   const trouvablesDepart = tr.length && tr[0].t === 'chat' ? tr[0].options : 0;
+  // Départs indépendants : chats trouvables d'emblée sans l'aide des visibles (zones d'une
+  // case). Un chat que seul un visible débloque est la première étape, pas un autre départ.
+  const vus = new Set(givens);
+  const taille = new Array(n).fill(0), seule = new Array(n).fill(-1);
+  region.forEach((k, i) => { taille[k]++; seule[k] = i; });
+  const independants = taille.filter((t, k) => t === 1 && !vus.has(seule[k])).length;
+  // Étapes après le(s) départ(s) : les chats débloqués par les visibles, puis la suite.
+  const debloques = Math.max(0, (opts[0] || 0) - independants);
+  const apres = (debloques ? [debloques] : []).concat(opts.slice(1));
   return {
-    solved: true, visibles: givens.length, trouvablesDepart, departs: givens.length + trouvablesDepart,
+    solved: true, visibles: givens.length, trouvablesDepart, independants,
+    departs: givens.length + independants,
     trouvables: opts, poses: opts.length, blocages,
     moyenne: opts.length ? opts.reduce((a, b) => a + b, 0) / opts.length : 0,
     // Part des étapes à un seul choix, départ exclu (« puis un chat après l'autre »).
-    unSeul: opts.length > 1 ? opts.slice(1).filter((o) => o === 1).length / (opts.length - 1) : 1,
-    maxApres: Math.max(0, ...opts.slice(1)),
+    unSeul: apres.length ? apres.filter((o) => o === 1).length / apres.length : 1,
+    maxApres: Math.max(0, ...apres),
     // Moyenne des chats trouvables après le départ (« deux chats trouvables à chaque étape »).
-    moyenneApres: opts.length > 1 ? opts.slice(1).reduce((a, b) => a + b, 0) / (opts.length - 1) : 0,
+    moyenneApres: apres.length ? apres.reduce((a, b) => a + b, 0) / apres.length : 0,
     used: r.used, tier: r.level,
   };
 }
@@ -403,7 +412,8 @@ function puzzleProfile(region, n, givens) {
  *   2 Facile +     aucune élimination, 2 départs, puis 2 chats trouvables par étape (jamais plus)
  *   3 Moyen        aucune élimination, 2 départs, puis un seul choix à 70 % des étapes suivantes
  *   4 Moyen +      aucune élimination, 1 départ, puis un seul choix à 80 % des étapes suivantes
- *   5 Difficile    aucun départ évident (élimination pour commencer), au plus 2 blocages
+ *   5 Difficile    aucun chat trouvable d'emblée, même avec les visibles (élimination
+ *                  pour commencer), au plus 2 blocages
  *   6 Difficile +  un blocage pour 3 chats posés au moins (3 au minimum)
  */
 const HORS_PROFIL = 7;
@@ -416,7 +426,8 @@ function classifyProfile(pr) {
     if (pr.departs === 1 && pr.unSeul >= 0.8) return 4;
     return HORS_PROFIL;
   }
-  if (pr.departs === 0 && pr.blocages <= 2) return 5;
+  // Aucun chat trouvable d'emblée, même avec les visibles : élimination pour commencer.
+  if (pr.trouvablesDepart === 0 && pr.blocages <= 2) return 5;
   if (pr.blocages >= Math.max(3, Math.round(pr.poses * 0.35))) return 6;
   return HORS_PROFIL;
 }
