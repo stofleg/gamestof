@@ -10,11 +10,11 @@
 //     pour tous. Un seul essai ; l'heure de départ est enregistrée en base, si bien
 //     qu'un rechargement ne remet pas le chrono à zéro. Le temps réalisé est
 //     enregistré comme résultat (0 point, 0 négatif) et s'ajoute au temps général.
-import { afficheRegles } from "./regles.js?v=432";
-import { chargeDico, grilleFinale, classeCase, jeton, appliqueTheme, fmt } from "./grille-finale.js?v=432";
-import { decoupeRegions, piecesDepuisRegions } from "./puzzle-pieces.js?v=432";
-import { emptyBoard, applyMove, modeDisplayName, modeNomOrigine } from "./engine.js?v=432";
-import * as sonHalloween from "./halloween-son.js?v=432";
+import { afficheRegles } from "./regles.js?v=433";
+import { chargeDico, grilleFinale, classeCase, jeton, appliqueTheme, fmt } from "./grille-finale.js?v=433";
+import { decoupeRegions, piecesDepuisRegions } from "./puzzle-pieces.js?v=433";
+import { emptyBoard, applyMove, modeDisplayName, modeNomOrigine } from "./engine.js?v=433";
+import * as sonHalloween from "./halloween-son.js?v=433";
 
 const $ = id => document.getElementById(id);
 const N = 15;
@@ -28,7 +28,7 @@ let t0 = 0, minuteur = null, fini = false;
 let tournoi = null;       // { sb, partie, pid, debut } en mode tournoi
 let sansBonus = false;    // tournoi de la Mort : la grille n'affiche pas les cases multiplicatrices
 const cls = (R, C) => sansBonus ? "normal" : classeCase(R, C);
-const PENALITE_ABANDON = 600;   // s ajoutées au temps écoulé en cas d'abandon (à confirmer)
+const PENALITE_ABANDON = 900;   // abandon : temps écoulé + 15 minutes
 
 appliqueTheme();
 

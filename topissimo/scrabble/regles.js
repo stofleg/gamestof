@@ -105,6 +105,7 @@ export const REGLES = {
       "<b>Glisse</b> chaque pièce à sa place sur la grille vide (pas de rotation). Clic droit sur une pièce posée : elle retourne dans la réserve.",
       "Range les pièces où tu veux autour de la grille, même en dessous.",
       "Le chrono s'arrête quand la grille est entièrement reconstituée.",
+      "« Abandonner » : ton temps écoulé <b>+ 15 minutes</b> est compté.",
     ],
   },
 };
