@@ -367,7 +367,8 @@ function popcount(x) { let c = 0; while (x) { x &= x - 1; c++; } return c; }
 /* ---------- Profil de résolution (le ressenti du joueur) ---------- */
 /*
  * On rejoue la résolution comme un joueur (humanSolve) et l'on mesure :
- *   départs   nombre de chats trouvables directement au début (0 : il faut éliminer d'abord)
+ *   départs   chats déjà visibles + chats trouvables directement au début
+ *             (0 : il faut éliminer d'abord)
  *   trouvables à chaque pose, nombre de chats trouvables directement à ce moment-là
  *   blocages  nombre de fois où aucun chat n'est trouvable : il faut raisonner par élimination
  * Un chat « trouvable » : une ligne, une colonne ou une zone n'a plus qu'une case possible.
@@ -379,13 +380,17 @@ function puzzleProfile(region, n, givens) {
   const opts = tr.filter((x) => x.t === 'chat').map((x) => x.options);
   let blocages = 0;
   for (let i = 0; i < tr.length; i++) if (tr[i].t !== 'chat' && (i === 0 || tr[i - 1].t === 'chat')) blocages++;
+  // Départs = chats déjà visibles + chats trouvables d'emblée (le joueur compte les deux).
+  const trouvablesDepart = tr.length && tr[0].t === 'chat' ? tr[0].options : 0;
   return {
-    solved: true, departs: tr.length && tr[0].t === 'chat' ? tr[0].options : 0,
+    solved: true, visibles: givens.length, trouvablesDepart, departs: givens.length + trouvablesDepart,
     trouvables: opts, poses: opts.length, blocages,
     moyenne: opts.length ? opts.reduce((a, b) => a + b, 0) / opts.length : 0,
     // Part des étapes à un seul choix, départ exclu (« puis un chat après l'autre »).
     unSeul: opts.length > 1 ? opts.slice(1).filter((o) => o === 1).length / (opts.length - 1) : 1,
     maxApres: Math.max(0, ...opts.slice(1)),
+    // Moyenne des chats trouvables après le départ (« deux chats trouvables à chaque étape »).
+    moyenneApres: opts.length > 1 ? opts.slice(1).reduce((a, b) => a + b, 0) / (opts.length - 1) : 0,
     used: r.used, tier: r.level,
   };
 }
@@ -393,12 +398,11 @@ function puzzleProfile(region, n, givens) {
 /**
  * Niveau correspondant à un profil (1 à 6), 0 si la grille ne se résout pas par déduction,
  * HORS_PROFIL si elle ne correspond à aucun des six :
- *   1 Facile       aucune élimination, 3 départs ou plus, 2,5 chats trouvables en moyenne
- *                  (sur une petite grille où il reste peu de chats à trouver : tous trouvables
- *                  dès le départ, ou presque)
- *   2 Facile +     aucune élimination, 2 départs, jamais plus de 2 trouvables
+ *   1 Facile       aucune élimination, 3 départs ou plus, puis souvent plusieurs chats
+ *                  trouvables à la fois (un seul choix à la moitié des étapes au plus)
+ *   2 Facile +     aucune élimination, 2 départs, puis 2 chats trouvables par étape (jamais plus)
  *   3 Moyen        aucune élimination, 2 départs, puis un seul choix à 70 % des étapes suivantes
- *   4 Moyen +      aucune élimination, 1 départ, puis un seul choix à 90 % des étapes suivantes
+ *   4 Moyen +      aucune élimination, 1 départ, puis un seul choix à 80 % des étapes suivantes
  *   5 Difficile    aucun départ évident (élimination pour commencer), au plus 2 blocages
  *   6 Difficile +  un blocage pour 3 chats posés au moins (3 au minimum)
  */
@@ -406,11 +410,10 @@ const HORS_PROFIL = 7;
 function classifyProfile(pr) {
   if (!pr.solved) return 0;
   if (pr.blocages === 0) {
-    // Tous indépendants : la moyenne vaut (poses + 1) / 2 ; on en exige 90 %, plafonné à 2,5.
-    if (pr.departs >= Math.min(3, pr.poses) && pr.moyenne >= Math.min(2.5, 0.9 * (pr.poses + 1) / 2)) return 1;
-    if (pr.departs === 2 && pr.maxApres <= 2 && pr.moyenne >= 1.6) return 2;
+    if (pr.departs >= 3 && pr.unSeul <= 0.5) return 1;
+    if (pr.departs === 2 && pr.maxApres <= 2 && pr.moyenneApres >= 1.5) return 2;
     if (pr.departs === 2 && pr.unSeul >= 0.7) return 3;
-    if (pr.departs === 1 && pr.unSeul >= 0.9) return 4;
+    if (pr.departs === 1 && pr.unSeul >= 0.8) return 4;
     return HORS_PROFIL;
   }
   if (pr.departs === 0 && pr.blocages <= 2) return 5;
@@ -419,13 +422,14 @@ function classifyProfile(pr) {
 }
 
 /* ---------- Génération ---------- */
-// Chats visibles conseillés par niveau pour une grille 8 × 8 (mesuré : c'est le nombre qui
-// rend chaque profil le plus facile à obtenir) ; proportionnel à la taille pour les autres.
-const CHATS_VISIBLES_8x8 = { 1: 4, 2: 3, 3: 3, 4: 2, 5: 0, 6: 0 };
-function defaultGivens(level, n) {
-  const base = CHATS_VISIBLES_8x8[level];
-  return base === 0 ? 0 : Math.max(1, Math.round(base * n / 8));
-}
+// Chats visibles conseillés par niveau (mesuré : le nombre qui rend chaque profil le plus
+// facile à obtenir, quelle que soit la taille). Les chats visibles comptent comme des départs :
+// Moyen + (un seul départ) n'en a donc aucun.
+const CHATS_VISIBLES = { 1: 2, 2: 1, 3: 1, 4: 0, 5: 0, 6: 0 };
+function defaultGivens(level, n) { return Math.min(n - 1, CHATS_VISIBLES[level]); }
+// Moyen + (une seule case possible à chaque étape) devient introuvable au-delà de 10 × 10
+// (mesuré : 1 grille sur 2 en 10 × 10, aucune en 11 × 11).
+const MOYEN_PLUS_MAX = 10;
 
 function combinations(arr, k, start = 0, acc = [], out = []) {
   if (acc.length === k) { out.push(acc.slice()); return out; }
@@ -450,7 +454,7 @@ function generatePuzzle(opts) {
     : Math.min(n - 1, Math.max(0, Math.floor(Number(opts.givens)) || 0));   // au moins un chat à trouver
   const seed = Number(opts.seed) >>> 0;
   const rng = makeRng(seed);
-  const maxAttempts = opts.maxAttempts || 60;
+  const maxAttempts = opts.maxAttempts || (target === 4 ? 400 : 60);   // Moyen + : plus rare
   const SUBSETS = 120;                                   // choix de chats visibles essayés par forme
   let best = null;
   const distance = (lv) => (lv === target ? 0 : lv === 0 ? 9 : lv === HORS_PROFIL ? 2.5 : Math.abs(lv - target));
@@ -577,6 +581,6 @@ function puzzleToText(p, withSolution = false) {
 }
 
 if (typeof module !== 'undefined') {
-  module.exports = { makeRng, imageOrder, puzzleProfile, classifyProfile, defaultGivens, HORS_PROFIL, CHATS_VISIBLES_8x8, zoneColors, zoneNeighbors, colorDistance, MIN_SIZE, MAX_SIZE, LEVELS, MAX_LEVEL, SIZE_RANGES, randomSizeFor, TECHNIQUE_LABELS, randomPlacement, growRegions,
+  module.exports = { makeRng, imageOrder, puzzleProfile, classifyProfile, defaultGivens, HORS_PROFIL, CHATS_VISIBLES, MOYEN_PLUS_MAX, zoneColors, zoneNeighbors, colorDistance, MIN_SIZE, MAX_SIZE, LEVELS, MAX_LEVEL, SIZE_RANGES, randomSizeFor, TECHNIQUE_LABELS, randomPlacement, growRegions,
     regionConnected, solveAll, makeUnique, humanSolve, generatePuzzle, puzzleToText };
 }
