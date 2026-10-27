@@ -181,6 +181,8 @@ function restoreLastTab() {
   // Sinon : onglet (et sous-onglet « prepared ») mémorisés → même page après reload.
   let tab = null, ptab = null;
   try { tab = localStorage.getItem("topissimo:tab"); ptab = localStorage.getItem("topissimo:ptab"); } catch (_) {}
+  // Un onglet masqué (ex. « En direct ») ne se rouvre pas tout seul au rechargement.
+  if (tab && document.querySelector(`nav button[data-tab="${tab}"]`)?.hasAttribute("data-masque")) tab = null;
   if (tab) activateTab(tab, false);
   if ((tab === "prepared" || !tab) && ptab) switchPreparedTab(ptab);
 }
@@ -224,7 +226,7 @@ let myGamesSort = {
 async function loadMyGames() {
   if (!state.currentPlayerId) return;
   const pid = +state.currentPlayerId;
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=424");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=430");
 
   // Tournoi : prepared_game_results jointes avec prepared_games. Colonnes explicites
   // (pas de details/diagnostics → egress) ; `summary` sert juste à savoir si des
@@ -387,7 +389,7 @@ function ffscFavs() {
 }
 
 // ============================================================
-//  Direct — jouer une partie FFSc en même temps que la salle
+//  Direct — suivre les tournois FFSc retransmis (consultation seule)
 // ============================================================
 // La page d'accueil « endirect » de la FFSc a deux rubriques : « Les tournois en
 // cours » et « Les tournois à venir ». Pour chaque tournoi en cours, la liste de
@@ -472,25 +474,24 @@ async function loadDirect() {
 window.loadDirect = loadDirect;
 
 function renderDirect(enCours, aVenir) {
-  const tempo = `<div class="direct-tools">
-      <label>Temps par coup
-        <select id="directTempo">
-          <option value="60">1 min</option><option value="120">2 min</option>
-          <option value="180" selected>3 min</option>
-        </select></label>
+  const nomFfsc = playerSettings().ffscName || "";
+  const outils = `<div class="direct-tools">
+      <form class="direct-recherche" onsubmit="event.preventDefault(); directResultatsJoueur()">
+        <input type="search" id="directJoueur" placeholder="Nom d'un joueur (ex. LEGUAY)" value="${escapeHtml(nomFfsc)}">
+        <button class="btn small" type="submit">Résultats du joueur</button>
+      </form>
       <button class="btn ghost small" onclick="loadDirect()">↻ Actualiser</button>
-    </div>`;
+    </div>
+    <div id="directJoueurRes"></div>`;
   const ligne = (t, p) => {
     const id = escapeHtml(t.id);
-    if (p.status === "en cours") return `<div class="direct-partie">
-        <span><strong>Partie ${p.numero}</strong> <span class="direct-badge">● en cours</span></span>
-        <button class="btn small" onclick="playDirect('${id}', ${p.numero})">▶ Jouer en direct</button></div>`;
-    if (p.status === "à venir") return `<div class="direct-partie">
-        <span><strong>Partie ${p.numero}</strong> <span class="muted">${escapeHtml(p.label)}</span></span>
-        <button class="btn ghost small" onclick="playDirect('${id}', ${p.numero})" title="Le premier tirage s'affichera dès le début de la partie">⏳ Attendre le début</button></div>`;
-    return `<div class="direct-partie">
-        <span><strong>Partie ${p.numero}</strong> <span class="muted">terminée</span></span>
-        <button class="btn ghost small" onclick="playDirect('${id}', ${p.numero}, true)" title="Rejoue la partie coup par coup, au rythme choisi">↻ Rejouer comme en direct</button></div>`;
+    const etat = p.status === "en cours" ? `<span class="direct-badge">● en cours</span>`
+      : p.status === "à venir" ? `<span class="muted">${escapeHtml(p.label)}</span>` : `<span class="muted">terminée</span>`;
+    const bouton = p.status === "à venir" ? ""
+      : `<span class="direct-actions"><button class="btn small" onclick="directVoirPartie('${id}', ${p.numero})">👁 Voir la partie</button>
+         <button class="btn ghost small" onclick="directClassement('${id}', ${p.numero}, 1)">Classement</button></span>`;
+    return `<div class="direct-partie"><span><strong>Partie ${p.numero}</strong> ${etat}</span>${bouton}</div>
+      <div class="direct-classement" id="directCl-${id}-${p.numero}" hidden></div>`;
   };
   const cartes = enCours.map(t => `<div class="direct-tournoi">
       <h3>${escapeHtml(t.name)} <small class="muted">${escapeHtml(t.festival)}</small></h3>
@@ -498,16 +499,104 @@ function renderDirect(enCours, aVenir) {
     </div>`).join("");
   const avenir = aVenir.length ? `<h3 class="direct-sous-titre">À venir</h3>
       <ul class="direct-avenir">${aVenir.map(t => `<li>${escapeHtml(t.name)} <span class="muted">— ${escapeHtml(t.festival)}</span></li>`).join("")}</ul>` : "";
-  return tempo + (cartes || `<p class="muted">Aucun tournoi retransmis en ce moment.</p>`) + avenir;
+  return outils + (cartes || `<p class="muted">Aucun tournoi retransmis en ce moment.</p>`) + avenir;
 }
 
-window.playDirect = function(id, numero, rejeu = false) {
+// Grille de la partie, coup par coup (coups publiés jusqu'ici), dans le mode « revoir ».
+window.directVoirPartie = function(id, numero) {
   const t = _directTournois[id] || { id, name: "Tournoi FFSc" };
-  const sec = +($("#directTempo")?.value || 180);
-  // En rejeu, le top « tombe » 10 s après la fin du temps, comme dans la salle.
-  const extra = rejeu ? `&rejeu=${sec + 10}` : "";
-  location.href = `scrabble/game.html?ffsclive=1&tournoi=${encodeURIComponent(t.id)}&numero=${numero}`
-    + `&nom=${encodeURIComponent(t.name)}&t=${sec}${extra}`;
+  location.href = `scrabble/game.html?ffscreview=1&direct=${encodeURIComponent(t.id)}&numero=${numero}&nom=${encodeURIComponent(t.name)}`;
+};
+
+// Feuille de route d'un joueur sur une partie (coups joués, score, top, négatif), lue
+// sur endirect par l'import FFSc ; bouton pour la revoir sur la grille avec ses coups.
+window.directFeuille = async function(tid, numero, nom) {
+  const cle = `direct|${tid}|${nom}`;
+  $("#ffscRouteTitle").textContent = `📋 ${nom} — Partie ${numero}`;
+  $("#ffscRouteBody").innerHTML = `<p class="muted">Lecture de la feuille de route…</p>`;
+  $("#ffscRouteModal").hidden = false;
+  try {
+    if (!_ffscDataCache[cle]) {
+      const data = await ffscCall("import", { tournoi: tid, nom });
+      if (!data || !data.parties) throw new Error("feuille de route introuvable");
+      data.tournoi = (_directTournois[tid] || {}).name || data.tournoi;
+      _ffscDataCache[cle] = data;
+    }
+    const data = _ffscDataCache[cle];
+    const idx = data.parties.findIndex(p => +p.numero === +numero);
+    if (idx < 0) { $("#ffscRouteBody").innerHTML = `<p class="muted">Pas encore de coups publiés pour ${escapeHtml(nom)} sur cette partie.</p>`; return; }
+    showFfscRoute(cle, idx);
+    $("#ffscRouteTitle").textContent = `📋 ${nom}${data.serie ? " (série " + data.serie + ")" : ""} — Partie ${numero}`;
+    $("#ffscRouteBody").insertAdjacentHTML("beforeend",
+      `<p style="text-align:center;margin-top:10px"><button class="btn small" onclick="reviewFfscPartie('${escapeHtml(cle).replace(/'/g, "\\'")}', ${idx})">👁 Revoir sur la grille avec ses coups</button></p>`);
+  } catch (e) {
+    $("#ffscRouteBody").innerHTML = `<p class="error">Feuille de route indisponible : ${escapeHtml(e.message)}</p>`;
+  }
+};
+
+// ---- Résultats publiés sur endirect (page « resultats », classement par partie) ----
+// Chaque partie a son classement (classement=P01, P02…), 50 joueurs par page, avec une
+// recherche par nom (motscles). L'en-tête donne le nombre de joueurs et le top.
+async function lireResultats(tournoiId, numero, { debut = 1, nom = "" } = {}) {
+  const q = new URLSearchParams({ tournoi_id: tournoiId, page: "resultats", id: tournoiId,
+    classement: `P${String(numero).padStart(2, "0")}` });
+  if (debut > 1) q.set("debut", debut);
+  if (nom) q.set("motscles", nom);
+  const html = await ffscRawText(`endirect.php?${q.toString()}`);
+  const lignes = [];
+  const re = /<tr[^>]*><td class='first'><b>(\d+)<\/b><\/td><td>([^<]*)<\/td><td>([^<]*)<\/td><td>([^<]*)<\/td><td>([^<]*)<\/td><td class='last'>([^<]*)<\/td><\/tr>/g;
+  let m;
+  while ((m = re.exec(html))) lignes.push({ place: +m[1], joueur: decodeHtml(m[2]).trim(), cat: m[3], serie: m[4], score: +m[5], club: m[6] });
+  const nb = /<strong>Joueurs :<\/strong>\s*(\d+)/.exec(html), top = /<strong>Top :<\/strong>\s*(\d+)/.exec(html);
+  return { lignes, joueurs: nb ? +nb[1] : null, top: top ? +top[1] : null,
+    partiel: /résultats sont PARTIELS/i.test(html), suite: /class="arrow_right"/.test(html) && /debut=\d+[^"]*" class="arrow_right"/.test(html) };
+}
+
+const tableResultats = (r, lignes, avecPartie = false) => `<table class="direct-table"><thead><tr>
+    ${avecPartie ? "<th>Tournoi / partie</th>" : ""}<th>Place</th><th>Joueur</th><th>Série</th><th>Score</th><th>Écart au top</th><th>Club</th></tr></thead><tbody>${
+    lignes.map(l => `<tr>${avecPartie ? `<td>${escapeHtml(l.partie)}</td>` : ""}<td>${l.place}${l.joueurs ? `<span class="muted">/${l.joueurs}</span>` : ""}</td>
+      <td><a href="#" class="direct-nom" title="Voir sa feuille de route" onclick="event.preventDefault(); directFeuille('${escapeHtml(l.tid)}', ${l.numero}, this.dataset.nom)" data-nom="${escapeHtml(l.joueur)}">${escapeHtml(l.joueur)}</a></td><td>${escapeHtml(l.serie)}</td><td>${l.score}</td>
+      <td>${(l.top ?? r?.top) != null ? l.score - (l.top ?? r.top) : "—"}</td><td>${escapeHtml(l.club)}</td></tr>`).join("")
+  }</tbody></table>`;
+
+window.directClassement = async function(tournoiId, numero, debut = 1) {
+  const box = document.getElementById(`directCl-${tournoiId}-${numero}`);
+  if (!box) return;
+  if (!box.hidden && debut === 1 && box.dataset.ouvert === "1") { box.hidden = true; box.dataset.ouvert = ""; return; }
+  box.hidden = false; box.dataset.ouvert = "1";
+  box.innerHTML = `<p class="muted">Lecture du classement…</p>`;
+  try {
+    const r = await lireResultats(tournoiId, numero, { debut });
+    if (!r.lignes.length) { box.innerHTML = `<p class="muted">Pas encore de résultats publiés pour cette partie.</p>`; return; }
+    r.lignes.forEach(l => { l.tid = tournoiId; l.numero = numero; });
+    box.innerHTML = `<p class="muted direct-entete">${r.joueurs ?? "?"} joueurs · top ${r.top ?? "?"}${r.partiel ? " · <strong>résultats partiels</strong>" : ""}</p>`
+      + tableResultats(r, r.lignes)
+      + `<div class="direct-pages">${debut > 1 ? `<button class="btn ghost small" onclick="directClassement('${tournoiId}', ${numero}, ${Math.max(1, debut - 50)})">← précédents</button>` : ""}
+         ${r.suite ? `<button class="btn ghost small" onclick="directClassement('${tournoiId}', ${numero}, ${debut + 50})">suivants →</button>` : ""}</div>`;
+  } catch (e) {
+    box.innerHTML = `<p class="error">Classement indisponible : ${escapeHtml(e.message)}</p>`;
+  }
+};
+
+// Résultats d'un joueur : on cherche son nom dans le classement de chaque partie jouée
+// (terminée ou en cours) des tournois retransmis.
+window.directResultatsJoueur = async function() {
+  const nom = ($("#directJoueur")?.value || "").trim();
+  const box = $("#directJoueurRes");
+  if (!box) return;
+  if (nom.length < 2) { box.innerHTML = `<p class="muted">Tape au moins deux lettres du nom.</p>`; return; }
+  box.innerHTML = `<p class="muted">Recherche de « ${escapeHtml(nom)} »…</p>`;
+  const taches = [];
+  for (const t of Object.values(_directTournois)) for (const p of (t.parties || [])) {
+    if (p.status === "à venir") continue;
+    taches.push(lireResultats(t.id, p.numero, { nom }).then(r => r.lignes.map(l => ({
+      ...l, top: r.top, joueurs: r.joueurs, tid: t.id, numero: p.numero, partie: `${t.name} — partie ${p.numero}${r.partiel ? " (partiel)" : ""}`,
+    }))).catch(() => []));
+  }
+  const lignes = (await Promise.all(taches)).flat();
+  box.innerHTML = lignes.length
+    ? `<div class="direct-joueur"><h3 class="direct-sous-titre">Résultats pour « ${escapeHtml(nom)} »</h3>${tableResultats(null, lignes, true)}</div>`
+    : `<p class="muted">Aucun résultat pour « ${escapeHtml(nom)} » dans les parties publiées.</p>`;
 };
 
 window.switchPreparedTab = function(which) {
@@ -1209,6 +1298,7 @@ window.reviewFfscPartie = function(tournoiId, idx) {
   sessionStorage.setItem("ffscReview", JSON.stringify({
     player: data.player, serie: data.serie, tournoi: data.tournoi,
     tournoiId: data._id || null, partie,
+    retour: String(tournoiId).startsWith("direct|") ? "direct" : null,   // ouvert depuis l'onglet En direct
   }));
   // On marque l'URL courante avec le tournoi pour que le retour navigateur (←)
   // revienne à la liste des parties plutôt qu'à l'accueil.
@@ -1560,7 +1650,7 @@ async function loadMyStats() {
   const pid = +state.currentPlayerId;
 
   body.innerHTML = `<p class="muted">⏳ Calcul…</p>`;
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=424");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=430");
 
   // Tournois « démo » à EXCLURE des stats (résultats importés FFSC, hors Topissimo).
   const _tlist = await cachedQuery("tournaments", () => sb.from("tournaments").select("id,name").then(r => r.data || []));
@@ -2186,7 +2276,7 @@ async function loadSolosAndStreaks() {
   const slowest = Object.values(worstByPid).sort((a, b) => b.time - a.time);
 
   // ===== Agrégats par joueur : parties au top, % coups au top, négatif moyen/cat =====
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=424");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=430");
   const catOf = (mode, joker, tpm) => {
     const m = mode || "duplicate";
     if (m === "blitz") return { key: "blitz", label: "Blitz" };
@@ -2622,7 +2712,7 @@ async function loadTournamentDetail(tournamentId) {
   // S'assurer qu'au moins une ligne de formule est présente dans le générateur.
   if (canGenerate() && $("#pgRecipe") && !$("#pgRecipe").children.length) pgAddRecipeLine();
 
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=424");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=430");
   const btnStyle = "text-decoration:none;padding:5px 10px;border-radius:6px;font-weight:600;font-size:.85rem";
   const admin = superAdmin();     // stof en mode admin : joue + teste + supprime
   const genOnly = isAdmin();       // compte "admin" : génération seule, pas de jeu
@@ -3470,7 +3560,7 @@ async function loadTournamentStats(tournamentId, games) {
   // On détermine « le top est un scrabble » en REjouant le plateau coup par coup
   // (nombre de NOUVELLES tuiles posées par le top == clé de prime du mode), ce qui
   // est fiable même sur d'anciennes parties (le hadBonus stocké est non fiable).
-  const { emptyBoard, applyMove, GAME_MODES } = await import("./scrabble/engine.js?v=424");
+  const { emptyBoard, applyMove, GAME_MODES } = await import("./scrabble/engine.js?v=430");
   const gameById = {};
   for (const g of games) gameById[g.id] = g;
   const bonusesOf = (gid) => (GAME_MODES[gameById[gid]?.mode] || GAME_MODES.duplicate).bonuses || { 7: 50 };
@@ -3664,9 +3754,9 @@ $("#pgCreate").onclick = async () => {
     let mods;
     try {
       mods = await Promise.all([
-        import("./scrabble/dictionary.js?v=424"),
-        import("./scrabble/generator.js?v=424"),
-        import("./scrabble/engine.js?v=424"),
+        import("./scrabble/dictionary.js?v=430"),
+        import("./scrabble/generator.js?v=430"),
+        import("./scrabble/engine.js?v=430"),
       ]);
     } catch (e) {
       $("#pgStatus").innerHTML = `<span style="color:#a02525">Échec de chargement des modules : ${escapeHtml(e.message)}</span>`;
@@ -3733,7 +3823,7 @@ window.recomputeAllNeg = async function(force = false) {
 
   let recomputeResult;
   try {
-    ({ recomputeResult } = await import("./scrabble/recompute.js?v=424"));
+    ({ recomputeResult } = await import("./scrabble/recompute.js?v=430"));
   } catch (e) {
     statusEl.textContent = "❌ Impossible de charger recompute.js : " + e.message;
     return;
@@ -3987,7 +4077,7 @@ window.recomputeAllJokerNeg = async function() {
 
   let recomputeResult;
   try {
-    ({ recomputeResult } = await import("./scrabble/recompute.js?v=424"));
+    ({ recomputeResult } = await import("./scrabble/recompute.js?v=430"));
   } catch (e) {
     statusEl.textContent = "❌ Impossible de charger recompute.js : " + e.message;
     return;
@@ -4106,7 +4196,8 @@ function applyRoleUI() {
   // onglets, ni le bouton « S'entraîner ».
   const adminOnly = isAdmin();
   document.querySelectorAll('nav button[data-tab]').forEach(b => {
-    b.hidden = adminOnly && b.dataset.tab !== "prepared";
+    // data-masque : onglet conservé mais invisible (ex. « En direct », via #tab=direct).
+    b.hidden = b.hasAttribute("data-masque") || (adminOnly && b.dataset.tab !== "prepared");
   });
   const playBtn = document.querySelector("header .play-btn");
   if (playBtn) playBtn.style.display = adminOnly ? "none" : "";

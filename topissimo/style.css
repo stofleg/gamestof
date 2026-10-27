@@ -1128,3 +1128,20 @@ th.sortable:hover { color: var(--petrol, #002E44); }
 .direct-badge { color:#c0261a; font-weight:600; font-size:.82rem; }
 .direct-sous-titre { font-size:.95rem; margin:16px 0 6px; }
 .direct-avenir { margin:0; padding-left:18px; font-size:.9rem; }
+
+.direct-recherche { display:flex; gap:6px; flex:1; min-width:240px; }
+.direct-recherche input { flex:1; min-width:0; }
+.direct-classement { padding:4px 0 10px; }
+.direct-entete { margin:4px 0 6px; font-size:.85rem; }
+.direct-table { width:100%; border-collapse:collapse; font-size:.85rem; }
+.direct-table th, .direct-table td { padding:4px 6px; text-align:left; border-bottom:1px solid rgba(0,0,0,.06); white-space:nowrap; }
+.direct-table td:nth-last-child(-n+3) { font-variant-numeric: tabular-nums; }
+.direct-pages { display:flex; gap:8px; justify-content:center; margin-top:6px; }
+.direct-joueur { margin:0 0 14px; overflow-x:auto; }
+.direct-classement { overflow-x:auto; }
+.direct-actions { display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end; }
+.direct-nom { color: inherit; text-decoration: underline dotted; cursor: pointer; }
+.direct-nom:hover { color: var(--petrol, #002E44); text-decoration: underline; }
+
+/* Onglets masqués (ex. « En direct », conservé mais invisible) */
+nav button[hidden] { display: none !important; }
