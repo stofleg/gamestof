@@ -40,14 +40,15 @@ const MAX_SIZE = 12;   // 13-14 possibles mais jusqu'à 25 s pour un difficile
      4  groupe de 2 zones confinées dans 2 lignes (ou l'inverse)
      5  groupe de 3 ou 4
      6  au-delà : le solveur ne conclut pas sans essai
-   Chaque niveau vise un palier ; les niveaux 1 et 2 diffèrent par les chats donnés. */
+   Les niveaux de difficulté ne dépendent pas seulement du raisonnement le plus dur : ils
+   décrivent le déroulé ressenti par le joueur (voir puzzleProfile et classifyProfile). */
 const LEVELS = {
-  1: { id: 'facile', label: 'Facile', tier: 1, detail: 'chats donnés en plus, seule case possible' },
-  2: { id: 'facile-plus', label: 'Facile +', tier: 1, detail: 'le minimum de chats donnés, seule case possible' },
-  3: { id: 'moyen', label: 'Moyen', tier: 2, detail: 'zone confinée dans une ligne' },
-  4: { id: 'moyen-plus', label: 'Moyen +', tier: 3, detail: 'case qui bloquerait une zone entière' },
-  5: { id: 'difficile', label: 'Difficile', tier: 4, detail: 'groupe de 2 zones confinées' },
-  6: { id: 'difficile-plus', label: 'Difficile +', tier: 5, detail: 'groupe de 3 ou 4 zones confinées' },
+  1: { id: 'facile', label: 'Facile', detail: 'plusieurs chats trouvables à la fois' },
+  2: { id: 'facile-plus', label: 'Facile +', detail: 'deux chats trouvables à chaque étape' },
+  3: { id: 'moyen', label: 'Moyen', detail: 'deux départs, puis un chat après l’autre' },
+  4: { id: 'moyen-plus', label: 'Moyen +', detail: 'un seul départ, puis un chat après l’autre' },
+  5: { id: 'difficile', label: 'Difficile', detail: 'pas de départ évident : élimination pour commencer' },
+  6: { id: 'difficile-plus', label: 'Difficile +', detail: 'élimination à presque chaque étape' },
 };
 const MAX_LEVEL = 6;
 
@@ -63,7 +64,6 @@ function randomSizeFor(level, seed) {
   const r = makeRng(Math.imul((seed >>> 0) ^ 0x5bd1e995, 2654435761) >>> 0)();
   return lo + Math.floor(r * (hi - lo + 1));
 }
-const BEYOND = 6;   // palier « au-delà »
 
 const TECHNIQUE_LABELS = {
   'unique-case': 'Seule case possible (ligne, colonne ou zone)',
@@ -73,13 +73,6 @@ const TECHNIQUE_LABELS = {
   'groupe-3': 'Groupe de 3 zones confinées',
   'groupe-4': 'Groupe de 4 zones confinées',
 };
-
-/** Niveau (1..6) qui correspond à un palier ; 7 = au-delà de Difficile +. */
-function levelOfTier(tier) {
-  if (tier >= BEYOND) return 7;
-  if (tier === 1) return 2;
-  return { 2: 3, 3: 4, 4: 5, 5: 6 }[tier];
-}
 
 /* ---------- Voisinages ---------- */
 function neighbors4(i, n) {
@@ -260,7 +253,11 @@ function humanSolve(region, n, givens = [], maxTier = 5) {
   const n8 = range(N).map((i) => neighbors8(i, n));
   let level = 1, broken = false, placed = 0;
   const used = {};
-  const note = (t, lv) => { used[t] = (used[t] || 0) + 1; if (lv > level) level = lv; };
+  // Déroulé de la résolution, comme un joueur : { t: 'chat', options } quand un chat se pose
+  // (options = nombre de chats trouvables directement à ce moment), { t: technique } pour
+  // une élimination (raisonnement sans poser de chat).
+  const trace = [];
+  const note = (t, lv) => { used[t] = (used[t] || 0) + 1; if (lv > level) level = lv; if (t !== 'unique-case') trace.push({ t }); };
 
   // Cases éliminées si l'on posait un chat en i.
   function shadow(i) {
@@ -284,7 +281,16 @@ function humanSolve(region, n, givens = [], maxTier = 5) {
       if (units[u].done) continue;
       const o = open(u);
       if (o.length === 0) { broken = true; return false; }
-      if (o.length === 1) { place(o[0]); note('unique-case', 1); return true; }
+      if (o.length === 1) {
+        const forced = new Set();
+        for (let v = 0; v < units.length; v++) {
+          if (units[v].done) continue;
+          const ov = open(v);
+          if (ov.length === 1) forced.add(ov[0]);
+        }
+        trace.push({ t: 'chat', options: forced.size });
+        place(o[0]); note('unique-case', 1); return true;
+      }
     }
     return false;
   }
@@ -353,77 +359,123 @@ function humanSolve(region, n, givens = [], maxTier = 5) {
     if (!progressed) break;
   }
   const solved = !broken && placed === n;
-  return { solved, level: solved ? level : null, used };
+  return { solved, level: solved ? level : null, used, trace };
 }
 
 function popcount(x) { let c = 0; while (x) { x &= x - 1; c++; } return c; }
 
-/* ---------- Génération ---------- */
-/** Chats donnés pour que la grille se résolve au palier `maxLevel` (le moins possible). */
-function chooseGivens(region, n, cols, maxLevel, rng) {
-  const cats = shuffledCopy(range(n).map((r) => r * n + cols[r]), rng);
-  const givens = [];
-  for (const c of cats) {
-    if (humanSolve(region, n, givens, maxLevel).solved) break;
-    givens.push(c);
-  }
-  // Élagage : on retire ceux qui ne servent à rien.
-  for (const c of givens.slice()) {
-    const without = givens.filter((x) => x !== c);
-    if (humanSolve(region, n, without, maxLevel).solved) givens.splice(givens.indexOf(c), 1);
-  }
-  return givens.sort((a, b) => a - b);
+/* ---------- Profil de résolution (le ressenti du joueur) ---------- */
+/*
+ * On rejoue la résolution comme un joueur (humanSolve) et l'on mesure :
+ *   départs   nombre de chats trouvables directement au début (0 : il faut éliminer d'abord)
+ *   trouvables à chaque pose, nombre de chats trouvables directement à ce moment-là
+ *   blocages  nombre de fois où aucun chat n'est trouvable : il faut raisonner par élimination
+ * Un chat « trouvable » : une ligne, une colonne ou une zone n'a plus qu'une case possible.
+ */
+function puzzleProfile(region, n, givens) {
+  const r = humanSolve(region, n, givens, 5);
+  if (!r.solved) return { solved: false };
+  const tr = r.trace;
+  const opts = tr.filter((x) => x.t === 'chat').map((x) => x.options);
+  let blocages = 0;
+  for (let i = 0; i < tr.length; i++) if (tr[i].t !== 'chat' && (i === 0 || tr[i - 1].t === 'chat')) blocages++;
+  return {
+    solved: true, departs: tr.length && tr[0].t === 'chat' ? tr[0].options : 0,
+    trouvables: opts, poses: opts.length, blocages,
+    moyenne: opts.length ? opts.reduce((a, b) => a + b, 0) / opts.length : 0,
+    // Part des étapes à un seul choix, départ exclu (« puis un chat après l'autre »).
+    unSeul: opts.length > 1 ? opts.slice(1).filter((o) => o === 1).length / (opts.length - 1) : 1,
+    maxApres: Math.max(0, ...opts.slice(1)),
+    used: r.used, tier: r.level,
+  };
 }
 
 /**
- * Fabrique une grille à solution unique.
- * opts : size (4..12), level (1..6, voir LEVELS), seed (entier).
- * Renvoie { size, seed, region, solution (cols), givens, tier, level, targetLevel, reached, used, attempts } :
- * tier = palier de raisonnement obtenu, level = niveau correspondant (7 = au-delà).
- * La même configuration redonne toujours la même grille. Le niveau 2 reproduit
- * exactement l'ancien « Facile » (mêmes tirages), pour que ses graines restent valables.
+ * Niveau correspondant à un profil (1 à 6), 0 si la grille ne se résout pas par déduction,
+ * HORS_PROFIL si elle ne correspond à aucun des six :
+ *   1 Facile       aucune élimination, 3 départs ou plus, 2,5 chats trouvables en moyenne
+ *                  (sur une petite grille où il reste peu de chats à trouver : tous trouvables
+ *                  dès le départ, ou presque)
+ *   2 Facile +     aucune élimination, 2 départs, jamais plus de 2 trouvables
+ *   3 Moyen        aucune élimination, 2 départs, puis un seul choix à 70 % des étapes suivantes
+ *   4 Moyen +      aucune élimination, 1 départ, puis un seul choix à 90 % des étapes suivantes
+ *   5 Difficile    aucun départ évident (élimination pour commencer), au plus 2 blocages
+ *   6 Difficile +  un blocage pour 3 chats posés au moins (3 au minimum)
+ */
+const HORS_PROFIL = 7;
+function classifyProfile(pr) {
+  if (!pr.solved) return 0;
+  if (pr.blocages === 0) {
+    // Tous indépendants : la moyenne vaut (poses + 1) / 2 ; on en exige 90 %, plafonné à 2,5.
+    if (pr.departs >= Math.min(3, pr.poses) && pr.moyenne >= Math.min(2.5, 0.9 * (pr.poses + 1) / 2)) return 1;
+    if (pr.departs === 2 && pr.maxApres <= 2 && pr.moyenne >= 1.6) return 2;
+    if (pr.departs === 2 && pr.unSeul >= 0.7) return 3;
+    if (pr.departs === 1 && pr.unSeul >= 0.9) return 4;
+    return HORS_PROFIL;
+  }
+  if (pr.departs === 0 && pr.blocages <= 2) return 5;
+  if (pr.blocages >= Math.max(3, Math.round(pr.poses * 0.35))) return 6;
+  return HORS_PROFIL;
+}
+
+/* ---------- Génération ---------- */
+// Chats visibles conseillés par niveau pour une grille 8 × 8 (mesuré : c'est le nombre qui
+// rend chaque profil le plus facile à obtenir) ; proportionnel à la taille pour les autres.
+const CHATS_VISIBLES_8x8 = { 1: 4, 2: 3, 3: 3, 4: 2, 5: 0, 6: 0 };
+function defaultGivens(level, n) {
+  const base = CHATS_VISIBLES_8x8[level];
+  return base === 0 ? 0 : Math.max(1, Math.round(base * n / 8));
+}
+
+function combinations(arr, k, start = 0, acc = [], out = []) {
+  if (acc.length === k) { out.push(acc.slice()); return out; }
+  for (let i = start; i < arr.length; i++) { acc.push(arr[i]); combinations(arr, k, i + 1, acc, out); acc.pop(); }
+  return out;
+}
+function binomial(n, k) { let r = 1; for (let i = 1; i <= k; i++) r = r * (n - k + i) / i; return Math.round(r); }
+
+/**
+ * Fabrique une grille à solution unique qui correspond au profil du niveau demandé.
+ * opts : size (4..12), level (1..6, voir LEVELS), seed (entier),
+ *        givens (nombre de chats visibles ; par défaut defaultGivens(level, size)).
+ * On essaie des formes de zones et, pour chacune, des choix de chats visibles, jusqu'à
+ * obtenir le profil voulu ; sinon on garde la grille la plus proche (reached = false).
+ * Renvoie { size, seed, region, solution, givens, level (profil obtenu), targetLevel,
+ *           reached, profile, used, attempts }. Même configuration = même grille.
  */
 function generatePuzzle(opts) {
   const n = Math.min(MAX_SIZE, Math.max(MIN_SIZE, Math.floor(Number(opts.size) || 8)));
   const target = Math.min(MAX_LEVEL, Math.max(1, Math.floor(Number(opts.level)) || 1));
-  const goal = LEVELS[target].tier;
+  const k = opts.givens == null || opts.givens === '' ? defaultGivens(target, n)
+    : Math.min(n - 1, Math.max(0, Math.floor(Number(opts.givens)) || 0));   // au moins un chat à trouver
   const seed = Number(opts.seed) >>> 0;
   const rng = makeRng(seed);
-  // Difficile + est rare : il lui faut plus d'essais (mesuré : 300 suffisent dès 6×6).
-  const maxAttempts = opts.maxAttempts || (target === 6 ? 300 : 40);
+  const maxAttempts = opts.maxAttempts || 60;
+  const SUBSETS = 120;                                   // choix de chats visibles essayés par forme
   let best = null;
+  const distance = (lv) => (lv === target ? 0 : lv === 0 ? 9 : lv === HORS_PROFIL ? 2.5 : Math.abs(lv - target));
 
-  for (let a = 1; a <= maxAttempts; a++) {
+  for (let a = 1; a <= maxAttempts && !(best && best.reached); a++) {
     const cols = randomPlacement(n, rng);
     const region = growRegions(n, cols, rng);
     if (!makeUnique(region, n, cols, rng)) continue;
-    // Palier « naturel » de la grille, sans chat donné.
-    const free = humanSolve(region, n, [], 5);
-    const natural = free.solved ? free.level : BEYOND;
-    let givens = [];
-    if (goal <= 3 && (natural > goal || goal === 1)) givens = chooseGivens(region, n, cols, goal, rng);
-    const res = humanSolve(region, n, givens, 5);
-    const tier = res.solved ? res.level : BEYOND;
-    const reached = tier === goal;
-    const cand = { region, cols, givens, tier, used: res.used, attempts: a, reached };
-    const gap = (c) => (c.reached ? 0 : Math.abs(c.tier - goal) + 0.5);
-    if (!best || gap(cand) < gap(best)) best = cand;
-    if (reached) break;
+    const cats = range(n).map((r) => r * n + cols[r]);
+    const subsets = binomial(n, k) <= SUBSETS ? shuffledCopy(combinations(cats, k), rng)
+      : range(SUBSETS).map(() => shuffledCopy(cats, rng).slice(0, k));
+    for (const g of subsets) {
+      const pr = puzzleProfile(region, n, g);
+      const lv = classifyProfile(pr);
+      const cand = { region, cols, givens: g.slice().sort((x, y) => x - y), level: lv, profile: pr, attempts: a, reached: lv === target };
+      if (!best || distance(lv) < distance(best.level)) best = cand;
+      if (cand.reached) break;
+    }
   }
   if (!best) throw new Error('Impossible de fabriquer une grille ' + n + '×' + n);
-
-  // Niveau 1 : quelques chats donnés de plus que le minimum (environ N/4).
-  if (target === 1) {
-    const given = new Set(best.givens);
-    const others = shuffledCopy(range(n).map((r) => r * n + best.cols[r]).filter((i) => !given.has(i)), rng);
-    best.givens = [...best.givens, ...others.slice(0, Math.ceil(n / 4))].sort((x, y) => x - y);
-    best.used = humanSolve(best.region, n, best.givens, 5).used;
-  }
-
-  const level = best.reached ? target : levelOfTier(best.tier);
+  const { used, tier, ...profile } = best.profile;
   return {
     size: n, seed, region: best.region, solution: best.cols, givens: best.givens,
-    tier: best.tier, level, targetLevel: target, reached: best.reached, used: best.used, attempts: best.attempts,
+    level: best.level, targetLevel: target, reached: best.reached, profile, used: used || {}, tier,
+    attempts: best.attempts,
   };
 }
 
@@ -525,6 +577,6 @@ function puzzleToText(p, withSolution = false) {
 }
 
 if (typeof module !== 'undefined') {
-  module.exports = { makeRng, imageOrder, zoneColors, zoneNeighbors, colorDistance, MIN_SIZE, MAX_SIZE, LEVELS, MAX_LEVEL, SIZE_RANGES, randomSizeFor, TECHNIQUE_LABELS, levelOfTier, randomPlacement, growRegions,
+  module.exports = { makeRng, imageOrder, puzzleProfile, classifyProfile, defaultGivens, HORS_PROFIL, CHATS_VISIBLES_8x8, zoneColors, zoneNeighbors, colorDistance, MIN_SIZE, MAX_SIZE, LEVELS, MAX_LEVEL, SIZE_RANGES, randomSizeFor, TECHNIQUE_LABELS, randomPlacement, growRegions,
     regionConnected, solveAll, makeUnique, humanSolve, generatePuzzle, puzzleToText };
 }
