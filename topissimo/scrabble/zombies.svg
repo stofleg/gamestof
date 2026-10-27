@@ -1,0 +1,115 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 210">
+  <defs>
+    <linearGradient id="peau" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#a7b97a"/><stop offset=".55" stop-color="#6f8550"/><stop offset="1" stop-color="#3b4a2b"/>
+    </linearGradient>
+    <linearGradient id="peau2" x1="1" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#9aa98a"/><stop offset=".6" stop-color="#5e6e55"/><stop offset="1" stop-color="#323b2e"/>
+    </linearGradient>
+    <linearGradient id="veste" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#4b3b5e"/><stop offset="1" stop-color="#1d1626"/>
+    </linearGradient>
+    <linearGradient id="chemise" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#8a7a5c"/><stop offset="1" stop-color="#3e3426"/>
+    </linearGradient>
+    <linearGradient id="pantalon" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2f3a4a"/><stop offset="1" stop-color="#14181f"/>
+    </linearGradient>
+    <linearGradient id="terre" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#3a2a22"/><stop offset="1" stop-color="#120b09"/>
+    </linearGradient>
+    <linearGradient id="pierre" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#6c6878"/><stop offset=".5" stop-color="#4a4655"/><stop offset="1" stop-color="#26232e"/>
+    </linearGradient>
+    <radialGradient id="brume" cx=".5" cy=".5" r=".5">
+      <stop offset="0" stop-color="#9fd18a" stop-opacity=".35"/><stop offset="1" stop-color="#9fd18a" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="oeil" cx=".5" cy=".5" r=".5">
+      <stop offset="0" stop-color="#fff7b0"/><stop offset=".4" stop-color="#e8f04a"/><stop offset="1" stop-color="#e8f04a" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="flou" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="3"/></filter>
+  </defs>
+
+  <!-- brume verdâtre au sol -->
+  <ellipse cx="160" cy="196" rx="170" ry="22" fill="url(#brume)"/>
+
+  <!-- pierre tombale -->
+  <g>
+    <path d="M232 196 L232 120 Q232 96 256 96 Q280 96 280 120 L280 196 Z" fill="url(#pierre)"/>
+    <path d="M232 120 Q232 96 256 96 Q280 96 280 120" fill="none" stroke="#8d8a9a" stroke-width="1.5" opacity=".6"/>
+    <path d="M246 128 h20 M256 118 v26" stroke="#2a2731" stroke-width="3.5" stroke-linecap="round"/>
+    <path d="M266 150 l-6 10 l5 6 l-4 12" fill="none" stroke="#1c1a22" stroke-width="1.4"/>
+    <path d="M234 182 q6 -8 12 -2 q4 -9 10 -1" fill="none" stroke="#3f5a2c" stroke-width="2"/>
+  </g>
+
+  <!-- ===== Zombie 1 : marche bras tendus ===== -->
+  <g>
+    <!-- jambe arrière -->
+    <path d="M78 140 L70 192 L84 192 L90 146 Z" fill="url(#pantalon)"/>
+    <path d="M66 192 h22 l-2 6 h-22 Z" fill="#1a1412"/>
+    <!-- jambe avant, pantalon déchiré -->
+    <path d="M96 140 L112 188 L104 190 L102 182 L98 192 L90 146 Z" fill="#232c38"/>
+    <path d="M103 182 L108 194 L120 194 L114 186 Z" fill="url(#peau)"/>
+    <!-- bras arrière tendu -->
+    <path d="M100 86 L146 92 L148 100 L102 100 Z" fill="#33284a"/>
+    <path d="M146 91 l14 -2 l2 3 l-8 2 l9 1 l0 3 l-9 0 l7 3 l-2 3 l-13 -4 Z" fill="url(#peau2)"/>
+    <!-- torse : veste en lambeaux sur chemise -->
+    <path d="M72 82 Q86 72 104 80 L102 146 L96 140 L90 148 L84 139 L78 147 L72 138 Z" fill="url(#veste)"/>
+    <path d="M86 80 L98 82 L96 128 L90 134 L86 126 Z" fill="url(#chemise)"/>
+    <path d="M89 100 q4 4 2 10 q-3 -2 -2 -10 Z" fill="#6b1d1d"/>
+    <path d="M90 96 l3 8 M93 112 l-2 10" stroke="#24180f" stroke-width="1"/>
+    <!-- bras avant tendu -->
+    <path d="M98 92 L150 100 L150 110 L96 106 Z" fill="url(#veste)"/>
+    <path d="M140 100 l-4 10 l6 -2 Z" fill="#1d1626"/>
+    <path d="M149 99 l16 -1 l3 4 l-10 2 l12 2 l0 4 l-12 -1 l9 4 l-2 4 l-16 -6 Z" fill="url(#peau)"/>
+    <!-- cou + tête penchée -->
+    <path d="M90 70 L98 70 L100 82 L88 82 Z" fill="url(#peau)"/>
+    <g transform="rotate(14 96 56)">
+      <path d="M80 54 Q80 34 98 34 Q116 34 115 54 Q114 66 108 72 L102 76 Q94 78 88 74 Q80 66 80 54 Z" fill="url(#peau)"/>
+      <path d="M84 40 Q92 30 104 34 L100 38 L96 34 L94 40 L90 36 Z" fill="#2a2420"/>
+      <ellipse cx="92" cy="53" rx="5" ry="4.5" fill="#1a1d10"/>
+      <ellipse cx="106" cy="53" rx="4.5" ry="4" fill="#1a1d10"/>
+      <circle cx="92" cy="53" r="6" fill="url(#oeil)" filter="url(#flou)"/>
+      <circle cx="92" cy="53" r="1.6" fill="#fdfbd0"/>
+      <circle cx="106" cy="53" r="1.4" fill="#fdfbd0"/>
+      <path d="M90 66 Q99 72 108 65 L106 70 Q99 74 92 70 Z" fill="#200d0d"/>
+      <path d="M93 67 v2 M97 68 v3 M101 68 v2 M104 67 v2" stroke="#d8cfa6" stroke-width="1.2"/>
+      <path d="M110 44 q3 6 -1 10" fill="none" stroke="#3c4a2a" stroke-width="1.2"/>
+      <path d="M84 60 q3 2 2 6" fill="none" stroke="#6b1d1d" stroke-width="1.5"/>
+    </g>
+  </g>
+
+  <!-- ===== Zombie 2 : sort de terre devant la tombe ===== -->
+  <g>
+    <!-- bras levé -->
+    <path d="M196 150 L208 104 L216 106 L206 152 Z" fill="url(#chemise)"/>
+    <path d="M206 108 l2 -10 l-4 -12 l4 -1 l4 10 l0 -14 l4 0 l0 14 l3 -12 l4 1 l-3 13 l5 -8 l3 2 l-7 12 l-4 8 Z" fill="url(#peau2)"/>
+    <!-- buste qui émerge -->
+    <path d="M168 196 L172 150 Q186 140 202 148 L206 196 Z" fill="url(#chemise)"/>
+    <path d="M176 160 l6 12 l-4 10 M196 158 l-4 14" stroke="#2a2016" stroke-width="1.3" fill="none"/>
+    <path d="M182 170 l10 -3 l2 8 l-9 3 Z" fill="#5d1a1a" opacity=".8"/>
+    <!-- autre main agrippe la terre -->
+    <path d="M162 186 L174 168 L182 172 L170 190 Z" fill="url(#chemise)"/>
+    <path d="M160 190 l-8 2 l0 3 l7 0 l-6 4 l2 2 l8 -4 l-4 6 l3 1 l6 -8 l1 -7 Z" fill="url(#peau2)"/>
+    <!-- tête -->
+    <g transform="rotate(-10 188 128)">
+      <path d="M174 128 Q174 108 189 108 Q204 108 204 128 Q203 140 196 146 Q189 150 182 146 Q174 140 174 128 Z" fill="url(#peau2)"/>
+      <path d="M176 120 Q182 104 198 110 L194 113 L190 108 L186 114 L182 109 L180 116 Z" fill="#1d1a16"/>
+      <ellipse cx="183" cy="126" rx="4" ry="4.5" fill="#141a10"/>
+      <ellipse cx="196" cy="126" rx="4" ry="3.5" fill="#141a10"/>
+      <circle cx="183" cy="126" r="5" fill="url(#oeil)" filter="url(#flou)"/>
+      <circle cx="196" cy="126" r="5" fill="url(#oeil)" filter="url(#flou)"/>
+      <circle cx="183" cy="126" r="1.4" fill="#fdfbd0"/>
+      <circle cx="196" cy="126" r="1.3" fill="#fdfbd0"/>
+      <path d="M182 138 Q189 145 197 138 Q190 150 182 138 Z" fill="#1c0b0b"/>
+      <path d="M200 132 q4 4 1 9" fill="none" stroke="#6b1d1d" stroke-width="1.4"/>
+    </g>
+  </g>
+
+  <!-- tertre de terre retournée -->
+  <path d="M138 198 Q150 180 168 184 Q190 176 214 186 Q232 182 246 198 Z" fill="url(#terre)"/>
+  <path d="M150 190 l3 -2 M172 186 l4 1 M200 184 l3 2 M226 190 l2 -2" stroke="#5a4334" stroke-width="2" stroke-linecap="round"/>
+  <!-- herbes -->
+  <path d="M20 198 l3 -10 l2 10 l3 -7 l2 7 M290 198 l2 -9 l3 9 l2 -6 l2 6" fill="none" stroke="#2f4224" stroke-width="1.6"/>
+  <ellipse cx="110" cy="198" rx="90" ry="8" fill="url(#brume)"/>
+</svg>
