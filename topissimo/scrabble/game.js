@@ -29,12 +29,12 @@ import {
   bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName, modeNomOrigine, randomBoardLayout, snakeEndpointsAfter, sablierTime, gigogneRackSize,
   setLetterValues, letterValue, valuesFor, bagFor, isCrossingCell, wordHiddenCount,
   drawVowelRack, VOWELS_NO_Y, MARATHON_TARGET, MARATHON_GAMES, consonnesDisponibles, jokersDisponibles,
-} from "./engine.js?v=433";
-import { Dictionary } from "./dictionary.js?v=433";
-import * as invasion from "./araignees.js?v=433";
-import { REGLES, afficheRegles } from "./regles.js?v=433";
-import * as sonHalloween from "./halloween-son.js?v=433";
-import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=433";
+} from "./engine.js?v=434";
+import { Dictionary } from "./dictionary.js?v=434";
+import * as invasion from "./araignees.js?v=434";
+import { REGLES, afficheRegles } from "./regles.js?v=434";
+import * as sonHalloween from "./halloween-son.js?v=434";
+import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=434";
 
 // État du mode review (parcours coup par coup)
 const review = {
@@ -72,7 +72,7 @@ const FFSC_LIVE = URL_PARAMS.get("ffsclive");      // jouer une partie FFSC en d
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v433";
+const BUILD_VERSION = "garenna-v434";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -1250,7 +1250,15 @@ function renderChrono() {
  *  clos comme un temps écoulé (le meilleur essai compte) ; les coups suivants ne sont
  *  pas joués : leur top s'ajoute au négatif. Puis fin de partie. */
 function finTempsTotal() {
+  clotureCoupsRestants("timeout", "💀 Les 666 secondes sont écoulées", "Les coups non joués comptent dans le négatif.");
+}
+
+/** Clôt la partie en cours : coup courant clos (le meilleur essai compte), coups restants
+ *  non joués (top perdu, au négatif), puis fin de partie. Sert à la fin du décompte 666
+ *  (statut « timeout ») et à l'abandon d'une partie du tournoi de la Mort (« giveup »). */
+function clotureCoupsRestants(statut, titre, detail) {
   state._finTempsTotal = true;
+  if (statut === "giveup") state.abandoned = true;
   stopMoveTimer();
   ensureTopReady();
   if (state.topMove) {
@@ -1265,7 +1273,7 @@ function finTempsTotal() {
     if (state.bestAttempt && state.bestAttempt.score > playerScore) { playerScore = state.bestAttempt.score; playedWord = state.bestAttempt.word; }
     let playedMoveObj = state.pending.length ? buildMoveFromPending() : null;
     if (!playedMoveObj && state.bestAttempt?.move) playedMoveObj = state.bestAttempt.move;
-    recordMove({ status: "timeout", playerScore, playedWord, playedMove: playedMoveObj });
+    recordMove({ status: statut, playerScore, playedWord, playedMove: playedMoveObj });
     placeTopAndAdvance(playerScore, playedWord || null, playedWord ? playerScore : null, playedMoveObj);
   }
   // Coups restants de la partie pré-tirée : non joués, top perdu.
@@ -1279,14 +1287,24 @@ function finTempsTotal() {
         moveNo: state.moveNo, rack: moves[i].rack || "", freshRack: !!moves[i].freshRack, kept: moves[i].kept || "",
         top: { word: t.word, score: t.score, row: t.row, col: t.col, dir: t.dir, blanks: t.blanks || [], words: t.words || [] },
         played: null, playedPos: null, placedCount: 0, gotBonus: false,
-        playerScore: 0, neg: -(t.score || 0), status: "timeout", invalidCount: 0, timeMs: 0, horsTemps: true, v: 2,
+        playerScore: 0, neg: -(t.score || 0), status: statut, invalidCount: 0, timeMs: 0, horsTemps: true, v: 2,
       });
       state.moveNo++;
     }
     state.preparedIdx = moves.length;
   }
-  showFeedback("miss", "💀 Les 666 secondes sont écoulées", "Les coups non joués comptent dans le négatif.");
+  showFeedback("miss", titre, detail);
   endGame();
+}
+
+// ===== Tournoi de la Mort : quitter une partie en cours = l'abandonner =====
+// Pas de pause dans ce tournoi : changer d'onglet ou de fenêtre ne l'arrête pas (le chrono
+// continue), mais QUITTER la partie la clôt comme abandonnée. La progression est enregistrée
+// à chaque coup ; si l'on revient sur une partie quittée, elle est close à ce moment-là.
+const partieMortEnCours = () => titresMort && state.prepared && state.started && state.chronoFinal == null && !review.active;
+const MSG_QUITTER = "Quitter la partie ? Dans le tournoi de la Mort, une partie quittée est considérée comme ABANDONNÉE : les coups restants comptent dans ton négatif.";
+function abandonnePartieMort() {
+  clotureCoupsRestants("giveup", "☠️ Partie abandonnée", "Tu as quitté la partie : les coups restants comptent dans le négatif.");
 }
 
 let chronoTimer = null;
@@ -2949,6 +2967,7 @@ function placeTopAndAdvance(playerScore, playedWord = null, playedScore = null, 
   state.moveMaxPlaced = 0;
   state.moveNo++;
   if (state.prepared) state.preparedIdx++;
+  if (partieMortEnCours()) saveTrainingState();   // tournoi de la Mort : progression enregistrée
   renderInfo();
   // Redessiner la grille immédiatement : indispensable pour le DERNIER coup, où
   // nextMove() enchaîne directement sur endGame() (modale) sans passer par le
@@ -6278,6 +6297,7 @@ function startGame() {
   }
   updateMarathonHUD();
   startChrono();
+  if (partieMortEnCours()) saveTrainingState();   // tournoi de la Mort : la partie est « commencée »
   // Invasion : les araignées arrivent dès le début ; plateau recouvert = perdu.
   sonHalloween.nouvellePartie();
   if (currentMode().invasion) invasion.demarre($("#board"), () => {
@@ -6518,6 +6538,20 @@ async function restorePausedPrepared(preparedId) {
     if (!s.isPrepared || String(s.preparedId) !== String(preparedId)) return false;
     const currentPid = +(localStorage.getItem("currentPlayerId") || 0);
     if (s.playerId && currentPid && s.playerId !== currentPid) return false;
+    if (titresMort && !isSuperAdminSession()) {
+      // Tournoi de la Mort : pas de reprise. La partie avait été quittée → abandonnée.
+      state.board = s.board; state.moveNo = s.moveNo; state.preparedIdx = s.preparedIdx || 0;
+      state.totalScore = s.totalScore || 0; state.sumNeg = s.sumNeg || 0; state.history = s.history || [];
+      state.hiddenCells = new Set(s.hiddenCells || []);
+      state.started = true; state.paused = false; state.chronoFinal = null;
+      state.chronoPenalty = s.chronoPenalty || 0;
+      state.chronoStart = Date.now() - (s.chronoElapsed || 0) * 1000;
+      state.topMove = null; state.pending = []; state.bestAttempt = null;
+      $("#actionRowPreStart").hidden = true; $("#actionRowInGame").hidden = false;
+      renderBoard(); renderGameTitle();
+      abandonnePartieMort();
+      return true;
+    }
     state.bag = s.bag;
     state.board = s.board;
     state.rack = (s.rack || []).map(t => ({ letter: t.letter, isBlank: !!t.isBlank, used: false, id: nextTileId() }));
@@ -6653,6 +6687,17 @@ function resumeGame() {
 // sauvegardée (contrairement à l'entraînement) → un rafraîchissement la perdrait.
 // On avertit donc avant de quitter/recharger tant qu'elle n'est pas terminée.
 // (Pour faire une pause, utiliser le bouton Pause plutôt que recharger.)
+// Bouton « ← Accueil / ← Tournoi » pendant une partie du tournoi de la Mort.
+document.addEventListener("click", (e) => {
+  const lien = e.target.closest("#btnHome");
+  if (!lien || !partieMortEnCours()) return;
+  e.preventDefault(); e.stopImmediatePropagation();   // avant le gestionnaire « pause + navigation »
+  if (!confirm(MSG_QUITTER)) return;
+  const cible = lien.href;
+  abandonnePartieMort();
+  setTimeout(() => { location.href = cible; }, 1500);   // le temps d'enregistrer le résultat
+}, { capture: true });
+
 window.addEventListener("beforeunload", (e) => {
   // Pas d'avertissement pour un solo (puzzle). Ni si la partie est déjà en PAUSE :
   // elle est sauvegardée « à reprendre » (on quitte sans rien perdre).
@@ -6708,6 +6753,13 @@ history.pushState({ topissimo: true }, "");
 window.addEventListener("popstate", () => {
   if (_allowBack || !_gameInProgress()) return;   // on laisse passer
   history.pushState({ topissimo: true }, "");      // annule le retour
+  if (partieMortEnCours()) {
+    if (!confirm(MSG_QUITTER)) return;
+    abandonnePartieMort();
+    _allowBack = true;
+    setTimeout(() => history.go(-2), 1500);
+    return;
+  }
   if (confirm("Quitter la partie en cours ? Elle ne sera pas enregistrée.")) {
     _allowBack = true;
     history.go(-2);
@@ -6973,6 +7025,9 @@ function buildResultSummary(history, abandoned) {
 }
 
 async function saveResultIfPrepared() {
+  // Une sauvegarde de progression (« pause ») peut être encore en vol : on l'attend pour
+  // que le résultat final ne soit pas écrasé par elle.
+  try { await state._pauseSync; } catch {}
   // Mode admin (superadmin) : « test » d'une partie → on n'enregistre RIEN (pas
   // d'écrasement du vrai résultat de stof, pas de comptabilisation).
   if (isSuperAdminSession()) { console.log("[superadmin] test — résultat tournoi non enregistré"); return; }

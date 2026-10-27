@@ -123,6 +123,7 @@ export function afficheRegles(cle, titre = null, origine = null) {
         <h2 id="reglesTitre">${titre || r.titre}${origine ? ` <small class="regles-origine">${origine}</small>` : ""}</h2>
         <ul>${r.points.map(p => `<li>${p}</li>`).join("")}</ul>
         ${r.sansPied ? "" : '<p class="regles-pied">Le reste : règles habituelles du topping.</p>'}
+        ${titre ? '<p class="regles-mort">⚠️ Pas de pause : changer d\'onglet ou de fenêtre n\'arrête pas le chrono. <b>Quitter la partie</b> la fait considérer comme <b>abandonnée</b>.</p>' : ""}
         <button type="button" class="regles-ok">C'est parti !</button>
       </div>`;
     const ferme = () => { fond.remove(); document.removeEventListener("keydown", clavier, true); ok(); };
