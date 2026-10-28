@@ -43,12 +43,12 @@ const MAX_SIZE = 12;   // 13-14 possibles mais jusqu'à 25 s pour un difficile
    Les niveaux de difficulté ne dépendent pas seulement du raisonnement le plus dur : ils
    décrivent le déroulé ressenti par le joueur (voir puzzleProfile et classifyProfile). */
 const LEVELS = {
-  1: { id: 'facile', label: 'Facile', detail: 'chaque chat se trouve directement, sans élimination' },
-  2: { id: 'facile-plus', label: 'Facile +', detail: 'une zone confinée dans une ligne à repérer' },
-  3: { id: 'moyen', label: 'Moyen', detail: 'plusieurs zones confinées à repérer' },
-  4: { id: 'moyen-plus', label: 'Moyen +', detail: 'une ou deux cases qui bloqueraient tout' },
-  5: { id: 'difficile', label: 'Difficile', detail: 'des cases qui bloqueraient tout, à répétition' },
-  6: { id: 'difficile-plus', label: 'Difficile +', detail: 'plusieurs zones coincées dans autant de lignes' },
+  1: { id: 'facile', label: 'Facile', detail: 'une zone confinée dans une ligne à repérer' },
+  2: { id: 'facile-plus', label: 'Facile +', detail: 'plusieurs zones confinées à repérer' },
+  3: { id: 'moyen', label: 'Moyen', detail: 'une ou deux cases qui bloqueraient tout' },
+  4: { id: 'moyen-plus', label: 'Moyen +', detail: 'des cases qui bloqueraient tout, à répétition' },
+  5: { id: 'difficile', label: 'Difficile', detail: 'plusieurs zones coincées dans autant de lignes' },
+  6: { id: 'difficile-plus', label: 'Difficile +', detail: '3 ou 4 zones coincées ensemble, et plusieurs groupes' },
 };
 const MAX_LEVEL = 6;
 
@@ -408,27 +408,29 @@ function puzzleProfile(region, n, givens) {
 }
 
 /**
- * Niveau correspondant à un profil (1 à 6), 0 si la grille ne se résout pas par déduction.
+ * Niveau correspondant à un profil (1 à 6), 0 si la grille ne se résout pas par déduction,
+ * HORS_PROFIL si elle se résout sans aucune élimination (trop simple pour le livre).
  * Chaque niveau ajoute un raisonnement que le joueur doit faire (voir humanSolve) :
- *   1 Facile       aucune élimination : chaque chat se trouve directement (une ligne, une
- *                  colonne ou une zone n'a plus qu'une case)
- *   2 Facile +     une seule élimination, par confinement (une zone tient dans une ligne :
+ *   1 Facile       une seule élimination, par confinement (une zone tient dans une ligne :
  *                  le reste de la ligne est exclu)
- *   3 Moyen        2 confinements ou plus, aucun blocage
- *   4 Moyen +      1 ou 2 blocages (« un chat ici ne laisserait plus de place à telle zone »),
+ *   2 Facile +     2 confinements ou plus, aucun blocage
+ *   3 Moyen        1 ou 2 blocages (« un chat ici ne laisserait plus de place à telle zone »),
  *                  aucun groupe
- *   5 Difficile    3 blocages ou plus, aucun groupe
- *   6 Difficile +  au moins un groupe (k zones coincées dans k lignes ou colonnes)
+ *   4 Moyen +      3 blocages ou plus, aucun groupe
+ *   5 Difficile    au moins un groupe (k zones coincées dans k lignes ou colonnes)
+ *   6 Difficile +  un groupe de 3 ou 4 zones, et au moins 2 groupes en tout
  */
 const HORS_PROFIL = 7;
 function classifyProfile(pr) {
   if (!pr.solved) return 0;
-  if (pr.groupes) return 6;
-  if (pr.blocs >= 3) return 5;
-  if (pr.blocs) return 4;
-  if (pr.confinements >= 2) return 3;
-  if (pr.confinements === 1) return 2;
-  return 1;
+  const grandsGroupes = (pr.used['groupe-3'] || 0) + (pr.used['groupe-4'] || 0);
+  if (grandsGroupes && pr.groupes >= 2) return 6;
+  if (pr.groupes) return 5;
+  if (pr.blocs >= 3) return 4;
+  if (pr.blocs) return 3;
+  if (pr.confinements >= 2) return 2;
+  if (pr.confinements === 1) return 1;
+  return HORS_PROFIL;
 }
 
 /* ---------- Génération ---------- */
