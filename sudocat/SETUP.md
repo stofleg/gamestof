@@ -19,8 +19,8 @@ placer un chat (ou un chien) par ligne, colonne et zone, sans que deux se touche
 ## Les 100 paliers
 
 Chaque joueur avance sur **100 paliers** (`progression.js`) : chacun associe un type de
-raisonnement du moteur (niveau 1 à 6 : confinement, blocage puis groupe de zones, la grille
-résistant de plus en plus longtemps) et une taille de grille (5×5 au début, 12×12 à la fin),
+raisonnement du moteur (niveau 1 à 6 : confinement, blocage, groupe de zones, la grille
+résistant de plus en plus longtemps, puis hypothèses en Difficile +) et une taille de grille (5×5 au début, 12×12 à la fin),
 sur 24 étapes.
 
 | Résultat de la grille | Effet |

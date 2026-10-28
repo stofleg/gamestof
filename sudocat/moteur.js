@@ -48,7 +48,7 @@ const LEVELS = {
   3: { id: 'moyen', label: 'Moyen', detail: 'cases qui bloqueraient tout, à plusieurs reprises' },
   4: { id: 'moyen-plus', label: 'Moyen +', detail: 'cases qui bloqueraient tout, jusqu’au bout' },
   5: { id: 'difficile', label: 'Difficile', detail: 'zones coincées ensemble, à plusieurs reprises' },
-  6: { id: 'difficile-plus', label: 'Difficile +', detail: 'zones coincées ensemble, jusqu’au bout' },
+  6: { id: 'difficile-plus', label: 'Difficile +', detail: 'hypothèses : poser un chat pour voir, jusqu’à l’impasse' },
 };
 const MAX_LEVEL = 6;
 
@@ -72,6 +72,7 @@ const TECHNIQUE_LABELS = {
   'groupe-2': 'Groupe de 2 zones confinées',
   'groupe-3': 'Groupe de 3 zones confinées',
   'groupe-4': 'Groupe de 4 zones confinées',
+  'hypothese': 'Hypothèse : un chat posé pour voir, qui mène à une impasse',
 };
 
 /* ---------- Voisinages ---------- */
@@ -240,8 +241,13 @@ function makeUnique(region, n, cols, rng, maxSteps = 4000) {
  * Résout par déductions, toujours avec la technique la plus simple possible.
  * maxTier limite les paliers permis (voir LEVELS). Renvoie { solved, level, used } :
  * level = palier le plus élevé qu'il a fallu employer.
+ * Palier 6 : hypothèse. Faute de mieux, on pose un chat « pour voir » et on déroule la suite
+ * avec les raisonnements simples (paliers 1 à HYPO_TIER) : si on aboutit à une impasse, la
+ * case est exclue ; si la grille se résout, le chat est le bon.
+ * start.cand (facultatif) : cases encore possibles au départ (état d'une résolution en cours).
  */
-function humanSolve(region, n, givens = [], maxTier = 5) {
+const HYPO_TIER = 3;
+function humanSolve(region, n, givens = [], maxTier = 5, start = null) {
   const N = n * n;
   const cand = new Array(N).fill(true);
   const cat = new Array(N).fill(false);
@@ -275,6 +281,7 @@ function humanSolve(region, n, givens = [], maxTier = 5) {
   const open = (u) => units[u].cells.filter((i) => cand[i]);
 
   for (const g of givens) place(g);
+  if (start) for (let i = 0; i < N; i++) if (!start.cand[i]) cand[i] = false;
 
   function single() {
     for (let u = 0; u < units.length; u++) {
@@ -351,7 +358,18 @@ function humanSolve(region, n, givens = [], maxTier = 5) {
     return false;
   }
 
-  const steps = [[1, single], [2, confinement], [3, blocking], [4, () => groups(2, 2)], [5, () => groups(3, 4)]]
+  function hypothesis() {
+    const cats = range(N).filter((i) => cat[i]);
+    for (let i = 0; i < N; i++) {
+      if (!cand[i]) continue;
+      const r = humanSolve(region, n, [...cats, i], HYPO_TIER, { cand });
+      if (r.broken) { cand[i] = false; note('hypothese', 6); return true; }
+      if (r.solved) { place(i); note('hypothese', 6); return true; }
+    }
+    return false;
+  }
+
+  const steps = [[1, single], [2, confinement], [3, blocking], [4, () => groups(2, 2)], [5, () => groups(3, 4)], [6, hypothesis]]
     .filter(([lv]) => lv <= maxTier);
   while (!broken && placed < n) {
     let progressed = false;
@@ -359,7 +377,7 @@ function humanSolve(region, n, givens = [], maxTier = 5) {
     if (!progressed) break;
   }
   const solved = !broken && placed === n;
-  return { solved, level: solved ? level : null, used, trace };
+  return { solved, level: solved ? level : null, used, trace, broken };
 }
 
 function popcount(x) { let c = 0; while (x) { x &= x - 1; c++; } return c; }
@@ -374,7 +392,7 @@ function popcount(x) { let c = 0; while (x) { x &= x - 1; c++; } return c; }
  * Un chat « trouvable » : une ligne, une colonne ou une zone n'a plus qu'une case possible.
  */
 function puzzleProfile(region, n, givens) {
-  const r = humanSolve(region, n, givens, 5);
+  const r = humanSolve(region, n, givens, 6);
   if (!r.solved) return { solved: false };
   const tr = r.trace;
   const opts = tr.filter((x) => x.t === 'chat').map((x) => x.options);
@@ -403,6 +421,7 @@ function puzzleProfile(region, n, givens) {
     // Raisonnements nécessaires (nombre d'applications de chaque technique d'élimination).
     confinements: r.used.confinement || 0, blocs: r.used.blocage || 0,
     groupes: (r.used['groupe-2'] || 0) + (r.used['groupe-3'] || 0) + (r.used['groupe-4'] || 0),
+    hypotheses: r.used.hypothese || 0,
     used: r.used, tier: r.level,
   };
 }
@@ -421,14 +440,16 @@ function puzzleProfile(region, n, givens) {
  *   3 Moyen        blocage, 2 moments ou plus, cascade de 3 au plus
  *   4 Moyen +      blocage, 3 moments ou plus, cascade de 2 au plus
  *   5 Difficile    groupe, 2 moments ou plus, cascade de 3 au plus
- *   6 Difficile +  groupe, 3 moments ou plus, cascade de 2 au plus
+ *   6 Difficile +  hypothèse : même les groupes ne suffisent plus, il faut poser un chat
+ *                  « pour voir » et dérouler la suite jusqu'à l'impasse
  */
 const HORS_PROFIL = 7;
 function classifyProfile(pr) {
   if (!pr.solved) return 0;
   const m = pr.blocages, cascade = Math.max(0, ...pr.trouvables);
   const resiste = m >= 3 && cascade <= 2, tient = m >= 2 && cascade <= 3;
-  if (pr.groupes) return resiste ? 6 : tient ? 5 : HORS_PROFIL;
+  if (pr.hypotheses) return 6;
+  if (pr.groupes) return tient ? 5 : HORS_PROFIL;
   if (pr.blocs) return resiste ? 4 : tient ? 3 : HORS_PROFIL;
   if (pr.confinements) return tient ? 2 : 1;
   return HORS_PROFIL;
@@ -463,7 +484,7 @@ function generatePuzzle(opts) {
     : Math.min(n - 1, Math.max(0, Math.floor(Number(opts.givens)) || 0));   // au moins un chat à trouver
   const seed = Number(opts.seed) >>> 0;
   const rng = makeRng(seed);
-  const maxAttempts = opts.maxAttempts || 60;
+  const maxAttempts = opts.maxAttempts || (target === 6 ? 300 : 60);   // Difficile + : rare (1 grille sur 70)
   const SUBSETS = 120;                                   // choix de chats visibles essayés par forme
   let best = null;
   const distance = (lv) => (lv === target ? 0 : lv === 0 ? 9 : lv === HORS_PROFIL ? 2.5 : Math.abs(lv - target));
