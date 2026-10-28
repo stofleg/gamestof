@@ -10,11 +10,11 @@
 //     pour tous. Un seul essai ; l'heure de départ est enregistrée en base, si bien
 //     qu'un rechargement ne remet pas le chrono à zéro. Le temps réalisé est
 //     enregistré comme résultat (0 point, 0 négatif) et s'ajoute au temps général.
-import { afficheRegles } from "./regles.js?v=436";
-import { chargeDico, grilleFinale, classeCase, jeton, appliqueTheme, fmt } from "./grille-finale.js?v=436";
-import { decoupeRegions, piecesDepuisRegions } from "./puzzle-pieces.js?v=436";
-import { emptyBoard, applyMove, modeDisplayName, modeNomOrigine } from "./engine.js?v=436";
-import * as sonHalloween from "./halloween-son.js?v=436";
+import { afficheRegles } from "./regles.js?v=437";
+import { chargeDico, grilleFinale, classeCase, jeton, appliqueTheme, fmt } from "./grille-finale.js?v=437";
+import { decoupeRegions, piecesDepuisRegions } from "./puzzle-pieces.js?v=437";
+import { emptyBoard, applyMove, modeDisplayName, modeNomOrigine } from "./engine.js?v=437";
+import * as sonHalloween from "./halloween-son.js?v=437";
 
 const $ = id => document.getElementById(id);
 const N = 15;
@@ -66,26 +66,20 @@ function dessineGrille() {
   $("pzBoard").innerHTML = s + "</table>";
 }
 
-// La réserve est une zone libre : chaque pièce garde la place où on l'a posée (x, y en
-// pixels dans la réserve), pour que le joueur puisse les trier et les regrouper.
+// La réserve est une zone libre qui couvre la page : la grille y est centrée et chaque
+// pièce garde la place où on l'a posée (x, y en pixels dans la réserve), pour que le
+// joueur puisse les trier et les regrouper.
 let zMax = 1;
+let grilleXY = null;   // { x, y } : coin haut-gauche de la grille dans la réserve
 function dessineReserve() {
   const tray = $("pzTray");
   const enReserve = pieces.filter(p => !p.pose);
   const style = p => p.x == null ? "" : ` style="left:${p.x}px;top:${p.y}px;z-index:${p.z || 1}"`;
   tray.innerHTML = enReserve.map(p => `<div class="board piece" data-id="${p.id}"${style(p)}>${htmlPiece(p)}</div>`).join("");
-  // Premier affichage : le navigateur range les pièces en rangées, puis on fige ces
-  // positions et la réserve passe en placement libre.
+  if (!grilleXY) centreGrille();
+  // Premier affichage : les pièces sont rangées tout autour de la grille.
   if (enReserve.some(p => p.x == null)) {
-    if (document.body.classList.contains("pz-mort")) rangeAutourDeLaGrille(tray);
-    else {
-      tray.classList.remove("libre");
-      for (const el of tray.children) {
-        const p = pieces[+el.dataset.id];
-        p.x = el.offsetLeft; p.y = el.offsetTop;
-      }
-      tray.classList.add("libre");
-    }
+    rangeAutourDeLaGrille(tray);
     for (const el of tray.children) {
       const p = pieces[+el.dataset.id];
       Object.assign(el.style, { left: p.x + "px", top: p.y + "px" });
@@ -93,36 +87,67 @@ function dessineReserve() {
   }
   ajusteReserve();
 }
-/** Tournoi de la Mort : la réserve couvre toute la page, la grille (réduite) est posée
- *  en haut à gauche. Premier rangement en rangées : à droite de la grille, puis dessous. */
+/** Hauteur visible de la réserve (de son haut jusqu'au bas de la fenêtre). */
+const hauteurVisible = tray => Math.max(0, innerHeight - tray.getBoundingClientRect().top - scrollY - 16);
+/** Place la grille au centre de la zone visible de la réserve. Si la grille bouge (fenêtre
+ *  redimensionnée), les pièces de la réserve suivent, pour rester rangées autour. */
+function centreGrille() {
+  const tray = $("pzTray"), board = $("pzBoard");
+  const x = Math.max(0, Math.round((tray.clientWidth - board.offsetWidth) / 2));
+  const y = Math.max(0, Math.round((hauteurVisible(tray) - board.offsetHeight) / 2));
+  if (grilleXY) for (const p of pieces) if (!p.pose && p.x != null) {
+    p.x = Math.max(0, p.x + x - grilleXY.x); p.y = Math.max(0, p.y + y - grilleXY.y);
+  }
+  grilleXY = { x, y };
+  Object.assign(board.style, { left: tray.offsetLeft + x + "px", top: tray.offsetTop + y + "px" });
+}
+/** Range les pièces encore sans place tout autour de la grille : chacune prend la place
+ *  libre la plus proche de la grille (on remplit un premier anneau, puis on s'en écarte). */
 function rangeAutourDeLaGrille(tray) {
-  tray.classList.add("libre");
-  const board = $("pzBoard"), ecart = 14;
-  const bx1 = board.offsetWidth + ecart, by1 = board.offsetHeight + ecart, W = tray.clientWidth;
-  let x = bx1, y = 0, hRangee = 0;
+  const board = $("pzBoard"), ecart = 10, pas = 6;
+  const W = tray.clientWidth, H = hauteurVisible(tray);
+  const g = { x0: grilleXY.x, y0: grilleXY.y, x1: grilleXY.x + board.offsetWidth, y1: grilleXY.y + board.offsetHeight };
+  const gcx = (g.x0 + g.x1) / 2, gcy = (g.y0 + g.y1) / 2;
+  const places = [];   // rectangles déjà occupés dans la réserve
   for (const el of tray.children) {
-    const p = pieces[+el.dataset.id], w = el.offsetWidth, h = el.offsetHeight;
-    const debutRangee = () => (y < by1 ? bx1 : 0);
-    if (x + w > W) {                       // rangée pleine : on passe à la suivante
-      y += hRangee + ecart; hRangee = 0; x = debutRangee();
+    const p = pieces[+el.dataset.id];
+    if (p.x != null) places.push({ x0: p.x, y0: p.y, x1: p.x + el.offsetWidth, y1: p.y + el.offsetHeight });
+  }
+  const libre = (x0, y0, x1, y1) => places.every(r => x1 + ecart <= r.x0 || r.x1 + ecart <= x0 || y1 + ecart <= r.y0 || r.y1 + ecart <= y0);
+  for (const el of tray.children) {
+    const p = pieces[+el.dataset.id];
+    if (p.x != null) continue;
+    const w = el.offsetWidth, h = el.offsetHeight;
+    let best = null, bestScore = Infinity;
+    for (let y = 0; y <= Math.max(H, g.y1) * 3; y += pas) {
+      for (let x = 0; x + w <= W || x === 0; x += pas) {
+        // distance à la grille (bord à bord), puis au centre pour équilibrer les côtés ;
+        // sous le bas de la fenêtre seulement s'il n'y a plus de place visible
+        const d = Math.max(g.x0 - (x + w), x - g.x1, g.y0 - (y + h), y - g.y1);
+        if (d < ecart) continue;
+        const score = (y + h > H ? 1e6 : 0) + d * 1000 + Math.hypot(x + w / 2 - gcx, y + h / 2 - gcy);
+        if (score >= bestScore || !libre(x, y, x + w, y + h)) continue;
+        best = { x, y }; bestScore = score;
+      }
+      if (best && (y - g.y1) * 1000 > bestScore) break;   // plus rien de mieux placé plus bas
     }
-    if (y < by1 && y + h > by1 - ecart && x < bx1) x = bx1;   // jamais sur la grille
-    if (x + w > W && y < by1) { y = by1; x = 0; }             // trop large à côté de la grille : dessous
-    p.x = x; p.y = y;
-    x += w + ecart; hRangee = Math.max(hRangee, h);
+    p.x = best.x; p.y = best.y;
+    places.push({ x0: best.x, y0: best.y, x1: best.x + w, y1: best.y + h });
   }
 }
+addEventListener("resize", () => { if (grilleXY) { centreGrille(); dessineReserve(); } });
 /** La réserve s'agrandit pour contenir la pièce la plus basse. */
 function ajusteReserve() {
   const tray = $("pzTray");
   let bas = 0;
   for (const el of tray.children) bas = Math.max(bas, el.offsetTop + el.offsetHeight);
-  tray.style.height = tray.classList.contains("libre") ? Math.max(bas + 16, tray.dataset.hInit || 0) + "px" : "";
+  tray.style.height = bas ? bas + 16 + "px" : "";
 }
 /** Lâcher dans la réserve : la case saisie de la pièce arrive sous le pointeur. */
 function deposeEnReserve(p, e, dr, dc) {
-  const tray = $("pzTray"), box = tray.getBoundingClientRect();
+  const tray = $("pzTray"), box = tray.getBoundingClientRect(), g = $("pzBoard").getBoundingClientRect();
   if (e.clientX < box.left || e.clientX > box.right || e.clientY < box.top || e.clientY > box.bottom + 40) return false;
+  if (e.clientX >= g.left && e.clientX <= g.right && e.clientY >= g.top && e.clientY <= g.bottom) return false;   // bord de la grille
   // Taille d'une case dans la réserve (80 % de la grille en entraînement, 100 % dans le tournoi).
   const ref = tray.querySelector(".piece td:not(.trou)"), td = $("pzBoard").querySelector("td");
   const cs = ref ? ref.getBoundingClientRect().width : (td ? td.getBoundingClientRect().width : 30) * 0.8;
