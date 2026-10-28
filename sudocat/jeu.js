@@ -6,7 +6,7 @@
 
 const MAX_ERREURS = 3;
 // Version du moteur de grilles : une partie enregistrée avec une autre version n'est pas reprise.
-const MOTEUR_VERSION = 3;
+const MOTEUR_VERSION = 4;
 const DOUBLE_TAP_MS = 350;
 // 12 couleurs vives choisies par calcul pour être aussi distinctes que possible (écart minimal
 // en OKLab : 0,136, contre 0,078 pour l'ancienne palette), jaune vif imposé. Leur répartition

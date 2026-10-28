@@ -7,16 +7,13 @@
 
 const MAX_PALIER = 100;
 
-// [niveau, taille], du plus simple au plus dur (30 étapes). Les niveaux (1 à 6) décrivent le
-// déroulé ressenti par le joueur (voir puzzleProfile / classifyProfile dans moteur.js) : on
-// monte niveau par niveau, et la grille grandit à l'intérieur de chaque niveau. Difficile et
-// Difficile + s'arrêtent à 11 × 11, Facile + et Moyen + à 9 × 9 (profils rares sur les grandes grilles :
-// introuvable sur les grandes grilles) (en 12 × 12 la grille peut demander ~10 s de calcul sur
-// téléphone). Les 100 paliers se répartissent sur ces étapes.
+// [niveau, taille], du plus simple au plus dur (25 étapes). Chaque niveau (1 à 6) ajoute un
+// raisonnement (voir classifyProfile dans moteur.js : confinement, blocage, groupe de zones) ;
+// la grille grandit à l'intérieur de chaque niveau. Les 100 paliers se répartissent sur ces étapes.
 const ETAPES = [
-  [1, 5], [1, 6], [1, 7], [1, 8], [2, 5], [2, 6], [2, 7], [2, 8], [2, 9], [3, 6], [3, 7], [3, 8],
-  [3, 9], [3, 10], [3, 11], [4, 6], [4, 7], [4, 8], [4, 9], [5, 6], [5, 7], [5, 8], [5, 9], [5, 10],
-  [5, 11], [6, 7], [6, 8], [6, 9], [6, 10], [6, 11],
+  [1, 5], [1, 6], [1, 7], [1, 8], [2, 6], [2, 7], [2, 8], [2, 9], [3, 7], [3, 8], [3, 9], [3, 10],
+  [4, 7], [4, 8], [4, 9], [4, 10], [5, 8], [5, 9], [5, 10], [5, 11], [6, 8], [6, 9], [6, 10],
+  [6, 11], [6, 12],
 ];
 
 /** Réglages d'un palier : { palier, niveau (moteur), taille, nom }. */
