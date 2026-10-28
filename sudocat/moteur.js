@@ -43,12 +43,12 @@ const MAX_SIZE = 12;   // 13-14 possibles mais jusqu'à 25 s pour un difficile
    Les niveaux de difficulté ne dépendent pas seulement du raisonnement le plus dur : ils
    décrivent le déroulé ressenti par le joueur (voir puzzleProfile et classifyProfile). */
 const LEVELS = {
-  1: { id: 'facile', label: 'Facile', detail: 'une zone confinée dans une ligne à repérer' },
-  2: { id: 'facile-plus', label: 'Facile +', detail: 'plusieurs zones confinées à repérer' },
-  3: { id: 'moyen', label: 'Moyen', detail: 'une ou deux cases qui bloqueraient tout' },
-  4: { id: 'moyen-plus', label: 'Moyen +', detail: 'des cases qui bloqueraient tout, à répétition' },
-  5: { id: 'difficile', label: 'Difficile', detail: 'plusieurs zones coincées dans autant de lignes' },
-  6: { id: 'difficile-plus', label: 'Difficile +', detail: '3 ou 4 zones coincées ensemble, et plusieurs groupes' },
+  1: { id: 'facile', label: 'Facile', detail: 'repérer une zone confinée dans une ligne' },
+  2: { id: 'facile-plus', label: 'Facile +', detail: 'zones confinées, à plusieurs reprises' },
+  3: { id: 'moyen', label: 'Moyen', detail: 'cases qui bloqueraient tout, à plusieurs reprises' },
+  4: { id: 'moyen-plus', label: 'Moyen +', detail: 'cases qui bloqueraient tout, jusqu’au bout' },
+  5: { id: 'difficile', label: 'Difficile', detail: 'zones coincées ensemble, à plusieurs reprises' },
+  6: { id: 'difficile-plus', label: 'Difficile +', detail: 'zones coincées ensemble, jusqu’au bout' },
 };
 const MAX_LEVEL = 6;
 
@@ -409,27 +409,28 @@ function puzzleProfile(region, n, givens) {
 
 /**
  * Niveau correspondant à un profil (1 à 6), 0 si la grille ne se résout pas par déduction,
- * HORS_PROFIL si elle se résout sans aucune élimination (trop simple pour le livre).
- * Chaque niveau ajoute un raisonnement que le joueur doit faire (voir humanSolve) :
- *   1 Facile       une seule élimination, par confinement (une zone tient dans une ligne :
- *                  le reste de la ligne est exclu)
- *   2 Facile +     2 confinements ou plus, aucun blocage
- *   3 Moyen        1 ou 2 blocages (« un chat ici ne laisserait plus de place à telle zone »),
- *                  aucun groupe
- *   4 Moyen +      3 blocages ou plus, aucun groupe
- *   5 Difficile    au moins un groupe (k zones coincées dans k lignes ou colonnes)
- *   6 Difficile +  un groupe de 3 ou 4 zones, et au moins 2 groupes en tout
+ * HORS_PROFIL si elle n'entre dans aucun niveau. Tous les niveaux suivent le même modèle :
+ * la grille résiste en cours de route. Trois mesures, de plus en plus exigeantes :
+ *   - le raisonnement le plus dur demandé : confinement (une zone tient dans une ligne),
+ *     blocage (« un chat ici ne laisserait plus de place à telle zone »), groupe (k zones
+ *     coincées dans k lignes) ;
+ *   - les moments d'élimination : combien de fois la chaîne casse (aucun chat trouvable) ;
+ *   - la cascade : le plus grand nombre de chats trouvables à la fois.
+ *   1 Facile       confinement au plus
+ *   2 Facile +     confinement au plus, 2 moments ou plus, 3 chats trouvables à la fois au plus
+ *   3 Moyen        blocage, 2 moments ou plus, cascade de 3 au plus
+ *   4 Moyen +      blocage, 3 moments ou plus, cascade de 2 au plus
+ *   5 Difficile    groupe, 2 moments ou plus, cascade de 3 au plus
+ *   6 Difficile +  groupe, 3 moments ou plus, cascade de 2 au plus
  */
 const HORS_PROFIL = 7;
 function classifyProfile(pr) {
   if (!pr.solved) return 0;
-  const grandsGroupes = (pr.used['groupe-3'] || 0) + (pr.used['groupe-4'] || 0);
-  if (grandsGroupes && pr.groupes >= 2) return 6;
-  if (pr.groupes) return 5;
-  if (pr.blocs >= 3) return 4;
-  if (pr.blocs) return 3;
-  if (pr.confinements >= 2) return 2;
-  if (pr.confinements === 1) return 1;
+  const m = pr.blocages, cascade = Math.max(0, ...pr.trouvables);
+  const resiste = m >= 3 && cascade <= 2, tient = m >= 2 && cascade <= 3;
+  if (pr.groupes) return resiste ? 6 : tient ? 5 : HORS_PROFIL;
+  if (pr.blocs) return resiste ? 4 : tient ? 3 : HORS_PROFIL;
+  if (pr.confinements) return tient ? 2 : 1;
   return HORS_PROFIL;
 }
 

@@ -8,9 +8,9 @@
 const MAX_PALIER = 100;
 
 // [niveau, taille], du plus simple au plus dur (24 étapes). Chaque niveau (1 à 6) ajoute un
-// raisonnement (voir classifyProfile dans moteur.js : confinement, blocage, groupe de zones,
-// groupe de 3-4 zones) ; la grille grandit à l'intérieur de chaque niveau. Difficile + commence
-// en 9 × 9 (trop rare en dessous). Les 100 paliers se répartissent sur ces étapes.
+// cran de difficulté (voir classifyProfile dans moteur.js : raisonnement, moments d'élimination,
+// cascade) ; la grille grandit à l'intérieur de chaque niveau. Difficile + commence en 9 × 9
+// (introuvable en dessous). Les 100 paliers se répartissent sur ces étapes.
 const ETAPES = [
   [1, 5], [1, 6], [1, 7], [1, 8], [2, 6], [2, 7], [2, 8], [2, 9], [3, 7], [3, 8], [3, 9], [3, 10],
   [4, 7], [4, 8], [4, 9], [4, 10], [5, 8], [5, 9], [5, 10], [5, 11], [6, 9], [6, 10], [6, 11],
