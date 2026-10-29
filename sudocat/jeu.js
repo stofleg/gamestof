@@ -23,7 +23,8 @@ let players = [];      // [{ j, nom, palier, theme }] — principal en premier
 let player = null;     // joueur actif
 let game = null;       // ligne de la partie en cours (stockage)
 let puzzle = null;     // grille (generatePuzzle)
-let st = null;         // { marks, cats, bad: Set, errors, elapsed, over }
+let st = null;         // { marks, cats, bad, essaiChats, essaiCroix: Set, errors, elapsed, over }
+let essai = null;      // bouton d'essai actif : 'chat' (rond noir), 'croix' (croix noire) ou null
 let accountId = null;
 
 /* ------------------------------ Utilitaires ------------------------------ */
@@ -74,7 +75,10 @@ document.addEventListener('visibilitychange', () => {
 let saveTimer = null;
 function snapshot() {
   return {
-    etat: { v: MOTEUR_VERSION, marks: [...st.marks], cats: [...st.cats], bad: [...st.bad], elapsed: Math.round(elapsedNow()) },
+    etat: {
+      v: MOTEUR_VERSION, marks: [...st.marks], cats: [...st.cats], bad: [...st.bad],
+      essaiChats: [...st.essaiChats], essaiCroix: [...st.essaiCroix], elapsed: Math.round(elapsedNow()),
+    },
     erreurs: st.errors, duree_ms: Math.round(elapsedNow()),
   };
 }
@@ -117,6 +121,8 @@ function renderCell(i, opts = {}) {
   const r = Math.floor(i / puzzle.size);
   const showCat = st.cats.has(i) || (opts.hint && puzzle.solution[r] === i % puzzle.size);
   el.classList.toggle('x', st.marks.has(i));
+  el.classList.toggle('essaiChat', st.essaiChats.has(i));
+  el.classList.toggle('essaiCroix', st.essaiCroix.has(i));
   el.classList.toggle('bad', st.bad.has(i));
   el.classList.toggle('cat', st.cats.has(i));
   el.classList.toggle('hint', !st.cats.has(i) && !!opts.hint && showCat);
@@ -147,8 +153,31 @@ function cellAt(x, y) {
 function locked(i) { return st.cats.has(i) || st.bad.has(i); }
 function applyMark(i, mode) {
   if (locked(i)) return;
-  if (mode === 'add') st.marks.add(i); else st.marks.delete(i);
+  if (mode === 'add') { st.marks.add(i); clearEssai(i); } else st.marks.delete(i);
   renderCell(i);
+}
+
+/* Essais : rond noir (chat potentiel) ou croix noire, posés quand un bouton d'essai est actif.
+   Ils ne comptent jamais comme erreur. Une case a au plus un essai, et aucun sur une croix
+   (déjà exclue), un chat ou une erreur. Une croix ou un chat posé efface l'essai de sa case. */
+function essaiSet() { return essai === 'chat' ? st.essaiChats : st.essaiCroix; }
+function clearEssai(i) { st.essaiChats.delete(i); st.essaiCroix.delete(i); }
+function applyEssai(i, mode) {
+  if (locked(i) || st.marks.has(i)) return;
+  clearEssai(i);
+  if (mode === 'add') essaiSet().add(i);
+  renderCell(i);
+}
+function renderEssai() {
+  $('essaiChat').classList.toggle('on', essai === 'chat');
+  $('essaiCroix').classList.toggle('on', essai === 'croix');
+  $('essaiChat').setAttribute('aria-pressed', essai === 'chat');
+  $('essaiCroix').setAttribute('aria-pressed', essai === 'croix');
+  $('gestes').textContent = essai ? 'Touche ou glisse : pose ou retire ' + (essai === 'chat' ? 'un rond d’essai' : 'une croix d’essai')
+    : 'Touche : croix · Glisse : croix · Double-touche : chat';
+}
+for (const [id, mode] of [['essaiChat', 'chat'], ['essaiCroix', 'croix']]) {
+  $(id).addEventListener('click', () => { essai = essai === mode ? null : mode; renderEssai(); });
 }
 
 $('board').addEventListener('pointerdown', (e) => {
@@ -156,6 +185,15 @@ $('board').addEventListener('pointerdown', (e) => {
   const i = cellAt(e.clientX, e.clientY);
   if (i < 0) return;
   e.preventDefault();
+  if (essai) {
+    // Bouton d'essai actif : chaque touche pose ou retire un essai (pas de double-touche).
+    lastTap = { i: -1, t: 0, before: false };
+    if (locked(i) || st.marks.has(i)) { drag = null; return; }
+    drag = { essai: true, mode: essaiSet().has(i) ? 'remove' : 'add', seen: new Set([i]) };
+    applyEssai(i, drag.mode);
+    $('board').setPointerCapture(e.pointerId);
+    return;
+  }
   const now = performance.now();
   if (lastTap.i === i && now - lastTap.t < DOUBLE_TAP_MS) {
     // Double-touche : on annule la croix du premier appui, puis on pose un chat.
@@ -177,7 +215,7 @@ $('board').addEventListener('pointermove', (e) => {
   if (i < 0 || drag.seen.has(i)) return;
   drag.seen.add(i);
   lastTap = { i: -1, t: 0, before: false };   // un glissé n'est pas un double-touche
-  applyMark(i, drag.mode);
+  if (drag.essai) applyEssai(i, drag.mode); else applyMark(i, drag.mode);
 });
 function endDrag() { if (drag) { drag = null; saveSoon(); } }
 $('board').addEventListener('pointerup', endDrag);
@@ -189,6 +227,7 @@ function placeCat(i) {
   if (!st || st.over || st.cats.has(i) || st.bad.has(i)) return;
   const n = puzzle.size, r = Math.floor(i / n), c = i % n;
   st.marks.delete(i);
+  clearEssai(i);
   if (puzzle.solution[r] === c) {
     st.cats.add(i);
     renderCell(i);
@@ -291,11 +330,15 @@ function begin(p, etat) {
     marks: new Set(e.marks || []),
     cats: new Set(e.cats || p.givens),
     bad: new Set(e.bad || []),
+    essaiChats: new Set(e.essaiChats || []),
+    essaiCroix: new Set(e.essaiCroix || []),
     errors: (e.bad || []).length,
     elapsed: e.elapsed || 0,
     over: false,
   };
   for (const g of p.givens) st.cats.add(g);
+  essai = null;
+  renderEssai();
   renderBoard();
   renderStatus();
   clockStart();

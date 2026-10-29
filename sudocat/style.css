@@ -98,6 +98,14 @@ input { font: inherit; }
 .cell.x::before, .cell.bad::before { transform: rotate(45deg); }
 .cell.x::after, .cell.bad::after { transform: rotate(-45deg); }
 .cell.bad { background: #2A1420 !important; animation: shake .35s; }
+/* Essais : croix noire (plus fine que la croix sûre) et rond noir (chat potentiel). */
+.cell.essaiCroix::before, .cell.essaiCroix::after {
+  content: ""; position: absolute; left: 24%; top: 45%; width: 52%; height: 10%;
+  background: #000; border-radius: 999px;
+}
+.cell.essaiCroix::before { transform: rotate(45deg); }
+.cell.essaiCroix::after { transform: rotate(-45deg); }
+.cell.essaiChat::before { content: ""; position: absolute; left: 30%; top: 30%; width: 40%; height: 40%; background: #000; border-radius: 50%; }
 .cell.bad::before, .cell.bad::after { background: var(--bad); box-shadow: none; }
 .cell svg { position: absolute; inset: 5%; width: 90%; height: 90%; pointer-events: none; filter: drop-shadow(0 2px 2px rgba(0, 0, 0, .25)); }
 .cell.cat svg { animation: pop .3s cubic-bezier(.3, 1.6, .5, 1); }
@@ -109,6 +117,16 @@ input { font: inherit; }
 .spinner { width: 40px; height: 40px; border: 4px solid var(--surface-2); border-top-color: var(--accent); border-radius: 50%; animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
+.essais { display: flex; gap: 8px; }
+.essaiBtn {
+  flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  border: 2px solid transparent; border-radius: 12px; background: var(--surface-2); padding: 9px 8px; font-weight: 600; color: var(--muted);
+}
+.essaiBtn.on { background: var(--ink); color: var(--bg); border-color: var(--accent); }
+.essaiBtn .rond { width: 14px; height: 14px; border-radius: 50%; background: currentColor; }
+.essaiBtn .croix { position: relative; width: 14px; height: 14px; }
+.essaiBtn .croix::before, .essaiBtn .croix::after { content: ""; position: absolute; left: -1px; top: 5.5px; width: 16px; height: 3px; border-radius: 2px; background: currentColor; transform: rotate(45deg); }
+.essaiBtn .croix::after { transform: rotate(-45deg); }
 .hint { text-align: center; font-size: 12px; color: var(--muted); margin: 0; }
 .problem { text-align: center; font-size: 13px; color: #FF8BA0; margin: 0; }
 
