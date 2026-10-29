@@ -161,21 +161,33 @@ function applyMark(i, mode) {
    Ils ne comptent jamais comme erreur. Une case a au plus un essai, et aucun sur une croix
    (déjà exclue), un chat ou une erreur. Une croix ou un chat posé efface l'essai de sa case. */
 function essaiSet() { return essai === 'chat' ? st.essaiChats : st.essaiCroix; }
-function clearEssai(i) { st.essaiChats.delete(i); st.essaiCroix.delete(i); }
+function clearEssai(i) { st.essaiChats.delete(i); st.essaiCroix.delete(i); renderGomme(); }
 function applyEssai(i, mode) {
   if (locked(i) || st.marks.has(i)) return;
   clearEssai(i);
   if (mode === 'add') essaiSet().add(i);
   renderCell(i);
+  renderGomme();
 }
 function renderEssai() {
   $('essaiChat').classList.toggle('on', essai === 'chat');
   $('essaiCroix').classList.toggle('on', essai === 'croix');
   $('essaiChat').setAttribute('aria-pressed', essai === 'chat');
   $('essaiCroix').setAttribute('aria-pressed', essai === 'croix');
+  renderGomme();
   $('gestes').textContent = essai ? 'Touche ou glisse : pose ou retire ' + (essai === 'chat' ? 'un rond d’essai' : 'une croix d’essai')
     : 'Touche : croix · Glisse : croix · Double-touche : chat';
 }
+function renderGomme() { $('gomme').disabled = !st || st.over || !(st.essaiChats.size || st.essaiCroix.size); }
+// Gomme : efface tous les essais d'un coup (le bouton d'essai actif le reste).
+$('gomme').addEventListener('click', () => {
+  if (!st || st.over) return;
+  const cases = [...st.essaiChats, ...st.essaiCroix];
+  st.essaiChats.clear(); st.essaiCroix.clear();
+  for (const i of cases) renderCell(i);
+  renderGomme();
+  saveSoon();
+});
 for (const [id, mode] of [['essaiChat', 'chat'], ['essaiCroix', 'croix']]) {
   $(id).addEventListener('click', () => { essai = essai === mode ? null : mode; renderEssai(); });
 }
@@ -261,6 +273,7 @@ async function movePalier(delta) {
 async function finish(won) {
   clockStop();
   st.over = true;
+  renderGomme();
   const sansFaute = won && st.errors === 0;
   const levelMsg = await movePalier(sansFaute ? 1 : won ? 0 : -1);
   await saveNow({ resultat: won ? 'gagnee' : 'perdue', facile: sansFaute, finie_le: new Date().toISOString() });

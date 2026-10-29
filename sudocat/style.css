@@ -122,6 +122,8 @@ input { font: inherit; }
   flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 8px;
   border: 2px solid transparent; border-radius: 12px; background: var(--surface-2); padding: 9px 8px; font-weight: 600; color: var(--muted);
 }
+.essaiBtn.gomme { flex: 0 0 48px; font-size: 20px; padding: 6px; }
+.essaiBtn:disabled { opacity: .35; cursor: default; }
 .essaiBtn.on { background: var(--ink); color: var(--bg); border-color: var(--accent); }
 .essaiBtn .rond { width: 14px; height: 14px; border-radius: 50%; background: currentColor; }
 .essaiBtn .croix { position: relative; width: 14px; height: 14px; }

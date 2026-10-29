@@ -12,7 +12,8 @@ placer un chat (ou un chien) par ligne, colonne et zone, sans que deux se touche
 - **Essais** : les boutons « Chat d'essai » et « Croix d'essai » (sous la grille) changent le
   geste : chaque touche (ou glissé) pose ou retire un **rond noir** (chat potentiel) ou une
   **croix noire**. Les essais ne comptent jamais comme erreur et sont sauvegardés avec la partie.
-  Bouton retouché : retour aux gestes habituels. Une croix ou un chat posé efface l'essai de sa case.
+  Bouton retouché : retour aux gestes habituels. Une croix ou un chat posé efface l'essai de sa case. La **gomme** 🧽 efface tous
+  les essais d'un coup.
 - Pas de chrono affiché (la durée est seulement enregistrée). La partie en cours est
   sauvegardée en continu : on la retrouve en revenant, sur n'importe quel appareil.
 - Deux mascottes dessinées pour le site (`mascottes.js`) : le chat calico et le chien. Le bouton
