@@ -7,8 +7,10 @@ export const REGLES = {
     points: [
       "Tirages de <b>6 lettres</b> au lieu de 7.",
       "Pas de scrabble : <b>aucune prime de 50</b>, même en posant les 6 lettres.",
-      "<b>66 secondes</b> par coup, et <b>666 secondes</b> pour toute la partie : le chrono général décompte de 666 à 0.",
-      "À zéro, la partie s'arrête : les coups non joués comptent dans le <b>négatif</b> (leur top est perdu).",
+      "<b>66 secondes</b> de réflexion par coup au maximum : à la fin du temps, le coup se ferme et ton meilleur essai compte.",
+      "La partie entière dure au plus <b>666 secondes</b> : le chrono général décompte de 666 à 0 dès le premier coup (il passe en rouge dans la dernière minute).",
+      "Ce décompte tourne en continu : chaque seconde de réflexion y est prise, et « Voir le top » lui retire aussi le temps restant du coup. Impossible de prendre 66 secondes à chaque coup : il faut aller vite.",
+      "À zéro, la partie s'arrête : le coup en cours garde ton meilleur essai, et les coups non joués comptent dans le <b>négatif</b> (leur top est perdu).",
     ],
   },
   "7sur15": {
