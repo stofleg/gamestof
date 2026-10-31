@@ -10,11 +10,11 @@
 //     pour tous. Un seul essai ; l'heure de départ est enregistrée en base, si bien
 //     qu'un rechargement ne remet pas le chrono à zéro. Le temps réalisé est
 //     enregistré comme résultat (0 point, 0 négatif) et s'ajoute au temps général.
-import { afficheRegles } from "./regles.js?v=440";
-import { chargeDico, grilleFinale, classeCase, jeton, appliqueTheme, fmt } from "./grille-finale.js?v=440";
-import { decoupeRegions, piecesDepuisRegions } from "./puzzle-pieces.js?v=440";
-import { emptyBoard, applyMove, modeDisplayName, modeNomOrigine } from "./engine.js?v=440";
-import * as sonHalloween from "./halloween-son.js?v=440";
+import { afficheRegles } from "./regles.js?v=441";
+import { chargeDico, grilleFinale, classeCase, jeton, appliqueTheme, fmt } from "./grille-finale.js?v=441";
+import { decoupeRegions, piecesDepuisRegions } from "./puzzle-pieces.js?v=441";
+import { emptyBoard, applyMove, modeDisplayName, modeNomOrigine } from "./engine.js?v=441";
+import * as sonHalloween from "./halloween-son.js?v=441";
 
 const $ = id => document.getElementById(id);
 const N = 15;
@@ -385,6 +385,20 @@ async function lanceTournoi() {
   if (res?.paused?.puzzleDebut) {                           // reprise : le chrono continue
     tournoi.debut = res.paused.puzzleDebut;
   } else {
+    // Tournoi de la Mort : Jigsaw se joue en dernier, pour tous les joueurs (même par lien direct).
+    if (mort) {
+      const { data: autres } = await sb.from("prepared_games").select("id").eq("tournament_id", partie.tournament_id).neq("mode", "puzzle");
+      const ids = (autres || []).map(g => g.id);
+      const { data: faits } = ids.length ? await sb.from("prepared_game_results").select("prepared_game_id, summary, paused")
+        .eq("player_id", pid).in("prepared_game_id", ids) : { data: [] };
+      const finies = new Set((faits || []).filter(r => !r.paused && r.summary?.mv?.length).map(r => r.prepared_game_id));
+      const reste = ids.filter(id => !finies.has(id)).length;
+      if (reste) {
+        $("pzAbandon").hidden = true;
+        annonce(`🔒 Jigsaw se joue en dernier : termine d'abord ${reste > 1 ? `les ${reste} autres parties` : "la dernière partie"} du tournoi.`);
+        return;
+      }
+    }
     await afficheRegles("puzzle", mort ? modeDisplayName("puzzle", false, true) : null, mort ? modeNomOrigine("puzzle") : null);
     tournoi.debut = Date.now();
     const { error: e2 } = await sb.from("prepared_game_results").upsert({
