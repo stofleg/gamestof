@@ -10,11 +10,11 @@
 //     pour tous. Un seul essai ; l'heure de départ est enregistrée en base, si bien
 //     qu'un rechargement ne remet pas le chrono à zéro. Le temps réalisé est
 //     enregistré comme résultat (0 point, 0 négatif) et s'ajoute au temps général.
-import { afficheRegles } from "./regles.js?v=442";
-import { chargeDico, grilleFinale, classeCase, jeton, appliqueTheme, fmt } from "./grille-finale.js?v=442";
-import { decoupeRegions, piecesDepuisRegions } from "./puzzle-pieces.js?v=442";
-import { emptyBoard, applyMove, modeDisplayName, modeNomOrigine } from "./engine.js?v=442";
-import * as sonHalloween from "./halloween-son.js?v=442";
+import { afficheRegles } from "./regles.js?v=443";
+import { chargeDico, grilleFinale, classeCase, jeton, appliqueTheme, fmt } from "./grille-finale.js?v=443";
+import { decoupeRegions, piecesDepuisRegions } from "./puzzle-pieces.js?v=443";
+import { emptyBoard, applyMove, modeDisplayName, modeNomOrigine } from "./engine.js?v=443";
+import * as sonHalloween from "./halloween-son.js?v=443";
 
 const $ = id => document.getElementById(id);
 const N = 15;
@@ -351,7 +351,7 @@ async function lanceTournoi() {
     const { data: t } = await sb.from("tournaments").select("est_public").eq("id", partie.tournament_id).maybeSingle();
     mort = !!t?.est_public;
   }
-  const versTournoi = () => { location.href = PUBLIC_EVENT ? "../halloween/" : "../index.html"; };
+  const versTournoi = () => { location.href = PUBLIC_EVENT ? "../halloween/" : `../index.html${partie.tournament_id ? `#tid=${partie.tournament_id}` : ""}`; };
   if (mort) {
     // Interface Halloween épurée : chrono + Abandonner, grille réduite sans multiplicateurs.
     document.body.classList.add("theme-halloween", "pz-mort");
@@ -399,7 +399,7 @@ async function lanceTournoi() {
         return;
       }
     }
-    await afficheRegles("puzzle", mort ? modeDisplayName("puzzle", false, true) : null, mort ? modeNomOrigine("puzzle") : null, mort ? (PUBLIC_EVENT ? "../halloween/" : "../index.html") : null);
+    await afficheRegles("puzzle", mort ? modeDisplayName("puzzle", false, true) : null, mort ? modeNomOrigine("puzzle") : null, mort ? (PUBLIC_EVENT ? "../halloween/" : `../index.html${partie.tournament_id ? `#tid=${partie.tournament_id}` : ""}`) : null);
     tournoi.debut = Date.now();
     const { error: e2 } = await sb.from("prepared_game_results").upsert({
       prepared_game_id: partie.id, player_id: pid, total_score: 0, sum_neg: 0, total_time_seconds: 0,

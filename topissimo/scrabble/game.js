@@ -29,12 +29,12 @@ import {
   bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName, modeNomOrigine, randomBoardLayout, snakeEndpointsAfter, sablierTime, gigogneRackSize,
   setLetterValues, letterValue, valuesFor, bagFor, isCrossingCell, wordHiddenCount,
   drawVowelRack, VOWELS_NO_Y, MARATHON_TARGET, MARATHON_GAMES, consonnesDisponibles, jokersDisponibles,
-} from "./engine.js?v=442";
-import { Dictionary } from "./dictionary.js?v=442";
-import * as invasion from "./araignees.js?v=442";
-import { REGLES, afficheRegles } from "./regles.js?v=442";
-import * as sonHalloween from "./halloween-son.js?v=442";
-import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=442";
+} from "./engine.js?v=443";
+import { Dictionary } from "./dictionary.js?v=443";
+import * as invasion from "./araignees.js?v=443";
+import { REGLES, afficheRegles } from "./regles.js?v=443";
+import * as sonHalloween from "./halloween-son.js?v=443";
+import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=443";
 
 // État du mode review (parcours coup par coup)
 const review = {
@@ -72,7 +72,7 @@ const FFSC_LIVE = URL_PARAMS.get("ffsclive");      // jouer une partie FFSC en d
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v442";
+const BUILD_VERSION = "garenna-v443";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -1592,8 +1592,10 @@ function applyColorTheme() {
 // Parties du « tournoi de la Mort » (tournoi public) : titres Halloween à la place des
 // noms de formules. Les joueurs du tournoi public y sont toujours ; pour les membres du
 // club, on lit le drapeau est_public du tournoi de la partie.
+let tournoiMortId = null;   // pour revenir à la page du tournoi (bouton Retour des règles)
 async function majTitresMort(tournamentId) {
   titresMort = PUBLIC_EVENT;
+  tournoiMortId = tournamentId || null;
   if (!titresMort && tournamentId && window._sb) {
     try {
       const { data } = await window._sb.from("tournaments").select("est_public").eq("id", tournamentId).maybeSingle();
@@ -1602,6 +1604,9 @@ async function majTitresMort(tournamentId) {
   }
   document.body.classList.toggle("sans-pause", titresMort);   // pas de pause dans ce tournoi
   applyColorTheme();                                          // thème Halloween imposé
+  // Joueur du club dans le tournoi de la Mort : « ← Tournoi » ramène à la page du tournoi.
+  const home = document.getElementById("btnHome");
+  if (titresMort && !PUBLIC_EVENT && tournoiMortId && home) { home.href = `../index.html#tid=${tournoiMortId}`; home.textContent = "← Tournoi"; }
   renderGameTitle();
 }
 const nomFormule = (cle, joker) => modeDisplayName(cle, joker, titresMort);
@@ -6250,7 +6255,7 @@ function startGame() {
   if (REGLES[cleMode] && !reglesVues.has(cleMode) && !currentMode().page) {
     reglesVues.add(cleMode);
     afficheRegles(cleMode, titresMort ? nomFormule(cleMode, false) : null, titresMort ? modeNomOrigine(cleMode) : null,
-      titresMort ? (document.getElementById("btnHome")?.getAttribute("href") || "../index.html") : null).then(() => startGame());
+      titresMort ? (PUBLIC_EVENT ? "../halloween/" : `../index.html${tournoiMortId ? `#tid=${tournoiMortId}` : ""}`) : null).then(() => startGame());
     return;
   }
   if (currentMode().page) {
