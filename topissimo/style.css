@@ -1145,3 +1145,51 @@ th.sortable:hover { color: var(--petrol, #002E44); }
 
 /* Onglets masqués (ex. « En direct », conservé mais invisible) */
 nav button[hidden] { display: none !important; }
+
+/* ===== Tournoi de la Mort (tournoi public d'Halloween) : ambiance sur la page du tournoi =====
+   Même ciel que le thème Halloween des parties : lune de sang, cimetière, zombies. */
+body.tournoi-mort {
+  background:
+    radial-gradient(circle at 82% 16%, #ffd3b0 0 30px, #e0401a 34px, rgba(200,30,20,.45) 60px, rgba(150,10,10,.15) 140px, transparent 260px),
+    radial-gradient(ellipse at 50% 120%, rgba(255,60,0,.35), transparent 60%),
+    linear-gradient(180deg, #07030b 0%, #1a0612 50%, #3a0a0a 100%);
+  background-attachment: fixed;
+}
+body.tournoi-mort::after {
+  content: ""; position: fixed; left: 0; right: 0; bottom: 0; height: 200px; pointer-events: none; z-index: -1;
+  background:
+    url("scrabble/zombies.svg?v=439") right 2% bottom / auto 150px no-repeat,
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1200 220' preserveAspectRatio='xMidYMax slice'%3E%3Cg fill='%23050208'%3E%3Cpath d='M0 220V150q120-50 260-10t300-20 320 25 320-40v115z'/%3E%3Cpath d='M300 160v-34a16 16 0 0132 0v34z'/%3E%3Cpath d='M360 156v-24a12 12 0 0124 0v24z'/%3E%3Crect x='640' y='96' width='8' height='60'/%3E%3Crect x='626' y='110' width='36' height='8'/%3E%3Cpath d='M760 158v-30a14 14 0 0128 0v30z'/%3E%3C/g%3E%3C/svg%3E") bottom / cover no-repeat;
+}
+body.tournoi-mort main, body.tournoi-mort #tournamentDetailView { position: relative; z-index: 0; }
+body.tournoi-mort #tournamentDetailView {
+  --ink: #f3e9d2; --ink-soft: #c9b8d8; --line: #4a2d63; --paper: #1e1028; --soft: #2b1a38;
+  --petrol: #ffb35c; --petrol-dark: #1a1020; --yellow: #e0661a;
+  color: var(--ink);
+  padding-bottom: 170px;           /* laisser voir les zombies sous la dernière carte */
+}
+body.tournoi-mort #tournamentDetailView .card {
+  background: rgba(26,12,30,.9); color: var(--ink); border: 1px solid #5a2d63;
+  box-shadow: 0 10px 30px rgba(0,0,0,.5);
+}
+body.tournoi-mort #tournamentDetailView h2,
+body.tournoi-mort #tournamentDetailView h3 { color: #ffb35c; }
+body.tournoi-mort #tournamentDetailTitle { color: #ff6a2a; text-shadow: 0 0 14px rgba(255,40,10,.6); }
+body.tournoi-mort #tournamentDetailView .muted { color: var(--ink-soft); }
+body.tournoi-mort #tournamentDetailView .btn.ghost { color: #ffb35c; border-color: #e0661a; background: transparent; }
+body.tournoi-mort #tournamentDetailView table,
+body.tournoi-mort #tournamentDetailView th,
+body.tournoi-mort #tournamentDetailView td { background: transparent; color: var(--ink); border-color: var(--line); }
+body.tournoi-mort #tournamentDetailView .pg-group { background: #1e1028; border-color: #4a2d63; box-shadow: none; }
+body.tournoi-mort #tournamentDetailView .pg-group > summary { background: #2b1a38; color: var(--ink); border-left-color: #e0661a; }
+body.tournoi-mort #tournamentDetailView .pg-group > summary:hover { background: #351f45; }
+body.tournoi-mort #tournamentDetailView .pg-group-count { background: #e0661a; color: #1a1020; }
+body.tournoi-mort #tournamentDetailView .pg-mini { background: #2b1a38; border-left-color: #e0661a; color: var(--ink); }
+body.tournoi-mort #tournamentDetailView .pbar { background: #3a2a48; }
+body.tournoi-mort .subtab { color: #e9dcc4; }
+body.tournoi-mort .subtab.active { color: #ffb35c; }
+.mort-avert {
+  margin-bottom: 16px; padding: 12px 14px; border-radius: 10px;
+  background: rgba(224,102,26,.14); border: 1px solid #e0661a; color: #f3e9d2; line-height: 1.45; font-size: .92rem;
+}
+.mort-avert > strong:first-child { display: block; margin-bottom: 4px; color: #ffb35c; font-size: 1rem; }

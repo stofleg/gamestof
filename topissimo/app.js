@@ -149,6 +149,7 @@ function activateTab(name, persist = true) {
   $$(".tab").forEach(s => s.hidden = s.dataset.tab !== name);
   // Quitter le tab "prepared" → oublier le tournoi sélectionné (retour à la liste au retour)
   if (name !== "prepared") currentTournamentId = null;
+  if (name !== "prepared") document.body.classList.remove("tournoi-mort");
   if (name === "ranking") loadRanking();
   if (name === "games") loadMyGames();
   if (name === "stats") loadClubStats();
@@ -226,7 +227,7 @@ let myGamesSort = {
 async function loadMyGames() {
   if (!state.currentPlayerId) return;
   const pid = +state.currentPlayerId;
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=438");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=439");
 
   // Tournoi : prepared_game_results jointes avec prepared_games. Colonnes explicites
   // (pas de details/diagnostics → egress) ; `summary` sert juste à savoir si des
@@ -1650,7 +1651,7 @@ async function loadMyStats() {
   const pid = +state.currentPlayerId;
 
   body.innerHTML = `<p class="muted">⏳ Calcul…</p>`;
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=438");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=439");
 
   // Tournois « démo » à EXCLURE des stats (résultats importés FFSC, hors Topissimo).
   const _tlist = await cachedQuery("tournaments", () => sb.from("tournaments").select("id,name").then(r => r.data || []));
@@ -2276,7 +2277,7 @@ async function loadSolosAndStreaks() {
   const slowest = Object.values(worstByPid).sort((a, b) => b.time - a.time);
 
   // ===== Agrégats par joueur : parties au top, % coups au top, négatif moyen/cat =====
-  const { modeDisplayName } = await import("./scrabble/engine.js?v=438");
+  const { modeDisplayName } = await import("./scrabble/engine.js?v=439");
   const catOf = (mode, joker, tpm) => {
     const m = mode || "duplicate";
     if (m === "blitz") return { key: "blitz", label: "Blitz" };
@@ -2428,6 +2429,7 @@ function renderPresence() {
 }
 
 async function loadTournaments() {
+  document.body.classList.remove("tournoi-mort");   // liste des tournois : ambiance normale
   $("#tournamentsView").hidden = false;
   $("#tournamentDetailView").hidden = true;
   $("#tournamentFormCard").hidden = !canGenerate();
@@ -2663,14 +2665,14 @@ window.purgeCurrentTournament = () => purgeTournament(currentTournamentId).then(
 window.renameCurrentTournament = async () => {
   if (!superAdmin()) return;
   if (!currentTournamentId) return;
-  const current = ($("#tournamentDetailTitle").textContent || "").replace(/^🏟\s*/, "");
+  const current = ($("#tournamentDetailTitle").textContent || "").replace(/^(🏟|💀)\s*/u, "");
   const name = prompt("Nouveau nom du tournoi :", current);
   if (name == null) return;                       // annulé
   const trimmed = name.trim();
   if (!trimmed || trimmed === current) return;     // vide ou inchangé
   const { error } = await sb.from("tournaments").update({ name: trimmed }).eq("id", currentTournamentId);
   if (error) { alert("Renommage : " + error.message); return; }
-  $("#tournamentDetailTitle").textContent = `🏟 ${trimmed}`;
+  $("#tournamentDetailTitle").textContent = `${document.body.classList.contains("tournoi-mort") ? "💀" : "🏟"} ${trimmed}`;
   loadTournaments();                               // rafraîchit la liste en arrière-plan
 };
 
@@ -2690,7 +2692,9 @@ async function loadTournamentDetail(tournamentId) {
 
   const { data: t } = await sb.from("tournaments").select("*").eq("id", tournamentId).maybeSingle();
   if (!t) { backToTournaments(); return; }
-  $("#tournamentDetailTitle").textContent = `🏟 ${t.name}`;
+  $("#tournamentDetailTitle").textContent = `${t.est_public ? "💀" : "🏟"} ${t.name}`;
+  // Tournoi de la Mort (public) : ambiance Halloween sur la page du tournoi.
+  document.body.classList.toggle("tournoi-mort", !!t.est_public);
 
   const { data: gamesRaw, error } = await sb.from("prepared_games")
     .select("id,name,mode,with_joker,time_per_move,created_at")
@@ -2712,7 +2716,7 @@ async function loadTournamentDetail(tournamentId) {
   // S'assurer qu'au moins une ligne de formule est présente dans le générateur.
   if (canGenerate() && $("#pgRecipe") && !$("#pgRecipe").children.length) pgAddRecipeLine();
 
-  const { modeDisplayName, modeNomOrigine } = await import("./scrabble/engine.js?v=438");
+  const { modeDisplayName, modeNomOrigine } = await import("./scrabble/engine.js?v=439");
   const btnStyle = "text-decoration:none;padding:5px 10px;border-radius:6px;font-weight:600;font-size:.85rem";
   const admin = superAdmin();     // stof en mode admin : joue + teste + supprime
   const genOnly = isAdmin();       // compte "admin" : génération seule, pas de jeu
@@ -2832,7 +2836,15 @@ async function loadTournamentDetail(tournamentId) {
         </details>`;
       }).join("")}</div>`;
 
-  $("#pgBody").innerHTML = progHTML + groupsHTML;
+  // Tournoi de la Mort : on prévient avant de lancer une partie qu'elle ne se quitte pas.
+  const avertMort = t.est_public ? `
+    <div class="mort-avert" role="note">
+      <strong>☠️ Parties impossibles à quitter</strong>
+      Une partie commencée se joue d'une traite : pas de pause, et si tu la quittes (retour, autre page,
+      fermeture de l'onglet), elle compte comme <strong>abandonnée</strong> : les coups restants
+      s'ajoutent à ton négatif. Garde du temps devant toi avant de cliquer sur « Jouer ».
+    </div>` : "";
+  $("#pgBody").innerHTML = avertMort + progHTML + groupsHTML;
 
   loadTournamentStats(tournamentId, games || []);
   loadTournamentLeaderboard(tournamentId, games || [], t.name, nomFormule, { scoreMort: !!t.est_public });
@@ -3562,7 +3574,7 @@ async function loadTournamentStats(tournamentId, games) {
   // On détermine « le top est un scrabble » en REjouant le plateau coup par coup
   // (nombre de NOUVELLES tuiles posées par le top == clé de prime du mode), ce qui
   // est fiable même sur d'anciennes parties (le hadBonus stocké est non fiable).
-  const { emptyBoard, applyMove, GAME_MODES } = await import("./scrabble/engine.js?v=438");
+  const { emptyBoard, applyMove, GAME_MODES } = await import("./scrabble/engine.js?v=439");
   const gameById = {};
   for (const g of games) gameById[g.id] = g;
   const bonusesOf = (gid) => (GAME_MODES[gameById[gid]?.mode] || GAME_MODES.duplicate).bonuses || { 7: 50 };
@@ -3756,9 +3768,9 @@ $("#pgCreate").onclick = async () => {
     let mods;
     try {
       mods = await Promise.all([
-        import("./scrabble/dictionary.js?v=438"),
-        import("./scrabble/generator.js?v=438"),
-        import("./scrabble/engine.js?v=438"),
+        import("./scrabble/dictionary.js?v=439"),
+        import("./scrabble/generator.js?v=439"),
+        import("./scrabble/engine.js?v=439"),
       ]);
     } catch (e) {
       $("#pgStatus").innerHTML = `<span style="color:#a02525">Échec de chargement des modules : ${escapeHtml(e.message)}</span>`;
@@ -3825,7 +3837,7 @@ window.recomputeAllNeg = async function(force = false) {
 
   let recomputeResult;
   try {
-    ({ recomputeResult } = await import("./scrabble/recompute.js?v=438"));
+    ({ recomputeResult } = await import("./scrabble/recompute.js?v=439"));
   } catch (e) {
     statusEl.textContent = "❌ Impossible de charger recompute.js : " + e.message;
     return;
@@ -4079,7 +4091,7 @@ window.recomputeAllJokerNeg = async function() {
 
   let recomputeResult;
   try {
-    ({ recomputeResult } = await import("./scrabble/recompute.js?v=438"));
+    ({ recomputeResult } = await import("./scrabble/recompute.js?v=439"));
   } catch (e) {
     statusEl.textContent = "❌ Impossible de charger recompute.js : " + e.message;
     return;

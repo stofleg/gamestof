@@ -29,12 +29,12 @@ import {
   bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName, modeNomOrigine, randomBoardLayout, snakeEndpointsAfter, sablierTime, gigogneRackSize,
   setLetterValues, letterValue, valuesFor, bagFor, isCrossingCell, wordHiddenCount,
   drawVowelRack, VOWELS_NO_Y, MARATHON_TARGET, MARATHON_GAMES, consonnesDisponibles, jokersDisponibles,
-} from "./engine.js?v=438";
-import { Dictionary } from "./dictionary.js?v=438";
-import * as invasion from "./araignees.js?v=438";
-import { REGLES, afficheRegles } from "./regles.js?v=438";
-import * as sonHalloween from "./halloween-son.js?v=438";
-import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=438";
+} from "./engine.js?v=439";
+import { Dictionary } from "./dictionary.js?v=439";
+import * as invasion from "./araignees.js?v=439";
+import { REGLES, afficheRegles } from "./regles.js?v=439";
+import * as sonHalloween from "./halloween-son.js?v=439";
+import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=439";
 
 // État du mode review (parcours coup par coup)
 const review = {
@@ -72,7 +72,7 @@ const FFSC_LIVE = URL_PARAMS.get("ffsclive");      // jouer une partie FFSC en d
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v438";
+const BUILD_VERSION = "garenna-v439";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -346,7 +346,7 @@ const ROW_LETTERS = "ABCDEFGHIJKLMNO";
 // Mot valide posé ce coup : on retient le nombre de jetons (scrabble ?). En thème
 // Halloween, un scrabble déclenche une nuée de chauves-souris.
 function notePlaced(n) {
-  if (n >= 7 && n > state.moveMaxPlaced && state.settings.colorTheme === "halloween") nueeChauvesSouris();
+  if (n >= 7 && n > state.moveMaxPlaced && themeCouleur() === "halloween") nueeChauvesSouris();
   state.moveMaxPlaced = Math.max(state.moveMaxPlaced, n);
 }
 function nueeChauvesSouris() {
@@ -1576,17 +1576,22 @@ function applyRackPos() {
   wrap.classList.toggle("rack-top", state.settings.rackPos === "top");
   wrap.classList.toggle("rack-bottom", state.settings.rackPos !== "top");
 }
+// Parties du tournoi de la Mort (voir majTitresMort plus bas).
+let titresMort = PUBLIC_EVENT;
+// Thème affiché : celui des réglages, sauf dans le tournoi de la Mort où Halloween est
+// imposé (sans toucher au réglage enregistré du joueur).
+const themeCouleur = () => (PUBLIC_EVENT || titresMort) ? "halloween" : state.settings.colorTheme;
 function applyColorTheme() {
   if (PUBLIC_EVENT) state.settings.colorTheme = "halloween";
-  document.body.classList.toggle("theme-duplijeu", state.settings.colorTheme === "duplijeu");
-  document.body.classList.toggle("theme-halloween", state.settings.colorTheme === "halloween");
-  sonHalloween.ambiance(state.settings.colorTheme === "halloween");
+  const theme = themeCouleur();
+  document.body.classList.toggle("theme-duplijeu", theme === "duplijeu");
+  document.body.classList.toggle("theme-halloween", theme === "halloween");
+  sonHalloween.ambiance(theme === "halloween");
 }
 
 // Parties du « tournoi de la Mort » (tournoi public) : titres Halloween à la place des
 // noms de formules. Les joueurs du tournoi public y sont toujours ; pour les membres du
 // club, on lit le drapeau est_public du tournoi de la partie.
-let titresMort = PUBLIC_EVENT;
 async function majTitresMort(tournamentId) {
   titresMort = PUBLIC_EVENT;
   if (!titresMort && tournamentId && window._sb) {
@@ -1596,6 +1601,7 @@ async function majTitresMort(tournamentId) {
     } catch { /* titres d'origine */ }
   }
   document.body.classList.toggle("sans-pause", titresMort);   // pas de pause dans ce tournoi
+  applyColorTheme();                                          // thème Halloween imposé
   renderGameTitle();
 }
 const nomFormule = (cle, joker) => modeDisplayName(cle, joker, titresMort);
