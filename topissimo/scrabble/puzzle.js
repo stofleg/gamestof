@@ -399,7 +399,7 @@ async function lanceTournoi() {
         return;
       }
     }
-    await afficheRegles("puzzle", mort ? modeDisplayName("puzzle", false, true) : null, mort ? modeNomOrigine("puzzle") : null);
+    await afficheRegles("puzzle", mort ? modeDisplayName("puzzle", false, true) : null, mort ? modeNomOrigine("puzzle") : null, mort ? (PUBLIC_EVENT ? "../halloween/" : "../index.html") : null);
     tournoi.debut = Date.now();
     const { error: e2 } = await sb.from("prepared_game_results").upsert({
       prepared_game_id: partie.id, player_id: pid, total_score: 0, sum_neg: 0, total_time_seconds: 0,

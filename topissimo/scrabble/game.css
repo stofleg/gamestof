@@ -2096,3 +2096,15 @@ body.theme-halloween::before {
 }
 @media (prefers-reduced-motion: reduce) { body.theme-halloween::before { animation: none; } }
 .regles-mort { font-size: .85rem; margin: -6px 0 14px; padding: 8px 10px; border-radius: 8px; background: rgba(224,102,26,.12); border: 1px solid rgba(224,102,26,.45); }
+
+/* Halloween : surlignages lisibles sur fond sombre (classement, tops manqués) et bulle de score */
+body.theme-halloween tr[style*="#fff3cd"], body.theme-halloween tr[style*="#fff4d6"] { background: rgba(224,102,26,.28) !important; color: #ffe2bf; }
+body.theme-halloween tr[style*="#fff3cd"] td, body.theme-halloween tr[style*="#fff4d6"] td { color: #ffe2bf !important; }
+body.theme-halloween #sheetBody tr.sheet-miss td { background: rgba(224,102,26,.28); color: #ffe2bf; }
+body.theme-halloween #sheetBody tr.sheet-miss:hover td { background: rgba(224,102,26,.4); }
+body.theme-halloween .score-badge { background: #1e1028 !important; color: #ffb35c !important; border-color: #e0661a !important; }
+.regles-boutons { display: flex; gap: 10px; }
+.regles-boutons .regles-ok { flex: 1; width: auto; }
+.regles-retour { padding: 11px 14px; border-radius: 10px; background: transparent; border: 1px solid currentColor; color: inherit;
+  font: 600 .95rem 'Inter', sans-serif; cursor: pointer; opacity: .85; }
+.regles-retour:hover { opacity: 1; }

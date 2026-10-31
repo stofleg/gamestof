@@ -6249,7 +6249,8 @@ function startGame() {
   const cleMode = state.settings.gameMode;
   if (REGLES[cleMode] && !reglesVues.has(cleMode) && !currentMode().page) {
     reglesVues.add(cleMode);
-    afficheRegles(cleMode, titresMort ? nomFormule(cleMode, false) : null, titresMort ? modeNomOrigine(cleMode) : null).then(() => startGame());
+    afficheRegles(cleMode, titresMort ? nomFormule(cleMode, false) : null, titresMort ? modeNomOrigine(cleMode) : null,
+      titresMort ? (document.getElementById("btnHome")?.getAttribute("href") || "../index.html") : null).then(() => startGame());
     return;
   }
   if (currentMode().page) {

@@ -112,7 +112,7 @@ export const REGLES = {
 
 /** Fenêtre des règles. `parent` : élément où l'insérer ; renvoie une promesse
  *  résolue à la fermeture. */
-export function afficheRegles(cle, titre = null, origine = null) {
+export function afficheRegles(cle, titre = null, origine = null, retour = null) {
   const r = REGLES[cle];
   if (!r) return Promise.resolve();
   return new Promise(ok => {
@@ -124,11 +124,14 @@ export function afficheRegles(cle, titre = null, origine = null) {
         <ul>${r.points.map(p => `<li>${p}</li>`).join("")}</ul>
         ${r.sansPied ? "" : '<p class="regles-pied">Le reste : règles habituelles du topping.</p>'}
         ${titre ? '<p class="regles-mort">⚠️ Pas de pause : changer d\'onglet ou de fenêtre n\'arrête pas le chrono. <b>Quitter la partie</b> la fait considérer comme <b>abandonnée</b>.</p>' : ""}
-        <button type="button" class="regles-ok">C'est parti !</button>
+        <div class="regles-boutons">${retour ? '<button type="button" class="regles-retour">← Retour aux parties</button>' : ""}<button type="button" class="regles-ok">C'est parti !</button></div>
       </div>`;
     const ferme = () => { fond.remove(); document.removeEventListener("keydown", clavier, true); ok(); };
     const clavier = e => { if (e.key === "Enter" || e.key === "Escape") { e.preventDefault(); e.stopPropagation(); ferme(); } };
     fond.querySelector(".regles-ok").onclick = ferme;
+    // « Retour » : on repart vers la liste sans avoir lancé la partie (rien n'est enregistré).
+    const btnRetour = fond.querySelector(".regles-retour");
+    if (btnRetour) btnRetour.onclick = () => { location.href = retour; };
     document.addEventListener("keydown", clavier, true);
     document.body.appendChild(fond);
     fond.querySelector(".regles-ok").focus();
