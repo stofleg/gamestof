@@ -11,7 +11,7 @@
 //
 //  Le dictionnaire (4 Mo) n'est chargé qu'en arrière-plan, dans un worker, et
 //  seulement pour pouvoir dire « ce mot existe mais n'est pas un scrabble ici ».
-import { BOARD_BONUSES, letterValue } from "../scrabble/engine.js?v=441";
+import { BOARD_BONUSES, letterValue } from "../scrabble/engine.js?v=442";
 
 const $ = id => document.getElementById(id);
 const LIGNES = "ABCDEFGHIJKLMNO";
@@ -23,7 +23,7 @@ let montre = null;           // Map(case → lettre) d'un scrabble trouvé, affi
 // --- worker, pour la seule vérification au dictionnaire ---------------------
 let worker = null;
 try {
-  worker = new Worker("./worker.js?v=441", { type: "module" });
+  worker = new Worker("./worker.js?v=442", { type: "module" });
   worker.onmessage = e => {
     const d = e.data || {};
     if (d.type === "verifie" && d.mot === enAttente) {
@@ -274,7 +274,7 @@ $("gdjList").onclick = e => {
 (async function init() {
   $("gdjSub").textContent = "chargement…";
   try {
-    const r = await fetch("./grilles.json?v=441");
+    const r = await fetch("./grilles.json?v=442");
     if (!r.ok) throw new Error("lot introuvable");
     lot = (await r.json()).grilles || [];
     if (!lot.length) throw new Error("lot vide");

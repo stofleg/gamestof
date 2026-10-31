@@ -242,9 +242,15 @@ export const TITRES_MORT = {
   puzzle: "Jigsaw",
 };
 
+// Sous-titres du tournoi de la Mort qui décrivent la formule au lieu de la nommer.
+const SOUS_TITRES_MORT = {
+  gigogne: "2 lettres, puis 3, puis 4…",
+  sablier: "-5s/coup",
+};
+
 /** Nom d'origine d'une formule (sous-titre des titres du tournoi de la Mort). */
 export function modeNomOrigine(modeKey) {
-  return (GAME_MODES[modeKey] || GAME_MODES.duplicate).label;
+  return SOUS_TITRES_MORT[modeKey] || (GAME_MODES[modeKey] || GAME_MODES.duplicate).label;
 }
 
 /** Nom affiché d'une formule. `mort` : partie du tournoi de la Mort → titre Halloween. */
