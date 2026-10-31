@@ -29,12 +29,12 @@ import {
   bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName, modeNomOrigine, randomBoardLayout, snakeEndpointsAfter, sablierTime, gigogneRackSize,
   setLetterValues, letterValue, valuesFor, bagFor, isCrossingCell, wordHiddenCount,
   drawVowelRack, VOWELS_NO_Y, MARATHON_TARGET, MARATHON_GAMES, consonnesDisponibles, jokersDisponibles,
-} from "./engine.js?v=443";
-import { Dictionary } from "./dictionary.js?v=443";
-import * as invasion from "./araignees.js?v=443";
-import { REGLES, afficheRegles } from "./regles.js?v=443";
-import * as sonHalloween from "./halloween-son.js?v=443";
-import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=443";
+} from "./engine.js?v=444";
+import { Dictionary } from "./dictionary.js?v=444";
+import * as invasion from "./araignees.js?v=444";
+import { REGLES, afficheRegles } from "./regles.js?v=444";
+import * as sonHalloween from "./halloween-son.js?v=444";
+import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=444";
 
 // État du mode review (parcours coup par coup)
 const review = {
@@ -72,7 +72,7 @@ const FFSC_LIVE = URL_PARAMS.get("ffsclive");      // jouer une partie FFSC en d
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v443";
+const BUILD_VERSION = "garenna-v444";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -6189,6 +6189,11 @@ async function loadPreparedGame(id) {
     timePerMove: data.time_per_move,
     moves: data.moves,
   };
+  // Formule de la partie appliquée AVANT toute attente : sinon le démarrage automatique
+  // (qui guette state.prepared) partait avec l'ancienne formule, sans fenêtre des règles.
+  state.settings.gameMode = data.mode;
+  state.settings.withJoker = data.with_joker;
+  state.settings.timePerMove = data.time_per_move;
   await majTitresMort(data.tournament_id);
   // Grille random : disposition des bonus stockée sur le 1er coup.
   state.boardLayout = data.moves?.[0]?._layout || null;
@@ -6216,6 +6221,7 @@ async function loadPreparedGame(id) {
   } else {
     state.spareJokers = 0;
   }
+  state.prepared._pret = true;   // chargement complet : le démarrage peut avoir lieu
   renderGameTitle();
   updateTournamentNavButtons();
   loadTournamentSiblings();   // détermine l'id de la partie suivante (async, non bloquant)
@@ -6268,11 +6274,11 @@ function startGame() {
   //     mot correct — voire le top — serait compté comme raté).
   // Dans ces deux cas on affiche « Chargement de la partie… » et on relance
   // AUTOMATIQUEMENT dès que tout est prêt.
-  if ((PREPARED_ID && !state.prepared) || !state.dict) {
+  if ((PREPARED_ID && !state.prepared?._pret) || !state.dict) {
     showFeedback("", "Chargement de la partie…", "Un instant, la partie se prépare.");
     const waitReady = () => {
       if (state.started) return;
-      if ((!PREPARED_ID || state.prepared) && state.dict) { startGame(); }
+      if ((!PREPARED_ID || state.prepared?._pret) && state.dict) { startGame(); }
       else setTimeout(waitReady, 80);
     };
     setTimeout(waitReady, 80);
