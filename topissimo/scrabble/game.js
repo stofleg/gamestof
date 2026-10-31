@@ -29,12 +29,12 @@ import {
   bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName, modeNomOrigine, randomBoardLayout, snakeEndpointsAfter, sablierTime, gigogneRackSize,
   setLetterValues, letterValue, valuesFor, bagFor, isCrossingCell, wordHiddenCount,
   drawVowelRack, VOWELS_NO_Y, MARATHON_TARGET, MARATHON_GAMES, consonnesDisponibles, jokersDisponibles,
-} from "./engine.js?v=446";
-import { Dictionary } from "./dictionary.js?v=446";
-import * as invasion from "./araignees.js?v=446";
-import { REGLES, afficheRegles } from "./regles.js?v=446";
-import * as sonHalloween from "./halloween-son.js?v=446";
-import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=446";
+} from "./engine.js?v=447";
+import { Dictionary } from "./dictionary.js?v=447";
+import * as invasion from "./araignees.js?v=447";
+import { REGLES, afficheRegles } from "./regles.js?v=447";
+import * as sonHalloween from "./halloween-son.js?v=447";
+import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=447";
 
 // État du mode review (parcours coup par coup)
 const review = {
@@ -63,6 +63,7 @@ const TRAINING_ID = URL_PARAMS.get("training");
 const PUZZLE_GAME_ID = URL_PARAMS.get("puzzle");
 const PUZZLE_MOVE_NO = +URL_PARAMS.get("move") || 1;
 const TOURNAMENT_ID = URL_PARAMS.get("tid");  // ID du tournoi pour le retour
+const reglesVues = new Set();   // formules dont la fenêtre des règles a déjà été montrée
 const FFSC_REVIEW = URL_PARAMS.get("ffscreview");  // revoir une partie FFSC importée
 // Onglet « En direct » : revoir une partie d'un tournoi FFSc retransmis (coups publiés
 // jusqu'ici, lus à chaque ouverture sur le site endirect) : ?ffscreview=1&direct=ID&numero=N
@@ -72,7 +73,7 @@ const FFSC_LIVE = URL_PARAMS.get("ffsclive");      // jouer une partie FFSC en d
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v446";
+const BUILD_VERSION = "garenna-v447";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -4594,6 +4595,16 @@ async function initGame() {
     if (restorePausedTraining()) return;
   }
   hideFeedback();
+  // Partie de tournoi à formule particulière : la fenêtre des règles s'ouvre dès
+  // l'arrivée, AVANT « Démarrer ». On peut revenir au tournoi sans jouer, ou fermer
+  // la fenêtre puis cliquer sur « Démarrer » (elle ne se rouvre pas au départ).
+  const cleMode = state.settings.gameMode;
+  if (PREPARED_ID && state.prepared?._pret && !state.started && REGLES[cleMode] && !currentMode().page && !reglesVues.has(cleMode)) {
+    reglesVues.add(cleMode);
+    const tid = tournoiMortId || TOURNAMENT_ID;
+    const retour = PUBLIC_EVENT ? "../halloween/" : `../index.html${tid ? `#tid=${tid}` : ""}`;
+    afficheRegles(cleMode, titresMort ? nomFormule(cleMode, false) : null, titresMort ? modeNomOrigine(cleMode) : null, retour, "J'ai compris");
+  }
 }
 
 // Mode "puzzle" : on charge une partie pré-tirée et on plante le plateau au coup
@@ -6250,7 +6261,6 @@ async function loadSupabaseClient() {
   window._sb = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
 }
 
-const reglesVues = new Set();
 function startGame() {
   if (state.started) return;   // déjà lancée (anti double-clic pendant l'attente)
   if (state._reglesOuvertes) return;   // fenêtre des règles affichée : on attend « C'est parti ! »
