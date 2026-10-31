@@ -2270,9 +2270,11 @@ function endIfNoMove() {
   return false;
 }
 
-// ===== Mode Top/sous-top : suivi des deux meilleurs mots DISTINCTS du joueur =====
-// d.best = meilleur mot ; d.second = meilleur AUTRE mot de score strictement
-// inférieur (le sous-top du joueur). Score du coup = best + second.
+// ===== Mode Top/sous-top : suivi des deux meilleurs coups du joueur =====
+// d.best = meilleur coup ; d.second = meilleur coup de score strictement inférieur
+// (le sous-top du joueur). Le même mot posé ailleurs peut servir de sous-top, comme
+// au générateur (sous-top = meilleur coup d'un score inférieur au top, quel que soit
+// le mot). Score du coup = best + second.
 function dualSnapshot() {
   const d = state._dual || {};
   const tm = state.topMove, st = state.subTop;
@@ -2290,10 +2292,10 @@ function handleDualValidate(move, result) {
   notePlaced(result.placed?.length || state.pending.length);
   const d = state._dual = state._dual || { best: null, second: null };
   if (!d.best || s > d.best.score) {
-    if (d.best && d.best.word !== w && (!d.second || d.best.score > d.second.score)) d.second = d.best;
+    if (d.best && (!d.second || d.best.score > d.second.score)) d.second = d.best;
     d.best = { word: w, score: s };
-    if (d.second && (d.second.word === w || d.second.score >= d.best.score)) d.second = null;
-  } else if (s < d.best.score && w !== d.best.word && (!d.second || s > d.second.score)) {
+    if (d.second && d.second.score >= d.best.score) d.second = null;
+  } else if (s < d.best.score && (!d.second || s > d.second.score)) {
     d.second = { word: w, score: s };
   }
   const topFound = d.best && d.best.score === officialTop;
