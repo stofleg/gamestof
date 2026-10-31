@@ -10,11 +10,11 @@
 //     pour tous. Un seul essai ; l'heure de départ est enregistrée en base, si bien
 //     qu'un rechargement ne remet pas le chrono à zéro. Le temps réalisé est
 //     enregistré comme résultat (0 point, 0 négatif) et s'ajoute au temps général.
-import { afficheRegles } from "./regles.js?v=444";
-import { chargeDico, grilleFinale, classeCase, jeton, appliqueTheme, fmt } from "./grille-finale.js?v=444";
-import { decoupeRegions, piecesDepuisRegions } from "./puzzle-pieces.js?v=444";
-import { emptyBoard, applyMove, modeDisplayName, modeNomOrigine } from "./engine.js?v=444";
-import * as sonHalloween from "./halloween-son.js?v=444";
+import { afficheRegles } from "./regles.js?v=445";
+import { chargeDico, grilleFinale, classeCase, jeton, appliqueTheme, fmt } from "./grille-finale.js?v=445";
+import { decoupeRegions, piecesDepuisRegions } from "./puzzle-pieces.js?v=445";
+import { emptyBoard, applyMove, modeDisplayName, modeNomOrigine } from "./engine.js?v=445";
+import * as sonHalloween from "./halloween-son.js?v=445";
 
 const $ = id => document.getElementById(id);
 const N = 15;
