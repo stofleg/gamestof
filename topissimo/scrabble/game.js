@@ -26,15 +26,15 @@
 import {
   emptyBoard, BOARD_BONUSES, BOARD_SIZE, CENTER, LETTER_VALUE, LETTER_BAG,
   VOWELS, drawForDuplicate, scoreMove, applyMove,
-  bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName, modeNomOrigine, randomBoardLayout, snakeEndpointsAfter, sablierTime, gigogneRackSize,
+  bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName, modeNomOrigine, ecranMobile, MSG_MORT_MOBILE, randomBoardLayout, snakeEndpointsAfter, sablierTime, gigogneRackSize,
   setLetterValues, letterValue, valuesFor, bagFor, isCrossingCell, wordHiddenCount,
   drawVowelRack, VOWELS_NO_Y, MARATHON_TARGET, MARATHON_GAMES, consonnesDisponibles, jokersDisponibles,
-} from "./engine.js?v=447";
-import { Dictionary } from "./dictionary.js?v=447";
-import * as invasion from "./araignees.js?v=447";
-import { REGLES, afficheRegles } from "./regles.js?v=447";
-import * as sonHalloween from "./halloween-son.js?v=447";
-import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=447";
+} from "./engine.js?v=448";
+import { Dictionary } from "./dictionary.js?v=448";
+import * as invasion from "./araignees.js?v=448";
+import { REGLES, afficheRegles } from "./regles.js?v=448";
+import * as sonHalloween from "./halloween-son.js?v=448";
+import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=448";
 
 // État du mode review (parcours coup par coup)
 const review = {
@@ -73,7 +73,7 @@ const FFSC_LIVE = URL_PARAMS.get("ffsclive");      // jouer une partie FFSC en d
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v447";
+const BUILD_VERSION = "garenna-v448";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -4595,6 +4595,7 @@ async function initGame() {
     if (restorePausedTraining()) return;
   }
   hideFeedback();
+  if (bloqueMortMobile()) return;
   // Partie de tournoi à formule particulière : la fenêtre des règles s'ouvre dès
   // l'arrivée, AVANT « Démarrer ». On peut revenir au tournoi sans jouer, ou fermer
   // la fenêtre puis cliquer sur « Démarrer » (elle ne se rouvre pas au départ).
@@ -6261,6 +6262,23 @@ async function loadSupabaseClient() {
   window._sb = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
 }
 
+/** Tournoi de la Mort sur téléphone : la partie ne démarre pas, une fenêtre l'explique
+ *  et ramène au tournoi. Vrai si la partie est bloquée. */
+function bloqueMortMobile() {
+  if (!titresMort || !state.prepared || review.active || isSuperAdminSession() || !ecranMobile()) return false;
+  if (document.getElementById("mortMobile")) return true;
+  const tid = tournoiMortId || TOURNAMENT_ID;
+  const retour = PUBLIC_EVENT ? "../halloween/" : `../index.html${tid ? `#tid=${tid}` : ""}`;
+  const fond = document.createElement("div");
+  fond.id = "mortMobile";
+  fond.style.cssText = "position:fixed;inset:0;z-index:5000;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(0,0,0,.7)";
+  fond.innerHTML = `<div style="max-width:380px;background:#1e1028;color:#f3e9d2;border:1px solid #e0661a;border-radius:16px;padding:22px;text-align:center;font:500 1rem/1.5 Inter,sans-serif">
+    <p style="font-size:2rem;margin:0 0 6px">📱</p><p style="margin:0 0 16px">${MSG_MORT_MOBILE}</p>
+    <a href="${retour}" style="display:inline-block;padding:10px 18px;border-radius:8px;background:#e0661a;color:#1a1020;font-weight:700;text-decoration:none">← Tournoi</a></div>`;
+  document.body.appendChild(fond);
+  return true;
+}
+
 function startGame() {
   if (state.started) return;   // déjà lancée (anti double-clic pendant l'attente)
   if (state._reglesOuvertes) return;   // fenêtre des règles affichée : on attend « C'est parti ! »
@@ -6284,6 +6302,7 @@ function startGame() {
     setTimeout(waitReady, 80);
     return;
   }
+  if (bloqueMortMobile()) return;
   // Formules à page dédiée (Grille puzzle) : ce ne sont pas des
   // parties duplicate, on ouvre leur page en lui transmettant le thème.
   // Formule superoriginale : fenêtre des règles particulières avant le départ
@@ -6551,7 +6570,7 @@ async function loadPausedSnapshot(preparedId) {
   try {
     if (!window._sb) await loadSupabaseClient();
     if (window._sb && pid) {
-      const { data } = await window._sb.from("prepared_game_results")
+      const { data, error: errPause } = await window._sb.from("prepared_game_results")
         .select("paused, summary").eq("prepared_game_id", preparedId).eq("player_id", pid).maybeSingle();
       if (data && data.paused) return data.paused;
       if (data && data.summary) _preparedFinishedOnServer = true;
@@ -6559,6 +6578,10 @@ async function loadPausedSnapshot(preparedId) {
       // plus de reprise. On purge l'instantané périmé de CET appareil (localStorage)
       // pour ne plus proposer « Continuer ».
       if (data && data.summary) { try { localStorage.removeItem(preparedKey(preparedId)); } catch {} return null; }
+      // Tournoi de la Mort : la progression est enregistrée à chaque coup. Aucune ligne en
+      // base = partie jamais commencée, ou résultat effacé par l'admin (« Autoriser à
+      // rejouer ») : l'instantané local périmé ne doit pas la clore à nouveau comme abandonnée.
+      if (!data && !errPause && titresMort) { try { localStorage.removeItem(preparedKey(preparedId)); } catch {} return null; }
     }
   } catch (e) { console.warn("Lecture pause serveur KO:", e); }
   try { const raw = localStorage.getItem(preparedKey(preparedId)); if (raw) return JSON.parse(raw); } catch {}
