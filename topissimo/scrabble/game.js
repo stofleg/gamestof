@@ -29,12 +29,12 @@ import {
   bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName, modeNomOrigine, ecranMobile, MSG_MORT_MOBILE, randomBoardLayout, snakeEndpointsAfter, sablierTime, gigogneRackSize,
   setLetterValues, letterValue, valuesFor, bagFor, isCrossingCell, wordHiddenCount,
   drawVowelRack, VOWELS_NO_Y, MARATHON_TARGET, MARATHON_GAMES, consonnesDisponibles, jokersDisponibles,
-} from "./engine.js?v=450";
-import { Dictionary } from "./dictionary.js?v=450";
-import * as invasion from "./araignees.js?v=450";
-import { REGLES, afficheRegles } from "./regles.js?v=450";
-import * as sonHalloween from "./halloween-son.js?v=450";
-import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=450";
+} from "./engine.js?v=451";
+import { Dictionary } from "./dictionary.js?v=451";
+import * as invasion from "./araignees.js?v=451";
+import { REGLES, afficheRegles } from "./regles.js?v=451";
+import * as sonHalloween from "./halloween-son.js?v=451";
+import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=451";
 
 // État du mode review (parcours coup par coup)
 const review = {
@@ -73,7 +73,7 @@ const FFSC_LIVE = URL_PARAMS.get("ffsclive");      // jouer une partie FFSC en d
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v450";
+const BUILD_VERSION = "garenna-v451";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -6670,6 +6670,7 @@ function pauseGame({ showModal = true } = {}) {
     $("#btnPause")?.classList.toggle("pause-demandee", state.pauseDemandee);
     flashFeedback("info", state.pauseDemandee ? "⏸ Pause demandée" : "Pause annulée",
       state.pauseDemandee ? "Elle commencera à la fin de ce coup (top trouvé ou temps écoulé)." : "La partie continue sans pause.");
+    if (state.pauseDemandee) explicationPauseMort();
     return;
   }
   // Pause autorisée en entraînement ET en tournoi (pas en puzzle). L'état est
@@ -6694,6 +6695,27 @@ function pauseGame({ showModal = true } = {}) {
   saveTrainingState();
   if (showModal) $("#pauseModal").hidden = false;
 }
+/** Tournoi de la Mort : la PREMIÈRE fois qu'un joueur appuie sur Pause (mémorisé sur
+ *  l'appareil), une fenêtre explique que la pause attend la fin du coup. Le coup
+ *  continue derrière : le chrono ne s'arrête pas pendant la lecture. */
+function explicationPauseMort() {
+  const CLE = "topissimo:pause-mort-expliquee";
+  try { if (localStorage.getItem(CLE)) return; localStorage.setItem(CLE, "1"); } catch { /* on l'affiche quand même */ }
+  const fond = document.createElement("div");
+  fond.style.cssText = "position:fixed;inset:0;z-index:5000;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(0,0,0,.6)";
+  fond.innerHTML = `<div role="dialog" aria-modal="true" style="max-width:400px;background:#1e1028;color:#f3e9d2;border:1px solid #e0661a;border-radius:16px;padding:22px;text-align:center;font:500 1rem/1.5 Inter,sans-serif">
+    <p style="font-size:2rem;margin:0 0 6px">⏸</p>
+    <p style="margin:0 0 10px"><b>La pause commencera à la fin de ce coup</b>, quand tu auras trouvé le top ou quand le temps sera écoulé.</p>
+    <p style="margin:0 0 16px;opacity:.85">D'ici là, le coup continue et le chrono tourne. Clique de nouveau sur Pause pour l'annuler.</p>
+    <button type="button" style="padding:10px 18px;border-radius:8px;border:0;background:#e0661a;color:#1a1020;font-weight:700;cursor:pointer">J'ai compris</button></div>`;
+  const ferme = () => { fond.remove(); document.removeEventListener("keydown", clavier, true); };
+  const clavier = e => { if (e.key === "Enter" || e.key === "Escape") { e.preventDefault(); e.stopImmediatePropagation(); ferme(); } };
+  fond.querySelector("button").onclick = ferme;
+  document.addEventListener("keydown", clavier, true);
+  document.body.appendChild(fond);
+  fond.querySelector("button").focus();
+}
+
 /** Tournoi de la Mort : pause demandée → elle commence ici, entre deux coups (aucun
  *  minuteur de coup en cours, prochain tirage pas encore affiché). La partie est
  *  sauvegardée : on peut quitter la page et la reprendre plus tard au coup suivant. */
