@@ -29,12 +29,12 @@ import {
   bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName, modeNomOrigine, ecranMobile, MSG_MORT_MOBILE, randomBoardLayout, snakeEndpointsAfter, sablierTime, gigogneRackSize,
   setLetterValues, letterValue, valuesFor, bagFor, isCrossingCell, wordHiddenCount,
   drawVowelRack, VOWELS_NO_Y, MARATHON_TARGET, MARATHON_GAMES, consonnesDisponibles, jokersDisponibles,
-} from "./engine.js?v=448";
-import { Dictionary } from "./dictionary.js?v=448";
-import * as invasion from "./araignees.js?v=448";
-import { REGLES, afficheRegles } from "./regles.js?v=448";
-import * as sonHalloween from "./halloween-son.js?v=448";
-import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=448";
+} from "./engine.js?v=449";
+import { Dictionary } from "./dictionary.js?v=449";
+import * as invasion from "./araignees.js?v=449";
+import { REGLES, afficheRegles } from "./regles.js?v=449";
+import * as sonHalloween from "./halloween-son.js?v=449";
+import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=449";
 
 // État du mode review (parcours coup par coup)
 const review = {
@@ -73,7 +73,7 @@ const FFSC_LIVE = URL_PARAMS.get("ffsclive");      // jouer une partie FFSC en d
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v448";
+const BUILD_VERSION = "garenna-v449";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -6262,7 +6262,7 @@ async function loadSupabaseClient() {
   window._sb = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
 }
 
-/** Tournoi de la Mort sur téléphone : la partie ne démarre pas, une fenêtre l'explique
+/** Tournoi de la Mort sans clavier (téléphone, tablette) : la partie ne démarre pas, une fenêtre l'explique
  *  et ramène au tournoi. Vrai si la partie est bloquée. */
 function bloqueMortMobile() {
   if (!titresMort || !state.prepared || review.active || isSuperAdminSession() || !ecranMobile()) return false;
@@ -6273,7 +6273,7 @@ function bloqueMortMobile() {
   fond.id = "mortMobile";
   fond.style.cssText = "position:fixed;inset:0;z-index:5000;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(0,0,0,.7)";
   fond.innerHTML = `<div style="max-width:380px;background:#1e1028;color:#f3e9d2;border:1px solid #e0661a;border-radius:16px;padding:22px;text-align:center;font:500 1rem/1.5 Inter,sans-serif">
-    <p style="font-size:2rem;margin:0 0 6px">📱</p><p style="margin:0 0 16px">${MSG_MORT_MOBILE}</p>
+    <p style="font-size:2rem;margin:0 0 6px">⌨️</p><p style="margin:0 0 16px">${MSG_MORT_MOBILE}</p>
     <a href="${retour}" style="display:inline-block;padding:10px 18px;border-radius:8px;background:#e0661a;color:#1a1020;font-weight:700;text-decoration:none">← Tournoi</a></div>`;
   document.body.appendChild(fond);
   return true;

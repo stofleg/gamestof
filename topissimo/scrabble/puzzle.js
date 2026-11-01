@@ -10,11 +10,11 @@
 //     pour tous. Un seul essai ; l'heure de départ est enregistrée en base, si bien
 //     qu'un rechargement ne remet pas le chrono à zéro. Le temps réalisé est
 //     enregistré comme résultat (0 point, 0 négatif) et s'ajoute au temps général.
-import { afficheRegles } from "./regles.js?v=448";
-import { chargeDico, grilleFinale, classeCase, jeton, appliqueTheme, fmt } from "./grille-finale.js?v=448";
-import { decoupeRegions, piecesDepuisRegions } from "./puzzle-pieces.js?v=448";
-import { emptyBoard, applyMove, modeDisplayName, modeNomOrigine, ecranMobile, MSG_MORT_MOBILE } from "./engine.js?v=448";
-import * as sonHalloween from "./halloween-son.js?v=448";
+import { afficheRegles } from "./regles.js?v=449";
+import { chargeDico, grilleFinale, classeCase, jeton, appliqueTheme, fmt } from "./grille-finale.js?v=449";
+import { decoupeRegions, piecesDepuisRegions } from "./puzzle-pieces.js?v=449";
+import { emptyBoard, applyMove, modeDisplayName, modeNomOrigine, ecranMobile, MSG_MORT_MOBILE } from "./engine.js?v=449";
+import * as sonHalloween from "./halloween-son.js?v=449";
 
 const $ = id => document.getElementById(id);
 const N = 15;
@@ -382,9 +382,9 @@ async function lanceTournoi() {
     fini = true;
     return;
   }
-  if (mort && ecranMobile()) {                              // pas de Jigsaw sur téléphone
+  if (mort && ecranMobile()) {                              // pas de Jigsaw sans clavier (téléphone, tablette)
     $("pzAbandon").hidden = true;
-    annonce(`📱 ${MSG_MORT_MOBILE}`);
+    annonce(`⌨️ ${MSG_MORT_MOBILE}`);
     return;
   }
   if (res?.paused?.puzzleDebut) {                           // reprise : le chrono continue

@@ -242,15 +242,14 @@ export const TITRES_MORT = {
   puzzle: "Jigsaw",
 };
 
-/** Tournoi de la Mort : téléphone ? (écran étroit, ou écran tactile dont le petit côté
- *  fait moins de 500 px, pour attraper aussi un téléphone tenu en paysage). Les tablettes
- *  et ordinateurs restent autorisés. */
+/** Tournoi de la Mort : appareil sans clavier ? Téléphones ET tablettes (écran tactile
+ *  comme pointeur principal, ou écran étroit) : on ne peut pas y taper les lettres
+ *  (consonnes des Voyelles…). Seuls les ordinateurs, avec clavier, sont autorisés. */
 export function ecranMobile() {
   if (typeof window === "undefined" || !window.matchMedia) return false;
-  if (matchMedia("(max-width: 700px)").matches) return true;
-  return matchMedia("(pointer: coarse)").matches && Math.min(screen.width, screen.height) < 500;
+  return matchMedia("(max-width: 700px)").matches || matchMedia("(pointer: coarse)").matches;
 }
-export const MSG_MORT_MOBILE = "Le Tournoi de la Mort ne se joue pas sur téléphone : reviens sur un ordinateur ou une tablette pour jouer tes parties.";
+export const MSG_MORT_MOBILE = "Le Tournoi de la Mort se joue sur ordinateur, avec un clavier : impossible sur téléphone ou tablette.";
 
 // Sous-titres du tournoi de la Mort qui décrivent la formule au lieu de la nommer.
 const SOUS_TITRES_MORT = {
