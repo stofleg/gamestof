@@ -123,7 +123,7 @@ export function afficheRegles(cle, titre = null, origine = null, retour = null, 
         <h2 id="reglesTitre">${titre || r.titre}${origine ? ` <small class="regles-origine">${origine}</small>` : ""}</h2>
         <ul>${r.points.map(p => `<li>${p}</li>`).join("")}</ul>
         ${r.sansPied ? "" : '<p class="regles-pied">Le reste : règles habituelles du topping.</p>'}
-        ${titre ? '<p class="regles-mort">⚠️ Pas de pause : changer d\'onglet ou de fenêtre n\'arrête pas le chrono. <b>Quitter la partie</b> la fait considérer comme <b>abandonnée</b>.</p>' : ""}
+        ${titre ? '<p class="regles-mort">⏸ <b>Pause</b> : demande-la quand tu veux, elle commence à la fin du coup en cours (top trouvé ou temps écoulé). En pause, tu peux quitter et revenir plus tard.<br>⚠️ Changer d\'onglet n\'arrête pas le chrono, et <b>quitter la partie en cours de coup</b> la fait considérer comme <b>abandonnée</b>.</p>' : ""}
         <div class="regles-boutons">${retour ? '<button type="button" class="regles-retour">← Retour aux parties</button>' : ""}<button type="button" class="regles-ok">${texteOk}</button></div>
       </div>`;
     const ferme = () => { fond.remove(); document.removeEventListener("keydown", clavier, true); ok(); };

@@ -29,12 +29,12 @@ import {
   bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName, modeNomOrigine, ecranMobile, MSG_MORT_MOBILE, randomBoardLayout, snakeEndpointsAfter, sablierTime, gigogneRackSize,
   setLetterValues, letterValue, valuesFor, bagFor, isCrossingCell, wordHiddenCount,
   drawVowelRack, VOWELS_NO_Y, MARATHON_TARGET, MARATHON_GAMES, consonnesDisponibles, jokersDisponibles,
-} from "./engine.js?v=449";
-import { Dictionary } from "./dictionary.js?v=449";
-import * as invasion from "./araignees.js?v=449";
-import { REGLES, afficheRegles } from "./regles.js?v=449";
-import * as sonHalloween from "./halloween-son.js?v=449";
-import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=449";
+} from "./engine.js?v=450";
+import { Dictionary } from "./dictionary.js?v=450";
+import * as invasion from "./araignees.js?v=450";
+import { REGLES, afficheRegles } from "./regles.js?v=450";
+import * as sonHalloween from "./halloween-son.js?v=450";
+import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=450";
 
 // État du mode review (parcours coup par coup)
 const review = {
@@ -73,7 +73,7 @@ const FFSC_LIVE = URL_PARAMS.get("ffsclive");      // jouer une partie FFSC en d
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v449";
+const BUILD_VERSION = "garenna-v450";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -1299,10 +1299,11 @@ function clotureCoupsRestants(statut, titre, detail) {
 }
 
 // ===== Tournoi de la Mort : quitter une partie en cours = l'abandonner =====
-// Pas de pause dans ce tournoi : changer d'onglet ou de fenêtre ne l'arrête pas (le chrono
+// Pause DIFFÉRÉE dans ce tournoi (bouton : à la fin du coup). Changer d'onglet ne l'arrête pas (le chrono
 // continue), mais QUITTER la partie la clôt comme abandonnée. La progression est enregistrée
 // à chaque coup ; si l'on revient sur une partie quittée, elle est close à ce moment-là.
-const partieMortEnCours = () => titresMort && state.prepared && state.started && state.chronoFinal == null && !review.active;
+const partieMortEnCours = () => titresMort && state.prepared && state.started && state.chronoFinal == null && !review.active
+  && !(state.paused && state._pauseInfo?.entreCoups);   // en pause entre deux coups : on peut partir
 const MSG_QUITTER = "Quitter la partie ? Dans le tournoi de la Mort, une partie quittée est considérée comme ABANDONNÉE : les coups restants comptent dans ton négatif.";
 function abandonnePartieMort() {
   clotureCoupsRestants("giveup", "☠️ Partie abandonnée", "Tu as quitté la partie : les coups restants comptent dans le négatif.");
@@ -1603,7 +1604,6 @@ async function majTitresMort(tournamentId) {
       titresMort = !!data?.est_public;
     } catch { /* titres d'origine */ }
   }
-  document.body.classList.toggle("sans-pause", titresMort);   // pas de pause dans ce tournoi
   applyColorTheme();                                          // thème Halloween imposé
   // Joueur du club dans le tournoi de la Mort : « ← Tournoi » ramène à la page du tournoi.
   const home = document.getElementById("btnHome");
@@ -3130,6 +3130,8 @@ function nextMove() {
   // nouveau automatiquement (sinon un seul déplacement manuel désactivait le
   // tri alpha pour tout le reste de la partie).
   state._tempUnsorted = false;
+  if (titresMort && state.pauseDemandee && state.prepared && state.started && state.chronoFinal == null
+      && state.preparedIdx < (state.prepared.moves?.length || 0)) { pauseEntreCoups(); return; }
   // Marathon : dès que l'objectif de 42 tops consécutifs est atteint, victoire →
   // fin immédiate (le temps a été figé au coup gagnant).
   if (currentMode().marathon && state.marathon && state.marathon.reached) { endGame(); return; }
@@ -6474,6 +6476,7 @@ function saveTrainingState() {
       isPrepared: !!state.prepared,
       preparedId: state.prepared ? state.prepared.id : null,
       preparedIdx: state.preparedIdx,
+      pauseMort: !!state._pauseInfo?.entreCoups,   // tournoi de la Mort : pause prise entre deux coups
       tid: TOURNAMENT_ID || null,
       savedAt: Date.now(),
     };
@@ -6593,12 +6596,14 @@ async function loadPausedSnapshot(preparedId) {
 async function restorePausedPrepared(preparedId) {
   const s = await loadPausedSnapshot(preparedId);
   if (!s) return false;
+  if (bloqueMortMobile()) return true;   // tournoi de la Mort : pas de reprise sans clavier
   try {
     if (!s.isPrepared || String(s.preparedId) !== String(preparedId)) return false;
     const currentPid = +(localStorage.getItem("currentPlayerId") || 0);
     if (s.playerId && currentPid && s.playerId !== currentPid) return false;
-    if (titresMort && !isSuperAdminSession()) {
-      // Tournoi de la Mort : pas de reprise. La partie avait été quittée → abandonnée.
+    if (titresMort && !isSuperAdminSession() && !s.pauseMort) {
+      // Tournoi de la Mort : la partie avait été quittée en cours de coup → abandonnée.
+      // (Une pause prise entre deux coups, elle, se reprend normalement plus bas.)
       state.board = s.board; state.moveNo = s.moveNo; state.preparedIdx = s.preparedIdx || 0;
       state.totalScore = s.totalScore || 0; state.sumNeg = s.sumNeg || 0; state.history = s.history || [];
       state.hiddenCells = new Set(s.hiddenCells || []);
@@ -6635,14 +6640,17 @@ async function restorePausedPrepared(preparedId) {
     state.chronoPenalty = s.chronoPenalty || 0;
     state.started = true;
     state.paused = true;
-    state._pauseInfo = { elapsed: s.chronoElapsed || 0, moveTimeLeft: s.moveTimeLeft || 0 };
+    state._pauseInfo = s.pauseMort
+      ? { elapsed: s.chronoElapsed || 0, moveTimeLeft: 0, entreCoups: true }
+      : { elapsed: s.chronoElapsed || 0, moveTimeLeft: s.moveTimeLeft || 0 };
     state.chronoFinal = null;
     $("#actionRowPreStart").hidden = true;
     $("#actionRowInGame").hidden = false;
     $("#btnPause").hidden = false;
     renderInfo(); renderRack(); renderBoard(); renderGameTitle();
     updateMarathonHUD();   // (no-op hors Marathon)
-    if (!computeTop()) state._topPending = true;   // dico pas encore prêt → recalcul différé
+    if (s.pauseMort) majModalePauseMort();   // le coup suivant sera tiré à la reprise
+    else if (!computeTop()) state._topPending = true;   // dico pas encore prêt → recalcul différé
     $("#pauseModal").hidden = false;
     return true;
   } catch (e) {
@@ -6652,8 +6660,18 @@ async function restorePausedPrepared(preparedId) {
 }
 
 function pauseGame({ showModal = true } = {}) {
-  // Tournoi de la Mort : pas de pause (ni bouton, ni pause automatique en quittant l'onglet).
-  if (titresMort) return;
+  // Tournoi de la Mort : la pause est DIFFÉRÉE. Le clic la demande (un 2e clic l'annule) ;
+  // elle commence à la fin du coup en cours (top trouvé, temps écoulé ou « Voir le top »),
+  // avant le tirage suivant (cf. nextMove → pauseEntreCoups).
+  if (titresMort) {
+    if (!state.started || state.chronoFinal != null || state.isPuzzle) return;
+    if (state.paused) { if (showModal) $("#pauseModal").hidden = false; return; }
+    state.pauseDemandee = !state.pauseDemandee;
+    $("#btnPause")?.classList.toggle("pause-demandee", state.pauseDemandee);
+    flashFeedback("info", state.pauseDemandee ? "⏸ Pause demandée" : "Pause annulée",
+      state.pauseDemandee ? "Elle commencera à la fin de ce coup (top trouvé ou temps écoulé)." : "La partie continue sans pause.");
+    return;
+  }
   // Pause autorisée en entraînement ET en tournoi (pas en puzzle). L'état est
   // persisté (saveTrainingState) → au rechargement / retour d'une autre appli,
   // on se retrouve au coup exact (restorePausedTraining / restorePausedPrepared).
@@ -6676,6 +6694,29 @@ function pauseGame({ showModal = true } = {}) {
   saveTrainingState();
   if (showModal) $("#pauseModal").hidden = false;
 }
+/** Tournoi de la Mort : pause demandée → elle commence ici, entre deux coups (aucun
+ *  minuteur de coup en cours, prochain tirage pas encore affiché). La partie est
+ *  sauvegardée : on peut quitter la page et la reprendre plus tard au coup suivant. */
+function pauseEntreCoups() {
+  state.pauseDemandee = false;
+  $("#btnPause")?.classList.remove("pause-demandee");
+  invasion.pause();
+  state.paused = true;
+  state._pauseInfo = { elapsed: elapsedSeconds(), moveTimeLeft: 0, moveElapsedMs: 0, entreCoups: true };
+  if (chronoTimer) { clearInterval(chronoTimer); chronoTimer = null; }
+  if (moveTimer)   { clearInterval(moveTimer);   moveTimer = null; }
+  saveTrainingState();
+  majModalePauseMort();
+  $("#pauseModal").hidden = false;
+}
+/** Fenêtre de pause du tournoi de la Mort : on peut quitter, « Arrêter » = abandonner. */
+function majModalePauseMort() {
+  const p = document.querySelector("#pauseModal .content p");
+  if (p) p.textContent = "Le chrono est arrêté. Tu peux quitter la page : la partie reprendra au coup suivant.";
+  const stop = $("#btnStopFromPause");
+  if (stop) stop.textContent = "☠️ Abandonner la partie";
+}
+
 // Reprise « gardée » (clic sur ▶ Reprendre) : pour une partie de TOURNOI, on
 // vérifie d'abord côté serveur qu'elle n'a pas été TERMINÉE sur un autre appareil.
 // Si c'est le cas, reprendre écraserait le résultat → on renvoie vers l'accueil du
@@ -6737,9 +6778,11 @@ function resumeGame() {
       }
     }, 1000);
   }
+  const entreCoups = !!state._pauseInfo.entreCoups;
   state._pauseInfo = null;
   $("#pauseModal").hidden = true;
   clearSavedTraining();
+  if (entreCoups) nextMove();   // tournoi de la Mort : la pause tombait entre deux coups
 }
 
 // Anti-rechargement en TOURNOI : une partie pré-tirée en cours n'est pas
@@ -6773,6 +6816,7 @@ window.addEventListener("beforeunload", (e) => {
 // (flouté) s'affiche ; si on a quitté l'app, la partie apparaît en « Continuer »
 // dans le tournoi.
 function autoPauseIfPlaying(showModal) {
+  if (titresMort) return;   // tournoi de la Mort : seule la pause demandée (bouton) existe
   if (state.started && state.chronoFinal == null && !state.isPuzzle && !state.live && !state.paused && !review.active) {
     pauseGame({ showModal });
   }
@@ -6811,6 +6855,7 @@ const _gameInProgress = () => state.started && state.chronoFinal == null && !rev
 history.pushState({ topissimo: true }, "");
 window.addEventListener("popstate", () => {
   if (_allowBack || !_gameInProgress()) return;   // on laisse passer
+  if (titresMort && state.paused && state._pauseInfo?.entreCoups) { _allowBack = true; history.go(-2); return; }   // partie sauvegardée
   history.pushState({ topissimo: true }, "");      // annule le retour
   if (partieMortEnCours()) {
     if (!confirm(MSG_QUITTER)) return;
@@ -7339,7 +7384,15 @@ $("#btnResume").onclick = resumeGameGuarded;
 // (stoppe net sans révéler les coups, revient à l'écran pré-démarrage), en
 // levant d'abord l'état de pause et sa sauvegarde.
 const _btnStopFromPause = $("#btnStopFromPause");
-if (_btnStopFromPause) _btnStopFromPause.onclick = () => stopGameFromSettings();
+if (_btnStopFromPause) _btnStopFromPause.onclick = () => {
+  if (!(titresMort && state.paused && state._pauseInfo?.entreCoups)) return stopGameFromSettings();
+  if (!confirm(MSG_QUITTER)) return;
+  // Abandon depuis la pause : chrono recalé sur le temps figé, pas de coup en cours.
+  state.chronoStart = Date.now() - (state._pauseInfo.elapsed - state.chronoPenalty) * 1000;
+  state.paused = false; state._pauseInfo = null; state.topMove = null; state.pending = [];
+  $("#pauseModal").hidden = true;
+  abandonnePartieMort();
+};
 // Quitter une partie en cours via un bouton de navigation (Accueil / Tournoi) :
 // on MET EN PAUSE (sauvegarde « à reprendre »), puis on navigue. Pour un solo
 // (puzzle) rien à sauvegarder → navigation directe.

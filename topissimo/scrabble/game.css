@@ -2075,14 +2075,17 @@ body.in-live #actionRowInGame #btnPause { display: none !important; }
 
 /* Formule à durée totale limitée (666) : dernière minute du décompte */
 #chrono.chrono-urgent { color: #c8202a; font-weight: 800; }
-body.sans-pause #btnPause { display: none !important; }
+/* Tournoi de la Mort : pause demandée, en attente de la fin du coup */
+#btnPause.pause-demandee { background: #e0661a; color: #1a1020; border-color: #e0661a; animation: pause-attente 1.2s ease-in-out infinite alternate; }
+@keyframes pause-attente { from { opacity: 1; } to { opacity: .6; } }
+@media (prefers-reduced-motion: reduce) { #btnPause.pause-demandee { animation: none; } }
 .regles-origine { font: 500 .9rem 'Inter', sans-serif; opacity: .65; margin-left: 4px; }
 .gt-origine { font-size: .75em; opacity: .7; font-weight: 500; }
 
 /* Halloween : deux morts-vivants à la place du squelette qui danse (le pendu reste) */
 body.theme-halloween::before {
   right: 1%; bottom: 0; width: 300px; height: 197px;
-  background: url("zombies.svg?v=449") no-repeat center bottom / contain;
+  background: url("zombies.svg?v=450") no-repeat center bottom / contain;
   filter: drop-shadow(0 0 6px rgba(120,200,90,.25));
   transform-origin: 50% 100%;
   animation: hw-zombies 5s ease-in-out infinite alternate;
