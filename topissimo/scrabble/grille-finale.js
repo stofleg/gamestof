@@ -2,9 +2,9 @@
 //  partie duplicate complète et renvoie sa grille finale, à reconstituer.
 //  Le rendu d'une case reprend exactement le balisage de game.js (classes de
 //  bonus, jetons), pour que game.css lui donne le même aspect que dans le jeu.
-import { Dictionary } from "./dictionary.js?v=462";
-import { generateGame } from "./generator.js?v=462";
-import { emptyBoard, applyMove, BOARD_BONUSES, letterValue } from "./engine.js?v=462";
+import { Dictionary } from "./dictionary.js?v=463";
+import { generateGame } from "./generator.js?v=463";
+import { emptyBoard, applyMove, BOARD_BONUSES, letterValue } from "./engine.js?v=463";
 
 export async function chargeDico() {
   return new Dictionary().load("ods9.txt");
