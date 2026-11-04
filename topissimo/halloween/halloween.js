@@ -2,7 +2,7 @@
 //  directement les parties du tournoi et le classement. Les comptes créés ici
 //  sont des comptes « halloween » : la base ne leur ouvre que les tournois
 //  publics (cf. schema-halloween.sql), et Topissimo les renvoie ici.
-import { modeDisplayName, modeNomOrigine, ecranMobile, MSG_MORT_MOBILE } from "../scrabble/engine.js?v=453";
+import { modeDisplayName, modeNomOrigine, ecranMobile, MSG_MORT_MOBILE } from "../scrabble/engine.js?v=454";
 
 const $ = id => document.getElementById(id);
 const sb = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
@@ -134,7 +134,7 @@ async function afficheTournoi() {
       : estJigsaw(g) && resteAvantJigsaw > 0
         ? `<span class="verrou" title="Termine d'abord les autres parties">🔒 encore ${resteAvantJigsaw} partie${resteAvantJigsaw > 1 ? "s" : ""}</span>`
         : `<a class="hw-btn" href="../scrabble/game.html?prepared=${g.id}&tid=${t.id}">${r?.paused ? "Reprendre" : "Jouer"}</a>`;
-    const medaille = `<button class="hw-btn fantome hw-medaille" type="button" data-partie="${g.id}" data-nom="${echappe(g.name)}" title="Classement de la partie">🏅</button>`;
+    const medaille = `<button class="hw-btn fantome hw-medaille" type="button" data-partie="${g.id}" data-nom="${echappe(g.name)}" data-finie="${finie(g) ? 1 : ""}" title="Classement de la partie">🏅</button>`;
     return `<div class="hw-partie"><div class="nom">${echappe(g.name)}<div class="formule">${echappe(modeDisplayName(g.mode, false, true))} <span class="origine">· ${echappe(modeNomOrigine(g.mode))}</span></div></div>${action} ${medaille}</div>`;
   }).join("") || "<p>Aucune partie pour l'instant.</p>";
   if (mobile) $("hwParties").insertAdjacentHTML("afterbegin", `<p class="hw-mobile">⌨️ ${echappe(MSG_MORT_MOBILE)}</p>`);
@@ -202,7 +202,20 @@ document.addEventListener("click", async e => {
   const moi = +(localStorage.getItem("currentPlayerId") || 0);
   const temps = s => !s ? "—" : `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
   const rang = i => ["🥇", "🥈", "🥉"][i] || `${i + 1}.`;
-  corps.innerHTML = `<table class="hw-table"><thead><tr><th>#</th><th>Joueur</th><th>Négatif</th><th>Temps</th></tr></thead><tbody>${
-    lignes.map((r, i) => `<tr${+r.player_id === moi ? ' class="moi"' : ""}><td>${rang(i)}</td><td>${echappe(r.name)}</td><td>${r.sum_neg ?? 0}</td><td>${temps(r.total_time_seconds)}</td></tr>`).join("")
-  }</tbody></table>`;
+  // Feuilles de route des autres : seulement une fois SA partie terminée (sinon les mots seraient dévoilés).
+  const feuilles = !!b.dataset.finie;
+  corps.innerHTML = `<table class="hw-table"><thead><tr><th>#</th><th>Joueur</th><th>Négatif</th><th>Temps</th>${feuilles ? "<th></th>" : ""}</tr></thead><tbody>${
+    lignes.map((r, i) => `<tr${+r.player_id === moi ? ' class="moi"' : ""}><td>${rang(i)}</td><td>${echappe(r.name)}</td><td>${r.sum_neg ?? 0}</td><td>${temps(r.total_time_seconds)}</td>${
+      feuilles && Array.isArray(r.details) && r.details.length ? `<td><button class="hw-btn fantome hw-feuille" type="button" data-i="${i}" title="Feuille de route">📋</button></td>` : (feuilles ? "<td></td>" : "")}</tr>`).join("")
+  }</tbody></table>${feuilles ? "" : '<p class="hw-note">Les feuilles de route des autres joueurs seront visibles quand tu auras terminé cette partie.</p>'}<div class="hw-feuille-corps"></div>`;
+  corps.onclick = ev => {
+    const f = ev.target.closest(".hw-feuille");
+    if (!f) return;
+    const r = lignes[+f.dataset.i];
+    const coord = pos => pos ? ` <small>${echappe(pos)}</small>` : "";
+    corps.querySelector(".hw-feuille-corps").innerHTML = `<h3>📋 ${echappe(r.name)}</h3><table class="hw-table"><thead><tr><th>Coup</th><th>Tirage</th><th>Top</th><th>Joué</th><th>Nég.</th></tr></thead><tbody>${
+      r.details.map(h => `<tr${(h.neg || 0) < 0 ? ' class="rate"' : ""}><td>${h.moveNo ?? ""}</td><td><code>${echappe(h.rack || "")}</code></td><td>${h.top ? `<b>${echappe(h.top.word)}</b>${coord(h.top.pos)} ${h.top.score}` : "—"}</td><td>${h.played ? `<b>${echappe(h.played)}</b>${coord(h.playedPos)} ${h.playerScore ?? ""}` : "—"}</td><td>${h.neg ?? 0}</td></tr>`).join("")
+    }</tbody></table>`;
+    corps.querySelector(".hw-feuille-corps").scrollIntoView({ behavior: "smooth", block: "start" });
+  };
 });
