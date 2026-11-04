@@ -29,12 +29,12 @@ import {
   bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName, modeNomOrigine, ecranMobile, MSG_MORT_MOBILE, randomBoardLayout, snakeEndpointsAfter, sablierTime, gigogneRackSize,
   setLetterValues, letterValue, valuesFor, bagFor, isCrossingCell, wordHiddenCount,
   drawVowelRack, VOWELS_NO_Y, MARATHON_TARGET, MARATHON_GAMES, consonnesDisponibles, jokersDisponibles,
-} from "./engine.js?v=452";
-import { Dictionary } from "./dictionary.js?v=452";
-import * as invasion from "./araignees.js?v=452";
-import { REGLES, afficheRegles } from "./regles.js?v=452";
-import * as sonHalloween from "./halloween-son.js?v=452";
-import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=452";
+} from "./engine.js?v=453";
+import { Dictionary } from "./dictionary.js?v=453";
+import * as invasion from "./araignees.js?v=453";
+import { REGLES, afficheRegles } from "./regles.js?v=453";
+import * as sonHalloween from "./halloween-son.js?v=453";
+import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=453";
 
 // État du mode review (parcours coup par coup)
 const review = {
@@ -73,7 +73,7 @@ const FFSC_LIVE = URL_PARAMS.get("ffsclive");      // jouer une partie FFSC en d
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v452";
+const BUILD_VERSION = "garenna-v453";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -1236,7 +1236,7 @@ function renderChrono() {
   const total = currentMode().chronoTotal;
   if (total) {
     const reste = Math.max(0, total - elapsedSeconds());
-    $("#chrono").textContent = fmtChrono(reste);
+    $("#chrono").textContent = String(Math.ceil(reste));   // en secondes : 666 … 0 (pas 11:06)
     $("#chrono").classList.toggle("chrono-urgent", reste <= 60);
     if (reste <= 0 && state.started && state.chronoFinal == null && !state._finTempsTotal) finTempsTotal();
     return;
