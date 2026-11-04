@@ -2,7 +2,7 @@
 //  directement les parties du tournoi et le classement. Les comptes créés ici
 //  sont des comptes « halloween » : la base ne leur ouvre que les tournois
 //  publics (cf. schema-halloween.sql), et Topissimo les renvoie ici.
-import { modeDisplayName, modeNomOrigine, ecranMobile, MSG_MORT_MOBILE } from "../scrabble/engine.js?v=465";
+import { modeDisplayName, modeNomOrigine, ecranMobile, MSG_MORT_MOBILE } from "../scrabble/engine.js?v=466";
 
 const $ = id => document.getElementById(id);
 const sb = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
@@ -159,14 +159,15 @@ async function afficheTournoi() {
       `<td class="n${cle === "neg" ? " cle" : ""}">${l.total_neg}</td>` +
       `<td class="n${cle === "temps" ? " cle" : ""}">${heures(l.temps_total || 0)}</td>` +
       `<td class="n">${l.retard_min != null ? "+" + l.retard_min + " min" : "–"}</td>` +
+      `<td class="n">${l.jigsaw_pts ?? "–"}</td>` +
       `<td class="n${cle === "final" ? " cle" : ""}"><strong>${l.score_final ?? "–"}</strong></td></tr>`;
-    $("hwClassementCorps").innerHTML = `<div class="hw-defile"><table class="hw-classement"><tr><th>#</th><th>Joueur</th><th class="n">Parties</th><th class="n">Points</th><th class="n">Négatif</th><th class="n">Temps</th><th class="n">Retard</th><th class="n">Score final</th></tr>` +
+    $("hwClassementCorps").innerHTML = `<div class="hw-defile"><table class="hw-classement"><tr><th>#</th><th>Joueur</th><th class="n">Parties</th><th class="n">Points</th><th class="n">Négatif</th><th class="n">Temps</th><th class="n">Retard</th><th class="n">Jigsaw</th><th class="n">Score final</th></tr>` +
       classes.map((l, i) => ligne(l, i + 1)).join("") + autres.map(l => ligne(l, null)).join("") + "</table></div>";
     document.querySelectorAll("#hwClassement .hw-onglets button").forEach(b => b.classList.toggle("actif", b.dataset.vue === cle));
   };
   $("hwClassement").innerHTML = `<div class="hw-onglets">${Object.entries(vues).map(([k, v]) => `<button data-vue="${k}" type="button">${v.nom}</button>`).join("")}</div>` +
     `<div id="hwClassementCorps"></div>` +
-    `<p class="hw-regles">Classement général : score final = points marqués − 1 point par minute entière de retard sur le joueur le plus rapide (le vainqueur a le score le plus élevé ; à égalité, le plus rapide passe devant). Les classements « Négatif » et « Temps » comptent chaque critère seul. Seuls les joueurs ayant terminé toutes les parties sont classés. Le temps de Jigsaw, la dernière partie, s'ajoute au temps général.</p>`;
+    `<p class="hw-regles">Classement général : score final = points marqués + points Jigsaw − 1 point par minute entière de retard sur le joueur le plus rapide (le vainqueur a le score le plus élevé ; à égalité, le plus rapide passe devant). Jigsaw ne rapporte pas de points mais en retire : −6 points par minute de retard sur le Jigsaw le plus rapide, −600 en cas d'abandon. Les classements « Négatif » et « Temps » comptent chaque critère seul. Seuls les joueurs ayant terminé toutes les parties sont classés. Le temps de Jigsaw, la dernière partie, s'ajoute au temps général.</p>`;
   document.querySelectorAll("#hwClassement .hw-onglets button").forEach(b => b.onclick = () => dessine(b.dataset.vue));
   dessine("final");
 }

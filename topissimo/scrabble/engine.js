@@ -249,6 +249,19 @@ export function ecranMobile() {
   if (typeof window === "undefined" || !window.matchMedia) return false;
   return matchMedia("(max-width: 700px)").matches || matchMedia("(pointer: coarse)").matches;
 }
+// Tournoi de la Mort : Jigsaw (0 point en lui-même) départage au score final, calé sur
+// l'écart moyen entre joueurs des autres formules. Jigsaw terminé : −6 points par minute
+// de retard sur le Jigsaw terminé le plus rapide (au prorata, arrondi). Abandon : −600
+// (coût moyen d'un abandon dans les autres formules). Mêmes valeurs dans
+// schema-halloween-classement.sql (fonction classement_public).
+export const JIGSAW_PTS_PAR_MIN = 6;
+export const JIGSAW_ABANDON = -600;
+/** Points Jigsaw d'un joueur : `temps` (s), `abandon`, `tempsMin` = Jigsaw terminé le plus rapide. */
+export function pointsJigsaw(temps, abandon, tempsMin) {
+  if (abandon) return JIGSAW_ABANDON;
+  if (tempsMin == null) return 0;
+  return -Math.round(JIGSAW_PTS_PAR_MIN * Math.max(0, temps - tempsMin) / 60);
+}
 export const MSG_MORT_MOBILE = "Le Tournoi de la Mort se joue sur ordinateur, avec un clavier : impossible sur téléphone ou tablette.";
 
 // Sous-titres du tournoi de la Mort qui décrivent la formule au lieu de la nommer.
