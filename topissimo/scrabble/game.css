@@ -2085,7 +2085,7 @@ body.in-live #actionRowInGame #btnPause { display: none !important; }
 /* Halloween : deux morts-vivants à la place du squelette qui danse (le pendu reste) */
 body.theme-halloween::before {
   right: 1%; bottom: 0; width: 300px; height: 197px;
-  background: url("zombies.svg?v=463") no-repeat center bottom / contain;
+  background: url("zombies.svg?v=464") no-repeat center bottom / contain;
   filter: drop-shadow(0 0 6px rgba(120,200,90,.25));
   transform-origin: 50% 100%;
   animation: hw-zombies 5s ease-in-out infinite alternate;
@@ -2118,7 +2118,6 @@ body.theme-halloween tr[style*="background:var(--petrol)"] { background: #3a1d52
 body.theme-halloween .review-solutions th,
 body.theme-halloween .dup-top-picker .dtp-head,
 body.theme-halloween .dict-header,
-body.theme-halloween .btn.secondary,
 body.theme-halloween [data-tip].show-tip::after,
 body.theme-halloween [data-tip]:hover::after { background: #3a1d52; color: #ffb35c; }
 body.theme-halloween .bag-title #bagCount { background: #3a1d52; }
@@ -2129,3 +2128,11 @@ body.theme-halloween .annot-toolbar .annot-label { color: #ffb35c; }
 body.theme-halloween .annot-btn:not(.dot) { background: #2b2233; color: #f3e9d2; }
 body.theme-halloween .annot-btn:not(.dot):hover { background: #4a2d63; }
 body.theme-halloween .annot-btn.active:not(.dot) { background: #e0661a; color: #1a1020; box-shadow: none; }
+
+/* Halloween — passe de lisibilité (audit des contrastes sur l'écran de jeu) :
+   boutons orange → texte sombre ; petites étiquettes sur fond clair → texte sombre. */
+body.theme-halloween .btn:not(.ghost) { color: #1a1020 !important; }
+body.theme-halloween .btn.secondary { background: #e0661a !important; }
+body.theme-halloween .btn.ghost { color: #ffb35c !important; border-color: #e0661a; }
+body.theme-halloween kbd { background: #2b2233 !important; color: #f3e9d2 !important; border-color: #4a2d63 !important; }
+body.theme-halloween .annot-btn .badge-sample { color: #1a1020; }
