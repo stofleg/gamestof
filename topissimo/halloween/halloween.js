@@ -2,7 +2,7 @@
 //  directement les parties du tournoi et le classement. Les comptes créés ici
 //  sont des comptes « halloween » : la base ne leur ouvre que les tournois
 //  publics (cf. schema-halloween.sql), et Topissimo les renvoie ici.
-import { modeDisplayName, modeNomOrigine, ecranMobile, MSG_MORT_MOBILE } from "../scrabble/engine.js?v=451";
+import { modeDisplayName, modeNomOrigine, ecranMobile, MSG_MORT_MOBILE } from "../scrabble/engine.js?v=452";
 
 const $ = id => document.getElementById(id);
 const sb = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
@@ -124,7 +124,7 @@ async function afficheTournoi() {
     const action = fini
       ? (estJigsaw(g)
           ? `<span class="fait">✔ ${duree(r.total_time_seconds || 0)}</span>`
-          : `<span class="fait">✔ ${r.sum_neg ?? 0}</span> <a class="hw-btn fantome" href="../scrabble/game.html?review=${g.id}&tid=${t.id}">Revoir</a>`)
+          : `<span class="fait">✔ ${r.sum_neg ?? 0}</span> <a class="hw-btn fantome" href="../scrabble/game.html?review=${g.id}&tid=${t.id}">Revoir</a> <button class="hw-btn fantome hw-medaille" type="button" data-partie="${g.id}" data-nom="${echappe(g.name)}" title="Classement de la partie">🏅</button>`)
       : mobile
         ? `<span class="verrou" title="${echappe(MSG_MORT_MOBILE)}">⌨️ sur ordinateur</span>`
       : estJigsaw(g) && resteAvantJigsaw > 0
@@ -176,3 +176,28 @@ const { data: { session } } = await sb.auth.getSession();
 if (session) connecte(session);
 else { $("hwAuth").hidden = false; changeMode("signup"); }
 sb.auth.onAuthStateChange((evt, s) => { if (evt === "SIGNED_IN" && s && !joueur) connecte(s); });
+
+// Classement d'une partie (médaille sur une partie terminée) : parties terminées de tous
+// les joueurs, via resultats_partie_publique (la RLS ne laisse lire que ses propres lignes).
+document.addEventListener("click", async e => {
+  const b = e.target.closest(".hw-medaille");
+  if (!b) return;
+  const fond = document.createElement("div");
+  fond.className = "hw-modale";
+  fond.innerHTML = `<div class="hw-modale-boite"><button class="hw-fermer" type="button">×</button>
+    <h2>🏅 ${b.dataset.nom}</h2><div class="hw-modale-corps">Chargement…</div></div>`;
+  fond.onclick = ev => { if (ev.target === fond || ev.target.closest(".hw-fermer")) fond.remove(); };
+  document.body.appendChild(fond);
+  const corps = fond.querySelector(".hw-modale-corps");
+  const { data, error } = await sb.rpc("resultats_partie_publique", { p_game: +b.dataset.partie });
+  if (error) { corps.textContent = `Classement indisponible : ${error.message}`; return; }
+  const lignes = (data || []).filter(r => (r.name || "").toLowerCase() !== "admin" && (r.summary?.mv?.length || r.summary?.puzzle))
+    .sort((a, c) => (c.sum_neg || 0) - (a.sum_neg || 0) || (a.total_time_seconds || 0) - (c.total_time_seconds || 0));
+  if (!lignes.length) { corps.textContent = "Personne n'a encore terminé cette partie."; return; }
+  const moi = +(localStorage.getItem("currentPlayerId") || 0);
+  const temps = s => !s ? "—" : `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+  const rang = i => ["🥇", "🥈", "🥉"][i] || `${i + 1}.`;
+  corps.innerHTML = `<table class="hw-table"><thead><tr><th>#</th><th>Joueur</th><th>Négatif</th><th>Temps</th></tr></thead><tbody>${
+    lignes.map((r, i) => `<tr${+r.player_id === moi ? ' class="moi"' : ""}><td>${rang(i)}</td><td>${echappe(r.name)}</td><td>${r.sum_neg ?? 0}</td><td>${temps(r.total_time_seconds)}</td></tr>`).join("")
+  }</tbody></table>`;
+});

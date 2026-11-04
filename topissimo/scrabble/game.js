@@ -29,12 +29,12 @@ import {
   bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName, modeNomOrigine, ecranMobile, MSG_MORT_MOBILE, randomBoardLayout, snakeEndpointsAfter, sablierTime, gigogneRackSize,
   setLetterValues, letterValue, valuesFor, bagFor, isCrossingCell, wordHiddenCount,
   drawVowelRack, VOWELS_NO_Y, MARATHON_TARGET, MARATHON_GAMES, consonnesDisponibles, jokersDisponibles,
-} from "./engine.js?v=451";
-import { Dictionary } from "./dictionary.js?v=451";
-import * as invasion from "./araignees.js?v=451";
-import { REGLES, afficheRegles } from "./regles.js?v=451";
-import * as sonHalloween from "./halloween-son.js?v=451";
-import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=451";
+} from "./engine.js?v=452";
+import { Dictionary } from "./dictionary.js?v=452";
+import * as invasion from "./araignees.js?v=452";
+import { REGLES, afficheRegles } from "./regles.js?v=452";
+import * as sonHalloween from "./halloween-son.js?v=452";
+import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=452";
 
 // État du mode review (parcours coup par coup)
 const review = {
@@ -73,7 +73,7 @@ const FFSC_LIVE = URL_PARAMS.get("ffsclive");      // jouer une partie FFSC en d
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v451";
+const BUILD_VERSION = "garenna-v452";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -984,10 +984,7 @@ async function loadPaceData() {
     // résultat de stof reste dans le classement, et la partie en cours s'affiche à
     // part sous « stof (admin) ». On voit ainsi les deux côte à côte.
     const testing = isSuperAdminSession();
-    const { data, error } = await window._sb
-      .from("prepared_game_results")
-      .select("player_id, details, summary, players(name)")
-      .eq("prepared_game_id", state.prepared.id);
+    const { data, error } = await resultatsPartie(state.prepared.id, "player_id, details, summary, players(name)");
     if (error) throw error;
     pace.players = (data || [])
       // Parties RÉELLEMENT terminées. On se fie à `summary.mv` (des coups joués et
@@ -1594,6 +1591,16 @@ function applyColorTheme() {
 // Parties du « tournoi de la Mort » (tournoi public) : titres Halloween à la place des
 // noms de formules. Les joueurs du tournoi public y sont toujours ; pour les membres du
 // club, on lit le drapeau est_public du tournoi de la partie.
+// Résultats d'une partie : les joueurs du tournoi public ne lisent que leurs propres
+// lignes (RLS) ; pour eux, la fonction resultats_partie_publique renvoie les parties
+// terminées de tous. Même forme que la requête directe ({ …, players: { name } }).
+async function resultatsPartie(gameId, colonnes) {
+  if (PUBLIC_EVENT) {
+    const { data, error } = await window._sb.rpc("resultats_partie_publique", { p_game: +gameId });
+    return { data: (data || []).map(r => ({ ...r, players: { name: r.name } })), error };
+  }
+  return window._sb.from("prepared_game_results").select(colonnes).eq("prepared_game_id", gameId);
+}
 let tournoiMortId = null;   // pour revenir à la page du tournoi (bouton Retour des règles)
 async function majTitresMort(tournamentId) {
   titresMort = PUBLIC_EVENT;
@@ -7558,9 +7565,7 @@ window.showTournamentResults = async function() {
   const body = modal.querySelector("#resultsModalBody");
   body.innerHTML = `<p class="muted">Chargement…</p>`;
   modal.hidden = false;
-  const { data: rowsRaw } = await window._sb.from("prepared_game_results")
-    .select("player_id, sum_neg, total_time_seconds, played_on_mobile, summary, players(name)")
-    .eq("prepared_game_id", PREPARED_ID);
+  const { data: rowsRaw } = await resultatsPartie(PREPARED_ID, "player_id, sum_neg, total_time_seconds, played_on_mobile, summary, players(name)");
   // On exclut l'admin ET les parties NON TERMINÉES (en pause) : une fiche de pause
   // porte un score/temps partiel mais aucun coup dans summary.mv → pas un résultat.
   const rows = (rowsRaw || []).filter(r =>
@@ -7609,8 +7614,10 @@ window.showPlayerSheetGame = async function(pid, name) {
   const b = modal.querySelector("#psgBody");
   b.innerHTML = `<p class="muted">Chargement…</p>`;
   modal.hidden = false;
-  const { data } = await window._sb.from("prepared_game_results")
-    .select("details").eq("prepared_game_id", PREPARED_ID).eq("player_id", pid).maybeSingle();
+  const data = PUBLIC_EVENT
+    ? ((await resultatsPartie(PREPARED_ID)).data || []).find(r => +r.player_id === +pid)
+    : (await window._sb.from("prepared_game_results")
+        .select("details").eq("prepared_game_id", PREPARED_ID).eq("player_id", pid).maybeSingle()).data;
   const details = Array.isArray(data?.details) ? data.details : [];
   if (!details.length) { b.innerHTML = `<p class="muted">Aucune feuille de route.</p>`; return; }
   const coord = pos => pos ? `<span style="font-size:.75em;color:#888">${pos}</span>` : "";
