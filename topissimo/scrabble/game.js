@@ -29,12 +29,12 @@ import {
   bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName, modeNomOrigine, ecranMobile, MSG_MORT_MOBILE, randomBoardLayout, snakeEndpointsAfter, sablierTime, gigogneRackSize,
   setLetterValues, letterValue, valuesFor, bagFor, isCrossingCell, wordHiddenCount,
   drawVowelRack, VOWELS_NO_Y, MARATHON_TARGET, MARATHON_GAMES, consonnesDisponibles, jokersDisponibles,
-} from "./engine.js?v=464";
-import { Dictionary } from "./dictionary.js?v=464";
-import * as invasion from "./araignees.js?v=464";
-import { REGLES, afficheRegles } from "./regles.js?v=464";
-import * as sonHalloween from "./halloween-son.js?v=464";
-import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=464";
+} from "./engine.js?v=465";
+import { Dictionary } from "./dictionary.js?v=465";
+import * as invasion from "./araignees.js?v=465";
+import { REGLES, afficheRegles } from "./regles.js?v=465";
+import * as sonHalloween from "./halloween-son.js?v=465";
+import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=465";
 
 // État du mode review (parcours coup par coup)
 const review = {
@@ -73,7 +73,7 @@ const FFSC_LIVE = URL_PARAMS.get("ffsclive");      // jouer une partie FFSC en d
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v464";
+const BUILD_VERSION = "garenna-v465";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -269,7 +269,13 @@ async function loadSettingsFromSupabase() {
   if (error || !data?.settings) return;
   // Merge sans écraser les nouvelles clés introduites par une mise à jour de l'app
   // (les defaults de loadSettings ont déjà été appliqués).
-  Object.assign(state.settings, data.settings);
+  // Les paramètres de JEU (formule, joker, temps par coup) ne sont jamais repris du
+  // serveur : d'anciens réglages les contiennent encore, et cette lecture arrive APRÈS
+  // le chargement d'une partie de tournoi — elle remplaçait alors sa formule (ex. le
+  // « 666 » repassait en formule classique, chrono croissant).
+  // On ne reprend donc que les préférences personnelles (celles que saveSettingsToSupabase écrit).
+  const PERSO = ["rackPos", "sortRack", "showCoords", "colorTheme", "chronoType", "highlightTop", "showPace"];
+  for (const k of PERSO) if (k in data.settings) state.settings[k] = data.settings[k];
   saveSettings();              // miroir local
   applyRackPos();
   applyColorTheme();
