@@ -29,12 +29,12 @@ import {
   bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName, modeNomOrigine, ecranMobile, MSG_MORT_MOBILE, randomBoardLayout, snakeEndpointsAfter, sablierTime, gigogneRackSize,
   setLetterValues, letterValue, valuesFor, bagFor, isCrossingCell, wordHiddenCount,
   drawVowelRack, VOWELS_NO_Y, MARATHON_TARGET, MARATHON_GAMES, consonnesDisponibles, jokersDisponibles,
-} from "./engine.js?v=459";
-import { Dictionary } from "./dictionary.js?v=459";
-import * as invasion from "./araignees.js?v=459";
-import { REGLES, afficheRegles } from "./regles.js?v=459";
-import * as sonHalloween from "./halloween-son.js?v=459";
-import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=459";
+} from "./engine.js?v=460";
+import { Dictionary } from "./dictionary.js?v=460";
+import * as invasion from "./araignees.js?v=460";
+import { REGLES, afficheRegles } from "./regles.js?v=460";
+import * as sonHalloween from "./halloween-son.js?v=460";
+import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=460";
 
 // État du mode review (parcours coup par coup)
 const review = {
@@ -73,7 +73,7 @@ const FFSC_LIVE = URL_PARAMS.get("ffsclive");      // jouer une partie FFSC en d
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v459";
+const BUILD_VERSION = "garenna-v460";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie

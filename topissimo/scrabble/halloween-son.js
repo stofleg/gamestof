@@ -16,7 +16,12 @@ function initialise() {
   if (ctx) return;
   ctx = new (window.AudioContext || window.webkitAudioContext)();
   maitre = ctx.createGain(); maitre.gain.value = coupe ? 0 : .5; maitre.connect(ctx.destination);
+  // Un niveau par famille d'effets, réglé sur des mesures de volume (sons rendus hors ligne)
+  // pour qu'effets et musiques (≈ −32 dBFS) s'entendent à des niveaux voisins.
+  for (const [nom, g] of Object.entries(NIVEAUX)) { bus[nom] = ctx.createGain(); bus[nom].gain.value = g; bus[nom].connect(maitre); }
 }
+const NIVEAUX = { vent: 1, tonnerre: 2.5, nuee: 1.4, splotch: 1.1, fantome: 2.7 };
+const bus = {};
 
 /** Vent : bruit filtré dont la fréquence et le volume ondulent lentement. */
 function vent() {
@@ -32,8 +37,8 @@ function vent() {
   const o2 = ctx.createOscillator(); o2.type = "sawtooth"; o2.frequency.value = 58.3;
   const fo = ctx.createBiquadFilter(); fo.type = "lowpass"; fo.frequency.value = 160;
   const go = ctx.createGain(); go.gain.value = .03;
-  o.connect(fo); o2.connect(fo); fo.connect(go).connect(maitre);
-  src.connect(f).connect(g).connect(maitre);
+  o.connect(fo); o2.connect(fo); fo.connect(go).connect(bus.vent);
+  src.connect(f).connect(g).connect(bus.vent);
   [src, lfo, lfo2, o, o2].forEach(n => n.start());
   ventNoeud = [src, lfo, lfo2, o, o2];
 }
@@ -49,7 +54,7 @@ export function tonnerre() {
   g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(.28, t + .25);
   g.gain.exponentialRampToValueAtTime(.14, t + .7); g.gain.linearRampToValueAtTime(.2, t + 1.3);
   g.gain.exponentialRampToValueAtTime(.001, t + 3.8);
-  src.connect(f).connect(g).connect(maitre); src.start(t); src.stop(t + 4);
+  src.connect(f).connect(g).connect(bus.tonnerre); src.start(t); src.stop(t + 4);
 }
 
 /** Nuée : battements d'ailes (bruit haché) et cris aigus de chauves-souris. */
@@ -64,7 +69,7 @@ export function nuee() {
   const env = ctx.createGain();
   env.gain.setValueAtTime(0, t); env.gain.linearRampToValueAtTime(1, t + .4);
   env.gain.setValueAtTime(1, t + 1.8); env.gain.linearRampToValueAtTime(0, t + 2.8);
-  src.connect(f).connect(g).connect(env).connect(maitre);
+  src.connect(f).connect(g).connect(env).connect(bus.nuee);
   src.start(t); hache.start(t); src.stop(t + 3); hache.stop(t + 3);
   for (let i = 0; i < 14; i++) {                         // cris
     const d = t + Math.random() * 2.2, o = ctx.createOscillator(), og = ctx.createGain();
@@ -73,7 +78,7 @@ export function nuee() {
     o.frequency.exponentialRampToValueAtTime(2500 + Math.random() * 1500, d + .06);
     og.gain.setValueAtTime(0, d); og.gain.linearRampToValueAtTime(.07, d + .01);
     og.gain.exponentialRampToValueAtTime(.001, d + .08);
-    o.connect(og).connect(maitre); o.start(d); o.stop(d + .1);
+    o.connect(og).connect(bus.nuee); o.start(d); o.stop(d + .1);
   }
 }
 
@@ -87,7 +92,7 @@ export function splotch() {
   const g = ctx.createGain(); g.gain.setValueAtTime(.6, t); g.gain.exponentialRampToValueAtTime(.001, t + .18);
   const o = ctx.createOscillator(); o.frequency.setValueAtTime(180, t); o.frequency.exponentialRampToValueAtTime(50, t + .12);
   const og = ctx.createGain(); og.gain.setValueAtTime(.4, t); og.gain.exponentialRampToValueAtTime(.001, t + .14);
-  src.connect(f).connect(g).connect(maitre); o.connect(og).connect(maitre);
+  src.connect(f).connect(g).connect(bus.splotch); o.connect(og).connect(bus.splotch);
   src.start(t); o.start(t); src.stop(t + .3); o.stop(t + .2);
 }
 
@@ -189,10 +194,10 @@ function eglise() {
   }
   const conv = ctx.createConvolver(); conv.buffer = b;
   const humide = ctx.createGain(); humide.gain.value = .55;
-  conv.connect(humide).connect(maitre);
+  conv.connect(humide).connect(bus.fantome);
   reverb = ctx.createGain(); reverb.gain.value = 1;
   reverb.connect(conv);
-  const sec = ctx.createGain(); sec.gain.value = .35; reverb.connect(sec).connect(maitre);
+  const sec = ctx.createGain(); sec.gain.value = .35; reverb.connect(sec).connect(bus.fantome);
   return reverb;
 }
 /** Plainte de fantôme : voix sinusoïdale qui glisse « hououuu » avec vibrato, au loin. */
@@ -227,35 +232,39 @@ function fantomes() {
 
 // --- musique : vrais enregistrements, enchaînés dans un ordre aléatoire ----------------
 const MORCEAUX = [
-  { f: "toccata.m4a", titre: "Bach — Toccata et fugue en ré mineur", credit: "Kevin MacLeod (incompetech.com), CC BY 3.0" },
-  { f: "danse.m4a", titre: "Saint-Saëns — Danse macabre", credit: "Orchestre de Philadelphie, Stokowski — domaine public" },
-  { f: "roi.m4a", titre: "Grieg — Dans l’antre du roi de la montagne", credit: "Kevin MacLeod (incompetech.com), CC BY 3.0" },
-  { f: "montchauve.m4a", titre: "Moussorgski — Une nuit sur le mont Chauve", credit: "domaine public" },
-  { f: "classic-horror.m4a", titre: "Kevin MacLeod — Classic Horror 2", credit: "Kevin MacLeod (incompetech.com), CC BY 3.0" },
-  { f: "hush.m4a", titre: "Kevin MacLeod — Hush", credit: "Kevin MacLeod (incompetech.com), CC BY 3.0" },
-  { f: "the-way-out.m4a", titre: "Kevin MacLeod — The Way Out", credit: "Kevin MacLeod (incompetech.com), CC BY 3.0" },
-  { f: "land-of-phantoms.m4a", titre: "Kevin MacLeod — Land of Phantoms", credit: "Kevin MacLeod (incompetech.com), CC BY 3.0" },
-  { f: "waltz-carnies.m4a", titre: "Kevin MacLeod — Waltz of the Carnies", credit: "Kevin MacLeod (incompetech.com), CC BY 3.0" },
-  { f: "ghost-dance.m4a", titre: "Kevin MacLeod — Ghost Dance", credit: "Kevin MacLeod (incompetech.com), CC BY 3.0" },
-  { f: "gathering-darkness.m4a", titre: "Kevin MacLeod — Gathering Darkness", credit: "Kevin MacLeod (incompetech.com), CC BY 3.0" },
-  { f: "night-of-chaos.m4a", titre: "Kevin MacLeod — Night of Chaos", credit: "Kevin MacLeod (incompetech.com), CC BY 3.0" },
-  { f: "darkest-child.m4a", titre: "Kevin MacLeod — Darkest Child", credit: "Kevin MacLeod (incompetech.com), CC BY 3.0" },
-  { f: "spellbound.m4a", titre: "Kevin MacLeod — Spellbound", credit: "Kevin MacLeod (incompetech.com), CC BY 3.0" },
-  { f: "ossuary-rest.m4a", titre: "Kevin MacLeod — Ossuary 5 : Rest", credit: "Kevin MacLeod (incompetech.com), CC BY 3.0" },
-  { f: "sugar-plum-dark.m4a", titre: "Kevin MacLeod — Sugar Plum (Dark Mix), d’après Tchaïkovski", credit: "Kevin MacLeod (incompetech.com), CC BY 3.0" },
-  { f: "berlioz-sabbat.m4a", titre: "Berlioz — Symphonie fantastique : Songe d’une nuit du Sabbat", credit: "Orchestre Lamoureux, Igor Markevitch — domaine public" },
-  { f: "chopin-funebre.m4a", titre: "Chopin — Marche funèbre (Sonate n° 2)", credit: "Paul Pitman, piano — domaine public" },
-  { f: "liszt-totentanz.m4a", titre: "Liszt — Totentanz", credit: "O’Doan, piano, et orchestre (collection Al Goldstein, ibiblio) — CC BY-SA 2.0" },
-  { f: "gnomus.m4a", titre: "Moussorgski — Gnomus (Tableaux d’une exposition)", credit: "Skidmore College Orchestra — CC0" },
-  { f: "bach-passacaille.m4a", titre: "Bach — Passacaille et fugue en ut mineur", credit: "Awadagin Pratt — domaine public" },
-  { f: "erlkonig.m4a", titre: "Schubert — Le Roi des aulnes", credit: "Ernestine Schumann-Heink — domaine public" },
-  { f: "the-voices.m4a", titre: "Kevin MacLeod — The Voices", credit: "Kevin MacLeod (incompetech.com), CC BY 3.0" },
+  { f: "toccata.m4a", db: -18.1, titre: "Bach — Toccata et fugue en ré mineur", credit: "Kevin MacLeod (incompetech.com), CC BY 3.0" },
+  { f: "danse.m4a", db: -18.3, titre: "Saint-Saëns — Danse macabre", credit: "Orchestre de Philadelphie, Stokowski — domaine public" },
+  { f: "roi.m4a", db: -14.2, titre: "Grieg — Dans l’antre du roi de la montagne", credit: "Kevin MacLeod (incompetech.com), CC BY 3.0" },
+  { f: "montchauve.m4a", db: -24.4, titre: "Moussorgski — Une nuit sur le mont Chauve", credit: "domaine public" },
+  { f: "classic-horror.m4a", db: -20.6, titre: "Kevin MacLeod — Classic Horror 2", credit: "Kevin MacLeod (incompetech.com), CC BY 3.0" },
+  { f: "hush.m4a", db: -17.4, titre: "Kevin MacLeod — Hush", credit: "Kevin MacLeod (incompetech.com), CC BY 3.0" },
+  { f: "the-way-out.m4a", db: -18.0, titre: "Kevin MacLeod — The Way Out", credit: "Kevin MacLeod (incompetech.com), CC BY 3.0" },
+  { f: "land-of-phantoms.m4a", db: -35.8, titre: "Kevin MacLeod — Land of Phantoms", credit: "Kevin MacLeod (incompetech.com), CC BY 3.0" },
+  { f: "waltz-carnies.m4a", db: -15.3, titre: "Kevin MacLeod — Waltz of the Carnies", credit: "Kevin MacLeod (incompetech.com), CC BY 3.0" },
+  { f: "ghost-dance.m4a", db: -24.5, titre: "Kevin MacLeod — Ghost Dance", credit: "Kevin MacLeod (incompetech.com), CC BY 3.0" },
+  { f: "gathering-darkness.m4a", db: -17.3, titre: "Kevin MacLeod — Gathering Darkness", credit: "Kevin MacLeod (incompetech.com), CC BY 3.0" },
+  { f: "night-of-chaos.m4a", db: -24.4, titre: "Kevin MacLeod — Night of Chaos", credit: "Kevin MacLeod (incompetech.com), CC BY 3.0" },
+  { f: "darkest-child.m4a", db: -12.5, titre: "Kevin MacLeod — Darkest Child", credit: "Kevin MacLeod (incompetech.com), CC BY 3.0" },
+  { f: "spellbound.m4a", db: -14.5, titre: "Kevin MacLeod — Spellbound", credit: "Kevin MacLeod (incompetech.com), CC BY 3.0" },
+  { f: "ossuary-rest.m4a", db: -16.6, titre: "Kevin MacLeod — Ossuary 5 : Rest", credit: "Kevin MacLeod (incompetech.com), CC BY 3.0" },
+  { f: "sugar-plum-dark.m4a", db: -23.3, titre: "Kevin MacLeod — Sugar Plum (Dark Mix), d’après Tchaïkovski", credit: "Kevin MacLeod (incompetech.com), CC BY 3.0" },
+  { f: "berlioz-sabbat.m4a", db: -19.1, titre: "Berlioz — Symphonie fantastique : Songe d’une nuit du Sabbat", credit: "Orchestre Lamoureux, Igor Markevitch — domaine public" },
+  { f: "chopin-funebre.m4a", db: -23.8, titre: "Chopin — Marche funèbre (Sonate n° 2)", credit: "Paul Pitman, piano — domaine public" },
+  { f: "liszt-totentanz.m4a", db: -24.0, titre: "Liszt — Totentanz", credit: "O’Doan, piano, et orchestre (collection Al Goldstein, ibiblio) — CC BY-SA 2.0" },
+  { f: "gnomus.m4a", db: -29.7, titre: "Moussorgski — Gnomus (Tableaux d’une exposition)", credit: "Skidmore College Orchestra — CC0" },
+  { f: "bach-passacaille.m4a", db: -22.3, titre: "Bach — Passacaille et fugue en ut mineur", credit: "Awadagin Pratt — domaine public" },
+  { f: "erlkonig.m4a", db: -22.6, titre: "Schubert — Le Roi des aulnes", credit: "Ernestine Schumann-Heink — domaine public" },
+  { f: "the-voices.m4a", db: -16.5, titre: "Kevin MacLeod — The Voices", credit: "Kevin MacLeod (incompetech.com), CC BY 3.0" },
 ];
+// db : volume mesuré de chaque enregistrement (moyenne de ses passages les plus forts) ;
+// chaque morceau est ramené à ≈ −32 dBFS en sortie (plafonné au volume maximal).
+const MUSIQUE_CIBLE = -32;
+const volumeMorceau = m => Math.min(1, Math.pow(10, (MUSIQUE_CIBLE - (m.db ?? -22)) / 20));
 let lecteur = null, ordre = [], legende = null;
 function musique(on) {
   if (!on) { lecteur?.pause(); if (legende) legende.hidden = true; return; }
   if (!lecteur) {
-    lecteur = new Audio(); lecteur.volume = .35; lecteur.preload = "auto";
+    lecteur = new Audio(); lecteur.volume = .3; lecteur.preload = "auto";
     lecteur.addEventListener("ended", morceauSuivant);
     legende = document.createElement("div"); legende.className = "hw-legende";
     document.body.appendChild(legende);
@@ -276,6 +285,7 @@ export function morceauSuivant() {
   if (!ordre.length) ordre = melangeMorceaux();
   const m = dernier = ordre.shift();
   lecteur.src = new URL(`musique/${m.f}`, import.meta.url).href;
+  lecteur.volume = volumeMorceau(m);
   lecteur.play().catch(() => {});
   legende.innerHTML = `♪ ${m.titre}<br><small>${m.credit}</small>`;
 }
@@ -289,7 +299,7 @@ export function nouvellePartie() {
 let rireAudio = null;
 export function rire() {
   if (!actif || coupe) return;
-  if (!rireAudio) { rireAudio = new Audio(new URL("musique/rire-machiavelique.m4a", import.meta.url).href); rireAudio.volume = .9; }
+  if (!rireAudio) { rireAudio = new Audio(new URL("musique/rire-machiavelique.m4a", import.meta.url).href); rireAudio.volume = .26; }   // ≈ −28 dBFS : un peu au-dessus de la musique
   try { rireAudio.currentTime = 0; } catch {}
   rireAudio.play().catch(() => {});
 }
