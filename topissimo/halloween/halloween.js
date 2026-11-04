@@ -2,7 +2,7 @@
 //  directement les parties du tournoi et le classement. Les comptes créés ici
 //  sont des comptes « halloween » : la base ne leur ouvre que les tournois
 //  publics (cf. schema-halloween.sql), et Topissimo les renvoie ici.
-import { modeDisplayName, modeNomOrigine, ecranMobile, MSG_MORT_MOBILE } from "../scrabble/engine.js?v=455";
+import { modeDisplayName, modeNomOrigine, ecranMobile, MSG_MORT_MOBILE } from "../scrabble/engine.js?v=456";
 
 const $ = id => document.getElementById(id);
 const sb = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
@@ -135,7 +135,7 @@ async function afficheTournoi() {
         ? `<span class="verrou" title="Termine d'abord les autres parties">🔒 encore ${resteAvantJigsaw} partie${resteAvantJigsaw > 1 ? "s" : ""}</span>`
         : `<a class="hw-btn" href="../scrabble/game.html?prepared=${g.id}&tid=${t.id}">${r?.paused ? "Reprendre" : "Jouer"}</a>`;
     // Classement de la partie (et feuilles de route) : seulement une fois sa propre partie terminée.
-    const medaille = !fini ? "" : `<button class="hw-btn fantome hw-medaille" type="button" data-partie="${g.id}" data-nom="${echappe(g.name)}" title="Classement de la partie">🏅</button>`;
+    const medaille = !fini ? `<button class="hw-btn fantome hw-medaille" type="button" disabled title="Joue d'abord cette partie pour voir le classement">🏅</button>` : `<button class="hw-btn fantome hw-medaille" type="button" data-partie="${g.id}" data-nom="${echappe(g.name)}" title="Classement de la partie">🏅</button>`;
     return `<div class="hw-partie"><div class="nom">${echappe(g.name)}<div class="formule">${echappe(modeDisplayName(g.mode, false, true))} <span class="origine">· ${echappe(modeNomOrigine(g.mode))}</span></div></div>${action} ${medaille}</div>`;
   }).join("") || "<p>Aucune partie pour l'instant.</p>";
   if (mobile) $("hwParties").insertAdjacentHTML("afterbegin", `<p class="hw-mobile">⌨️ ${echappe(MSG_MORT_MOBILE)}</p>`);
