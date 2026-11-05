@@ -10,11 +10,11 @@
 //     pour tous. Un seul essai ; l'heure de départ est enregistrée en base, si bien
 //     qu'un rechargement ne remet pas le chrono à zéro. Le temps réalisé est
 //     enregistré comme résultat (0 point, 0 négatif) et s'ajoute au temps général.
-import { afficheRegles } from "./regles.js?v=467";
-import { chargeDico, grilleFinale, classeCase, jeton, appliqueTheme, fmt } from "./grille-finale.js?v=467";
-import { decoupeRegions, piecesDepuisRegions } from "./puzzle-pieces.js?v=467";
-import { emptyBoard, applyMove, modeDisplayName, modeNomOrigine, ecranMobile, MSG_MORT_MOBILE } from "./engine.js?v=467";
-import * as sonHalloween from "./halloween-son.js?v=467";
+import { afficheRegles } from "./regles.js?v=468";
+import { chargeDico, grilleFinale, classeCase, jeton, appliqueTheme, fmt } from "./grille-finale.js?v=468";
+import { decoupeRegions, piecesDepuisRegions } from "./puzzle-pieces.js?v=468";
+import { emptyBoard, applyMove, modeDisplayName, modeNomOrigine, ecranMobile, MSG_MORT_MOBILE } from "./engine.js?v=468";
+import * as sonHalloween from "./halloween-son.js?v=468";
 
 const $ = id => document.getElementById(id);
 const N = 15;
@@ -28,7 +28,6 @@ let t0 = 0, minuteur = null, fini = false;
 let tournoi = null;       // { sb, partie, pid, debut } en mode tournoi
 let sansBonus = false;    // tournoi de la Mort : la grille n'affiche pas les cases multiplicatrices
 const cls = (R, C) => sansBonus ? "normal" : classeCase(R, C);
-const PENALITE_ABANDON = 900;   // abandon : temps écoulé + 15 minutes
 
 appliqueTheme();
 
@@ -324,16 +323,17 @@ async function enregistreResultat(secondes, abandon = false) {
   return true;
 }
 
-/** Abandon (tournoi) : le temps écoulé plus une pénalité est enregistré. */
+/** Abandon (tournoi) : le temps écoulé est enregistré (sans pénalité : l'abandon se paie au
+ *  score final, qui n'accorde que des points d'essai au lieu des 500 de la résolution). */
 async function abandonne() {
   if (fini || !tournoi?.debut) return;
-  if (!confirm(`Abandonner Jigsaw ? Ton temps sera compté : temps écoulé + ${PENALITE_ABANDON / 60} minutes de pénalité.`)) return;
+  if (!confirm("Abandonner Jigsaw ? Tu perds les 500 points de la résolution ; si tu as cherché au moins 15 minutes, ton essai rapporte de 250 à 400 points.")) return;
   fini = true;
   clearInterval(minuteur);
-  const s = Math.round((Date.now() - tournoi.debut) / 1000) + PENALITE_ABANDON;
+  const s = Math.round((Date.now() - tournoi.debut) / 1000);
   $("pzAbandon").hidden = true;
   const ok = await enregistreResultat(s, true);
-  if (ok) annonce(`Jigsaw abandonné.<br>Temps compté : <strong>${fmt(s)}</strong> (pénalité comprise).`);
+  if (ok) annonce(`Jigsaw abandonné.<br>Temps de recherche : <strong>${fmt(s)}</strong>.`);
 }
 
 async function lanceTournoi() {

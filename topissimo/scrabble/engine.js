@@ -252,17 +252,16 @@ export function ecranMobile() {
 // Tournoi de la Mort : points Jigsaw (1 000 au maximum), ajoutés au score final.
 //   • Terminé : 500 (résolution) + 500 (temps) − 6 points par minute de retard sur le Jigsaw
 //     terminé le plus rapide (au prorata, arrondi ; la part temps ne descend pas sous 0).
-//   • Abandonné : points d'essai selon le temps de recherche (hors 15 minutes de pénalité,
-//     incluses dans le temps enregistré d'un abandon) : 0 avant 15 minutes, 250 à 15 minutes,
+//   • Abandonné : points d'essai selon le temps de recherche enregistré (sans pénalité) :
+//     0 avant 15 minutes, 250 à 15 minutes,
 //     puis au prorata jusqu'à 400 à 30 minutes, 400 au-delà (toujours sous les 500 d'un Jigsaw terminé).
 // Mêmes valeurs dans schema-halloween-classement.sql (fonction classement_public).
 export const JIGSAW_RESOLUTION = 500, JIGSAW_TEMPS = 500, JIGSAW_PTS_PAR_MIN = 6;
 export const JIGSAW_ESSAI_MIN = 250, JIGSAW_ESSAI_MAX = 400, JIGSAW_ESSAI_DEBUT_S = 900, JIGSAW_ESSAI_PLEIN_S = 1800;
-export const JIGSAW_PENALITE_ABANDON_S = 900;
 /** Points Jigsaw d'un joueur : `temps` (s, tel qu'enregistré), `abandon`, `tempsMin` = Jigsaw terminé le plus rapide. */
 export function pointsJigsaw(temps, abandon, tempsMin) {
   if (abandon) {
-    const recherche = temps - JIGSAW_PENALITE_ABANDON_S;
+    const recherche = temps;
     if (recherche < JIGSAW_ESSAI_DEBUT_S) return 0;
     const part = Math.min(1, (recherche - JIGSAW_ESSAI_DEBUT_S) / (JIGSAW_ESSAI_PLEIN_S - JIGSAW_ESSAI_DEBUT_S));
     return Math.round(JIGSAW_ESSAI_MIN + part * (JIGSAW_ESSAI_MAX - JIGSAW_ESSAI_MIN));
