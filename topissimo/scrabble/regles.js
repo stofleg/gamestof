@@ -105,8 +105,8 @@ export const REGLES = {
       "<b>Glisse</b> chaque pièce à sa place sur la grille vide (pas de rotation). Clic droit sur une pièce posée : elle retourne dans la réserve.",
       "Range les pièces où tu veux autour de la grille, même en dessous.",
       "Le chrono s'arrête quand la grille est entièrement reconstituée.",
-      "Jigsaw rapporte jusqu'à <b>1 000 points</b> : 500 pour la grille reconstituée, 500 pour le temps (−6 points par minute de retard sur le plus rapide).",
-      "« Abandonner » : pas de points de résolution, mais si tu as cherché <b>au moins 15 minutes</b>, ton essai rapporte de 250 à 400 points (400 à partir de 30 minutes).",
+      "Jigsaw rapporte jusqu'à <b>500 points</b> : 250 pour la grille reconstituée, 250 pour le temps (−3 points par minute de retard sur le plus rapide).",
+      "« Abandonner » : pas de points de résolution, mais si tu as cherché <b>au moins 15 minutes</b>, ton essai rapporte de 125 à 200 points (200 à partir de 30 minutes).",
     ],
   },
 };

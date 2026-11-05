@@ -10,11 +10,11 @@
 //     pour tous. Un seul essai ; l'heure de départ est enregistrée en base, si bien
 //     qu'un rechargement ne remet pas le chrono à zéro. Le temps réalisé est
 //     enregistré comme résultat (0 point, 0 négatif) et s'ajoute au temps général.
-import { afficheRegles } from "./regles.js?v=468";
-import { chargeDico, grilleFinale, classeCase, jeton, appliqueTheme, fmt } from "./grille-finale.js?v=468";
-import { decoupeRegions, piecesDepuisRegions } from "./puzzle-pieces.js?v=468";
-import { emptyBoard, applyMove, modeDisplayName, modeNomOrigine, ecranMobile, MSG_MORT_MOBILE } from "./engine.js?v=468";
-import * as sonHalloween from "./halloween-son.js?v=468";
+import { afficheRegles } from "./regles.js?v=469";
+import { chargeDico, grilleFinale, classeCase, jeton, appliqueTheme, fmt } from "./grille-finale.js?v=469";
+import { decoupeRegions, piecesDepuisRegions } from "./puzzle-pieces.js?v=469";
+import { emptyBoard, applyMove, modeDisplayName, modeNomOrigine, ecranMobile, MSG_MORT_MOBILE } from "./engine.js?v=469";
+import * as sonHalloween from "./halloween-son.js?v=469";
 
 const $ = id => document.getElementById(id);
 const N = 15;
@@ -327,7 +327,7 @@ async function enregistreResultat(secondes, abandon = false) {
  *  score final, qui n'accorde que des points d'essai au lieu des 500 de la résolution). */
 async function abandonne() {
   if (fini || !tournoi?.debut) return;
-  if (!confirm("Abandonner Jigsaw ? Tu perds les 500 points de la résolution ; si tu as cherché au moins 15 minutes, ton essai rapporte de 250 à 400 points.")) return;
+  if (!confirm("Abandonner Jigsaw ? Tu perds les 250 points de la résolution ; si tu as cherché au moins 15 minutes, ton essai rapporte de 125 à 200 points.")) return;
   fini = true;
   clearInterval(minuteur);
   const s = Math.round((Date.now() - tournoi.debut) / 1000);

@@ -2,7 +2,7 @@
 //  directement les parties du tournoi et le classement. Les comptes créés ici
 //  sont des comptes « halloween » : la base ne leur ouvre que les tournois
 //  publics (cf. schema-halloween.sql), et Topissimo les renvoie ici.
-import { modeDisplayName, modeNomOrigine, ecranMobile, MSG_MORT_MOBILE } from "../scrabble/engine.js?v=468";
+import { modeDisplayName, modeNomOrigine, ecranMobile, MSG_MORT_MOBILE } from "../scrabble/engine.js?v=469";
 
 const $ = id => document.getElementById(id);
 const sb = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
@@ -167,7 +167,7 @@ async function afficheTournoi() {
   };
   $("hwClassement").innerHTML = `<div class="hw-onglets">${Object.entries(vues).map(([k, v]) => `<button data-vue="${k}" type="button">${v.nom}</button>`).join("")}</div>` +
     `<div id="hwClassementCorps"></div>` +
-    `<p class="hw-regles">Classement général : score final = points marqués + points Jigsaw − 1 point par minute entière de retard sur le joueur le plus rapide (le vainqueur a le score le plus élevé ; à égalité, le plus rapide passe devant). Jigsaw rapporte jusqu'à 1 000 points : terminé = 500 pour la résolution + 500 pour le temps (−6 points par minute de retard sur le Jigsaw le plus rapide) ; abandonné = des points pour l'essai si tu as cherché au moins 15 minutes : 250, puis au prorata jusqu'à 400 à 30 minutes de recherche. Les classements « Négatif » et « Temps » comptent chaque critère seul. Seuls les joueurs ayant terminé toutes les parties sont classés. Le temps de Jigsaw, la dernière partie, s'ajoute au temps général.</p>`;
+    `<p class="hw-regles">Classement général : score final = points marqués + points Jigsaw − 1 point par minute entière de retard sur le joueur le plus rapide (le vainqueur a le score le plus élevé ; à égalité, le plus rapide passe devant). Jigsaw rapporte jusqu'à 500 points : terminé = 250 pour la résolution + 250 pour le temps (−3 points par minute de retard sur le Jigsaw le plus rapide) ; abandonné = des points pour l'essai si tu as cherché au moins 15 minutes : 125, puis au prorata jusqu'à 200 à 30 minutes de recherche. Les classements « Négatif » et « Temps » comptent chaque critère seul. Seuls les joueurs ayant terminé toutes les parties sont classés. Le temps de Jigsaw, la dernière partie, s'ajoute au temps général.</p>`;
   document.querySelectorAll("#hwClassement .hw-onglets button").forEach(b => b.onclick = () => dessine(b.dataset.vue));
   dessine("final");
 }

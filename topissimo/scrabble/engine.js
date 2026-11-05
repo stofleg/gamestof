@@ -249,15 +249,14 @@ export function ecranMobile() {
   if (typeof window === "undefined" || !window.matchMedia) return false;
   return matchMedia("(max-width: 700px)").matches || matchMedia("(pointer: coarse)").matches;
 }
-// Tournoi de la Mort : points Jigsaw (1 000 au maximum), ajoutés au score final.
-//   • Terminé : 500 (résolution) + 500 (temps) − 6 points par minute de retard sur le Jigsaw
+// Tournoi de la Mort : points Jigsaw (500 au maximum), ajoutés au score final.
+//   • Terminé : 250 (résolution) + 250 (temps) − 3 points par minute de retard sur le Jigsaw
 //     terminé le plus rapide (au prorata, arrondi ; la part temps ne descend pas sous 0).
-//   • Abandonné : points d'essai selon le temps de recherche enregistré (sans pénalité) :
-//     0 avant 15 minutes, 250 à 15 minutes,
-//     puis au prorata jusqu'à 400 à 30 minutes, 400 au-delà (toujours sous les 500 d'un Jigsaw terminé).
+//   • Abandonné : points d'essai selon le temps de recherche enregistré : 0 avant 15 minutes,
+//     125 à 15 minutes, puis au prorata jusqu'à 200 à 30 minutes, 200 au-delà.
 // Mêmes valeurs dans schema-halloween-classement.sql (fonction classement_public).
-export const JIGSAW_RESOLUTION = 500, JIGSAW_TEMPS = 500, JIGSAW_PTS_PAR_MIN = 6;
-export const JIGSAW_ESSAI_MIN = 250, JIGSAW_ESSAI_MAX = 400, JIGSAW_ESSAI_DEBUT_S = 900, JIGSAW_ESSAI_PLEIN_S = 1800;
+export const JIGSAW_RESOLUTION = 250, JIGSAW_TEMPS = 250, JIGSAW_PTS_PAR_MIN = 3;
+export const JIGSAW_ESSAI_MIN = 125, JIGSAW_ESSAI_MAX = 200, JIGSAW_ESSAI_DEBUT_S = 900, JIGSAW_ESSAI_PLEIN_S = 1800;
 /** Points Jigsaw d'un joueur : `temps` (s, tel qu'enregistré), `abandon`, `tempsMin` = Jigsaw terminé le plus rapide. */
 export function pointsJigsaw(temps, abandon, tempsMin) {
   if (abandon) {

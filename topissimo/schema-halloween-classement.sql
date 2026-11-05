@@ -7,10 +7,10 @@
 --   Score final = points marqués + points Jigsaw − 1 point par minute ENTIÈRE de retard sur le
 --   temps total le plus court (parmi les joueurs ayant terminé TOUTES les parties du tournoi) :
 --   le vainqueur a le score le plus élevé.
---   Points Jigsaw (1 000 au maximum) : terminé = 500 (résolution) + 500 (temps) − 6 points par
+--   Points Jigsaw (500 au maximum) : terminé = 250 (résolution) + 250 (temps) − 3 points par
 --   minute de retard sur le Jigsaw TERMINÉ le plus rapide (au prorata, arrondi, part temps ≥ 0) ;
 --   abandonné = points d'essai selon le temps de recherche enregistré (sans pénalité) : 0 avant
---   15 min, 250 à 15 min, au prorata jusqu'à 400 à 30 min, 400 au-delà.
+--   15 min, 125 à 15 min, au prorata jusqu'à 200 à 30 min, 200 au-delà.
 --   Mêmes valeurs que pointsJigsaw (scrabble/engine.js).
 --   Les joueurs n'ayant pas tout terminé sont listés après, sans score final.
 drop function if exists public.classement_public(bigint);
@@ -52,8 +52,8 @@ language sql stable security definer set search_path = public as $$
                 then (floor(greatest(0, res.temps_total - meilleur.t) / 60.0))::int end as retard_min,   -- minutes entières
            (case when jig.joueur is null then 0
                  when jig.ab then (case when jig.t < 900 then 0
-                                        else round(250 + 150 * least(1.0, (jig.t - 900) / 900.0)) end)
-                 else 500 + greatest(0, 500 - round(6.0 * greatest(0, jig.t - jig_min.t) / 60.0)) end)::int as jigsaw_pts
+                                        else round(125 + 75 * least(1.0, (jig.t - 900) / 900.0)) end)
+                 else 250 + greatest(0, 250 - round(3.0 * greatest(0, jig.t - jig_min.t) / 60.0)) end)::int as jigsaw_pts
       from res cross join nb cross join meilleur cross join jig_min
       left join jig on jig.joueur = res.joueur
   )
