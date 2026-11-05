@@ -249,18 +249,26 @@ export function ecranMobile() {
   if (typeof window === "undefined" || !window.matchMedia) return false;
   return matchMedia("(max-width: 700px)").matches || matchMedia("(pointer: coarse)").matches;
 }
-// Tournoi de la Mort : Jigsaw (0 point en lui-même) départage au score final, calé sur
-// l'écart moyen entre joueurs des autres formules. Jigsaw terminé : −6 points par minute
-// de retard sur le Jigsaw terminé le plus rapide (au prorata, arrondi). Abandon : −600
-// (coût moyen d'un abandon dans les autres formules). Mêmes valeurs dans
-// schema-halloween-classement.sql (fonction classement_public).
-export const JIGSAW_PTS_PAR_MIN = 6;
-export const JIGSAW_ABANDON = -600;
-/** Points Jigsaw d'un joueur : `temps` (s), `abandon`, `tempsMin` = Jigsaw terminé le plus rapide. */
+// Tournoi de la Mort : points Jigsaw (1 000 au maximum), ajoutés au score final.
+//   • Terminé : 500 (résolution) + 500 (temps) − 6 points par minute de retard sur le Jigsaw
+//     terminé le plus rapide (au prorata, arrondi ; la part temps ne descend pas sous 0).
+//   • Abandonné : points d'essai selon le temps de recherche (hors 15 minutes de pénalité,
+//     incluses dans le temps enregistré d'un abandon) : 0 avant 15 minutes, 250 à 15 minutes,
+//     puis au prorata jusqu'à 400 à 30 minutes, 400 au-delà (toujours sous les 500 d'un Jigsaw terminé).
+// Mêmes valeurs dans schema-halloween-classement.sql (fonction classement_public).
+export const JIGSAW_RESOLUTION = 500, JIGSAW_TEMPS = 500, JIGSAW_PTS_PAR_MIN = 6;
+export const JIGSAW_ESSAI_MIN = 250, JIGSAW_ESSAI_MAX = 400, JIGSAW_ESSAI_DEBUT_S = 900, JIGSAW_ESSAI_PLEIN_S = 1800;
+export const JIGSAW_PENALITE_ABANDON_S = 900;
+/** Points Jigsaw d'un joueur : `temps` (s, tel qu'enregistré), `abandon`, `tempsMin` = Jigsaw terminé le plus rapide. */
 export function pointsJigsaw(temps, abandon, tempsMin) {
-  if (abandon) return JIGSAW_ABANDON;
-  if (tempsMin == null) return 0;
-  return -Math.round(JIGSAW_PTS_PAR_MIN * Math.max(0, temps - tempsMin) / 60);
+  if (abandon) {
+    const recherche = temps - JIGSAW_PENALITE_ABANDON_S;
+    if (recherche < JIGSAW_ESSAI_DEBUT_S) return 0;
+    const part = Math.min(1, (recherche - JIGSAW_ESSAI_DEBUT_S) / (JIGSAW_ESSAI_PLEIN_S - JIGSAW_ESSAI_DEBUT_S));
+    return Math.round(JIGSAW_ESSAI_MIN + part * (JIGSAW_ESSAI_MAX - JIGSAW_ESSAI_MIN));
+  }
+  const retard = tempsMin == null ? 0 : Math.max(0, temps - tempsMin);
+  return JIGSAW_RESOLUTION + Math.max(0, JIGSAW_TEMPS - Math.round(JIGSAW_PTS_PAR_MIN * retard / 60));
 }
 export const MSG_MORT_MOBILE = "Le Tournoi de la Mort se joue sur ordinateur, avec un clavier : impossible sur téléphone ou tablette.";
 
