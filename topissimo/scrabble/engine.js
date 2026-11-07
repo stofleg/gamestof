@@ -242,9 +242,9 @@ export const TITRES_MORT = {
   puzzle: "Jigsaw",
 };
 
-/** Tournoi de la Mort : appareil sans clavier ? Téléphones ET tablettes (écran tactile
- *  comme pointeur principal, ou écran étroit) : on ne peut pas y taper les lettres
- *  (consonnes des Voyelles…). Seuls les ordinateurs, avec clavier, sont autorisés. */
+/** Téléphone ou tablette (écran tactile comme pointeur principal, ou écran étroit) ?
+ *  Sert au clavier de consonnes des Voyelles, et à réserver Jigsaw (tournoi de la Mort)
+ *  aux ordinateurs : le glisser-déposer des pièces y est injouable au doigt. */
 export function ecranMobile() {
   if (typeof window === "undefined" || !window.matchMedia) return false;
   return matchMedia("(max-width: 700px)").matches || matchMedia("(pointer: coarse)").matches;
@@ -268,7 +268,7 @@ export function pointsJigsaw(temps, abandon, tempsMin) {
   const retard = tempsMin == null ? 0 : Math.max(0, temps - tempsMin);
   return JIGSAW_RESOLUTION + Math.max(0, JIGSAW_TEMPS - Math.round(JIGSAW_PTS_PAR_MIN * retard / 60));
 }
-export const MSG_MORT_MOBILE = "Le Tournoi de la Mort se joue sur ordinateur, avec un clavier : impossible sur téléphone ou tablette.";
+export const MSG_MORT_MOBILE = "Jigsaw se joue sur ordinateur : impossible de déplacer les pièces avec précision sur téléphone ou tablette.";
 
 // Sous-titres du tournoi de la Mort qui décrivent la formule au lieu de la nommer.
 const SOUS_TITRES_MORT = {

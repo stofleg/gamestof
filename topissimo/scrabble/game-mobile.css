@@ -503,3 +503,31 @@
     border-radius: 6px;
   }
 }
+
+/* Mode Voyelles sur téléphone : clavier de consonnes sous le chevalet, chevalet moins haut
+   pour que la grille, le chevalet et le clavier tiennent dans l'écran. */
+@media (max-width: 700px) {
+  body.avec-clavier .rack .tile {
+    height: calc(100vw / 9) !important;
+    font-size: calc(100vw / 9 * 0.6);
+  }
+  .clavier-consonnes { flex: none; width: 100vw; max-width: none; margin: 4px 0 0; padding: 0 2px; gap: 3px;
+    box-sizing: border-box; grid-template-columns: repeat(11, 1fr); }
+  .touche-consonne { min-height: 32px; font-size: .95rem; border-radius: 6px; }
+  /* Petits écrans : la grille rétrécit juste assez pour que le clavier reste visible. */
+  body.avec-clavier { --plateau: min(100vw, calc(100dvh - 400px)); --cell-size: calc(var(--plateau) / 15); }
+  body.avec-clavier .board, body.avec-clavier.theme-duplijeu .board {
+    flex: 0 0 var(--plateau) !important; width: var(--plateau) !important; height: var(--plateau) !important; margin: 0 auto;
+  }
+  body.avec-clavier .board table { width: var(--plateau); height: var(--plateau); }
+}
+@media (max-width: 700px) {
+  /* Thème Halloween : les boutons de musique (en bas à gauche) ne masquent pas le clavier */
+  body.theme-halloween.avec-clavier .clavier-consonnes { margin-bottom: 54px; }
+}
+@media (max-width: 700px) and (max-height: 760px) {
+  /* Petit téléphone : pas la place pour les boutons de musique sous le clavier des Voyelles
+     (la musique continue ; elle se règle dans les autres parties). */
+  body.theme-halloween.avec-clavier :is(.hw-son, .hw-legende) { display: none; }
+  body.theme-halloween.avec-clavier .clavier-consonnes { margin-bottom: 4px; }
+}

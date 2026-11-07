@@ -28,13 +28,13 @@ import {
   VOWELS, drawForDuplicate, scoreMove, applyMove,
   bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName, modeNomOrigine, ecranMobile, MSG_MORT_MOBILE, randomBoardLayout, snakeEndpointsAfter, sablierTime, gigogneRackSize,
   setLetterValues, letterValue, valuesFor, bagFor, isCrossingCell, wordHiddenCount,
-  drawVowelRack, VOWELS_NO_Y, MARATHON_TARGET, MARATHON_GAMES, consonnesDisponibles, jokersDisponibles,
-} from "./engine.js?v=473";
-import { Dictionary } from "./dictionary.js?v=473";
-import * as invasion from "./araignees.js?v=473";
-import { REGLES, afficheRegles } from "./regles.js?v=473";
-import * as sonHalloween from "./halloween-son.js?v=473";
-import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=473";
+  drawVowelRack, VOWELS_NO_Y, MARATHON_TARGET, MARATHON_GAMES, consonnesDisponibles, CONSONANTS_FR, jokersDisponibles,
+} from "./engine.js?v=474";
+import { Dictionary } from "./dictionary.js?v=474";
+import * as invasion from "./araignees.js?v=474";
+import { REGLES, afficheRegles } from "./regles.js?v=474";
+import * as sonHalloween from "./halloween-son.js?v=474";
+import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=474";
 
 // État du mode review (parcours coup par coup)
 const review = {
@@ -73,7 +73,7 @@ const FFSC_LIVE = URL_PARAMS.get("ffsclive");      // jouer une partie FFSC en d
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v473";
+const BUILD_VERSION = "garenna-v474";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -555,7 +555,31 @@ function cellTile(r, c) {
   return state.board[r][c];
 }
 
+// Mode Voyelles sur écran tactile : clavier de consonnes sous le chevalet (sur téléphone
+// ou tablette, pas de clavier physique pour taper les consonnes libres). Un appui pose la
+// consonne à la case du curseur, comme une frappe au clavier.
+function renderClavierConsonnes() {
+  const cl = $("#clavierConsonnes");
+  if (!cl) return;
+  const visible = !!currentMode().voyelles && state.started && state.chronoFinal == null && !review.active && ecranMobile();
+  cl.hidden = !visible;
+  document.body.classList.toggle("avec-clavier", visible);   // mobile : chevalet plus bas pour faire de la place
+  if (!visible) return;
+  if (!cl.childElementCount) {
+    cl.innerHTML = CONSONANTS_FR.map(L => `<button type="button" class="touche-consonne" data-l="${L}">${L}</button>`).join("");
+    cl.addEventListener("click", e => {
+      const b = e.target.closest(".touche-consonne");
+      if (b && !b.disabled) placeLetter(b.dataset.l);
+    });
+  }
+  // Consonne épuisée (plus d'exemplaire dans le sac ni de joker pour la remplacer) : grisée.
+  const limite = consonnesLimitees(), dispo = limite ? consonnesDisponibles(state.board) : null;
+  const jokers = limite ? jokersDisponibles(state.board) : 0;
+  for (const b of cl.children) b.disabled = limite && !(dispo[b.dataset.l] > 0) && jokers === 0;
+}
+
 function renderRack() {
+  renderClavierConsonnes();
   const div = $("#rack");
   // Taille du chevalet pour le calibrage des jetons sur mobile : on prend la
   // taille MAX du mode (7/8/9), constante toute la partie, et JAMAIS le nombre
@@ -4305,7 +4329,8 @@ function applyMobileLayout() {
   const bag           = rightCol.querySelector(".bag-display");
   const board         = gameWrap.querySelector(".board");
   const rackRow       = gameWrap.querySelector(".rack-row");
-  const els = [titleRow, infoBar, timerChip, preStartRow, feedback, board, inGameRow, rackRow, review, bag].filter(Boolean);
+  const clavier       = gameWrap.querySelector("#clavierConsonnes");   // Voyelles : sous le chevalet
+  const els = [titleRow, infoBar, timerChip, preStartRow, feedback, board, inGameRow, rackRow, clavier, review, bag].filter(Boolean);
   // Mémoriser l'ordre d'origine des parents concernés (pour restauration desktop)
   const parents = [...new Set(els.map(e => e.parentNode))];
   _origParents = parents.map(p => ({ parent: p, children: [...p.children] }));
@@ -6279,10 +6304,10 @@ async function loadSupabaseClient() {
   window._sb = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
 }
 
-/** Tournoi de la Mort sans clavier (téléphone, tablette) : la partie ne démarre pas, une fenêtre l'explique
- *  et ramène au tournoi. Vrai si la partie est bloquée. */
+/** Tournoi de la Mort sur téléphone ou tablette : seul Jigsaw (page dédiée) est bloqué ; une
+ *  fenêtre l'explique et ramène au tournoi. Vrai si la partie est bloquée. */
 function bloqueMortMobile() {
-  if (!titresMort || !state.prepared || review.active || isSuperAdminSession() || !ecranMobile()) return false;
+  if (!titresMort || !state.prepared || review.active || isSuperAdminSession() || !currentMode().page || !ecranMobile()) return false;
   if (document.getElementById("mortMobile")) return true;
   const tid = tournoiMortId || TOURNAMENT_ID;
   const retour = PUBLIC_EVENT ? "../halloween/" : `../index.html${tid ? `#tid=${tid}` : ""}`;
@@ -6290,7 +6315,7 @@ function bloqueMortMobile() {
   fond.id = "mortMobile";
   fond.style.cssText = "position:fixed;inset:0;z-index:5000;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(0,0,0,.7)";
   fond.innerHTML = `<div style="max-width:380px;background:#1e1028;color:#f3e9d2;border:1px solid #e0661a;border-radius:16px;padding:22px;text-align:center;font:500 1rem/1.5 Inter,sans-serif">
-    <p style="font-size:2rem;margin:0 0 6px">⌨️</p><p style="margin:0 0 16px">${MSG_MORT_MOBILE}</p>
+    <p style="font-size:2rem;margin:0 0 6px">💻</p><p style="margin:0 0 16px">${MSG_MORT_MOBILE}</p>
     <a href="${retour}" style="display:inline-block;padding:10px 18px;border-radius:8px;background:#e0661a;color:#1a1020;font-weight:700;text-decoration:none">← Tournoi</a></div>`;
   document.body.appendChild(fond);
   return true;

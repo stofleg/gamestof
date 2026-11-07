@@ -2085,7 +2085,7 @@ body.in-live #actionRowInGame #btnPause { display: none !important; }
 /* Halloween : deux morts-vivants à la place du squelette qui danse (le pendu reste) */
 body.theme-halloween::before {
   right: 1%; bottom: 0; width: 300px; height: 197px;
-  background: url("zombies.svg?v=473") no-repeat center bottom / contain;
+  background: url("zombies.svg?v=474") no-repeat center bottom / contain;
   filter: drop-shadow(0 0 6px rgba(120,200,90,.25));
   transform-origin: 50% 100%;
   animation: hw-zombies 5s ease-in-out infinite alternate;
@@ -2136,3 +2136,14 @@ body.theme-halloween .btn.secondary { background: #e0661a !important; }
 body.theme-halloween .btn.ghost { color: #ffb35c !important; border-color: #e0661a; }
 body.theme-halloween kbd { background: #2b2233 !important; color: #f3e9d2 !important; border-color: #4a2d63 !important; }
 body.theme-halloween .annot-btn .badge-sample { color: #1a1020; }
+
+/* Mode Voyelles sur écran tactile : clavier de consonnes sous le chevalet */
+.clavier-consonnes { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin: 10px auto 0; max-width: 420px; padding: 0 4px; }
+.clavier-consonnes[hidden] { display: none; }
+.touche-consonne {
+  min-height: 42px; border-radius: 8px; border: 1px solid var(--tile-border, #c9b98f);
+  background: var(--tile-bg, #f4ead0); color: var(--tile-text, #1a1020);
+  font: 700 1.1rem 'Lora', serif; cursor: pointer; touch-action: manipulation;
+}
+.touche-consonne:active { transform: translateY(1px); filter: brightness(.92); }
+.touche-consonne:disabled { opacity: .3; cursor: default; }
