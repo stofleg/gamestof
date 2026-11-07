@@ -2,7 +2,7 @@
 //  directement les parties du tournoi et le classement. Les comptes créés ici
 //  sont des comptes « halloween » : la base ne leur ouvre que les tournois
 //  publics (cf. schema-halloween.sql), et Topissimo les renvoie ici.
-import { modeDisplayName, modeNomOrigine, ecranMobile, MSG_MORT_MOBILE } from "../scrabble/engine.js?v=471";
+import { modeDisplayName, modeNomOrigine, ecranMobile, MSG_MORT_MOBILE } from "../scrabble/engine.js?v=472";
 
 const $ = id => document.getElementById(id);
 const sb = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
@@ -199,7 +199,8 @@ document.addEventListener("click", async e => {
   const { data, error } = await sb.rpc("resultats_partie_publique", { p_game: +b.dataset.partie });
   if (error) { corps.textContent = `Classement indisponible : ${error.message}`; return; }
   const lignes = (data || []).filter(r => (r.name || "").toLowerCase() !== "admin" && (r.summary?.mv?.length || r.summary?.puzzle))
-    .sort((a, c) => (c.sum_neg || 0) - (a.sum_neg || 0) || (a.total_time_seconds || 0) - (c.total_time_seconds || 0));
+    // Parties abandonnées en dernier, puis négatif, puis temps (Jigsaw : seul le temps départage).
+    .sort((a, c) => !!a.summary?.ab - !!c.summary?.ab || (c.sum_neg || 0) - (a.sum_neg || 0) || (a.total_time_seconds || 0) - (c.total_time_seconds || 0));
   if (!lignes.length) { corps.textContent = "Personne n'a encore terminé cette partie."; return; }
   const moi = +(localStorage.getItem("currentPlayerId") || 0);
   const temps = s => !s ? "—" : `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
@@ -207,7 +208,7 @@ document.addEventListener("click", async e => {
   // Feuilles de route des autres : seulement une fois SA partie terminée (sinon les mots seraient dévoilés).
   const feuilles = true;   // la médaille n'existe que sur une partie terminée
   corps.innerHTML = `<table class="hw-table"><thead><tr><th>#</th><th>Joueur</th><th>Négatif</th><th>Temps</th>${feuilles ? "<th></th>" : ""}</tr></thead><tbody>${
-    lignes.map((r, i) => `<tr${+r.player_id === moi ? ' class="moi"' : ""}><td>${rang(i)}</td><td>${echappe(r.name)}</td><td>${r.sum_neg ?? 0}</td><td>${temps(r.total_time_seconds)}</td>${
+    lignes.map((r, i) => `<tr${+r.player_id === moi ? ' class="moi"' : ""}><td>${r.summary?.ab ? "–" : rang(i)}</td><td>${echappe(r.name)}</td><td>${r.sum_neg ?? 0}</td><td>${temps(r.total_time_seconds)}${r.summary?.ab ? ' <span class="hw-abandon">abandon</span>' : ""}</td>${
       feuilles && Array.isArray(r.details) && r.details.length ? `<td><button class="hw-btn fantome hw-feuille" type="button" data-i="${i}" title="Feuille de route">📋</button></td>` : (feuilles ? "<td></td>" : "")}</tr>`).join("")
   }</tbody></table>${feuilles ? "" : '<p class="hw-note">Les feuilles de route des autres joueurs seront visibles quand tu auras terminé cette partie.</p>'}<div class="hw-feuille-corps"></div>`;
   corps.onclick = ev => {
