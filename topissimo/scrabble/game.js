@@ -29,12 +29,12 @@ import {
   bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName, modeNomOrigine, ecranMobile, MSG_MORT_MOBILE, randomBoardLayout, snakeEndpointsAfter, sablierTime, gigogneRackSize,
   setLetterValues, letterValue, valuesFor, bagFor, isCrossingCell, wordHiddenCount,
   drawVowelRack, VOWELS_NO_Y, MARATHON_TARGET, MARATHON_GAMES, consonnesDisponibles, CONSONANTS_FR, jokersDisponibles,
-} from "./engine.js?v=477";
-import { Dictionary } from "./dictionary.js?v=477";
-import * as invasion from "./araignees.js?v=477";
-import { REGLES, afficheRegles } from "./regles.js?v=477";
-import * as sonHalloween from "./halloween-son.js?v=477";
-import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=477";
+} from "./engine.js?v=478";
+import { Dictionary } from "./dictionary.js?v=478";
+import * as invasion from "./araignees.js?v=478";
+import { REGLES, afficheRegles } from "./regles.js?v=478";
+import * as sonHalloween from "./halloween-son.js?v=478";
+import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=478";
 
 // État du mode review (parcours coup par coup)
 const review = {
@@ -73,7 +73,7 @@ const FFSC_LIVE = URL_PARAMS.get("ffsclive");      // jouer une partie FFSC en d
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v477";
+const BUILD_VERSION = "garenna-v478";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -2411,9 +2411,8 @@ function validateDuplicate(move, mode) {
   showFeedback("info", `<strong>${wLink(move.word)}</strong> — ${result.score} pts retenu${wait}`, "");
 }
 
-// Solutions au TOP (isotops), CLASSÉES par pertinence Topissimo (mêmes critères
-// que findTopRanked). Le 1er élément est le choix qu'aurait fait le logiciel.
-// Dédupliquées par mot + position.
+// Solutions au TOP (isotops). Le 1er élément est le top retenu (tiré au sort parmi
+// les isotops, cf. ISOTOP_RANDOM). Dédupliquées par mot + position.
 function topSolutions() {
   const mode = currentMode();
   const rackLetters = state.rack.map(t => t.letter);
@@ -2430,10 +2429,13 @@ function topSolutions() {
     seen.add(key);
     out.push(c);
   }
+  // Le top retenu (state.topMove) en tête de liste : c'est lui qui est marqué en vert.
+  const iTop = out.findIndex(c => isSameMove(c.move, state.topMove?.move));
+  if (iTop > 0) out.unshift(out.splice(iTop, 1)[0]);
   return out;
 }
 
-// Le coup choisi par le logiciel (1er du classement = celui de findTopRanked).
+// Même coup (mot, position, sens) ?
 function isSameMove(a, b) {
   return a && b && a.word === b.word && a.row === b.row && a.col === b.col && a.dir === b.dir;
 }
@@ -2494,7 +2496,7 @@ function showTopSelection() {
   const panel = document.getElementById("dupTopPicker");
   if (!panel) { finishDuplicateMove(sols[0].move); return; }   // sécurité
   const list = panel.querySelector(".dtp-list");
-  // Le choix Topissimo (1er du classement = celui du logiciel) est marqué en vert.
+  // Le top retenu (en tête de liste) est marqué en vert.
   list.innerHTML = `<table><thead><tr><th>Mot</th><th>Place</th><th>Score</th></tr></thead><tbody>${
     sols.map((s, i) => {
       const isPick = i === 0 || isSameMove(s.move, state.topMove?.move);

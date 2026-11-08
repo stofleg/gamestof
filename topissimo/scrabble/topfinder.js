@@ -12,7 +12,7 @@
 //     aussi les mots croisés) et on garde le maximum.
 // ============================================================
 
-import { BOARD_SIZE, BOARD_BONUSES, CENTER, scoreMove, applyMove, LETTER_VALUE, VOWELS, VOWELS_NO_Y, CONSONANTS_FR, isSimplePath, isSnakeMove } from "./engine.js?v=477";
+import { BOARD_SIZE, BOARD_BONUSES, CENTER, scoreMove, applyMove, LETTER_VALUE, VOWELS, VOWELS_NO_Y, CONSONANTS_FR, isSimplePath, isSnakeMove } from "./engine.js?v=478";
 
 // Un coup PROLONGE le serpent s'il s'accroche à une extrémité (isSnakeMove ; les
 // mots croisés latéraux sont permis), OU s'il garde un chemin simple (extension
@@ -71,10 +71,13 @@ export function snakeBestTop(board, rack, dict, ends, opts = {}) {
 // écarts — il manquait simplement de puissance statistique.
 // Sur les scrabbles et les cases TW, en revanche, aucun effet : ces deux objectifs
 // restent hors d'atteinte par ce levier.
-// ISOTOP_RANDOM = true rebascule sur un tirage au sort (le comparatif ci-dessus).
+// ISOTOP_RANDOM = true : tirage au sort entre isotops (le comparatif ci-dessus).
+// Choix retenu depuis la v478 : le top est tiré au sort parmi les isotops, sans
+// aucun critère (ni joker, ni fin de partie). Les critères restent dans le code
+// (sortTiedIsotops) pour pouvoir y revenir en repassant ce drapeau à false.
 // Le top est figé à la GÉNÉRATION du tournoi puis stocké : tous les joueurs d'un
 // même tournoi voient donc le même top.
-export const ISOTOP_RANDOM = false;
+export const ISOTOP_RANDOM = true;
 
 export function findTopRanked(board, rack, dict, bag = null, opts = {}) {
   const all = findTop(board, rack, dict, { all: true, ...opts }) || [];
@@ -293,6 +296,7 @@ export function rankIsotops(board, rack, dict, bag = null, opts = {}) {
   const top = all[0].score;
   const tied = all.filter(c => c.score === top);
   if (tied.length <= 1) return tied;
+  if (ISOTOP_RANDOM) return tied;   // tirage au sort : pas de classement de pertinence
   return sortTiedIsotops(tied, board, rack, dict, bag, opts);
 }
 
