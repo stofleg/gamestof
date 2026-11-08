@@ -12,7 +12,7 @@
 //     aussi les mots croisés) et on garde le maximum.
 // ============================================================
 
-import { BOARD_SIZE, BOARD_BONUSES, CENTER, scoreMove, applyMove, LETTER_VALUE, VOWELS, VOWELS_NO_Y, CONSONANTS_FR, isSimplePath, isSnakeMove } from "./engine.js?v=476";
+import { BOARD_SIZE, BOARD_BONUSES, CENTER, scoreMove, applyMove, LETTER_VALUE, VOWELS, VOWELS_NO_Y, CONSONANTS_FR, isSimplePath, isSnakeMove } from "./engine.js?v=477";
 
 // Un coup PROLONGE le serpent s'il s'accroche à une extrémité (isSnakeMove ; les
 // mots croisés latéraux sont permis), OU s'il garde un chemin simple (extension
@@ -152,8 +152,8 @@ function sortTiedIsotops(tied, board, rack, dict, bag, opts = {}) {
     c._fertPos = f.reduce((s, x) => s + x, 0);
   }
   // Ordre de priorité :
-  //   1. coup qui TERMINE la partie (prime sur tout, même sur préserver joker)
-  //   2. joker préservé (mode joker)
+  //   1. joker préservé (mode joker) — prime sur tout, même sur terminer la partie
+  //   2. coup qui TERMINE la partie
   //   5. (1er coup) rallongeable des 2 côtés en 1 lettre (TETAI > ETAIT)
   //   6. extensibilité dico globale (nb total de rallonges 1 lettre)
   //   7. accès aux cases TW libres (tuile posée dans même ligne/colonne qu'une TW libre)
@@ -167,8 +167,8 @@ function sortTiedIsotops(tied, board, rack, dict, bag, opts = {}) {
   // ne pouvait jamais compenser un critère de rang 2, même de justesse. Or la
   // pertinence d'un coup est faite d'arbitrages (« le critère 6 ne peut pas être
   // au dépens du 13, il faut un savant mélange des deux »).
-  // Restent en VERROU hiérarchique, car non négociables : terminer la partie,
-  // préserver le joker, jouer le Q (et pas en bout de mot).
+  // Restent en VERROU hiérarchique, car non négociables : préserver le joker, puis
+  // terminer la partie.
   // Les autres critères sont normalisés en 0..1 puis pondérés.
   for (const c of scored) {
     const n = {
@@ -261,9 +261,10 @@ function sortTiedIsotops(tied, board, rack, dict, bag, opts = {}) {
     c._extTier = isFirstMove ? (c._dictExt || 0) : 0;
   }
   scored.sort((a, b) =>
-    // --- verrous non négociables ---
-    b._endsGame - a._endsGame ||
+    // --- verrous non négociables : préserver le joker d'abord, même si un autre
+    //     isotop termine la partie ; puis terminer la partie ---
     b._noJoker - a._noJoker ||
+    b._endsGame - a._endsGame ||
     // --- 1er coup uniquement : nombre de rallonges, avant la position ---
     b._extTier - a._extTier ||
     // --- 1er coup : parmi les candidats restants, le placement (à gauche, ou la
