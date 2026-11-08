@@ -29,12 +29,12 @@ import {
   bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName, modeNomOrigine, ecranMobile, MSG_MORT_MOBILE, randomBoardLayout, snakeEndpointsAfter, sablierTime, gigogneRackSize,
   setLetterValues, letterValue, valuesFor, bagFor, isCrossingCell, wordHiddenCount,
   drawVowelRack, VOWELS_NO_Y, MARATHON_TARGET, MARATHON_GAMES, consonnesDisponibles, CONSONANTS_FR, jokersDisponibles,
-} from "./engine.js?v=475";
-import { Dictionary } from "./dictionary.js?v=475";
-import * as invasion from "./araignees.js?v=475";
-import { REGLES, afficheRegles } from "./regles.js?v=475";
-import * as sonHalloween from "./halloween-son.js?v=475";
-import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=475";
+} from "./engine.js?v=476";
+import { Dictionary } from "./dictionary.js?v=476";
+import * as invasion from "./araignees.js?v=476";
+import { REGLES, afficheRegles } from "./regles.js?v=476";
+import * as sonHalloween from "./halloween-son.js?v=476";
+import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=476";
 
 // État du mode review (parcours coup par coup)
 const review = {
@@ -73,7 +73,7 @@ const FFSC_LIVE = URL_PARAMS.get("ffsclive");      // jouer une partie FFSC en d
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v475";
+const BUILD_VERSION = "garenna-v476";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -572,10 +572,11 @@ function renderClavierConsonnes() {
       if (b && !b.disabled) placeLetter(b.dataset.l);
     });
   }
-  // Consonne épuisée (plus d'exemplaire dans le sac ni de joker pour la remplacer) : grisée.
+  // Consonne épuisée (plus d'exemplaire dans le sac ni de joker pour la remplacer) : retirée
+  // du clavier (un grisé se voit mal sur le fond sombre des touches).
   const limite = consonnesLimitees(), dispo = limite ? consonnesDisponibles(state.board) : null;
   const jokers = limite ? jokersDisponibles(state.board) : 0;
-  for (const b of cl.children) b.disabled = limite && !(dispo[b.dataset.l] > 0) && jokers === 0;
+  for (const b of cl.children) b.hidden = limite && !(dispo[b.dataset.l] > 0) && jokers === 0;
 }
 
 function renderRack() {
