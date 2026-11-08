@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Lora:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="game.css?v=478">
+<link rel="stylesheet" href="game.css?v=479">
 <style>
   body { margin: 0; --cell-size-plateau: clamp(16px, min(calc((100vh - 70px) / 20), calc((100vw - 48px) / 15.5)), 34px); --cell-size: var(--cell-size-plateau); }
   .pz-top { display: flex; align-items: center; gap: 14px; padding: 10px 16px; flex-wrap: wrap; }
@@ -63,6 +63,20 @@
 </style>
 </head>
 <body>
+<script>
+  // Thème Halloween posé AVANT le premier affichage (sinon l'interface habituelle apparaît
+  // un instant) : joueur du tournoi public, ou tournoi déjà reconnu comme tournoi de la Mort
+  // (liste mémorisée par Topissimo, la page Halloween et le jeu). Le jeu confirme ensuite.
+  (function () {
+    try {
+      var q = new URLSearchParams(location.search), tid = q.get("tid");
+      var mort = JSON.parse(localStorage.getItem("topissimo:tournoisMort") || "[]");
+      if (q.get("prepared") &&
+          (localStorage.getItem("currentScope") === "halloween" || (tid && mort.indexOf(String(tid)) >= 0)))
+        document.body.classList.add("theme-halloween", "pz-mort");
+    } catch (e) {}
+  })();
+</script>
   <div class="pz-top">
     <h1>🧩 Grille puzzle</h1>
     <span class="pz-chrono" id="pzChrono">0:00</span>
@@ -77,6 +91,6 @@
     <div class="board" id="pzBoard"></div>
     <div class="pz-tray" id="pzTray"></div>
   </div>
-<script type="module" src="puzzle.js?v=478"></script>
+<script type="module" src="puzzle.js?v=479"></script>
 </body>
 </html>

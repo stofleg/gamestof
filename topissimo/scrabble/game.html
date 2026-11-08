@@ -8,11 +8,25 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Lora:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="game.css?v=478">
-<link rel="stylesheet" href="game-desktop.css?v=478">
-<link rel="stylesheet" href="game-mobile.css?v=478">
+<link rel="stylesheet" href="game.css?v=479">
+<link rel="stylesheet" href="game-desktop.css?v=479">
+<link rel="stylesheet" href="game-mobile.css?v=479">
 </head>
 <body>
+<script>
+  // Thème Halloween posé AVANT le premier affichage (sinon l'interface habituelle apparaît
+  // un instant) : joueur du tournoi public, ou tournoi déjà reconnu comme tournoi de la Mort
+  // (liste mémorisée par Topissimo, la page Halloween et le jeu). Le jeu confirme ensuite.
+  (function () {
+    try {
+      var q = new URLSearchParams(location.search), tid = q.get("tid");
+      var mort = JSON.parse(localStorage.getItem("topissimo:tournoisMort") || "[]");
+      if ((q.get("prepared") || q.get("review")) &&
+          (localStorage.getItem("currentScope") === "halloween" || (tid && mort.indexOf(String(tid)) >= 0)))
+        document.body.classList.add("theme-halloween");
+    } catch (e) {}
+  })();
+</script>
 
 <main>
 
@@ -407,6 +421,6 @@
   </div>
 </div>
 
-<script type="module" src="game.js?v=478"></script>
+<script type="module" src="game.js?v=479"></script>
 </body>
 </html>

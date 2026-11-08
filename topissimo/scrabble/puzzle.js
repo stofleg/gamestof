@@ -10,11 +10,11 @@
 //     pour tous. Un seul essai ; l'heure de départ est enregistrée en base, si bien
 //     qu'un rechargement ne remet pas le chrono à zéro. Le temps réalisé est
 //     enregistré comme résultat (0 point, 0 négatif) et s'ajoute au temps général.
-import { afficheRegles } from "./regles.js?v=478";
-import { chargeDico, grilleFinale, classeCase, jeton, appliqueTheme, fmt } from "./grille-finale.js?v=478";
-import { decoupeRegions, piecesDepuisRegions } from "./puzzle-pieces.js?v=478";
-import { emptyBoard, applyMove, modeDisplayName, modeNomOrigine, ecranMobile, MSG_MORT_MOBILE } from "./engine.js?v=478";
-import * as sonHalloween from "./halloween-son.js?v=478";
+import { afficheRegles } from "./regles.js?v=479";
+import { chargeDico, grilleFinale, classeCase, jeton, appliqueTheme, fmt } from "./grille-finale.js?v=479";
+import { decoupeRegions, piecesDepuisRegions } from "./puzzle-pieces.js?v=479";
+import { emptyBoard, applyMove, modeDisplayName, modeNomOrigine, ecranMobile, MSG_MORT_MOBILE } from "./engine.js?v=479";
+import * as sonHalloween from "./halloween-son.js?v=479";
 
 const $ = id => document.getElementById(id);
 const N = 15;
@@ -350,6 +350,7 @@ async function lanceTournoi() {
   if (!mort && partie.tournament_id) {
     const { data: t } = await sb.from("tournaments").select("est_public").eq("id", partie.tournament_id).maybeSingle();
     mort = !!t?.est_public;
+    if (mort) try { const l = JSON.parse(localStorage.getItem("topissimo:tournoisMort") || "[]"); if (!l.includes(String(partie.tournament_id))) localStorage.setItem("topissimo:tournoisMort", JSON.stringify([...l, String(partie.tournament_id)].slice(-20))); } catch {}
   }
   const versTournoi = () => { location.href = PUBLIC_EVENT ? "../halloween/" : `../index.html${partie.tournament_id ? `#tid=${partie.tournament_id}` : ""}`; };
   if (mort) {

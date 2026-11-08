@@ -15,9 +15,20 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Lora:wght@500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=478">
+<link rel="stylesheet" href="style.css?v=479">
 </head>
 <body>
+<script>
+  // Page d'un tournoi de la Mort déjà reconnu (#tid=…) : ambiance Halloween posée avant le
+  // premier affichage ; app.js la confirme (ou la retire) une fois le tournoi chargé.
+  (function () {
+    try {
+      var tid = (location.hash.match(/tid=(\d+)/) || [])[1];
+      var mort = JSON.parse(localStorage.getItem("topissimo:tournoisMort") || "[]");
+      if (tid && mort.indexOf(tid) >= 0) document.body.classList.add("tournoi-mort");
+    } catch (e) {}
+  })();
+</script>
 
 <!-- ============================================================
      Écran de connexion / inscription (masqué une fois loggué)
@@ -430,6 +441,6 @@
 
 <script src="config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script src="app.js?v=478"></script>
+<script src="app.js?v=479"></script>
 </body>
 </html>

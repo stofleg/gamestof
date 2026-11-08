@@ -2,7 +2,7 @@
 //  directement les parties du tournoi et le classement. Les comptes créés ici
 //  sont des comptes « halloween » : la base ne leur ouvre que les tournois
 //  publics (cf. schema-halloween.sql), et Topissimo les renvoie ici.
-import { modeDisplayName, modeNomOrigine, ecranMobile, MSG_MORT_MOBILE, pointsJigsaw } from "../scrabble/engine.js?v=478";
+import { modeDisplayName, modeNomOrigine, ecranMobile, MSG_MORT_MOBILE, pointsJigsaw } from "../scrabble/engine.js?v=479";
 
 const $ = id => document.getElementById(id);
 const sb = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
@@ -108,6 +108,8 @@ async function afficheTournoi() {
   const t = tournois?.[0];
   if (!t) { $("hwParties").innerHTML = "<p>Le tournoi n'a pas encore commencé. Reviens bientôt… si tu l'oses.</p>"; return; }
   $("hwTitre").textContent = t.name;
+  // Mémorisé : les pages de jeu posent alors le thème Halloween dès leur premier affichage.
+  try { const l = JSON.parse(localStorage.getItem("topissimo:tournoisMort") || "[]"); if (!l.includes(String(t.id))) localStorage.setItem("topissimo:tournoisMort", JSON.stringify([...l, String(t.id)].slice(-20))); } catch {}
 
   const { data: parties } = await sb.from("prepared_games").select("id,name,mode,created_at").eq("tournament_id", t.id);
   // Jigsaw (grille puzzle) se joue en DERNIER : placé en fin de liste et verrouillé tant

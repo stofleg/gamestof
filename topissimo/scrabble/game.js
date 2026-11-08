@@ -29,12 +29,12 @@ import {
   bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName, modeNomOrigine, ecranMobile, MSG_MORT_MOBILE, randomBoardLayout, snakeEndpointsAfter, sablierTime, gigogneRackSize,
   setLetterValues, letterValue, valuesFor, bagFor, isCrossingCell, wordHiddenCount,
   drawVowelRack, VOWELS_NO_Y, MARATHON_TARGET, MARATHON_GAMES, consonnesDisponibles, CONSONANTS_FR, jokersDisponibles,
-} from "./engine.js?v=478";
-import { Dictionary } from "./dictionary.js?v=478";
-import * as invasion from "./araignees.js?v=478";
-import { REGLES, afficheRegles } from "./regles.js?v=478";
-import * as sonHalloween from "./halloween-son.js?v=478";
-import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=478";
+} from "./engine.js?v=479";
+import { Dictionary } from "./dictionary.js?v=479";
+import * as invasion from "./araignees.js?v=479";
+import { REGLES, afficheRegles } from "./regles.js?v=479";
+import * as sonHalloween from "./halloween-son.js?v=479";
+import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=479";
 
 // État du mode review (parcours coup par coup)
 const review = {
@@ -73,7 +73,7 @@ const FFSC_LIVE = URL_PARAMS.get("ffsclive");      // jouer une partie FFSC en d
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v478";
+const BUILD_VERSION = "garenna-v479";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -1609,7 +1609,8 @@ function applyRackPos() {
   wrap.classList.toggle("rack-bottom", state.settings.rackPos !== "top");
 }
 // Parties du tournoi de la Mort (voir majTitresMort plus bas).
-let titresMort = PUBLIC_EVENT;
+// Valeur provisoire reprise du thème posé avant l'affichage (game.html), confirmée par majTitresMort.
+let titresMort = PUBLIC_EVENT || document.body.classList.contains("theme-halloween");
 // Thème affiché : celui des réglages, sauf dans le tournoi de la Mort où Halloween est
 // imposé (sans toucher au réglage enregistré du joueur).
 const themeCouleur = () => (PUBLIC_EVENT || titresMort) ? "halloween" : state.settings.colorTheme;
@@ -1642,6 +1643,7 @@ async function majTitresMort(tournamentId) {
     try {
       const { data } = await window._sb.from("tournaments").select("est_public").eq("id", tournamentId).maybeSingle();
       titresMort = !!data?.est_public;
+      if (titresMort) try { const l = JSON.parse(localStorage.getItem("topissimo:tournoisMort") || "[]"); if (!l.includes(String(tournamentId))) localStorage.setItem("topissimo:tournoisMort", JSON.stringify([...l, String(tournamentId)].slice(-20))); } catch {}
     } catch { /* titres d'origine */ }
   }
   applyColorTheme();                                          // thème Halloween imposé
