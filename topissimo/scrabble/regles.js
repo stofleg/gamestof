@@ -50,6 +50,7 @@ export const REGLES = {
     titre: "Grille cœur",
     points: [
       "Les <b>cases bonus dessinent deux cœurs</b> : même nombre de cases de chaque type que la grille classique, mais placées autrement.",
+      "<b>Prime de 100 points</b> pour le mot <b>AMOUR</b> : quand il est jouable, il devient le plus souvent le top du coup.",
       "Le premier coup passe toujours par la case centrale ★.",
     ],
   },

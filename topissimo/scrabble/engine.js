@@ -111,8 +111,9 @@ export const GAME_MODES = {
   // la grille (non recyclés), fin quand toutes les lettres réelles sont posées.
   infjoker: { label: "Double joker infini", rackSize: 7, maxPlayed: 7, bonuses: { 7: 50 },
     defaultTime: 120, stofOnly: true, infJoker: true },
-  // Grille cœur : disposition fixe des bonus dessinant deux cœurs (GRILLE_COEUR).
-  grillecoeur: { label: "Grille cœur", rackSize: 7, maxPlayed: 7, bonuses: { 7: 50 },
+  // Grille cœur : disposition fixe des bonus dessinant deux cœurs (GRILLE_COEUR), et
+  // prime de 100 points quand le mot joué est AMOUR (bonuses.mots, cf. scoreMove).
+  grillecoeur: { label: "Grille cœur", rackSize: 7, maxPlayed: 7, bonuses: { 7: 50, mots: { AMOUR: 100 } },
     defaultTime: 120, stofOnly: true, fixedBoard: true },
   // Grille random : disposition des bonus mélangée (générée et stockée par partie).
   grillerandom: { label: "Grille random", rackSize: 7, maxPlayed: 7, bonuses: { 7: 50 },
@@ -711,6 +712,9 @@ export function scoreMove(board, move, dict, opts = {}) {
 
   // Bonus scrabble (variable selon mode : 7→50, 8→75, 9→100, etc.)
   if (bonuses[placed.length]) totalScore += bonuses[placed.length];
+  // Prime d'un mot particulier (Grille cœur : AMOUR → +100), sur le mot joué (mot principal).
+  const primeMot = bonuses.mots?.[wordDetails[0]?.word];
+  if (primeMot) totalScore += primeMot;
 
   return { score: totalScore, words: wordDetails, errors, placed };
 }
