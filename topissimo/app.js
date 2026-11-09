@@ -2775,7 +2775,7 @@ async function loadTournamentDetail(tournamentId) {
     // Tournoi de la Mort : Jigsaw se joue en DERNIER, une fois toutes les autres parties terminées.
     const resteAvantJigsaw = t.est_public && g.mode === "puzzle" && !played
       ? (games || []).filter(x => x.mode !== "puzzle" && !playedIds.has(x.id)).length : 0;
-    const lienTs = `ensureFreshAndNavigate('scrabble/topsping.html?prepared=${g.id}&tid=${currentTournamentId}')`;
+    const lienTs = `ensureFreshAndNavigate('scrabble/game.html?prepared=${g.id}&tid=${currentTournamentId}')`;
     const action = genOnly
       ? ""   // le compte "admin" ne joue pas (génération uniquement)
       // TopSping : sa propre page (en admin : mode test, rien n'est enregistré).

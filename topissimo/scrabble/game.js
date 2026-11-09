@@ -35,6 +35,7 @@ import * as invasion from "./araignees.js?v=483";
 import { REGLES, afficheRegles } from "./regles.js?v=483";
 import * as sonHalloween from "./halloween-son.js?v=483";
 import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=483";
+import { TOURS, TEMPS_COUP, nouveauTournoi, nouvellePartie, jouerPoint, scoreJeu, niveauAtteint, nomNiveau } from "./topsping-regles.js?v=483";
 
 // État du mode review (parcours coup par coup)
 const review = {
@@ -58,6 +59,8 @@ const URL_PARAMS = new URLSearchParams(location.search);
 const PUBLIC_EVENT = localStorage.getItem("currentScope") === "halloween";
 if (PUBLIC_EVENT && !URL_PARAMS.get("prepared") && !URL_PARAMS.get("review")) location.replace("../halloween/");
 const PREPARED_ID = URL_PARAMS.get("prepared");
+// TopSping sans tournoi (stof en mode admin) : game.html?topsping=<réserve>, rien n'est enregistré.
+const TOPSPING_TEST = URL_PARAMS.get("topsping");
 const REVIEW_ID = URL_PARAMS.get("review");
 const TRAINING_ID = URL_PARAMS.get("training");
 const PUZZLE_GAME_ID = URL_PARAMS.get("puzzle");
@@ -302,6 +305,8 @@ async function saveSettingsToSupabase() {
 }
 
 function currentMode() {
+  // TopSping : la formule (7 sur 8, 7 et 8…) change à chaque tour du tableau.
+  if (state.topsping && state.settings.gameMode === "topsping") { setLetterValues(valuesFor("duplicate")); return tsModeCourant(); }
   const m = GAME_MODES[state.settings.gameMode] || GAME_MODES.duplicate;
   // « À l'anglaise » : garder la table de valeurs ACTIVE synchronisée sur le mode
   // (le scoring et l'affichage s'y réfèrent). Appelé partout avant scoring/rendu.
@@ -983,7 +988,7 @@ function paceActive() {
   // `showPace !== false` : les comptes existants, dont les réglages enregistrés
   // n'ont pas encore la clé, gardent le suivi activé.
   // Tournoi de la Mort : pas de classements intermédiaires, pour personne.
-  if (PUBLIC_EVENT || titresMort) return false;
+  if (PUBLIC_EVENT || titresMort || state.topsping) return false;
   return !!(state.prepared && state.settings.showPace !== false
     && !state.isPuzzle && !editorActive() && !review.active);
 }
@@ -1659,7 +1664,7 @@ const nomFormule = (cle, joker) => modeDisplayName(cle, joker, titresMort);
 function renderGameTitle() {
   const el = $("#gameTitle");
   if (!el) return;
-  const modeLabel = nomFormule(state.settings.gameMode, state.settings.withJoker)
+  const modeLabel = state.topsping ? `TopSping · ${TOURS[state.topsping.e.tour].formule}` : nomFormule(state.settings.gameMode, state.settings.withJoker)
     + (titresMort ? ` <small class="gt-origine">(${modeNomOrigine(state.settings.gameMode)})</small>` : "");
   const timeLabel = state.settings.timePerMove > 0 ? ` · ${state.settings.timePerMove}s/coup` : "";
   // .gt-context = badge + nom (masqué sur mobile) ; .gt-params = mode + temps
@@ -3140,6 +3145,8 @@ function recordMove({ status, playerScore, playedWord = null, playedMove = null,
   });
   // Marathon : ce coup incrémente le streak s'il a été topé, sinon le remet à zéro.
   if (currentMode().marathon && state.marathon) marathonRegister(status === "top");
+  // TopSping : top trouvé = point pour le joueur, sinon point pour le top.
+  if (state.topsping && state.prepared) tsApresCoup(status === "top", state.history[state.history.length - 1]);
 }
 
 function posLabel(move) {
@@ -3176,6 +3183,7 @@ function nextMove() {
   // nouveau automatiquement (sinon un seul déplacement manuel désactivait le
   // tri alpha pour tout le reste de la partie).
   state._tempUnsorted = false;
+  if (state.topsping && state.prepared && tsAvantCoup()) return;   // TopSping : pauses, fin de match, coup suivant
   if (titresMort && state.pauseDemandee && state.prepared && state.started && state.chronoFinal == null
       && state.preparedIdx < (state.prepared.moves?.length || 0)) { pauseEntreCoups(); return; }
   // Marathon : dès que l'objectif de 42 tops consécutifs est atteint, victoire →
@@ -4337,7 +4345,8 @@ function applyMobileLayout() {
   const board         = gameWrap.querySelector(".board");
   const rackRow       = gameWrap.querySelector(".rack-row");
   const clavier       = gameWrap.querySelector("#clavierConsonnes");   // Voyelles : sous le chevalet
-  const els = [titleRow, infoBar, timerChip, preStartRow, feedback, board, inGameRow, rackRow, clavier, review, bag].filter(Boolean);
+  const tsHud         = document.getElementById("tsHud");   // TopSping : tableau d'affichage sous le titre
+  const els = [titleRow, tsHud, infoBar, timerChip, preStartRow, feedback, board, inGameRow, rackRow, clavier, review, bag].filter(Boolean);
   // Mémoriser l'ordre d'origine des parents concernés (pour restauration desktop)
   const parents = [...new Set(els.map(e => e.parentNode))];
   _origParents = parents.map(p => ({ parent: p, children: [...p.children] }));
@@ -4538,6 +4547,10 @@ async function initGame() {
   // dans le tirage ALÉATOIRE de l'entraînement → « 1er tirage erroné ».
   // En chargeant ici, state.prepared est garanti prêt avant tout démarrage.
   let _freshlyLoaded = false;
+  if (TOPSPING_TEST && !PREPARED_ID && isSuperAdminSession()) {
+    try { await tsChargeTest(TOPSPING_TEST); }
+    catch (e) { showFeedback("error", "Impossible de charger TopSping", e.message); return; }
+  }
   if (PREPARED_ID && String(state.prepared?.id) !== String(PREPARED_ID)) {
     showFeedback("", "Chargement de la partie…", "");
     try {
@@ -4640,7 +4653,7 @@ async function initGame() {
     return;
   }
   // Si aucune URL spéciale, et qu'on a un entraînement en pause sauvegardé → restaurer
-  if (!PREPARED_ID && !TRAINING_ID && !PUZZLE_GAME_ID && !REVIEW_ID) {
+  if (!PREPARED_ID && !TRAINING_ID && !PUZZLE_GAME_ID && !REVIEW_ID && !state.topsping) {
     if (restorePausedTraining()) return;
   }
   hideFeedback();
@@ -5478,7 +5491,7 @@ async function enterReviewMode(id) {
   const { data: game, error: e1 } = await window._sb.from("prepared_games").select("*").eq("id", id).single();
   if (e1) throw new Error(e1.message);
   if (game.mode === "puzzle") { location.replace(`puzzle.html?prepared=${id}`); return new Promise(() => {}); }
-  if (game.mode === "topsping") { location.replace(`topsping.html?prepared=${id}`); return new Promise(() => {}); }
+  if (game.mode === "topsping") { location.replace(`game.html?prepared=${id}${TOURNAMENT_ID ? `&tid=${TOURNAMENT_ID}` : ""}`); return new Promise(() => {}); }
   const pid = +(localStorage.getItem("currentPlayerId") || 0);
   let result = null;
   if (pid) {
@@ -6224,7 +6237,6 @@ async function loadPreparedGame(id) {
   if (error) throw new Error(error.message);
   // Grille puzzle (Jigsaw) : ce n'est pas une partie de topping, elle a sa propre page.
   if (data.mode === "puzzle") { location.replace(`puzzle.html?prepared=${id}`); return new Promise(() => {}); }
-  if (data.mode === "topsping") { location.replace(`topsping.html?prepared=${id}`); return new Promise(() => {}); }
   // Réinitialisation COMPLÈTE de l'état de jeu : évite qu'un reliquat d'une partie
   // précédente (plateau, tirage, index) ne déborde si l'état n'a pas été remis à zéro
   // (cache navigateur / réentrée). C'est la cause du « 1er tirage erroné » corrigé au refresh.
@@ -6285,6 +6297,8 @@ async function loadPreparedGame(id) {
   } else {
     state.spareJokers = 0;
   }
+  // TopSping : les coups sont tirés au fil du tournoi dans la réserve de parties.
+  if (data.mode === "topsping") await tsCharge(data.id, data.moves?.[0]?._topsping?.reserve || "ts1", isSuperAdminSession(), data.tournament_id);
   state.prepared._pret = true;   // chargement complet : le démarrage peut avoir lieu
   renderGameTitle();
   updateTournamentNavButtons();
@@ -6414,6 +6428,282 @@ function startGame() {
   nextMove();
 }
 
+// ===== TopSping : tournoi façon Roland-Garros contre le top =====
+// Règles du score (jeux, sets, tableau) : topsping-regles.js. Ici, le branchement sur la
+// partie pré-tirée : chaque coup est tiré dans la réserve de parties du tour en cours
+// (prepared.moves se remplit au fil du tournoi), le plateau est celui de la partie au
+// coup de départ du jeu. Sauvegarde à chaque coup dans prepared_game_results :
+//   • en cours : paused = { ts: état, enCours: { debut } | null } (enCours = un coup est
+//     affiché ; quitter la page pendant un coup le fait compter comme raté à la reprise) ;
+//   • terminé  : paused = null, summary.ts = { niveau, rates, neg, ab, vainqueur, matchs }.
+// En mode test (stof admin), rien n'est envoyé au serveur : état gardé dans le navigateur.
+const TS_ARTICLE = ["le 1er tour", "le 2e tour", "les 16es de finale", "les 8es de finale", "les quarts de finale", "la demi-finale", "la finale"];
+const TS_ELIMINE = ["au 1er tour", "au 2e tour", "en 16es de finale", "en 8es de finale", "en quarts de finale", "en demi-finale", "en finale"];
+const tsCleTest = id => `topsping:test:${id}`;
+
+function tsModeCourant() {
+  const t = TOURS[state.topsping.e.tour];
+  return { ...GAME_MODES[t.mode], label: "TopSping", topsping: true, defaultTime: TEMPS_COUP };
+}
+
+async function tsChargeReserves(nom) {
+  return Promise.all(TOURS.map(async (_, i) => {
+    const r = await fetch(`../topsping/${encodeURIComponent(nom)}/tour-${i + 1}.json?v=483`);
+    if (!r.ok) throw new Error(`parties du ${TOURS[i].nom} introuvables (${nom})`);
+    return (await r.json()).parties;
+  }));
+}
+
+/** Chargement d'un TopSping de tournoi : réserves, état sauvegardé, 1er coup prêt. */
+async function tsCharge(id, reserveNom, test, tournamentId) {
+  const ts = state.topsping = { id, reserveNom, test, tournamentId, reserves: await tsChargeReserves(reserveNom),
+    e: null, ev: null, pauseDemandee: false, sync: Promise.resolve(), info: "", cle: null };
+  document.body.classList.add("theme-topsping");
+  let etat = null;
+  if (test) {
+    try { etat = JSON.parse(localStorage.getItem(tsCleTest(id)) || "null"); } catch {}
+    if (etat && (etat.fin || !confirm("Une partie de test TopSping est en cours. La reprendre ?\n(Annuler = recommencer au 1er tour)"))) etat = null;
+  } else {
+    const pid = +(localStorage.getItem("currentPlayerId") || 0);
+    if (pid && window._sb) {
+      const { data } = await window._sb.from("prepared_game_results").select("paused, summary")
+        .eq("prepared_game_id", id).eq("player_id", pid).maybeSingle();
+      if (data && !data.paused && data.summary?.ts) { tsResultatFinal(data.summary.ts); return new Promise(() => {}); }
+      if (data?.paused?.ts) etat = data.paused;
+    }
+  }
+  ts.e = etat?.ts || nouveauTournoi();
+  ts.reprise = !!etat;
+  // Page quittée pendant un coup : ce coup compte comme raté.
+  if (etat?.enCours && ts.e.partie !== null && !ts.e.fini) {
+    const reserve = ts.reserves[ts.e.tour], top = reserve[ts.e.partie][ts.e.coup][6], s = ts.e.stats;
+    s.coups++; s.rates++; s.neg -= top; s.temps += TEMPS_COUP;
+    ts.ev = jouerPoint(ts.e, false, reserve);
+    ts.info = "Tu avais quitté la page pendant un coup : il compte comme raté (point pour le top).";
+    tsInfoEvenement(ts.ev);
+    if (ts.e.fini) { await tsSauveFin(); tsResultatFinal(tsResume()); return new Promise(() => {}); }
+    tsSauve(null);
+  }
+  state.settings.timePerMove = TEMPS_COUP;
+  tsPrepareCoup();
+  updateTopSpingHUD();
+  // Lecture seule, pour les tests automatiques.
+  window.__topsping = { etat: () => ts.e, top: () => state.topMove?.move, curseur: () => state.cursor, plateau: () => state.board,
+    idx: () => state.preparedIdx, ecran: () => !!ts.ecran };
+  if (ts.reprise) setTimeout(() => showFeedback("", `Reprise : ${TOURS[ts.e.tour].nom}`, ts.info || "Appuie sur ▶ Démarrer pour continuer le match."), 400);
+}
+
+/** stof (admin) : TopSping sans tournoi, réserve choisie dans l'URL. */
+async function tsChargeTest(reserveNom) {
+  state.prepared = { id: "topsping-test", name: "TopSping (test)", mode: "topsping", withJoker: false, timePerMove: TEMPS_COUP, moves: [] };
+  state.settings.gameMode = "topsping";
+  state.settings.withJoker = false;
+  state.settings.timePerMove = TEMPS_COUP;
+  state.board = emptyBoard(); state.rack = []; state.pending = []; state.history = [];
+  state.preparedIdx = 0; state.moveNo = 1; state.totalScore = 0; state.sumNeg = 0;
+  state.bag = { ...bagFor("duplicate") }; state.spareJokers = 0;
+  await tsCharge("test-" + reserveNom, reserveNom, true, null);
+  state.prepared._pret = true;
+  renderGameTitle();
+}
+
+/** Coup à jouer : tirage et top de la réserve, plateau de la partie au coup de départ. */
+function tsPrepareCoup() {
+  const ts = state.topsping, e = ts.e, reserve = ts.reserves[e.tour];
+  if (e.partie === null) nouvellePartie(e, reserve);
+  const partie = reserve[e.partie];
+  const [rack, word, row, col, dir, blanks, score] = partie[e.coup];
+  state.prepared.moves[state.preparedIdx] = { rack, top: { word, row, col, dir, blanks, score } };
+  let b = emptyBoard();
+  for (let i = 0; i < e.coup; i++) { const m = partie[i]; b = applyMove(b, { word: m[1], row: m[2], col: m[3], dir: m[4], blanks: m[5] }); }
+  const cle = `${e.tour}/${e.partie}/${e.coup}`;
+  if (ts.cle !== cle) { state.lastPlaced = []; state.lastTopCells = []; }   // nouveau jeu : autre grille
+  ts.cle = `${e.tour}/${e.partie}/${e.coup + 1}`;
+  state.board = b;
+  state.moveNo = e.coup + 1;
+  state.settings.withJoker = TOURS[e.tour].joker;
+  state.prepared.withJoker = TOURS[e.tour].joker;
+}
+
+/** Début de coup (appelé par nextMove) : écrans de pause / fin de match, puis coup suivant.
+ *  Renvoie vrai si nextMove doit s'arrêter là (un écran est affiché). */
+function tsAvantCoup() {
+  const ts = state.topsping;
+  if (ts.ecran) return true;
+  if (ts.e.fini) { tsFin(); return true; }
+  const ev = ts.ev; ts.ev = null;
+  let titre = null, texte = "";
+  if (ev?.match) {
+    const m = ts.e.matchs[ts.e.matchs.length - 1];
+    titre = `🎉 Qualifié pour ${TS_ARTICLE[ts.e.tour]}`;
+    texte = `${TOURS[ts.e.tour - 1].nom} gagné ${tsSets(m.sets)}.<br>Prochain match : <b>${TOURS[ts.e.tour].nom}</b>, en ${TOURS[ts.e.tour].formule}.`;
+  } else if (ts.pauseDemandee || ev?.cote || ev?.set) {
+    titre = ts.pauseDemandee ? "⏸ Pause" : ev.set ? "Fin du set" : "Changement de côté";
+    texte = ts.info || "Reprends quand tu veux.";
+  }
+  if (titre) {
+    ts.pauseDemandee = false;
+    $("#btnPause")?.classList.remove("pause-demandee");
+    stopMoveTimer();
+    renderGameTitle(); updateTopSpingHUD();
+    tsEcran(`<h2>${titre}</h2><p>${texte}</p>`, ["Reprendre", "Quitter (reprendre plus tard)"]).then(i => {
+      if (i === 1) { location.href = tsUrlRetour(); return; }
+      nextMove();
+    });
+    return true;
+  }
+  tsPrepareCoup();
+  renderGameTitle(); updateTopSpingHUD();
+  tsSauve({ debut: Date.now() });
+  return false;
+}
+
+/** Fin de coup (appelé par recordMove) : point marqué, sauvegarde. */
+function tsApresCoup(gagne, h) {
+  const ts = state.topsping, e = ts.e, s = e.stats;
+  if (e.fini) return;
+  s.coups++; s.temps += Math.min(TEMPS_COUP, (h?.timeMs || 0) / 1000);
+  if (gagne) s.points++; else { s.rates++; s.neg += Math.min(0, h?.neg || 0); }
+  ts.ev = jouerPoint(e, gagne, ts.reserves[e.tour]);
+  ts.info = "";
+  tsInfoEvenement(ts.ev);
+  if (e.fini) tsSauveFin(); else tsSauve(null);
+  updateTopSpingHUD();
+}
+
+function tsInfoEvenement(ev) {
+  const ts = state.topsping, m = ts.e.match;
+  if (!ev?.jeu || ev.match) return;
+  ts.info = (ts.info ? ts.info + "<br>" : "") + (ev.set
+    ? `Set ${m.sets.length} ${ev.gagneJeu ? "pour toi" : "pour le top"} (${tsSets(m.sets.slice(-1))}). Sets : ${m.setsJ}-${m.setsO}.`
+    : `Jeu ${ev.gagneJeu ? "pour toi" : "pour le top"} : ${m.set.j}-${m.set.o}.${m.jeu.tb ? " Tie-break !" : ""}`);
+}
+
+const tsSets = sets => sets.map(([a, b]) => `${a}-${b}`).join(" ; ");
+const tsUrlRetour = () => { const t = state.topsping?.tournamentId || TOURNAMENT_ID; return t ? `../index.html#tid=${t}` : "../index.html"; };
+function tsResume() {
+  const e = state.topsping.e;
+  return { niveau: niveauAtteint(e), rates: e.stats.rates, neg: e.stats.neg, ab: e.abandon, vainqueur: e.vainqueur, matchs: e.matchs };
+}
+
+function tsSauve(enCours) {
+  const ts = state.topsping, paused = { ts: ts.e, enCours, topsping: true };
+  if (ts.test) { try { localStorage.setItem(tsCleTest(ts.id), JSON.stringify(paused)); } catch {} return; }
+  const pid = +(localStorage.getItem("currentPlayerId") || 0);
+  if (!pid || !window._sb) return;
+  const ligne = { prepared_game_id: ts.id, player_id: pid, paused, details: [], summary: null,
+    total_score: ts.e.stats.points, sum_neg: ts.e.stats.neg, total_time_seconds: Math.round(ts.e.stats.temps),
+    played_on_mobile: wasPlayedOnMobile() };
+  ts.sync = ts.sync.then(() => window._sb.from("prepared_game_results").upsert(ligne, { onConflict: "prepared_game_id,player_id" }))
+    .then(r => { if (r?.error) console.error("TopSping : sauvegarde KO", r.error.message); }, err => console.error("TopSping : sauvegarde KO", err));
+  state._pauseSync = ts.sync;
+}
+
+async function tsSauveFin() {
+  const ts = state.topsping;
+  if (ts.finSauvee) return ts.finSauvee;
+  if (ts.test) { try { localStorage.setItem(tsCleTest(ts.id), JSON.stringify({ ts: ts.e, fin: true })); } catch {} return; }
+  const pid = +(localStorage.getItem("currentPlayerId") || 0);
+  if (!pid || !window._sb) return;
+  const e = ts.e, r = tsResume();
+  const ligne = { prepared_game_id: ts.id, player_id: pid, paused: null,
+    total_score: e.stats.points, sum_neg: e.stats.neg, total_time_seconds: Math.round(e.stats.temps),
+    details: [{ moveNo: 1, status: e.abandon ? "giveup" : "top", playerScore: e.stats.points, neg: e.stats.neg, timeMs: Math.round(e.stats.temps * 1000), top: null, topsping: true, v: 2 }],
+    summary: { v: 1, mv: [1], tp: [], ab: e.abandon, topsping: true, ts: r },
+    played_on_mobile: wasPlayedOnMobile() };
+  ts.finSauvee = ts.sync.then(() => window._sb.from("prepared_game_results").upsert(ligne, { onConflict: "prepared_game_id,player_id" }))
+    .then(res => { if (res?.error) flashFeedback("error", "Résultat non enregistré", res.error.message); });
+  return ts.finSauvee;
+}
+
+/** Abandon (bouton Abandonner, Arrêter) : le tournoi s'arrête au niveau atteint. */
+async function tsAbandon(afficher = true) {
+  const ts = state.topsping, e = ts.e;
+  if (!e.fini) {
+    if (afficher && !confirm(`Abandonner TopSping ? Ton tournoi s'arrête ici (niveau atteint : ${nomNiveau(niveauAtteint(e))}).`)) return;
+    // Coup en cours (affiché, pas encore joué) : compté raté.
+    if (state.started && state.topMove && state.prepared.moves.length > state.preparedIdx && !ts.ecran) {
+      e.stats.coups++; e.stats.rates++; e.stats.neg -= state.topMove.score || 0;
+    }
+    e.fini = true; e.abandon = true;
+  }
+  await tsSauveFin();
+  if (afficher) tsFin();
+}
+
+/** Fin du tournoi (élimination, victoire ou abandon) : écran de résultat. */
+function tsFin() {
+  const ts = state.topsping;
+  stopMoveTimer(); stopChrono();
+  if (state.chronoFinal == null) state.chronoFinal = elapsedSeconds();
+  updateTopSpingHUD();
+  Promise.resolve(tsSauveFin()).then(() => tsResultatFinal(tsResume()));
+}
+
+function tsResultatFinal(r) {
+  const e = state.topsping?.e, dernier = r.matchs?.[r.matchs.length - 1];
+  const titre = r.vainqueur ? "🏆 Tu remportes TopSping !" : r.ab ? "Abandon" : `Éliminé ${TS_ELIMINE[Math.min(r.niveau, 6)]}`;
+  const detail = r.vainqueur ? `Finale gagnée ${tsSets(dernier.sets)}.`
+    : r.ab ? `Ton tournoi s'arrête : ${nomNiveau(r.niveau)} atteint.`
+    : dernier ? `Match perdu ${tsSets(dernier.sets)}.` : "";
+  state.paused = true;   // pas d'alerte en quittant la page
+  tsEcran(`<h2>${titre}</h2><p>${detail}</p><p>Niveau atteint : <b>${r.niveau >= TOURS.length ? "Finale gagnée" : nomNiveau(r.niveau)}</b><br>Tops ratés : <b>${r.rates}</b> · Négatif : <b>${r.neg}</b></p>`,
+    ["Retour au tournoi"]).then(() => { location.href = tsUrlRetour(); });
+  void e;
+}
+
+/** Écran TopSping (pause, qualification, fin) : renvoie l'index du bouton choisi. */
+function tsEcran(html, boutons) {
+  const ts = state.topsping;
+  if (ts) ts.ecran = true;
+  const avant = state.paused;
+  state.paused = true;   // écran de pause : la partie est sauvegardée, on peut quitter
+  return new Promise(ok => {
+    const fond = document.createElement("div");
+    fond.className = "ts-ecran";
+    fond.innerHTML = `<div class="ts-ecran-boite" role="dialog" aria-modal="true">${html}<div class="ts-ecran-boutons">${boutons.map((b, i) => `<button type="button" class="${i ? "second" : ""}" data-i="${i}">${b}</button>`).join("")}</div></div>`;
+    const ferme = i => {
+      fond.remove(); document.removeEventListener("keydown", clavier, true);
+      if (ts) ts.ecran = false;
+      state.paused = avant;
+      ok(i);
+    };
+    const clavier = ev => { ev.stopImmediatePropagation(); if (ev.key === "Enter") { ev.preventDefault(); ferme(0); } };
+    fond.querySelectorAll("button").forEach(b => b.onclick = () => ferme(+b.dataset.i));
+    document.addEventListener("keydown", clavier, true);
+    document.body.appendChild(fond);
+    fond.querySelector("button")?.focus();
+  });
+}
+
+/** Tableau d'affichage : sets, jeux, points du jeu, tableau des tours. */
+function updateTopSpingHUD() {
+  const ts = state.topsping;
+  let el = document.getElementById("tsHud");
+  if (!ts || review.active) { if (el) el.hidden = true; return; }
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "tsHud";
+    const ref = document.querySelector(".title-row");
+    if (ref) ref.after(el); else document.body.prepend(el);
+  }
+  el.hidden = false;
+  const e = ts.e, m = e.match, [pj, po] = scoreJeu(m.jeu), sets = m.sets;
+  const ligne = (nom, moi) => {
+    let h = `<td class="ts-nom">${nom}</td>`;
+    for (const [a, b] of sets) h += `<td class="ts-set${(moi ? a > b : b > a) ? " gagne" : ""}">${moi ? a : b}</td>`;
+    if (!e.fini) h += `<td class="ts-jeux">${moi ? m.set.j : m.set.o}</td><td class="ts-points">${moi ? pj : po}</td>`;
+    return `<tr>${h}</tr>`;
+  };
+  let entete = `<td class="ts-tour">${e.vainqueur ? "Vainqueur" : TOURS[e.tour].court}</td>${sets.map((_, i) => `<td>Set ${i + 1}</td>`).join("")}`;
+  if (!e.fini) entete += `<td>Set ${sets.length + 1}</td><td>${m.jeu.tb ? "Tie-break" : "Jeu"}</td>`;
+  const tableau = TOURS.map((t, i) => `<span class="${(e.vainqueur || i < e.tour) ? "fait" : (i === e.tour && !e.fini ? "encours" : "")}" title="${t.nom} : ${t.formule}">${t.court}</span>`).join("");
+  el.innerHTML = `<div class="ts-tableau">${tableau}</div>
+    <table class="ts-score"><tr class="ts-entete">${entete}</tr>${ligne("Toi", true)}${ligne("Le top", false)}</table>
+    ${ts.info ? `<div class="ts-info">${ts.info}</div>` : ""}
+    <div class="ts-stats">Tops trouvés <b>${e.stats.points}</b> · ratés <b>${e.stats.rates}</b> · négatif <b>${e.stats.neg}</b>${ts.test ? ` · <span class="ts-test">test : rien n'est enregistré</span>` : ""}</div>`;
+}
+
 // ===== Marathon : compteur de tops consécutifs + enchaînement des parties =====
 function marathonRegister(topped) {
   const M = state.marathon;
@@ -6498,7 +6788,8 @@ function isSuperAdminSession() {
 }
 
 function saveTrainingState() {
-  if (state.isPuzzle || state.live) return;   // puzzles non persistés ; entraînement ET tournoi le sont
+  if (state.isPuzzle || state.live) return;
+  if (state.topsping) return;   // TopSping : sauvegarde propre, à chaque coup (tsSauve)   // puzzles non persistés ; entraînement ET tournoi le sont
   // Ceinture de sécurité : partie TERMINÉE → on n'enregistre plus d'état de pause
   // (sinon une sauvegarde tardive pourrait ré-écraser le résultat avec un négatif
   // partiel et re-marquer la partie « en pause », cf. bug v347).
@@ -6644,6 +6935,7 @@ async function loadPausedSnapshot(preparedId) {
 // Restaure une partie de TOURNOI mise en pause (rechargement / autre appli / autre
 // appareil). Ne restaure que si le snapshot correspond à CETTE partie pré-tirée.
 async function restorePausedPrepared(preparedId) {
+  if (state.topsping) return false;   // TopSping : reprise gérée au chargement (tsCharge)
   const s = await loadPausedSnapshot(preparedId);
   if (!s) return false;
   if (bloqueMortMobile()) return true;   // tournoi de la Mort : pas de reprise sans clavier
@@ -6710,6 +7002,15 @@ async function restorePausedPrepared(preparedId) {
 }
 
 function pauseGame({ showModal = true } = {}) {
+  // TopSping : pause différée, prise à la fin du coup (écran de pause entre deux coups).
+  if (state.topsping) {
+    if (!state.started || state.chronoFinal != null) return;
+    state.topsping.pauseDemandee = !state.topsping.pauseDemandee;
+    $("#btnPause")?.classList.toggle("pause-demandee", state.topsping.pauseDemandee);
+    flashFeedback("info", state.topsping.pauseDemandee ? "⏸ Pause demandée" : "Pause annulée",
+      state.topsping.pauseDemandee ? "Elle commencera à la fin de ce coup." : "Le match continue sans pause.");
+    return;
+  }
   // Tournoi de la Mort : la pause est DIFFÉRÉE. Le clic la demande (un 2e clic l'annule) ;
   // elle commence à la fin du coup en cours (top trouvé, temps écoulé ou « Voir le top »),
   // avant le tirage suivant (cf. nextMove → pauseEntreCoups).
@@ -6888,7 +7189,7 @@ window.addEventListener("beforeunload", (e) => {
 // (flouté) s'affiche ; si on a quitté l'app, la partie apparaît en « Continuer »
 // dans le tournoi.
 function autoPauseIfPlaying(showModal) {
-  if (titresMort) return;   // tournoi de la Mort : seule la pause demandée (bouton) existe
+  if (titresMort || state.topsping) return;   // tournoi de la Mort, TopSping : seule la pause demandée (bouton) existe
   if (state.started && state.chronoFinal == null && !state.isPuzzle && !state.live && !state.paused && !review.active) {
     pauseGame({ showModal });
   }
@@ -6936,13 +7237,15 @@ window.addEventListener("popstate", () => {
     setTimeout(() => history.go(-2), 1500);
     return;
   }
-  if (confirm("Quitter la partie en cours ? Elle ne sera pas enregistrée.")) {
+  if (confirm(state.topsping ? "Quitter TopSping ? Le coup en cours comptera comme raté (tu reprendras au coup suivant)."
+    : "Quitter la partie en cours ? Elle ne sera pas enregistrée.")) {
     _allowBack = true;
     history.go(-2);
   }
 });
 
 function endGame() {
+  if (state.topsping && state.prepared) { tsAbandon(); return; }   // TopSping : fin = abandon (ou fin du tournoi)
   // Marathon ENTRAÎNEMENT : si l'objectif n'est pas atteint et qu'il reste des
   // parties, on enchaîne la partie suivante (streak et chrono conservés) au lieu
   // de finir. En TOURNOI, l'enchaînement est déjà dans les coups concaténés
@@ -7201,6 +7504,7 @@ function buildResultSummary(history, abandoned) {
 }
 
 async function saveResultIfPrepared() {
+  if (state.topsping) { await tsAbandon(false); return; }   // TopSping : « Arrêter » = abandon du tournoi
   // Une sauvegarde de progression (« pause ») peut être encore en vol : on l'attend pour
   // que le résultat final ne soit pas écrasé par elle.
   try { await state._pauseSync; } catch {}
@@ -7723,6 +8027,7 @@ if (_btnCancel) _btnCancel.onclick = () => {
 };
 $("#btnAbandon").onclick = () => {
   if (!state.started || state.chronoFinal != null) return;
+  if (state.topsping) { tsAbandon(); return; }
   if (!confirm("Abandonner la partie ? Les coups restants seront révélés automatiquement.")) return;
   abandonRest();
 };

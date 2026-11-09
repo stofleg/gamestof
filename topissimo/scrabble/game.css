@@ -1997,7 +1997,9 @@ body:not(.theme-halloween) .hw-legende { display: none; }
 .regles-fond { position: fixed; inset: 0; z-index: 3000; background: rgba(0,20,30,.55);
   display: flex; align-items: center; justify-content: center; padding: 16px; }
 .regles-boite { background: #fff; color: var(--petrol); border-radius: 16px; padding: 24px 26px 20px;
-  max-width: 480px; width: 100%; box-shadow: 0 20px 60px rgba(0,0,0,.35); font-family: 'Inter', sans-serif; }
+  max-width: 480px; width: 100%; box-shadow: 0 20px 60px rgba(0,0,0,.35); font-family: 'Inter', sans-serif;
+  max-height: calc(100dvh - 32px); overflow-y: auto; }
+@media (max-width: 700px) { .regles-boite { padding: 18px 18px 14px; font-size: .9rem; } .regles-boite h2 { font-size: 1.25rem; } }
 .regles-sur { font-size: .75rem; letter-spacing: .08em; text-transform: uppercase; opacity: .6; }
 .regles-boite h2 { font: 700 1.5rem 'Lora', serif; margin: 2px 0 12px; }
 .regles-boite ul { margin: 0 0 12px; padding-left: 20px; line-height: 1.5; }
@@ -2153,3 +2155,46 @@ body.theme-halloween .touche-consonne { background: #2b1a38; border-color: #5a3d
 /* Grille cœur : cases vides noires */
 .board td.case-noire, body.theme-halloween .board td.case-noire, body.theme-duplijeu .board td.case-noire { background: #0d0d0f !important; }
 .board td.case-noire::before, .board td.case-noire::after { content: none !important; }
+
+/* ===== TopSping : terre battue (fond orange) + tableau d'affichage ===== */
+body.theme-topsping { background: radial-gradient(ellipse at 50% 0%, #d97a4e, #c8633a 55%, #9c4523) fixed; }
+#tsHud { display: grid; gap: 8px; margin: 0 0 10px; background: linear-gradient(135deg, #d97a4e, #b8562f); border-radius: 12px; padding: 8px; }
+#tsHud .ts-entete td.ts-tour { text-align: left; color: #ffd23f; }
+#tsHud .ts-tableau { display: flex; gap: 3px; }
+#tsHud .ts-tableau span { flex: 1 1 0; min-width: 0; text-align: center; font-size: .68rem; font-weight: 600; padding: 4px 1px; border-radius: 6px;
+  background: rgba(255,255,255,.25); color: #fff8ee; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#tsHud .ts-tableau span.fait { background: #136b45; }
+#tsHud .ts-tableau span.encours { background: #ffd23f; color: #1d1d1d; }
+#tsHud .ts-score { width: 100%; border-collapse: separate; border-spacing: 0; background: #0b4a2f; color: #fff; border-radius: 10px;
+  padding: 6px 8px; font-variant-numeric: tabular-nums; box-shadow: 0 6px 18px rgba(0,0,0,.25); }
+#tsHud .ts-score td { padding: 4px 6px; text-align: center; font-weight: 700; font-size: 1.05rem; }
+#tsHud .ts-score td.ts-nom { text-align: left; font-size: .95rem; width: 40%; }
+#tsHud .ts-score td.ts-set { color: #cfe8d9; font-weight: 600; }
+#tsHud .ts-score td.ts-set.gagne { color: #fff; }
+#tsHud .ts-score td.ts-jeux { color: #ffd23f; }
+#tsHud .ts-score td.ts-points { background: #f7efe3; color: #0b4a2f; border-radius: 6px; min-width: 2.4em; }
+#tsHud .ts-score tr + tr + tr td.ts-points { border-top: 2px solid #0b4a2f; }
+#tsHud .ts-entete td { font-size: .62rem; text-transform: uppercase; letter-spacing: .08em; color: #a9d3bb; font-weight: 600; padding: 0 6px; }
+#tsHud .ts-stats { font-size: .8rem; color: #fff8ee; }
+#tsHud .ts-stats .ts-test { background: #ffd23f; color: #1d1d1d; border-radius: 4px; padding: 0 5px; font-weight: 700; }
+#tsHud .ts-info { font-size: .85rem; color: #fff; background: rgba(0,0,0,.18); border-radius: 6px; padding: 4px 8px; }
+body.theme-topsping .right-col .title-row .game-title { color: #fff8ee; }
+#btnPause.pause-demandee { background: #ffd23f !important; color: #1d1d1d !important; }
+.ts-ecran { position: fixed; inset: 0; z-index: 6000; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(20,10,4,.6); }
+.ts-ecran-boite { max-width: 480px; width: 100%; background: #f7efe3; color: #1d1d1d; border-radius: 14px; padding: 20px 22px; box-shadow: 0 20px 50px rgba(0,0,0,.4); display: grid; gap: 10px; font: 400 1rem/1.45 Inter, sans-serif; }
+.ts-ecran-boite h2 { font: 700 1.3rem 'Lora', Georgia, serif; margin: 0; color: #0b4a2f; text-wrap: balance; }
+.ts-ecran-boite p { margin: 0; }
+.ts-ecran-boutons { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
+.ts-ecran-boutons button { font: 600 .95rem Inter, sans-serif; padding: 9px 16px; border-radius: 8px; border: 1px solid #0b4a2f; background: #0b4a2f; color: #fff; cursor: pointer; }
+.ts-ecran-boutons button.second { background: transparent; color: #0b4a2f; }
+.ts-ecran-boutons button:focus-visible { outline: 3px solid #c8633a; outline-offset: 2px; }
+@media (max-width: 700px) {
+  #tsHud { gap: 3px; margin: 0; border-radius: 0; padding: 4px 8px; }
+  #tsHud .ts-tableau { display: none; }
+  #tsHud .ts-score { padding: 2px 6px; }
+  #tsHud .ts-score td { font-size: .82rem; padding: 1px 4px; }
+  #tsHud .ts-entete td { font-size: .55rem; }
+  #tsHud .ts-stats { font-size: .7rem; }
+}
+body.theme-topsping #btnNextGame { display: none !important; }
+@media (max-width: 700px) { body.theme-topsping .info-bar { display: none !important; } }

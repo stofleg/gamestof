@@ -46,6 +46,17 @@ export const REGLES = {
       "La partie s'arrête quand toutes les lettres réelles du sac ont été posées.",
     ],
   },
+  topsping: {
+    titre: "🎾 TopSping",
+    points: [
+      "Tu affrontes <b>le top</b> : <b>40 s</b> par coup au maximum, le coup s'arrête dès que tu trouves le top. Top trouvé : point pour toi ; raté : point pour le top.",
+      "Jeu en 15, 30, 40, jeu (avantage à 40-40). Set en 6 jeux avec 2 d'écart, <b>tie-break</b> en 7 points à 6-6. Match en <b>3 sets gagnants</b>.",
+      "Chaque jeu se joue sur une nouvelle partie : à partir du coup 1 au 1er set, du coup 5 au 2e set, du coup 9 au 3e…",
+      "7 tours : 1er tour (Normale), 2e tour (Joker), 16es (7 sur 8), 8es (7 sur 8 joker), quarts (7 et 8), demie (7 et 8 joker), finale (7, 8 et 9).",
+      "Un match perdu, ou un abandon, termine ton tournoi. Classement : tour atteint, puis tops ratés, puis négatif.",
+      "Pause : bouton ⏸ (prise à la fin du coup), et aux changements de côté, fins de set et entre les matchs. On peut quitter pendant une pause et revenir plus tard ; quitter pendant un coup le fait compter comme raté.",
+    ],
+  },
   grillecoeur: {
     titre: "Grille cœur",
     points: [
