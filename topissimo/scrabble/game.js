@@ -26,15 +26,15 @@
 import {
   emptyBoard, BOARD_BONUSES, BOARD_SIZE, CENTER, LETTER_VALUE, LETTER_BAG,
   VOWELS, drawForDuplicate, scoreMove, applyMove,
-  bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName, modeNomOrigine, ecranMobile, MSG_MORT_MOBILE, layoutPourMode, snakeEndpointsAfter, sablierTime, gigogneRackSize,
+  bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName, modeNomOrigine, ecranMobile, MSG_MORT_MOBILE, layoutPourMode, GRILLE_COEUR_FOND, snakeEndpointsAfter, sablierTime, gigogneRackSize,
   setLetterValues, letterValue, valuesFor, bagFor, isCrossingCell, wordHiddenCount,
   drawVowelRack, VOWELS_NO_Y, MARATHON_TARGET, MARATHON_GAMES, consonnesDisponibles, CONSONANTS_FR, jokersDisponibles,
-} from "./engine.js?v=480";
-import { Dictionary } from "./dictionary.js?v=480";
-import * as invasion from "./araignees.js?v=480";
-import { REGLES, afficheRegles } from "./regles.js?v=480";
-import * as sonHalloween from "./halloween-son.js?v=480";
-import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=480";
+} from "./engine.js?v=481";
+import { Dictionary } from "./dictionary.js?v=481";
+import * as invasion from "./araignees.js?v=481";
+import { REGLES, afficheRegles } from "./regles.js?v=481";
+import * as sonHalloween from "./halloween-son.js?v=481";
+import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=481";
 
 // État du mode review (parcours coup par coup)
 const review = {
@@ -73,7 +73,7 @@ const FFSC_LIVE = URL_PARAMS.get("ffsclive");      // jouer une partie FFSC en d
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v480";
+const BUILD_VERSION = "garenna-v481";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -459,6 +459,8 @@ function renderBoard() {
       else cls = [bonusClass(bonus)];
       const tile = cellTile(r, c);
       if (tile) cls.push("has-tile");
+      // Grille cœur : cases vides en noir hors du grand cœur et dans le petit (dessin).
+      else if (bonus === "." && currentMode().fixedBoard && GRILLE_COEUR_FOND[r][c] === "x") cls.push("case-noire");
       const isCursor = state.cursor && state.cursor.row === r && state.cursor.col === c;
       if (isCursor) cls.push("cursor", state.cursor.dir === "H" ? "dir-h" : "dir-v");
       const isInvalidCell = state.invalidCells && state.invalidCells.some(p => p.r === r && p.c === c);
@@ -5832,7 +5834,8 @@ function renderSnapshotToBlob(board, rack, opts = {}) {
         else if (bonus === "D") cls = "dw";
         else if (bonus === "T") cls = "tw";
         const x = boardX + c * CELL, y = boardY + r * CELL;
-        ctx.fillStyle = COLORS[cls];
+        // Grille cœur : cases vides noires hors du grand cœur et dans le petit.
+        ctx.fillStyle = cls === "normal" && currentMode().fixedBoard && GRILLE_COEUR_FOND[r][c] === "x" ? "#0d0d0f" : COLORS[cls];
         ctx.fillRect(x, y, CELL, CELL);
         ctx.strokeStyle = duplijeu ? "#b3c1ce" : "#cbd2d8";
         ctx.lineWidth = 1;
