@@ -462,24 +462,24 @@ export const GRILLE_COEUR = [
   "..d....T....d..",
 ];
 
-// Grille cœur : cases vides affichées en NOIR (x), autour du grand cœur et à l'intérieur
-// du petit, pour faire ressortir le dessin. Affichage seulement (aucun effet sur le jeu).
+// Grille cœur : cases vides affichées en NOIR (x) à l'intérieur du grand cœur (petit cœur
+// compris), pour faire ressortir le dessin. Affichage seulement (aucun effet sur le jeu).
 export const GRILLE_COEUR_FOND = [
-  "xxxxxxxxxxxxxxx",
-  "xxx...xxx...xxx",
-  "xx.....x.....xx",
-  "x.............x",
   "...............",
   "...............",
-  ".....x...x.....",
-  "....xxx.xxx....",
-  "x....xxxxx....x",
-  "xx....xxx....xx",
-  "xxx....x....xxx",
-  "xxxx.......xxxx",
-  "xxxxx.....xxxxx",
-  "xxxxxx...xxxxxx",
-  "xxxxxxx.xxxxxxx",
+  "...xxx...xxx...",
+  "..xxxxx.xxxxx..",
+  ".xxxxxxxxxxxxx.",
+  ".xxxx.xxx.xxxx.",
+  ".xxx.x.x.x.xxx.",
+  ".xx.xxx.xxx.xx.",
+  "..xx.xxxxx.xx..",
+  "...xx.xxx.xx...",
+  "....xx.x.xx....",
+  ".....xx.xx.....",
+  "......xxx......",
+  ".......x.......",
+  "...............",
 ];
 
 /** Disposition des bonus imposée par une formule (Grille random : tirée au sort ;
