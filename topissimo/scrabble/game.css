@@ -2150,6 +2150,6 @@ body.theme-halloween .annot-btn .badge-sample { color: #1a1020; }
 .touche-consonne[hidden] { display: none; }
 body.theme-halloween .touche-consonne { background: #2b1a38; border-color: #5a3d75; color: #e9dcc4; }
 
-/* Grille cœur : cases vides noires à l'intérieur du grand cœur */
+/* Grille cœur : cases vides noires entre les deux cœurs */
 .board td.case-noire, body.theme-halloween .board td.case-noire, body.theme-duplijeu .board td.case-noire { background: #0d0d0f !important; }
 .board td.case-noire::before, .board td.case-noire::after { content: none !important; }

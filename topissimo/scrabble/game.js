@@ -459,7 +459,7 @@ function renderBoard() {
       else cls = [bonusClass(bonus)];
       const tile = cellTile(r, c);
       if (tile) cls.push("has-tile");
-      // Grille cœur : cases vides en noir à l'intérieur du grand cœur (dessin).
+      // Grille cœur : cases vides en noir entre les deux cœurs (dessin).
       else if (bonus === "." && currentMode().fixedBoard && GRILLE_COEUR_FOND[r][c] === "x") cls.push("case-noire");
       const isCursor = state.cursor && state.cursor.row === r && state.cursor.col === c;
       if (isCursor) cls.push("cursor", state.cursor.dir === "H" ? "dir-h" : "dir-v");
@@ -5834,7 +5834,7 @@ function renderSnapshotToBlob(board, rack, opts = {}) {
         else if (bonus === "D") cls = "dw";
         else if (bonus === "T") cls = "tw";
         const x = boardX + c * CELL, y = boardY + r * CELL;
-        // Grille cœur : cases vides noires à l'intérieur du grand cœur.
+        // Grille cœur : cases vides noires entre les deux cœurs.
         ctx.fillStyle = cls === "normal" && currentMode().fixedBoard && GRILLE_COEUR_FOND[r][c] === "x" ? "#0d0d0f" : COLORS[cls];
         ctx.fillRect(x, y, CELL, CELL);
         ctx.strokeStyle = duplijeu ? "#b3c1ce" : "#cbd2d8";
