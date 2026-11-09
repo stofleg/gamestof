@@ -9,12 +9,12 @@
 
 import {
   emptyBoard, LETTER_BAG, drawForDuplicate, applyMove,
-  bagTotalVowels, bagTotalConsonants, GAME_MODES, randomBoardLayout, snakeEndpointsAfter, gigogneRackSize,
+  bagTotalVowels, bagTotalConsonants, GAME_MODES, layoutPourMode, snakeEndpointsAfter, gigogneRackSize,
   bagFor, valuesFor, setLetterValues, LETTER_VALUE, isCrossingCell, wordHiddenCount,
   drawVowelRack, MARATHON_GAMES, consonnesDisponibles, jokersDisponibles,
-} from "./engine.js?v=479";
-import { findTopRanked, findTop, snakeBestTop } from "./topfinder.js?v=479";
-import { decoupeRegions } from "./puzzle-pieces.js?v=479";
+} from "./engine.js?v=480";
+import { findTopRanked, findTop, snakeBestTop } from "./topfinder.js?v=480";
+import { decoupeRegions } from "./puzzle-pieces.js?v=480";
 
 const VOWELS_GEN = new Set(["A", "E", "I", "O", "U", "Y"]);
 
@@ -66,7 +66,7 @@ export function generateGame(dict, options = {}, onProgress = null) {
   const alternateDir = !!mode.alternateDir;    // mode « Horizontal/Vertical »
   const dualTop = !!mode.dualTop;              // mode « Top/sous-top »
   const infJoker = !!mode.infJoker;           // mode « Double joker infini »
-  const layout = mode.randomBoard ? randomBoardLayout() : null;   // mode « Grille random »
+  const layout = layoutPourMode(modeKey);   // « Grille random » (tirée au sort) ou « Grille cœur » (fixe)
   // Le joker payant est une partie joker (jokers retirés du sac + recyclés).
   const withJoker = !!options.withJoker || jokerPays;
 

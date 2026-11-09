@@ -111,6 +111,9 @@ export const GAME_MODES = {
   // la grille (non recyclés), fin quand toutes les lettres réelles sont posées.
   infjoker: { label: "Double joker infini", rackSize: 7, maxPlayed: 7, bonuses: { 7: 50 },
     defaultTime: 120, stofOnly: true, infJoker: true },
+  // Grille cœur : disposition fixe des bonus dessinant deux cœurs (GRILLE_COEUR).
+  grillecoeur: { label: "Grille cœur", rackSize: 7, maxPlayed: 7, bonuses: { 7: 50 },
+    defaultTime: 120, stofOnly: true, fixedBoard: true },
   // Grille random : disposition des bonus mélangée (générée et stockée par partie).
   grillerandom: { label: "Grille random", rackSize: 7, maxPlayed: 7, bonuses: { 7: 50 },
     defaultTime: 120, stofOnly: true, randomBoard: true },
@@ -436,6 +439,36 @@ export function snakeEndpointsAfter(ends, board, move) {
     if (d === 1) deg1.push([r, c]);
   }
   return deg1.length === 2 ? deg1 : [cells[0], cells[cells.length - 1]];
+}
+
+// Grille du mode « Grille cœur » (dessinée par stof dans l'atelier de grille) : deux cœurs
+// emboîtés, autant de cases de chaque type que la grille classique (8 MT, 16 MD + étoile,
+// 12 LT, 24 LD). Même format que BOARD_BONUSES.
+export const GRILLE_COEUR = [
+  ".d.....d.....d.",
+  "d..Ddt...tdD..d",
+  "..t...D.D...t..",
+  ".T.....T.....T.",
+  "d.............d",
+  "t....t...t....t",
+  "D...d.d.d.d...D",
+  "T..d...*...d..T",
+  ".D..d.....d..D.",
+  "..D..t...t..D..",
+  "...T..d.d..T...",
+  "....D..d..D....",
+  "d....t...t....d",
+  ".D....D.D....D.",
+  "..d....T....d..",
+];
+
+/** Disposition des bonus imposée par une formule (Grille random : tirée au sort ;
+ *  Grille cœur : fixe), ou null pour la grille classique. */
+export function layoutPourMode(modeKey) {
+  const m = GAME_MODES[modeKey];
+  if (m?.randomBoard) return randomBoardLayout();
+  if (m?.fixedBoard) return GRILLE_COEUR.slice();
+  return null;
 }
 
 // Génère une grille de bonus ALÉATOIRE pour le mode « Grille random » :

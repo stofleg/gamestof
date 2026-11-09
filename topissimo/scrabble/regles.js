@@ -46,6 +46,13 @@ export const REGLES = {
       "La partie s'arrête quand toutes les lettres réelles du sac ont été posées.",
     ],
   },
+  grillecoeur: {
+    titre: "Grille cœur",
+    points: [
+      "Les <b>cases bonus dessinent deux cœurs</b> : même nombre de cases de chaque type que la grille classique, mais placées autrement.",
+      "Le premier coup passe toujours par la case centrale ★.",
+    ],
+  },
   grillerandom: {
     titre: "Grille random",
     points: [
