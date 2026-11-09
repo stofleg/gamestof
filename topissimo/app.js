@@ -2775,8 +2775,18 @@ async function loadTournamentDetail(tournamentId) {
     // Tournoi de la Mort : Jigsaw se joue en DERNIER, une fois toutes les autres parties terminées.
     const resteAvantJigsaw = t.est_public && g.mode === "puzzle" && !played
       ? (games || []).filter(x => x.mode !== "puzzle" && !playedIds.has(x.id)).length : 0;
+    const lienTs = `ensureFreshAndNavigate('scrabble/topsping.html?prepared=${g.id}&tid=${currentTournamentId}')`;
     const action = genOnly
       ? ""   // le compte "admin" ne joue pas (génération uniquement)
+      // TopSping : sa propre page (en admin : mode test, rien n'est enregistré).
+      : g.mode === "topsping"
+        ? (admin
+            ? `<button style="${btnStyle};background:var(--yellow);color:var(--petrol-dark);border:none;cursor:pointer" onclick="${lienTs}" title="Tester (mode test : rien n'est enregistré)">🧪 Tester</button>`
+          : played
+            ? `<button style="${btnStyle};background:var(--soft);color:var(--petrol);border:none;cursor:pointer" onclick="${lienTs}">🎾 Résultat</button>`
+          : suspended
+            ? `<button style="${btnStyle};background:#ffcf33;color:var(--petrol-dark);border:none;cursor:pointer;font-weight:700" onclick="${lienTs}" title="Reprendre le tournoi en cours">⏯ Continuer</button>`
+            : `<button style="${btnStyle};background:var(--yellow);color:var(--petrol-dark);border:none;cursor:pointer" onclick="${lienTs}">▶ Jouer</button>`)
       : admin
         // Mode admin (superadmin) : on TESTE les parties déjà jouées en mode stof
         // (hors classement, sans écraser le vrai résultat). Les autres ne sont pas
@@ -2911,6 +2921,41 @@ function renderMarathonRows(body, rows) {
   </table></div>`;
 }
 
+// Classement TopSping d'une partie (tournoi) : tour atteint, puis tops ratés, puis négatif.
+// Les joueurs encore en lice apparaissent aussi (« en cours », avec leur tour actuel).
+async function renderTopSpingRows(body, gameId, stale = () => false) {
+  const { TOURS, comparerClassement, nomNiveau } = await import("./scrabble/topsping-regles.js?v=483");
+  const { data } = await sb.from("prepared_game_results")
+    .select("player_id, summary, paused, played_on_mobile, players(name)").eq("prepared_game_id", gameId);
+  const me = +state.currentPlayerId || 0;
+  const list = excludeAdminRows(data || []).map(r => {
+    const fin = !r.paused && r.summary?.ts, ec = r.paused?.ts;
+    if (fin) return { id: r.player_id, name: r.players?.name, niveau: fin.niveau, rates: fin.rates, neg: fin.neg,
+      statut: fin.vainqueur ? "🏆 Vainqueur" : fin.ab ? "Abandon" : "Éliminé", mobile: r.played_on_mobile };
+    if (ec) return { id: r.player_id, name: r.players?.name, niveau: ec.tour, rates: ec.stats.rates, neg: ec.stats.neg,
+      statut: "🎾 En lice", mobile: r.played_on_mobile };
+    return null;
+  }).filter(Boolean).sort(comparerClassement);
+  if (stale()) return;
+  if (!list.length) { body.innerHTML = `<p class="muted">Personne n'a encore joué.</p>`; return; }
+  const medal = (i) => i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `${i + 1}.`;
+  const th = "padding:5px 8px;text-align:left", td = "padding:5px 8px";
+  body.innerHTML = `<div class="table-wrap"><table style="width:100%;border-collapse:collapse;font-size:.9rem">
+    <thead><tr style="background:var(--petrol);color:#fff">
+      <th style="${th}">#</th><th style="${th}">Joueur</th><th style="${th}">Tour atteint</th>
+      <th style="${th}">Statut</th><th style="${th};text-align:right">Tops ratés</th><th style="${th};text-align:right">Négatif</th>
+    </tr></thead>
+    <tbody>${list.map((p, i) => `<tr${p.id === me ? ' style="background:#fff3cd"' : ""}>
+      <td style="${td}">${medal(i)}</td>
+      <td style="${td}">${p.mobile ? '<span title="Jouée sur mobile" style="font-size:.85em">📱</span> ' : ""}${escapeHtml(p.name || "#" + p.id)}</td>
+      <td style="${td}">${escapeHtml(p.niveau >= TOURS.length ? "Finale gagnée" : nomNiveau(p.niveau))}</td>
+      <td style="${td}">${p.statut}</td>
+      <td style="${td};text-align:right">${p.rates}</td>
+      <td style="${td};text-align:right" class="neg">${p.neg}</td>
+    </tr>`).join("")}</tbody>
+  </table></div>`;
+}
+
 window.showGamePodium = async function(gameId, gameName) {
   let modal = document.getElementById("gamePodiumModal");
   if (!modal) {
@@ -2939,6 +2984,8 @@ window.showGamePodium = async function(gameId, gameName) {
 
   // Marathon : classement dédié (temps pour 42 / record de streak).
   if (rows.some(r => r.summary && r.summary.m)) { renderMarathonRows(body, rows); return; }
+  // TopSping : classement au niveau atteint.
+  if (rows.some(r => r.summary?.topsping)) { await renderTopSpingRows(body, gameId); return; }
 
   // Tri : les parties abandonnées en dernier, puis négatif décroissant (0 = meilleur), puis
   // temps croissant (Jigsaw : tout le monde à 0, seul le temps départage les grilles terminées).
@@ -3099,6 +3146,12 @@ async function loadTournamentLeaderboard(tournamentId, games, tournamentName, mo
     const mres = excludeAdminRows(mRows || []).filter(r => r.summary && r.summary.m);
     if (!mres.length) { if (!stale()) body.innerHTML = `<p class="muted">Aucun résultat enregistré.</p>`; return; }
     if (!stale()) renderMarathonRows(body, mres);
+    return;
+  }
+
+  // TopSping : classement dédié (niveau atteint, tops ratés, négatif), joueurs en cours compris.
+  if (games.every(g => g.mode === "topsping")) {
+    if (!stale()) await renderTopSpingRows(body, games[0].id, stale);
     return;
   }
 
@@ -3418,6 +3471,10 @@ async function loadTournamentStats(tournamentId, games) {
   // pour un tournoi entièrement marathon → on masque le panneau (classement dédié).
   if (games.length && games.every(g => g.mode === "marathon")) {
     if (!stale()) { body.innerHTML = `<p class="muted">Statistiques non applicables au Marathon — voir le classement.</p>`; if (shameEl()) shameEl().innerHTML = ""; }
+    return;
+  }
+  if (games.every(g => g.mode === "topsping")) {
+    if (!stale()) { body.innerHTML = `<p class="muted">Statistiques non applicables à TopSping — voir le classement.</p>`; if (shameEl()) shameEl().innerHTML = ""; }
     return;
   }
 
@@ -3916,7 +3973,7 @@ window.recomputeAllNeg = async function(force = false) {
   const toUpdate = [];
   for (const r of allResults) {
     const game = gameMap[r.prepared_game_id];
-    if (!game || !r.details || game.mode === "puzzle") { skipped++; continue; }   // Jigsaw : un temps, pas de négatif
+    if (!game || !r.details || game.mode === "puzzle" || game.mode === "topsping") { skipped++; continue; }   // Jigsaw : un temps, pas de négatif
     try {
       const { sumNeg, totalScore, details } = recomputeResult(game, r.details);
       // Forcer la mise à jour même si les valeurs semblent identiques

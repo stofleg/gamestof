@@ -5478,6 +5478,7 @@ async function enterReviewMode(id) {
   const { data: game, error: e1 } = await window._sb.from("prepared_games").select("*").eq("id", id).single();
   if (e1) throw new Error(e1.message);
   if (game.mode === "puzzle") { location.replace(`puzzle.html?prepared=${id}`); return new Promise(() => {}); }
+  if (game.mode === "topsping") { location.replace(`topsping.html?prepared=${id}`); return new Promise(() => {}); }
   const pid = +(localStorage.getItem("currentPlayerId") || 0);
   let result = null;
   if (pid) {
@@ -6223,6 +6224,7 @@ async function loadPreparedGame(id) {
   if (error) throw new Error(error.message);
   // Grille puzzle (Jigsaw) : ce n'est pas une partie de topping, elle a sa propre page.
   if (data.mode === "puzzle") { location.replace(`puzzle.html?prepared=${id}`); return new Promise(() => {}); }
+  if (data.mode === "topsping") { location.replace(`topsping.html?prepared=${id}`); return new Promise(() => {}); }
   // Réinitialisation COMPLÈTE de l'état de jeu : évite qu'un reliquat d'une partie
   // précédente (plateau, tirage, index) ne déborde si l'état n'a pas été remis à zéro
   // (cache navigateur / réentrée). C'est la cause du « 1er tirage erroné » corrigé au refresh.

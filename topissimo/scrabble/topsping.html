@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TopSping · Topissimo</title>
+<link rel="icon" href="../icon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Lora:wght@500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="game.css?v=483">
+<style>
+  /* Terre battue : fond ocre, tableau d'affichage vert foncé comme les scoreboards de Roland-Garros. */
+  :root { --terre: #c8633a; --terre-fonce: #9c4523; --vert-rg: #0b4a2f; --vert-rg-2: #136b45; --creme: #f7efe3; }
+  body { margin: 0; min-height: 100vh; font-family: 'Inter', sans-serif; color: #1d1d1d;
+    background: radial-gradient(ellipse at 50% 0%, #d97a4e, var(--terre) 55%, var(--terre-fonce));
+    --cell-size: clamp(20px, min(calc((100vh - 210px) / 15.6), calc((100vw - 32px) / 15.6)), 38px); }
+  .ts-page { max-width: 1180px; margin: 0 auto; padding: 12px max(16px, env(safe-area-inset-left, 0px)) 24px; display: grid; gap: 12px; }
+  .ts-haut { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .ts-haut h1 { font: 700 1.5rem 'Lora', serif; color: var(--creme); margin: 0; letter-spacing: .02em; }
+  .ts-haut .tour { color: var(--creme); font-weight: 600; }
+  .ts-haut .sp { flex: 1; }
+  .ts-btn { font: 600 .9rem 'Inter', sans-serif; padding: 8px 14px; border-radius: 8px; border: 1px solid rgba(255,255,255,.6);
+    background: rgba(0,0,0,.15); color: #fff; cursor: pointer; text-decoration: none; }
+  .ts-btn.plein { background: var(--vert-rg); border-color: var(--vert-rg); }
+  .ts-btn.pause-demandee { background: #ffd23f; color: #1d1d1d; border-color: #ffd23f; }
+  .ts-btn:focus-visible { outline: 3px solid #ffd23f; outline-offset: 2px; }
+  .ts-jeu { display: flex; gap: 18px; align-items: flex-start; flex-wrap: wrap; }
+  .ts-gauche { display: grid; gap: 10px; justify-items: center; }
+  .ts-gauche .actions { justify-self: stretch; justify-content: center; }
+  .ts-droite { flex: 1 1 300px; min-width: 0; display: grid; gap: 12px; }
+  /* tableau d'affichage */
+  .score { background: var(--vert-rg); color: #fff; border-radius: 10px; padding: 10px 12px; box-shadow: 0 8px 22px rgba(0,0,0,.25); }
+  .score table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+  .score td { padding: 6px 6px; font-weight: 700; font-size: 1.15rem; text-align: center; border-bottom: 1px solid rgba(255,255,255,.15); }
+  .score tr:last-child td { border-bottom: 0; }
+  .score td.nom { text-align: left; font-size: 1rem; width: 40%; }
+  .score td.set { color: #cfe8d9; font-weight: 600; }
+  .score td.set.gagne { color: #fff; }
+  .score td.jeuxcourants { color: #ffd23f; }
+  .score td.points { background: var(--creme); color: var(--vert-rg); border-radius: 6px; min-width: 2.6em; }
+  .score .entete td { font-size: .7rem; text-transform: uppercase; letter-spacing: .08em; color: #a9d3bb; font-weight: 600; border: 0; padding-bottom: 2px; }
+  .tableau { display: flex; gap: 4px; flex-wrap: wrap; }
+  .tableau span { flex: 1 1 0; min-width: 52px; text-align: center; font-size: .72rem; font-weight: 600; padding: 5px 2px; border-radius: 6px;
+    background: rgba(255,255,255,.18); color: var(--creme); }
+  .tableau span.fait { background: var(--vert-rg-2); color: #fff; }
+  .tableau span.encours { background: #ffd23f; color: #1d1d1d; }
+  .carte { background: var(--creme); border-radius: 10px; padding: 12px 14px; display: grid; gap: 8px; box-shadow: 0 6px 16px rgba(0,0,0,.18); }
+  .chrono { display: flex; align-items: baseline; gap: 10px; }
+  .chrono b { font: 700 2.2rem/1 'Inter', sans-serif; font-variant-numeric: tabular-nums; color: var(--vert-rg); }
+  .chrono b.urgent { color: #c0392b; }
+  .chrono .barre { flex: 1; height: 8px; border-radius: 4px; background: #e2d6c4; overflow: hidden; }
+  .chrono .barre i { display: block; height: 100%; background: var(--vert-rg-2); transition: width .25s linear; }
+  #message { min-height: 2.6em; font-size: .95rem; line-height: 1.35; }
+  #message.ok { color: #12663d; } #message.ko { color: #b3261e; }
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; font-variant-numeric: tabular-nums; }
+  .stats div { background: #efe4d2; border-radius: 6px; padding: 6px 8px; } .stats small { display: block; color: #6b5a45; font-size: .72rem; }
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  .actions .ts-btn { background: var(--vert-rg); border-color: var(--vert-rg); }
+  .actions .ts-btn.second { background: var(--creme); color: var(--vert-rg); border-color: var(--vert-rg); }
+  .board td.ts-top::after { content: ""; position: absolute; inset: 0; box-shadow: inset 0 0 0 3px #12a150; pointer-events: none; z-index: 3; }
+  .board td.pending-cell .tile { box-shadow: 0 0 0 2px #ffd23f inset; }
+  .rack { margin: 0 auto; }
+  .rack .tile.joker-pending { outline: 3px solid #ffd23f; }
+  /* écrans (règles, pauses, fin) */
+  .ecran { position: fixed; inset: 0; z-index: 3000; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(20,10,4,.6); }
+  .ecran-boite { max-width: 520px; width: 100%; background: var(--creme); border-radius: 14px; padding: 20px 22px; box-shadow: 0 20px 50px rgba(0,0,0,.4); display: grid; gap: 12px; }
+  .ecran-boite h2 { font: 700 1.35rem 'Lora', serif; margin: 0; color: var(--vert-rg); text-wrap: balance; }
+  .ecran-boite ul { margin: 0; padding-left: 1.2em; line-height: 1.45; }
+  .ecran-boite .ts-btn { justify-self: start; }
+  .ecran-boite .ligne { display: flex; gap: 8px; flex-wrap: wrap; }
+  /* téléphone : score et chrono côte à côte au-dessus de la grille, boutons sous le chevalet */
+  @media (max-width: 700px) {
+    body { --cell-size: calc((100vw - 32px) / 15.6); }
+    .ts-page { gap: 6px; padding-top: 6px; }
+    .ts-haut { gap: 6px; }
+    .ts-haut h1 { font-size: 1.05rem; }
+    .ts-haut .tour { font-size: .8rem; }
+    .ts-haut .test { display: none; }
+    .ts-btn { padding: 4px 8px; font-size: .75rem; }
+    .tableau { flex-wrap: nowrap; gap: 2px; }
+    .tableau span { min-width: 0; font-size: .58rem; padding: 2px 1px; }
+    .ts-jeu { flex-direction: column; align-items: stretch; gap: 6px; }
+    .ts-droite { order: -1; flex: none; gap: 6px; grid-template-columns: 1fr 88px; }
+    .ts-droite > .carte:not(.carte-chrono) { grid-column: 1 / -1; }
+    .score { padding: 2px 6px; }
+    .score td { font-size: .85rem; padding: 2px 3px; }
+    .score .entete td { font-size: .58rem; padding: 0 3px; }
+    .carte { padding: 6px 8px; gap: 4px; }
+    .carte-chrono { align-content: center; }
+    .chrono { flex-direction: column; align-items: stretch; gap: 4px; text-align: center; }
+    .chrono b { font-size: 1.6rem; }
+    #message { min-height: 1.3em; font-size: .8rem; }
+    .stats { display: none !important; }
+    .actions .ts-btn { flex: 1; }
+  }
+  .test { background: #ffd23f; color: #1d1d1d; border-radius: 6px; padding: 2px 8px; font-size: .8rem; font-weight: 700; }
+</style>
+</head>
+<body>
+<main class="ts-page">
+  <div class="ts-haut">
+    <h1>🎾 TopSping</h1>
+    <span class="tour" id="tsTour"></span>
+    <span class="test" id="tsTest" hidden>Mode test (admin) : rien n'est enregistré</span>
+    <span class="sp"></span>
+    <button class="ts-btn" id="tsPause" type="button" hidden>⏸ Pause</button>
+    <button class="ts-btn" id="tsAbandon" type="button" hidden>Abandonner</button>
+    <a class="ts-btn" id="tsRetour" href="../index.html">← Tournoi</a>
+  </div>
+  <div class="tableau" id="tsTableau"></div>
+  <div class="ts-jeu">
+    <div class="ts-gauche">
+      <div class="board" id="board"></div>
+      <div class="rack" id="rack"></div>
+      <div class="actions">
+        <button class="ts-btn" id="tsValider" type="button">✓ Valider</button>
+        <button class="ts-btn second" id="tsEffacer" type="button">⌫ Effacer</button>
+        <button class="ts-btn second" id="tsMelanger" type="button">↻ Mélanger</button>
+      </div>
+    </div>
+    <div class="ts-droite">
+      <div class="score" id="tsScore"></div>
+      <div class="carte carte-chrono">
+        <div class="chrono"><b id="tsChrono">40</b><div class="barre"><i id="tsBarre" style="width:100%"></i></div></div>
+      </div>
+      <div class="carte"><div id="message">Chargement…</div></div>
+      <div class="carte stats" id="tsStats"></div>
+    </div>
+  </div>
+</main>
+<div class="ecran" id="tsEcran" hidden><div class="ecran-boite" id="tsEcranBoite"></div></div>
+<script type="module" src="topsping.js?v=483"></script>
+</body>
+</html>

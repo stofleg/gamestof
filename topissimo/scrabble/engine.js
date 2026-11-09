@@ -164,6 +164,11 @@ export const GAME_MODES = {
   // vite possible. Elle a sa propre page (`page`), ouverte au lancement.
   puzzle: { label: "Grille puzzle", rackSize: 7, maxPlayed: 7, bonuses: { 7: 50 },
     defaultTime: 120, stofOnly: true, page: "puzzle.html" },
+  // TopSping : tournoi façon Roland-Garros contre le top (page topsping.html). Les
+  // parties sont pré-générées (topissimo/topsping/<réserve>/), une formule par tour :
+  // le mode n'est jamais proposé dans les menus (création du tournoi par stof, en SQL).
+  topsping: { label: "TopSping", rackSize: 7, maxPlayed: 7, bonuses: { 7: 50 },
+    defaultTime: 40, stofOnly: true, hidden: true, page: "topsping.html" },
 };
 
 // Marathon : objectif de tops consécutifs et nombre de parties enchaînées.
