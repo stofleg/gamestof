@@ -1,5 +1,5 @@
 // ============================================================
-//  Dé à 20 faces (icosaèdre) dessiné en SVG : jeton du tirage complétif (lettre au choix) sur le chevalet.
+//  Dé à 20 faces (icosaèdre) dessiné en SVG : jeton du tirage complétif sur le chevalet.
 //  Projection orthographique, une face bien de face (pointe en haut) ; faces visibles
 //  ombrées ; chaque lettre est « collée » sur sa face (transformation affine triangle de
 //  référence → face), avec sa valeur en petit en bas à droite, comme sur un jeton.

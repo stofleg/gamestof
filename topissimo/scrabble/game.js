@@ -577,15 +577,36 @@ function cellTile(r, c) {
 function renderClavierConsonnes() {
   const cl = $("#clavierConsonnes");
   if (!cl) return;
-  const visible = !!currentMode().voyelles && state.started && state.chronoFinal == null && !review.active && ecranMobile();
+  const choix = !!currentMode().lettreChoix;   // Tirage complétif : clavier des lettres restant au sac
+  const visible = (!!currentMode().voyelles || choix) && state.started && state.chronoFinal == null && !review.active && ecranMobile();
   cl.hidden = !visible;
   document.body.classList.toggle("avec-clavier", visible);   // mobile : chevalet plus bas pour faire de la place
   if (!visible) return;
+  const type = choix ? "choix" : "voyelles";
+  if (cl.dataset.type !== type) { cl.innerHTML = ""; cl.dataset.type = type; }
+  if (choix) {
+    // Une touche par lettre encore au sac (sans les quantités) : elle passe par le dé.
+    // Une lettre épuisée disparaît ; clavier estompé une fois le dé utilisé.
+    if (!cl.childElementCount) {
+      cl.innerHTML = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("").map(L => `<button type="button" class="touche-consonne" data-l="${L}">${L}</button>`).join("");
+      cl.addEventListener("click", e => {
+        const b = e.target.closest(".touche-consonne");
+        if (!b || b.disabled || cl.dataset.type !== "choix") return;
+        if (!state.cursor) { flashFeedback("error", "Pas de curseur", "Touche d'abord une case du plateau."); return; }
+        state.choixPending = true;
+        placeLetter(b.dataset.l);
+      });
+    }
+    const dispo = new Set(choixLettres() || []);
+    for (const b of cl.children) b.hidden = !dispo.has(b.dataset.l);
+    cl.classList.toggle("de-utilise", !state.rack.some(t => t.letter === "!" && !t.used));
+    return;
+  }
   if (!cl.childElementCount) {
     cl.innerHTML = CONSONANTS_FR.map(L => `<button type="button" class="touche-consonne" data-l="${L}">${L}</button>`).join("");
     cl.addEventListener("click", e => {
       const b = e.target.closest(".touche-consonne");
-      if (b && !b.disabled) placeLetter(b.dataset.l);
+      if (b && !b.disabled && cl.dataset.type === "voyelles") placeLetter(b.dataset.l);
     });
   }
   // Consonne épuisée (plus d'exemplaire dans le sac ni de joker pour la remplacer) : retirée
@@ -615,7 +636,7 @@ function renderRack() {
   // _tempUnsorted : override transitoire (F1 / drag-reorder) qui ignore le tri pour ce render
   if (state.settings.sortRack && !state._tempUnsorted) {
     tiles.sort((a, b) => {
-      if (a.letter === "!" && b.letter !== "!") return 1;   // dé « lettre au choix » en dernier
+      if (a.letter === "!" && b.letter !== "!") return 1;   // dé du tirage complétif en dernier
       if (b.letter === "!" && a.letter !== "!") return -1;
       if (a.letter === "?" && b.letter !== "?") return 1;
       if (b.letter === "?" && a.letter !== "?") return -1;
@@ -633,7 +654,7 @@ function renderRack() {
     if (blank) cls.push("blank");
     const draggable = t.used ? "" : `draggable="true" data-rack-id="${t.id}"`;
     // Tirage complétif : le dé à 20 faces (on choisit la lettre en la tapant, ou en touchant le dé).
-    if (t.letter === "!") return `<div class="tile de-choix${t.used ? " used" : ""}" ${draggable} title="Lettre au choix : tape une lettre absente de ton tirage, ou touche le dé">${icosaedre({ taille: 64, id: `de${t.id}` })}</div>`;
+    if (t.letter === "!") return `<div class="tile de-choix${t.used ? " used" : ""}" ${draggable} title="Tirage complétif : tape une lettre absente de ton tirage, ou touche le dé">${icosaedre({ taille: 64, id: `de${t.id}` })}</div>`;
     return `<div class="${cls.join(" ")}" ${draggable}>${t.letter || ""}<span class="val">${val ?? ""}</span></div>`;
   }).join("");
   // Bind handlers DnD + tap (mobile-friendly : tap = place la lettre au curseur,
@@ -690,7 +711,7 @@ function openJokerPicker(type = "joker") {
     document.body.appendChild(modal);
   }
   const grid = modal.querySelector("#jokerPickerGrid");
-  modal.querySelector("h2").textContent = choix ? "Lettre au choix (parmi le sac)" : "Joker : choisir la lettre";
+  modal.querySelector("h2").textContent = choix ? "Tirage complétif : choisis ta lettre" : "Joker : choisir la lettre";
   const dispo = choix ? new Set(choixLettres() || []) : null;
   grid.innerHTML = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("").map(L =>
     `<button class="joker-pick" data-letter="${L}"${dispo && !dispo.has(L) ? " disabled" : ""}>${L}</button>`).join("");
@@ -749,7 +770,7 @@ function placeRackTileOnCell(rackId, r, c) {
     letter = L; isBlank = true;
   } else if (tile.letter === "!") {
     const dispo = choixLettres() || [];
-    const L = (prompt(`Lettre au choix (${dispo.join(" ")}) :`, "") || "").trim().toUpperCase();
+    const L = (prompt(`Tirage complétif : ta lettre (${dispo.join(" ")}) :`, "") || "").trim().toUpperCase();
     if (!dispo.includes(L)) { if (L) flashFeedback("error", `Plus de ${L} dans le sac`, "Choisis une lettre encore disponible."); return; }
     letter = L;
   }
@@ -2251,7 +2272,7 @@ function placeLetter(L, preferTileId = null) {
     // Tirage complétif : lettre choisie dans le sélecteur (dé touché).
     state.choixPending = false;
     rackTile = state.rack.find(t => t.letter === "!" && !t.used);
-    if (!rackTile) { flashFeedback("error", "Lettre au choix déjà utilisée", ""); return; }
+    if (!rackTile) { flashFeedback("error", "Dé du tirage complétif déjà utilisé", ""); return; }
   } else if (state.jokerPending) {
     rackTile = state.rack.find(t => t.letter === "?" && !t.used);
     if (!rackTile) {
@@ -2275,7 +2296,7 @@ function placeLetter(L, preferTileId = null) {
   }
   if (!rackTile) {
     flashFeedback("error", `Pas de "${L}" dans le chevalet`, currentMode().lettreChoix
-      ? ((choixLettres() || []).includes(L) ? "Ta lettre au choix est déjà utilisée." : `Et plus de ${L} dans le sac pour ta lettre au choix.`)
+      ? ((choixLettres() || []).includes(L) ? "Le dé du tirage complétif est déjà utilisé." : `Et plus de ${L} dans le sac pour le tirage complétif.`)
       : "Et plus de joker disponible non plus.");
     return;
   }

@@ -2228,3 +2228,4 @@ body.theme-topsping #btnNextGame { display: none !important; }
 .rack .tile.de-choix svg { width: 112%; height: 112%; overflow: visible; }
 .rack .tile.de-choix.used { opacity: .3; }
 .joker-pick:disabled { opacity: .25; cursor: not-allowed; }
+.clavier-consonnes.de-utilise { opacity: .35; }
