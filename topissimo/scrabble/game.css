@@ -2122,6 +2122,10 @@ body.theme-halloween .dup-top-picker .dtp-head,
 body.theme-halloween .dict-header,
 body.theme-halloween [data-tip].show-tip::after,
 body.theme-halloween [data-tip]:hover::after { background: #3a1d52; color: #ffb35c; }
+/* Halloween : ligne sélectionnée (solutions de la revue, choix du top) — le fond clair du
+   thème classique rendait le texte crème illisible. */
+body.theme-halloween .review-solutions tr.selected td,
+body.theme-halloween .dup-top-picker tr.selected td { background: rgba(224,102,26,.38); color: #fff; box-shadow: inset 3px 0 0 #ff8a3d; }
 body.theme-halloween .bag-title #bagCount { background: #3a1d52; }
 body.theme-halloween #settings input[type="checkbox"]:checked { background: #e0661a; }
 /* Halloween : barre d'annotation (fond blanc et texte clair → illisible) */
