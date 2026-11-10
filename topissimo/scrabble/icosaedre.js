@@ -56,14 +56,20 @@ export function icosaedre({ taille = 200, angles = null, police = "Georgia, 'Tim
   faces.slice().sort((a, b) => b.n[2] - a.n[2]).forEach((o, i) => { o.lettre = LETTRES[i]; });
   faces = faces.filter(o => o.n[2] > 0.02).sort((a, b) => a.z - b.z);
 
-  let svg = "";
+  // Couleur EXACTE des jetons (game.css, .tile) : même dégradé, mêmes variables de thème
+  // (--tile-bg, --tile-bg-2, --tile-text) ; à défaut (SVG hors de la page), les valeurs du thème classique.
+  const xs = P.map(p => p[0]), ys = P.map(p => p[1]);
+  let svg = `<defs><linearGradient id="${id}-tuile" gradientUnits="userSpaceOnUse" x1="${Math.min(...xs).toFixed(1)}" y1="${Math.min(...ys).toFixed(1)}" x2="${Math.max(...xs).toFixed(1)}" y2="${Math.max(...ys).toFixed(1)}">`
+    + `<stop offset="0" style="stop-color:#fce8a8"/><stop offset="0.5" style="stop-color:var(--tile-bg, #f5d97a)"/><stop offset="1" style="stop-color:var(--tile-bg-2, #e8c548)"/></linearGradient></defs>`;
+  const lumMax = Math.max(...faces.map(o => Math.max(0, o.n[0] * L[0] + o.n[1] * L[1] + o.n[2] * L[2])));
   for (const o of faces) {
     const pts = o.f.map(i => P[i]);
     const lum = Math.max(0, o.n[0] * L[0] + o.n[1] * L[1] + o.n[2] * L[2]);
-    // teinte des jetons Topissimo (ivoire doré), éclairée selon l'orientation de la face
-    const t = 0.55 + 0.45 * lum;
-    const col = `rgb(${Math.round(250 * t + 5)},${Math.round(226 * t)},${Math.round(150 * t)})`;
-    svg += `<polygon points="${pts.map(p => p.map(v => v.toFixed(2)).join(",")).join(" ")}" fill="${col}" stroke="#7a5a1c" stroke-width="${(taille / 160).toFixed(2)}" stroke-linejoin="round"/>`;
+    const poly = pts.map(p => p.map(v => v.toFixed(2)).join(",")).join(" ");
+    // face = couleur du jeton ; relief : voile sombre d'autant plus fort que la face est loin de la lumière
+    // (la face la plus éclairée garde la couleur pure)
+    const ombre = ((lumMax - lum) * 0.6).toFixed(3);
+    svg += `<polygon points="${poly}" fill="url(#${id}-tuile)"/><polygon points="${poly}" fill="#000" fill-opacity="${ombre}" stroke="#8a6a1f" stroke-opacity=".75" stroke-width="${(taille / 160).toFixed(2)}" stroke-linejoin="round"/>`;
     // Lettre : triangle de référence (sommet en haut) → face ; on choisit la rotation des
     // sommets qui garde la lettre la plus « debout » à l'écran.
     const ref = [[0, -1], [-0.866, 0.5], [0.866, 0.5]];
@@ -87,8 +93,8 @@ export function icosaedre({ taille = 200, angles = null, police = "Georgia, 'Tim
     }
     const op = (0.35 + 0.65 * Math.min(1, o.n[2] * 1.4)).toFixed(2);   // lettres des faces rasantes plus pâles
     const m = `matrix(${best.m.map(v => v.toFixed(4)).join(" ")})`;
-    svg += `<text transform="${m}" x="-0.08" y="0.42" font-family="${police}" font-weight="700" font-size="1.2" text-anchor="middle" fill="#2b1d06" fill-opacity="${op}">${o.lettre}</text>`
-      + `<text transform="${m}" x="0.5" y="0.62" font-family="Inter, Arial, sans-serif" font-weight="700" font-size="0.42" text-anchor="middle" fill="#2b1d06" fill-opacity="${op}">${LETTER_VALUE[o.lettre]}</text>`;
+    svg += `<text transform="${m}" x="-0.08" y="0.42" font-family="${police}" font-weight="700" font-size="1.2" text-anchor="middle" style="fill:var(--tile-text, #1f2a2e)" fill-opacity="${op}">${o.lettre}</text>`
+      + `<text transform="${m}" x="0.5" y="0.62" font-family="Inter, Arial, sans-serif" font-weight="700" font-size="0.42" text-anchor="middle" style="fill:var(--tile-text, #1f2a2e)" fill-opacity="${op}">${LETTER_VALUE[o.lettre]}</text>`;
   }
   const label = 'role="img" aria-label="Dé du tirage complétif : ajoute la lettre de ton choix"';
   if (serre) {
