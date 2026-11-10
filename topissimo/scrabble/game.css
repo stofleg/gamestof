@@ -2213,3 +2213,8 @@ body.theme-topsping #btnNextGame { display: none !important; }
   transition: opacity .25s, transform .25s; white-space: nowrap; }
 @media (max-width: 700px) { #paquesToast { font-size: .9rem; padding: 8px 14px; top: 10px; } }
 #paquesToast.visible { opacity: 1; transform: translate(-50%, 0); }
+
+/* Joker payant : joker posé sur une lettre absente du reliquat (mot qui sera refusé). */
+.board td .tile.joker-hors-reliquat { box-shadow: 0 0 0 3px #d62828 inset; }
+.board td .tile.joker-hors-reliquat::after { content: "!"; position: absolute; top: -4px; right: -3px; width: 1.15em; height: 1.15em; border-radius: 50%;
+  background: #d62828; color: #fff; font: 800 calc(var(--cell-size) * .3)/1.15em Inter, sans-serif; text-align: center; z-index: 21; }

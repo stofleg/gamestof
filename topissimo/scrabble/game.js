@@ -447,6 +447,8 @@ function renderBoard() {
       badgeCell = { r: mv.row + (mv.word.length - 1) * dr, c: mv.col + (mv.word.length - 1) * dc };
     }
   }
+  // Joker payant : jokers posés sur une lettre absente du reliquat (mot qui sera refusé).
+  const horsReliquat = jokersHorsReliquat();
   let html = "<table>";
   if (showCoords) {
     html += `<tr><td class="coord corner"></td>`;
@@ -480,6 +482,7 @@ function renderBoard() {
         if (tile.isBlank) tcls.push("blank");
         if (tile.pending) tcls.push("pending");
         if (tile.invalid || isInvalidCell) tcls.push("invalid");
+        if (tile.pending && horsReliquat.has(`${r},${c}`)) tcls.push("joker-hors-reliquat");
         // Lettre cachée : jeton retourné → on masque lettre + valeur (mais il reste
         // posé). En REVUE, on révèle tout (plus utile pour apprendre).
         const hidden = !tile.pending && !review.active && state.hiddenCells && state.hiddenCells.has(`${r},${c}`);
@@ -3550,6 +3553,30 @@ function jokerReliquatActif() {
   if (!currentMode().jokerReliquat) return false;
   return state.prepared ? !!state.prepared.moves?.[0]?._jokerReliquat : true;
 }
+/** Joker payant : cases des jokers en cours de pose dont la lettre n'est plus parmi les
+ *  lettres non jouées du chevalet. Le reliquat final ne peut que diminuer : ces mots seront
+ *  forcément refusés. Avertit le joueur dès qu'un nouveau joker fautif apparaît. */
+let _nbHorsReliquat = 0;
+function jokersHorsReliquat() {
+  const out = new Set();
+  if (!state.pending?.length || !jokerReliquatActif()) { _nbHorsReliquat = 0; return out; }
+  const reste = {};
+  for (const t of state.rack) if (!t.used && t.letter !== "?") reste[t.letter] = (reste[t.letter] || 0) + 1;
+  const lettres = [];
+  for (const p of state.pending) {
+    if (!p.isBlank) continue;
+    if (reste[p.letter]) reste[p.letter]--;
+    else { out.add(`${p.row},${p.col}`); lettres.push(p.letter); }
+  }
+  if (out.size > _nbHorsReliquat) {
+    const L = lettres[lettres.length - 1];
+    flashFeedback("error", `⚠️ Joker en ${L} : mot non admissible`,
+      `Au Joker payant, le joker ne peut remplacer qu'une lettre qui reste sur ton chevalet. Il n'y a pas de ${L} dans ton reliquat : ce mot sera refusé.`);
+  }
+  _nbHorsReliquat = out.size;
+  return out;
+}
+
 /** Clé des règles à afficher : Joker payant d'avant la règle du reliquat → ancien texte. */
 function cleRegles(cle) {
   return cle === "jokerpayant" && state.prepared && !state.prepared.moves?.[0]?._jokerReliquat ? "jokerpayant_ancien" : cle;
