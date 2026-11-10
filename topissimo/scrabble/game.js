@@ -3379,7 +3379,9 @@ function nextMove() {
     // Fin : dernière voyelle OU dernière consonne posée → fin, SAUF s'il reste un
     // joker (comble n'importe quel type) ou un Y (peut servir de consonne quand
     // c'est la dernière consonne qui manque). On continue tant qu'il n'est pas posé.
-    const jokersInPool = (state.bag["?"] || 0)
+    // Joker payant (règle du reliquat) : le joker ne fait que doubler une lettre restante,
+    // il ne remplace donc pas une voyelle ou une consonne manquante → il ne retarde pas la fin.
+    const jokersInPool = jokerReliquatActif() ? 0 : (state.bag["?"] || 0)
       + remainingRackLetters.filter(l => l === "?").length;
     const ysInPool = (state.bag["Y"] || 0)
       + remainingRackLetters.filter(l => l === "Y").length;

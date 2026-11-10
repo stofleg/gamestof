@@ -119,7 +119,9 @@ export function generateGame(dict, options = {}, onProgress = null) {
       // reste un joker (qui comble n'importe quel type) ou un Y (qui peut servir de
       // CONSONNE quand c'est la dernière consonne qui manque). La partie continue
       // tant que ce joker / ce Y n'est pas posé.
-      const jokersInPool = (bag["?"] || 0) + rack.filter(t => t.letter === "?").length;
+      // Joker payant (règle du reliquat) : le joker ne remplace pas une voyelle ou une
+      // consonne manquante (il double une lettre restante) → il ne retarde pas la fin.
+      const jokersInPool = mode.jokerReliquat ? 0 : (bag["?"] || 0) + rack.filter(t => t.letter === "?").length;
       const ysInPool = (bag["Y"] || 0) + rack.filter(t => t.letter === "Y").length;
       if (jokersInPool === 0 && ysInPool === 0) break;
     }
