@@ -43,7 +43,7 @@ export function icosaedre({ taille = 200, angles = null, police = "Georgia, 'Tim
   const tourne = angles ? (p => rot(p, angles.ax, angles.ay, angles.az)) : deFace(0);
   const V = V0.map(tourne);
   const P = V.map(([x, y]) => [taille / 2 + x * R, taille / 2 - y * R]);
-  const L = norm([-0.3, 0.4, 0.87]);   // lumière en haut à gauche, surtout de face
+  const L = norm([-0.12, 0.16, 0.98]);   // lumière de face (à peine en haut à gauche) : la face de devant est la plus claire
   let faces = F.map((f, idx) => {
     let [a, b, c] = f.map(i => V[i]);
     let n = cross(sub(b, a), sub(c, a));
@@ -58,9 +58,13 @@ export function icosaedre({ taille = 200, angles = null, police = "Georgia, 'Tim
 
   // Couleur EXACTE des jetons (game.css, .tile) : même dégradé, mêmes variables de thème
   // (--tile-bg, --tile-bg-2, --tile-text) ; à défaut (SVG hors de la page), les valeurs du thème classique.
-  const xs = P.map(p => p[0]), ys = P.map(p => p[1]);
-  let svg = `<defs><linearGradient id="${id}-tuile" gradientUnits="userSpaceOnUse" x1="${Math.min(...xs).toFixed(1)}" y1="${Math.min(...ys).toFixed(1)}" x2="${Math.max(...xs).toFixed(1)}" y2="${Math.max(...ys).toFixed(1)}">`
-    + `<stop offset="0" style="stop-color:#fce8a8"/><stop offset="0.5" style="stop-color:var(--tile-bg, #f5d97a)"/><stop offset="1" style="stop-color:var(--tile-bg-2, #e8c548)"/></linearGradient></defs>`;
+  // Dégradé rayonnant depuis la face de devant : la teinte la plus claire au centre du dé
+  // (face de devant), puis la couleur du jeton, puis sa teinte foncée vers les bords.
+  const devant = faces.reduce((a, b) => (b.n[2] > a.n[2] ? b : a));
+  const cd = devant.f.map(i => P[i]).reduce((a, p) => [a[0] + p[0] / 3, a[1] + p[1] / 3], [0, 0]);
+  const rayon = Math.max(...P.map(p => Math.hypot(p[0] - cd[0], p[1] - cd[1])));
+  let svg = `<defs><radialGradient id="${id}-tuile" gradientUnits="userSpaceOnUse" cx="${cd[0].toFixed(1)}" cy="${cd[1].toFixed(1)}" r="${rayon.toFixed(1)}">`
+    + `<stop offset="0" style="stop-color:#fce8a8"/><stop offset="0.45" style="stop-color:var(--tile-bg, #f5d97a)"/><stop offset="1" style="stop-color:var(--tile-bg-2, #e8c548)"/></radialGradient></defs>`;
   const lumMax = Math.max(...faces.map(o => Math.max(0, o.n[0] * L[0] + o.n[1] * L[1] + o.n[2] * L[2])));
   for (const o of faces) {
     const pts = o.f.map(i => P[i]);

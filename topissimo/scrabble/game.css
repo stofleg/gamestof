@@ -2224,7 +2224,8 @@ body.theme-topsping #btnNextGame { display: none !important; }
   background: #d62828; color: #fff; font: 800 calc(var(--cell-size) * .3)/1.15em Inter, sans-serif; text-align: center; z-index: 21; }
 
 /* Lettre au choix : le dé à 20 faces dans le chevalet (pas de fond de jeton) */
-.rack .tile.de-choix { background: none !important; box-shadow: none !important; border: 0 !important; padding: 0; display: flex; align-items: center; justify-content: center; }
+.rack .tile.de-choix { background: none !important; box-shadow: none !important; border: 0 !important; padding: 0; display: flex; align-items: center; justify-content: flex-start;
+  width: auto !important; flex: 0 0 auto !important; }   /* case réduite à la largeur du dé : collé aux autres lettres du tirage */
 /* dé (avec son ombre) à la hauteur exacte d'un jeton, centré dans sa case (cadre SVG ajusté) */
 .rack .tile.de-choix svg { height: 100%; width: auto; max-width: 100%; display: block; }
 .rack .tile.de-choix.used { opacity: .3; }
