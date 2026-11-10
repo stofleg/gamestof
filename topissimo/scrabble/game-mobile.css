@@ -531,3 +531,10 @@
   body.theme-halloween.avec-clavier :is(.hw-son, .hw-legende) { display: none; }
   body.theme-halloween.avec-clavier .clavier-consonnes { margin-bottom: 4px; }
 }
+
+/* Tirage complétif sur téléphone : le dé est plus étroit qu'une colonne de jeton → au lieu de
+   la grille de colonnes égales, une rangée CENTRÉE (jetons de même taille, dé collé aux lettres). */
+@media (max-width: 700px) {
+  .rack:has(.de-choix) { display: flex !important; justify-content: center; }
+  .rack:has(.de-choix) .tile:not(.de-choix) { width: calc((100vw - 6px) / var(--rack-size, 7)) !important; flex: none !important; }
+}
