@@ -11,7 +11,7 @@ import {
   emptyBoard, LETTER_BAG, drawForDuplicate, applyMove,
   bagTotalVowels, bagTotalConsonants, GAME_MODES, layoutPourMode, snakeEndpointsAfter, gigogneRackSize,
   bagFor, valuesFor, setLetterValues, LETTER_VALUE, isCrossingCell, wordHiddenCount,
-  drawVowelRack, MARATHON_GAMES, consonnesDisponibles, jokersDisponibles,
+  drawVowelRack, MARATHON_GAMES, consonnesDisponibles, jokersDisponibles, tireOeufs,
 } from "./engine.js?v=483";
 import { findTopRanked, findTop, snakeBestTop } from "./topfinder.js?v=483";
 import { decoupeRegions } from "./puzzle-pieces.js?v=483";
@@ -68,7 +68,7 @@ export function generateGame(dict, options = {}, onProgress = null) {
   const infJoker = !!mode.infJoker;           // mode « Double joker infini »
   const layout = layoutPourMode(modeKey);   // « Grille random » (tirée au sort) ou « Grille cœur » (fixe)
   // Le joker payant est une partie joker (jokers retirés du sac + recyclés).
-  const withJoker = !!options.withJoker || jokerPays;
+  const withJoker = !!options.withJoker || jokerPays || !!mode.jokerInfini;   // Pâques : joker imposé
 
   // « À l'anglaise » : sac + valeurs anglais (table active pour le scoring).
   setLetterValues(valuesFor(modeKey));
@@ -302,7 +302,7 @@ export function generateGame(dict, options = {}, onProgress = null) {
         stored.blanks = stored.blanks.filter(b => b !== jokerWordIdx);
         // joker recyclé → spareJokers inchangé
       } else {
-        spareJokers--;  // joker posé définitivement, lettre épuisée du sac
+        if (!mode.jokerInfini) spareJokers--;  // joker posé définitivement, lettre épuisée du sac (Pâques : jokers illimités)
       }
     }
 
@@ -332,6 +332,8 @@ export function generateGame(dict, options = {}, onProgress = null) {
   // Grille puzzle (Jigsaw) : la grille finale est découpée en pièces une fois pour
   // toutes, pour que tous les joueurs du tournoi aient exactement le même puzzle.
   if (mode.page === "puzzle.html" && moves.length) moves[0]._puzzle = decoupeRegions();
+  // Pâques : cases des œufs cachés, les mêmes pour tous les joueurs de la partie.
+  if (mode.oeufs && moves.length) moves[0]._oeufs = tireOeufs(mode.oeufs);
   // On expose aussi l'état final du sac et du chevalet pour debug/vérification
   const finalRack = rack.map(t => t.letter);
 

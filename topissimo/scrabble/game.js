@@ -29,6 +29,7 @@ import {
   bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName, modeNomOrigine, ecranMobile, MSG_MORT_MOBILE, layoutPourMode, GRILLE_COEUR_FOND, snakeEndpointsAfter, sablierTime, gigogneRackSize,
   setLetterValues, letterValue, valuesFor, bagFor, isCrossingCell, wordHiddenCount,
   drawVowelRack, VOWELS_NO_Y, MARATHON_TARGET, MARATHON_GAMES, consonnesDisponibles, CONSONANTS_FR, jokersDisponibles,
+  tireOeufs, POINTS_OEUF,
 } from "./engine.js?v=483";
 import { Dictionary } from "./dictionary.js?v=483";
 import * as invasion from "./araignees.js?v=483";
@@ -468,6 +469,10 @@ function renderBoard() {
       else if (bonus === "." && currentMode().fixedBoard && GRILLE_COEUR_FOND[r][c] === "x") cls.push("case-noire");
       const isCursor = state.cursor && state.cursor.row === r && state.cursor.col === c;
       if (isCursor) cls.push("cursor", state.cursor.dir === "H" ? "dir-h" : "dir-v");
+      // Pâques : cases déjà parcourues par les mots du joueur, et œufs trouvés.
+      const visitee = !review.active && state.visitees?.has(`${r},${c}`);
+      const oeuf = !visitee ? "" : state.oeufsTrouves.has(`${r},${c}`)
+        ? `<span class="oeuf-trouve" aria-label="œuf trouvé">🥚</span>` : `<span class="trace" aria-hidden="true"></span>`;
       const isInvalidCell = state.invalidCells && state.invalidCells.some(p => p.r === r && p.c === c);
       let tileHtmlStr = "";
       if (tile) {
@@ -492,7 +497,7 @@ function renderBoard() {
         cls.push("has-badge");   // remonte la case au-dessus du curseur voisin
       }
       const annot = renderAnnotations(r, c);
-      html += `<td class="${cls.join(" ")}" data-r="${r}" data-c="${c}">${tileHtmlStr}${badge}${annot}</td>`;
+      html += `<td class="${cls.join(" ")}" data-r="${r}" data-c="${c}">${tileHtmlStr}${badge}${annot}${oeuf}</td>`;
     }
     if (showCoords) html += `<td class="coord">${ROW_LETTERS[r]}</td>`;
     html += "</tr>";
@@ -2415,6 +2420,7 @@ function validateDuplicate(move, mode) {
   // Mot légal retenu (remplace le précédent). Les jetons restent visibles ; le
   // joueur peut annuler (Échap / ✕) pour proposer un autre mot.
   state._dupLast = { word: move.word, score: result.score, move, invalid: false };
+  paquesDecouvre(move);
   notePlaced(result.placed.length);
   renderBoard(); renderRack();
   showFeedback("info", `<strong>${wLink(move.word)}</strong> — ${result.score} pts retenu${wait}`, "");
@@ -2616,6 +2622,7 @@ function validate() {
     const sameWord = allMoves.filter(c => c.move.word === move.word);
     if (sameWord.length) {
       const best = sameWord.reduce((a, b) => (b.score > a.score ? b : a));
+      paquesDecouvre(best.move);   // Pâques : œufs sur les cases du mot (placement retenu)
       if (best.score >= topScore) {
         // Mot du top ou isotop (même score que le top) → validé, on enchaîne.
         notePlaced(state.pending.length);
@@ -2682,6 +2689,7 @@ function validate() {
     flashInvalidWord("Ce coup ne continue pas le serpent 🐍 — non accepté", result.placed || []);
     return;
   }
+  paquesDecouvre(move);   // Pâques : tout mot valide découvre les œufs des cases qu'il couvre
   // Mode Top/sous-top : on cherche le top ET le sous-top (gestion dédiée).
   if (mode.dualTop) { handleDualValidate(move, result); return; }
   // Comparer au top
@@ -2997,7 +3005,7 @@ function placeTopAndAdvance(playerScore, playedWord = null, playedScore = null, 
       }
       // joker recyclé → state.spareJokers inchangé
     } else {
-      state.spareJokers--;  // joker posé définitivement, lettre épuisée du sac
+      if (!currentMode().jokerInfini) state.spareJokers--;  // joker posé définitivement, lettre épuisée du sac (Pâques : illimités)
     }
   }
   // En mode pré-tiré/puzzle, le chevalet est réinitialisé depuis les données
@@ -3020,8 +3028,10 @@ function placeTopAndAdvance(playerScore, playedWord = null, playedScore = null, 
 
   // Score. En Top/sous-top, la référence (le « maximum ») est top + sous-top.
   const refScore = (currentMode().dualTop && state.subTop) ? (tm.score + state.subTop.score) : tm.score;
-  state.totalScore += playerScore;
-  state.sumNeg += (playerScore - refScore);
+  const bonusOeufs = POINTS_OEUF * (state.oeufsCoup || 0);   // Pâques : œufs trouvés pendant ce coup
+  state.oeufsCoup = 0;
+  state.totalScore += playerScore + bonusOeufs;
+  state.sumNeg += (playerScore - refScore) + bonusOeufs;
   // Nettoyage. On NE supprime PAS le curseur : il reste visible pour permettre
   // une navigation 100% clavier sans avoir à recliquer après chaque validation.
   // S'il atterrit sur une case maintenant occupée, on l'avance après nextMove.
@@ -3145,6 +3155,11 @@ function recordMove({ status, playerScore, playedWord = null, playedMove = null,
   });
   // Marathon : ce coup incrémente le streak s'il a été topé, sinon le remet à zéro.
   if (currentMode().marathon && state.marathon) marathonRegister(status === "top");
+  // Pâques : œufs découverts pendant ce coup → +5 chacun (score du joueur et négatif).
+  if (state.oeufsCoup) {
+    const h = state.history[state.history.length - 1], bonus = POINTS_OEUF * state.oeufsCoup;
+    h.oeufs = state.oeufsCoup; h.playerScore += bonus; h.neg += bonus;
+  }
   // TopSping : top trouvé = point pour le joueur, sinon point pour le top.
   if (state.topsping && state.prepared) tsApresCoup(status === "top", state.history[state.history.length - 1]);
 }
@@ -3517,7 +3532,7 @@ function computeTop() {
   return true;
 }
 // Joker effectif : mode joker classique OU joker payant (qui est aussi une partie joker).
-function effJoker() { return state.settings.withJoker || !!currentMode().jokerPays; }
+function effJoker() { return state.settings.withJoker || !!currentMode().jokerPays || !!currentMode().jokerInfini; }
 
 // Axe « mode de jeu ». N'a de sens qu'en ENTRAÎNEMENT : en tournoi/puzzle/review,
 // on reste en logique topping historique.
@@ -6291,7 +6306,7 @@ async function loadPreparedGame(id) {
   state.settings.timePerMove = data.time_per_move;
   // Re-init du sac/jokers (initGame n'avait pas encore connaissance du mode pré-tiré)
   state.bag = { ...bagFor(state.settings.gameMode) };
-  if (state.settings.withJoker) {
+  if (effJoker()) {
     state.spareJokers = state.bag["?"] || 0;
     state.bag["?"] = 0;
   } else {
@@ -6417,6 +6432,7 @@ function startGame() {
     state.marathon = null;
   }
   updateMarathonHUD();
+  paquesInit();
   startChrono();
   if (partieMortEnCours()) saveTrainingState();   // tournoi de la Mort : la partie est « commencée »
   // Invasion : les araignées arrivent dès le début ; plateau recouvert = perdu.
@@ -6426,6 +6442,81 @@ function startGame() {
     endGame();
   });
   nextMove();
+}
+
+// ===== Pâques : œufs cachés dans la grille =====
+// 15 cases cachent un œuf (les E ont disparu du sac). Tout mot valide tapé par le joueur
+// (top ou simple essai) découvre les œufs des cases qu'il couvre, lettres déjà posées
+// comprises : +5 points par œuf, ajoutés au coup en cours (score et négatif). Les cases
+// déjà parcourues restent marquées, pour chercher des mots qui passent ailleurs.
+// Partie de tournoi : cases des œufs fixées à la génération (moves[0]._oeufs).
+function paquesInit() {
+  const n = currentMode().oeufs;
+  if (!n) { state.oeufs = null; state.visitees = null; state.oeufsTrouves = null; state.oeufsCoup = 0; renderPanier(); return; }
+  const fixes = state.prepared?.moves?.[0]?._oeufs;
+  state.oeufs = Array.isArray(fixes) ? fixes.slice() : tireOeufs(n);
+  state.visitees = new Set();
+  state.oeufsTrouves = new Set();
+  state.oeufsCoup = 0;
+  renderPanier();
+  paquesExposeTests();
+}
+function paquesExposeTests() {
+  // Lecture seule, pour les tests automatiques.
+  window.__paques = { oeufs: () => state.oeufs, trouves: () => [...state.oeufsTrouves], visitees: () => [...state.visitees],
+    top: () => state.topMove && { ...state.topMove.move, score: state.topMove.score }, plateau: () => state.board, curseur: () => state.cursor, rack: () => state.rack.map(t => t.letter).join(""),
+    score: () => ({ total: state.totalScore, neg: state.sumNeg }), historique: () => state.history, coup: () => state.moveNo };
+}
+function paquesRestaure(s) {
+  if (!s.oeufs) return;
+  state.oeufs = s.oeufs;
+  state.visitees = new Set(s.visitees || []);
+  state.oeufsTrouves = new Set(s.oeufsTrouves || []);
+  state.oeufsCoup = s.oeufsCoup || 0;
+  renderPanier();
+  paquesExposeTests();
+}
+/** Cases couvertes par le mot (lettres déjà posées aux deux bouts comprises). */
+function casesDuMot(move) {
+  const dr = move.dir === "V" ? 1 : 0, dc = move.dir === "H" ? 1 : 0, b = state.board;
+  const libre = (r, c) => r < 0 || c < 0 || r >= BOARD_SIZE || c >= BOARD_SIZE || !b[r][c];
+  let r = move.row, c = move.col;
+  while (!libre(r - dr, c - dc)) { r -= dr; c -= dc; }
+  const cases = [];
+  const finR = move.row + (move.word.length - 1) * dr, finC = move.col + (move.word.length - 1) * dc;
+  while (r <= finR && c <= finC) { cases.push(`${r},${c}`); r += dr; c += dc; }
+  while (!libre(r, c)) { cases.push(`${r},${c}`); r += dr; c += dc; }
+  return cases;
+}
+function paquesDecouvre(move) {
+  if (!state.oeufs || !move || state.chronoFinal != null) return;
+  const oeufs = new Set(state.oeufs);
+  let nouveaux = 0;
+  for (const k of casesDuMot(move)) {
+    state.visitees.add(k);
+    if (oeufs.has(k) && !state.oeufsTrouves.has(k)) { state.oeufsTrouves.add(k); nouveaux++; }
+  }
+  if (!nouveaux) return;
+  state.oeufsCoup = (state.oeufsCoup || 0) + nouveaux;
+  renderPanier();
+  let t = document.getElementById("paquesToast");
+  if (!t) { t = document.createElement("div"); t.id = "paquesToast"; t.setAttribute("role", "status"); document.body.appendChild(t); }
+  t.textContent = nouveaux > 1 ? `🥚 ${nouveaux} œufs trouvés ! +${POINTS_OEUF * nouveaux} pts` : `🥚 Œuf trouvé ! +${POINTS_OEUF} pts`;
+  t.classList.remove("visible"); void t.offsetWidth; t.classList.add("visible");
+  clearTimeout(t._minuteur); t._minuteur = setTimeout(() => t.classList.remove("visible"), 2200);
+}
+/** Panier : œufs trouvés / œufs cachés (à côté du titre). */
+function renderPanier() {
+  let el = document.getElementById("panierPaques");
+  if (!state.oeufs || review.active) { if (el) el.remove(); return; }
+  if (!el) {
+    el = document.createElement("span");
+    el.id = "panierPaques";
+    $("#gameTitle")?.after(el);
+  }
+  const n = state.oeufsTrouves.size;
+  el.title = `${n} œuf${n > 1 ? "s" : ""} trouvé${n > 1 ? "s" : ""} sur ${state.oeufs.length} (+${POINTS_OEUF} pts chacun)`;
+  el.innerHTML = `🧺 <b>${n}</b><small>/${state.oeufs.length}</small>`;
 }
 
 // ===== TopSping : tournoi façon Roland-Garros contre le top =====
@@ -6808,6 +6899,10 @@ function saveTrainingState() {
       lastPlaced: state.lastPlaced || [],
       hiddenCells: state.hiddenCells ? [...state.hiddenCells] : [],
       marathon: state.marathon || null,   // compteur de tops consécutifs (Marathon)
+      oeufs: state.oeufs || null,                                          // Pâques : cases des œufs,
+      visitees: state.visitees ? [...state.visitees] : null,               // cases parcourues,
+      oeufsTrouves: state.oeufsTrouves ? [...state.oeufsTrouves] : null,   // œufs trouvés
+      oeufsCoup: state.oeufsCoup || 0,
       bestAttempt: state.bestAttempt,
       settings: state.settings,
       chronoElapsed: state._pauseInfo?.elapsed ?? elapsedSeconds(),
@@ -6876,6 +6971,7 @@ function restorePausedTraining() {
     state.hiddenCells = new Set(s.hiddenCells || []);
     state.lastTopCells = s.lastTopCells || [];
     state.marathon = s.marathon || null;   // reprise du compteur Marathon
+    paquesRestaure(s);
     state.bestAttempt = s.bestAttempt || null;
     Object.assign(state.settings, s.settings || {});
     state.chronoPenalty = s.chronoPenalty || 0;
@@ -6978,6 +7074,7 @@ async function restorePausedPrepared(preparedId) {
     state.lastPlaced = s.lastPlaced || [];
     state.hiddenCells = new Set(s.hiddenCells || []);
     state.marathon = s.marathon || null;   // (prêt pour un futur Marathon en tournoi)
+    paquesRestaure(s);
     state.bestAttempt = s.bestAttempt || null;
     state.chronoPenalty = s.chronoPenalty || 0;
     state.started = true;

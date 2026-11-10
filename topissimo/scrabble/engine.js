@@ -37,7 +37,19 @@ let _activeValues = LETTER_VALUE;
 export function setLetterValues(table) { _activeValues = table || LETTER_VALUE; }
 export function letterValue(l) { return _activeValues[l] || 0; }
 // Sac / valeurs selon la formule.
-export function bagFor(modeKey) { return (GAME_MODES[modeKey] && GAME_MODES[modeKey].english) ? LETTER_BAG_EN : LETTER_BAG; }
+export function bagFor(modeKey) {
+  const m = GAME_MODES[modeKey];
+  if (m?.sansE) return { ...LETTER_BAG, E: 0 };   // Pâques : les E (œufs) ont disparu du sac
+  return (m && m.english) ? LETTER_BAG_EN : LETTER_BAG;
+}
+/** Pâques : `n` cases d'œufs cachés, tirées au hasard (hors étoile centrale), en "r,c". */
+export function tireOeufs(n) {
+  const cases = [];
+  for (let r = 0; r < 15; r++) for (let c = 0; c < 15; c++) if (r !== 7 || c !== 7) cases.push(`${r},${c}`);
+  for (let i = cases.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [cases[i], cases[j]] = [cases[j], cases[i]]; }
+  return cases.slice(0, n);
+}
+export const POINTS_OEUF = 5;
 export function valuesFor(modeKey) { return (GAME_MODES[modeKey] && GAME_MODES[modeKey].english) ? LETTER_VALUE_EN : LETTER_VALUE; }
 
 export const VOWELS = new Set(["A", "E", "I", "O", "U", "Y"]);
@@ -167,6 +179,12 @@ export const GAME_MODES = {
   // TopSping : tournoi façon Roland-Garros contre le top (game.js, section TopSping). Les
   // parties sont pré-générées (topissimo/topsping/<réserve>/), une formule par tour :
   // le mode n'est jamais proposé dans les menus (création du tournoi par stof, en SQL).
+  // Pâques : pas de E dans le sac, un joker sur chaque tirage (jokerInfini : un joker posé
+  // définitivement — en E, par exemple — est remplacé au tirage suivant), prime de 100 pour PÂQUES, et
+  // 15 œufs cachés dans la grille : un mot validé qui passe sur une case à œuf le
+  // découvre (+5 points). Le joueur voit les cases par lesquelles il est déjà passé.
+  paques: { label: "Pâques", rackSize: 7, maxPlayed: 7, bonuses: { 7: 50, mots: { PAQUES: 100 } },
+    defaultTime: 120, stofOnly: true, jokerInfini: true, sansE: true, oeufs: 15 },
   topsping: { label: "TopSping", rackSize: 7, maxPlayed: 7, bonuses: { 7: 50 },
     defaultTime: 40, stofOnly: true, hidden: true },
 };
