@@ -37,7 +37,7 @@ function deFace(k) {
 }
 
 /** `angles` : { ax, ay, az } pour une vue en biais ; par défaut, une face bien de face. */
-/** `serre` : cadre ajusté au dé, sans ombre portée (jeton du chevalet, calé comme les autres jetons). */
+/** `serre` : cadre ajusté au dé et à son ombre (jeton du chevalet, calé comme les autres jetons). */
 export function icosaedre({ taille = 200, angles = null, police = "Georgia, 'Times New Roman', serif", id = "ico", serre = false } = {}) {
   const R = taille * 0.47 / Math.hypot(1, PHI);
   const tourne = angles ? (p => rot(p, angles.ax, angles.ay, angles.az)) : deFace(0);
@@ -92,10 +92,14 @@ export function icosaedre({ taille = 200, angles = null, police = "Georgia, 'Tim
   }
   const label = 'role="img" aria-label="Dé du tirage complétif : ajoute la lettre de ton choix"';
   if (serre) {
-    // cadre = contour du dé (+ demi-trait), sans marge ni ombre
+    // cadre = contour du dé + son ombre portée juste dessous, sans autre marge
     const xs = P.map(p => p[0]), ys = P.map(p => p[1]), m = taille / 160;
-    const x0 = Math.min(...xs) - m, y0 = Math.min(...ys) - m, w = Math.max(...xs) - x0 + m, h = Math.max(...ys) - y0 + m;
-    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${x0.toFixed(2)} ${y0.toFixed(2)} ${w.toFixed(2)} ${h.toFixed(2)}" ${label}>${svg}</svg>`;
+    const gx = Math.min(...xs), dx = Math.max(...xs), hy = Math.min(...ys), by = Math.max(...ys), W = dx - gx;
+    const ocx = (gx + dx) / 2 + W * 0.04, ocy = by - W * 0.01, orx = W * 0.42, ory = W * 0.075;
+    const x0 = gx - m, y0 = hy - m, w = W + 2 * m, h = ocy + ory - y0;
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${x0.toFixed(2)} ${y0.toFixed(2)} ${w.toFixed(2)} ${h.toFixed(2)}" ${label}>
+<defs><radialGradient id="${id}-ombre" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#000" stop-opacity=".45"/><stop offset="1" stop-color="#000" stop-opacity="0"/></radialGradient></defs>
+<ellipse cx="${ocx.toFixed(2)}" cy="${ocy.toFixed(2)}" rx="${orx.toFixed(2)}" ry="${ory.toFixed(2)}" fill="url(#${id}-ombre)"/>${svg}</svg>`;
   }
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${taille} ${taille}" width="${taille}" height="${taille}" ${label}>
 <defs><radialGradient id="${id}-ombre" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#000" stop-opacity=".35"/><stop offset="1" stop-color="#000" stop-opacity="0"/></radialGradient></defs>
