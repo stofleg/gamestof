@@ -49,10 +49,9 @@ export const REGLES = {
   paques: {
     titre: "🐣 Pâques",
     points: [
-      "Les E (les œufs) ont disparu : <b>pas de E dans le sac</b>. En échange, <b>un joker sur chaque tirage</b>.",
+      "Les E (les œufs) ont disparu : <b>pas de E dans le sac</b>, et <b>le joker ne peut pas valoir E</b> non plus. C'est une partie joker : quand le vrai top utiliserait un joker en E, c'est le meilleur coup sans E qu'il faut trouver.",
       "<b>15 œufs sont cachés</b> dans la grille. Chaque mot valide que tu tapes (top ou simple essai) découvre les œufs des cases qu'il couvre : <b>+5 points par œuf</b> 🥚.",
       "Les cases déjà parcourues par tes mots sont marquées d'un point violet : cherche des mots qui passent ailleurs.",
-      "<b>Prime de 100 points</b> pour le mot <b>PÂQUES</b> (avec le joker en E).",
     ],
   },
   topsping: {

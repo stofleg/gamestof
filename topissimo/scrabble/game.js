@@ -3005,7 +3005,7 @@ function placeTopAndAdvance(playerScore, playedWord = null, playedScore = null, 
       }
       // joker recyclé → state.spareJokers inchangé
     } else {
-      if (!currentMode().jokerInfini) state.spareJokers--;  // joker posé définitivement, lettre épuisée du sac (Pâques : illimités)
+      state.spareJokers--;  // joker posé définitivement, lettre épuisée du sac
     }
   }
   // En mode pré-tiré/puzzle, le chevalet est réinitialisé depuis les données
@@ -3532,7 +3532,7 @@ function computeTop() {
   return true;
 }
 // Joker effectif : mode joker classique OU joker payant (qui est aussi une partie joker).
-function effJoker() { return state.settings.withJoker || !!currentMode().jokerPays || !!currentMode().jokerInfini; }
+function effJoker() { return state.settings.withJoker || !!currentMode().jokerPays || !!currentMode().jokerForce; }
 
 // Axe « mode de jeu ». N'a de sens qu'en ENTRAÎNEMENT : en tournoi/puzzle/review,
 // on reste en logique topping historique.

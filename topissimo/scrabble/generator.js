@@ -68,7 +68,7 @@ export function generateGame(dict, options = {}, onProgress = null) {
   const infJoker = !!mode.infJoker;           // mode « Double joker infini »
   const layout = layoutPourMode(modeKey);   // « Grille random » (tirée au sort) ou « Grille cœur » (fixe)
   // Le joker payant est une partie joker (jokers retirés du sac + recyclés).
-  const withJoker = !!options.withJoker || jokerPays || !!mode.jokerInfini;   // Pâques : joker imposé
+  const withJoker = !!options.withJoker || jokerPays || !!mode.jokerForce;   // Pâques : partie joker imposée
 
   // « À l'anglaise » : sac + valeurs anglais (table active pour le scoring).
   setLetterValues(valuesFor(modeKey));
@@ -302,7 +302,7 @@ export function generateGame(dict, options = {}, onProgress = null) {
         stored.blanks = stored.blanks.filter(b => b !== jokerWordIdx);
         // joker recyclé → spareJokers inchangé
       } else {
-        if (!mode.jokerInfini) spareJokers--;  // joker posé définitivement, lettre épuisée du sac (Pâques : jokers illimités)
+        spareJokers--;  // joker posé définitivement, lettre épuisée du sac
       }
     }
 

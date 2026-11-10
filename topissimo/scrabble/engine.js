@@ -179,12 +179,14 @@ export const GAME_MODES = {
   // TopSping : tournoi façon Roland-Garros contre le top (game.js, section TopSping). Les
   // parties sont pré-générées (topissimo/topsping/<réserve>/), une formule par tour :
   // le mode n'est jamais proposé dans les menus (création du tournoi par stof, en SQL).
-  // Pâques : pas de E dans le sac, un joker sur chaque tirage (jokerInfini : un joker posé
-  // définitivement — en E, par exemple — est remplacé au tirage suivant), prime de 100 pour PÂQUES, et
-  // 15 œufs cachés dans la grille : un mot validé qui passe sur une case à œuf le
-  // découvre (+5 points). Le joueur voit les cases par lesquelles il est déjà passé.
-  paques: { label: "Pâques", rackSize: 7, maxPlayed: 7, bonuses: { 7: 50, mots: { PAQUES: 100 } },
-    defaultTime: 120, stofOnly: true, jokerInfini: true, sansE: true, oeufs: 15 },
+  // Pâques : pas de E dans le sac, partie joker (jokerForce) où le joker ne peut pas valoir
+  // E non plus (bonuses.jokerSauf : la règle est portée par la table de primes pour suivre
+  // TOUTES les validations et recherches de top, qui passent par scoreMove) — quand le vrai
+  // top utiliserait un joker en E, c'est le meilleur coup sans E qu'il faut trouver. Et
+  // 15 œufs cachés dans la grille : un mot validé qui passe sur une case à œuf le découvre
+  // (+5 points). Le joueur voit les cases par lesquelles il est déjà passé.
+  paques: { label: "Pâques", rackSize: 7, maxPlayed: 7, bonuses: { 7: 50, jokerSauf: "E" },
+    defaultTime: 120, stofOnly: true, jokerForce: true, sansE: true, oeufs: 15 },
   topsping: { label: "TopSping", rackSize: 7, maxPlayed: 7, bonuses: { 7: 50 },
     defaultTime: 40, stofOnly: true, hidden: true },
 };
@@ -584,6 +586,12 @@ export function scoreMove(board, move, dict, opts = {}) {
   if (placed.length === 0) {
     errors.push("Aucune lettre nouvelle posée");
     return { score: 0, words: [], errors };
+  }
+  // Pâques : le joker ne peut pas remplacer certaines lettres (le E).
+  const jokerInterdit = bonuses.jokerSauf && placed.find(p => p.isBlank && bonuses.jokerSauf.includes(p.letter));
+  if (jokerInterdit) {
+    errors.push(`Le joker ne peut pas remplacer la lettre ${jokerInterdit.letter}`);
+    return { score: 0, words: [], errors, invalidCells: [{ r: jokerInterdit.r, c: jokerInterdit.c }] };
   }
 
   // 2) Vérifier la contiguïté : 1er coup doit passer par le centre,

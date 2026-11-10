@@ -1635,6 +1635,7 @@ function extend(ctx) {
     if (tile === "?") {
       for (let code = 65; code <= 90; code++) {
         const L = String.fromCharCode(code);
+        if (ctx.bonuses?.jokerSauf?.includes(L)) continue;   // Pâques : joker jamais en E
         if (tried.has("?" + L)) continue;
         tried.add("?" + L);
         if (!crossWordOk(board, r, c, L, dir, dict)) continue;
