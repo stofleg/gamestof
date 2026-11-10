@@ -194,6 +194,7 @@ export function generateGame(dict, options = {}, onProgress = null) {
             bonuses: mode.bonuses,
             preserveJoker: withJoker && spareJokers > 0,
             jokerPays,
+            jokerReliquat: !!mode.jokerReliquat,
             forceDir,
             layout,
           });
@@ -334,6 +335,8 @@ export function generateGame(dict, options = {}, onProgress = null) {
   if (mode.page === "puzzle.html" && moves.length) moves[0]._puzzle = decoupeRegions();
   // Pâques : cases des œufs cachés, les mêmes pour tous les joueurs de la partie.
   if (mode.oeufs && moves.length) moves[0]._oeufs = tireOeufs(mode.oeufs);
+  // Joker payant : partie générée avec la règle « joker = lettre du reliquat ».
+  if (mode.jokerReliquat && moves.length) moves[0]._jokerReliquat = true;
   // On expose aussi l'état final du sac et du chevalet pour debug/vérification
   const finalRack = rack.map(t => t.letter);
 

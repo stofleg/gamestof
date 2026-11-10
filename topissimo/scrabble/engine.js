@@ -50,6 +50,19 @@ export function tireOeufs(n) {
   return cases.slice(0, n);
 }
 export const POINTS_OEUF = 5;
+
+/** Joker payant : le joker ne peut remplacer qu'une lettre du reliquat. Renvoie la première
+ *  lettre de joker absente du reliquat (lettres du chevalet non jouées), ou null. */
+export function jokerHorsReliquat(move, reliquat) {
+  const reste = {};
+  for (const L of reliquat) if (L !== "?") reste[L] = (reste[L] || 0) + 1;
+  for (const i of move.blanks || []) {
+    const L = move.word[i];
+    if (!reste[L]) return L;
+    reste[L]--;
+  }
+  return null;
+}
 export function valuesFor(modeKey) { return (GAME_MODES[modeKey] && GAME_MODES[modeKey].english) ? LETTER_VALUE_EN : LETTER_VALUE; }
 
 export const VOWELS = new Set(["A", "E", "I", "O", "U", "Y"]);
@@ -111,8 +124,11 @@ export const GAME_MODES = {
     defaultTime: 240, minVowels: 4, stofOnly: true, hidden: true },
   // Joker payant : partie joker classique, mais le joker vaut les points de la
   // lettre qu'il représente (le top est calculé en testant chaque lettre possible).
+  // jokerReliquat : le joker ne peut remplacer qu'une lettre du reliquat (lettres restées
+  // sur le chevalet après le coup). Parties de tournoi : seulement celles générées avec
+  // cette règle (moves[0]._jokerReliquat) — les plus anciennes gardent la règle d'origine.
   jokerpayant: { label: "Joker payant", rackSize: 7, maxPlayed: 7, bonuses: { 7: 50 },
-    defaultTime: 120, stofOnly: true, jokerPays: true },
+    defaultTime: 120, stofOnly: true, jokerPays: true, jokerReliquat: true },
   // Horizontal/Vertical : top horizontal imposé au coup 1, vertical au 2, etc.
   horizvert: { label: "Horizontal/Vertical", rackSize: 7, maxPlayed: 7, bonuses: { 7: 50 },
     defaultTime: 120, stofOnly: true, alternateDir: true },

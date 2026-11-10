@@ -29,7 +29,7 @@ import {
   bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName, modeNomOrigine, ecranMobile, MSG_MORT_MOBILE, layoutPourMode, GRILLE_COEUR_FOND, snakeEndpointsAfter, sablierTime, gigogneRackSize,
   setLetterValues, letterValue, valuesFor, bagFor, isCrossingCell, wordHiddenCount,
   drawVowelRack, VOWELS_NO_Y, MARATHON_TARGET, MARATHON_GAMES, consonnesDisponibles, CONSONANTS_FR, jokersDisponibles,
-  tireOeufs, POINTS_OEUF,
+  tireOeufs, POINTS_OEUF, jokerHorsReliquat,
 } from "./engine.js?v=483";
 import { Dictionary } from "./dictionary.js?v=483";
 import * as invasion from "./araignees.js?v=483";
@@ -2433,7 +2433,7 @@ function topSolutions() {
   const rackLetters = state.rack.map(t => t.letter);
   const ranked = rankIsotops(state.board, rackLetters, state.dict, state.bag, {
     maxTilesUsed: mode.maxPlayed, bonuses: mode.bonuses,
-    jokerPays: mode.jokerPays, layout: state.boardLayout,
+    jokerPays: mode.jokerPays, layout: state.boardLayout, jokerReliquat: jokerReliquatActif(),
     preserveJoker: effJoker() && state.spareJokers > 0, moveNo: state.moveNo,
   });
   const seen = new Set();
@@ -2596,6 +2596,16 @@ function validate() {
       return;
     }
   }
+  // Joker payant : le joker ne peut valoir qu'une lettre restée sur le chevalet (reliquat).
+  if (jokerReliquatActif() && move.blanks?.length) {
+    const reliquat = state.rack.filter(t => !t.used).map(t => t.letter);
+    const L = jokerHorsReliquat(move, reliquat);
+    if (L) {
+      flashInvalidWord(`Le joker ne peut remplacer qu'une lettre du reliquat : pas de ${L} parmi les lettres qui te restent.`,
+        state.pending.filter(p => p.isBlank).map(p => ({ r: p.row, c: p.col })));
+      return;
+    }
+  }
   // ===== Mode DUPLICATE : on ne révèle PAS le top, on ne valide PAS le coup
   // immédiatement. On retient le dernier mot validé (son score réel à l'endroit
   // posé) ; le passage au coup suivant se fait à la fin du chrono. =====
@@ -2615,7 +2625,7 @@ function validate() {
     const rackLetters = state.rack.map(t => t.letter);
     const allMoves = findTop(state.board, rackLetters, state.dict, {
       all: true, maxTilesUsed: mode.maxPlayed, bonuses: mode.bonuses,
-      jokerPays: mode.jokerPays, layout: state.boardLayout, freeCons: mode.voyelles,
+      jokerPays: mode.jokerPays, layout: state.boardLayout, freeCons: mode.voyelles, jokerReliquat: jokerReliquatActif(),
       consAvail: consonnesLimitees() ? consonnesDisponibles(state.board) : null,
       jokersAvail: jokersDisponibles(state.board),
     }) || [];
@@ -3506,7 +3516,7 @@ function computeTop() {
     maxTilesUsed: maxPlayedNow(),
     bonuses: mode.bonuses,
     preserveJoker: effJoker() && state.spareJokers > 0,
-    jokerPays, forceDir, layout,
+    jokerPays, forceDir, layout, jokerReliquat: jokerReliquatActif(),
   });
   // H/V : si aucun coup dans la direction imposée (rare), on retombe sans contrainte
   // pour ne pas figer l'entraînement.
@@ -3532,6 +3542,16 @@ function computeTop() {
   return true;
 }
 // Joker effectif : mode joker classique OU joker payant (qui est aussi une partie joker).
+// Joker payant : le joker ne peut remplacer qu'une lettre du reliquat. En tournoi, seulement
+// pour les parties générées avec cette règle (les anciennes gardent la règle d'origine).
+function jokerReliquatActif() {
+  if (!currentMode().jokerReliquat) return false;
+  return state.prepared ? !!state.prepared.moves?.[0]?._jokerReliquat : true;
+}
+/** Clé des règles à afficher : Joker payant d'avant la règle du reliquat → ancien texte. */
+function cleRegles(cle) {
+  return cle === "jokerpayant" && state.prepared && !state.prepared.moves?.[0]?._jokerReliquat ? "jokerpayant_ancien" : cle;
+}
 function effJoker() { return state.settings.withJoker || !!currentMode().jokerPays || !!currentMode().jokerForce; }
 
 // Axe « mode de jeu ». N'a de sens qu'en ENTRAÎNEMENT : en tournoi/puzzle/review,
@@ -4681,7 +4701,7 @@ async function initGame() {
     reglesVues.add(cleMode);
     const tid = tournoiMortId || TOURNAMENT_ID;
     const retour = PUBLIC_EVENT ? "../halloween/" : `../index.html${tid ? `#tid=${tid}` : ""}`;
-    afficheRegles(cleMode, titresMort ? nomFormule(cleMode, false) : null, titresMort ? modeNomOrigine(cleMode) : null, retour, "J'ai compris");
+    afficheRegles(cleRegles(cleMode), titresMort ? nomFormule(cleMode, false) : null, titresMort ? modeNomOrigine(cleMode) : null, retour, "J'ai compris");
   }
 }
 
@@ -5977,6 +5997,7 @@ function renderReviewSolutions(idx) {
       bonuses: GAME_MODES[review.game.mode]?.bonuses || { 7: 50 },
       maxTilesUsed: GAME_MODES[review.game.mode]?.maxPlayed || 7,
       jokerPays: !!GAME_MODES[review.game.mode]?.jokerPays,
+      jokerReliquat: !!GAME_MODES[review.game.mode]?.jokerReliquat && !!review.game.moves?.[0]?._jokerReliquat,
       layout: state.boardLayout,
     }) || [];
     // Au 1er coup, on ne joue jamais verticalement en duplicate. (En review d'un
@@ -6392,7 +6413,7 @@ function startGame() {
   if (REGLES[cleMode] && !reglesVues.has(cleMode) && !currentMode().page) {
     reglesVues.add(cleMode);
     state._reglesOuvertes = true;
-    afficheRegles(cleMode, titresMort ? nomFormule(cleMode, false) : null, titresMort ? modeNomOrigine(cleMode) : null,
+    afficheRegles(cleRegles(cleMode), titresMort ? nomFormule(cleMode, false) : null, titresMort ? modeNomOrigine(cleMode) : null,
       titresMort ? (PUBLIC_EVENT ? "../halloween/" : `../index.html${tournoiMortId ? `#tid=${tournoiMortId}` : ""}`) : null).then(() => { state._reglesOuvertes = false; startGame(); });
     return;
   }
@@ -6452,7 +6473,7 @@ function startGame() {
 // Partie de tournoi : cases des œufs fixées à la génération (moves[0]._oeufs).
 function paquesInit() {
   const n = currentMode().oeufs;
-  if (!n) { state.oeufs = null; state.visitees = null; state.oeufsTrouves = null; state.oeufsCoup = 0; renderPanier(); return; }
+  if (!n) { state.oeufs = null; state.visitees = null; state.oeufsTrouves = null; state.oeufsCoup = 0; renderPanier(); paquesExposeTests(); return; }
   const fixes = state.prepared?.moves?.[0]?._oeufs;
   state.oeufs = Array.isArray(fixes) ? fixes.slice() : tireOeufs(n);
   state.visitees = new Set();
@@ -6463,7 +6484,7 @@ function paquesInit() {
 }
 function paquesExposeTests() {
   // Lecture seule, pour les tests automatiques.
-  window.__paques = { oeufs: () => state.oeufs, trouves: () => [...state.oeufsTrouves], visitees: () => [...state.visitees],
+  window.__paques = { oeufs: () => state.oeufs, trouves: () => [...(state.oeufsTrouves || [])], visitees: () => [...(state.visitees || [])],
     top: () => state.topMove && { ...state.topMove.move, score: state.topMove.score }, plateau: () => state.board, curseur: () => state.cursor, rack: () => state.rack.map(t => t.letter).join(""),
     score: () => ({ total: state.totalScore, neg: state.sumNeg }), historique: () => state.history, coup: () => state.moveNo };
 }

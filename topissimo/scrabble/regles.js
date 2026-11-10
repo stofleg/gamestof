@@ -18,10 +18,18 @@ export const REGLES = {
       "Prime de 50 pour 7 lettres posées, comme d'habitude.",
     ],
   },
+  // Joker payant des parties générées avant la règle du reliquat (tournoi de la Mort).
+  jokerpayant_ancien: {
+    titre: "Joker payant",
+    points: [
+      "Le joker <b>vaut les points de la lettre qu'il remplace</b> (un joker en Z rapporte 10).",
+    ],
+  },
   jokerpayant: {
     titre: "Joker payant",
     points: [
       "Le joker <b>vaut les points de la lettre qu'il remplace</b> (un joker en Z rapporte 10).",
+      "Le joker ne peut remplacer <b>qu'une lettre du reliquat</b> : une lettre qui reste sur ton chevalet après le coup.",
     ],
   },
   horizvert: {

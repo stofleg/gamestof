@@ -12,7 +12,7 @@
 //     aussi les mots croisés) et on garde le maximum.
 // ============================================================
 
-import { BOARD_SIZE, BOARD_BONUSES, CENTER, scoreMove, applyMove, LETTER_VALUE, VOWELS, VOWELS_NO_Y, CONSONANTS_FR, isSimplePath, isSnakeMove } from "./engine.js?v=483";
+import { BOARD_SIZE, BOARD_BONUSES, CENTER, scoreMove, applyMove, LETTER_VALUE, VOWELS, VOWELS_NO_Y, CONSONANTS_FR, isSimplePath, isSnakeMove, jokerHorsReliquat } from "./engine.js?v=483";
 
 // Un coup PROLONGE le serpent s'il s'accroche à une extrémité (isSnakeMove ; les
 // mots croisés latéraux sont permis), OU s'il garde un chemin simple (extension
@@ -1442,6 +1442,7 @@ export function findTop(board, rack, dict, opts = {}) {
           maxTilesUsed,
           bonuses,
           jokerPays: opts.jokerPays,
+          jokerReliquat: !!opts.jokerReliquat,   // Joker payant : joker = lettre du reliquat seulement
           layout: opts.layout,
           freeCons: opts.freeCons,
           freeConsBudget,
@@ -1538,7 +1539,8 @@ function extend(ctx) {
   const nextEmpty = offBoard || !board[r][c];
   if (anchorCovered && currentWord.length >= 2 && nextEmpty && dict.has(currentWord)) {
     const key = `${dir}|${startR},${startC}|${currentWord}|${blanksAt.join(",")}`;
-    if (!seenMoves.has(key)) {
+    // Joker payant : chaque joker doit valoir une lettre restée sur le chevalet (ctx.rack).
+    if (!seenMoves.has(key) && !(ctx.jokerReliquat && blanksAt.length && jokerHorsReliquat({ word: currentWord, blanks: blanksAt }, rack))) {
       seenMoves.add(key);
       const move = { word: currentWord, row: startR, col: startC, dir, blanks: [...blanksAt] };
       const sopts = { bonuses, jokerPays: ctx.jokerPays, layout: ctx.layout };
