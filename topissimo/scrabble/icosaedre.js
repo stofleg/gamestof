@@ -37,7 +37,8 @@ function deFace(k) {
 }
 
 /** `angles` : { ax, ay, az } pour une vue en biais ; par défaut, une face bien de face. */
-export function icosaedre({ taille = 200, angles = null, police = "Georgia, 'Times New Roman', serif", id = "ico" } = {}) {
+/** `serre` : cadre ajusté au dé, sans ombre portée (jeton du chevalet, calé comme les autres jetons). */
+export function icosaedre({ taille = 200, angles = null, police = "Georgia, 'Times New Roman', serif", id = "ico", serre = false } = {}) {
   const R = taille * 0.47 / Math.hypot(1, PHI);
   const tourne = angles ? (p => rot(p, angles.ax, angles.ay, angles.az)) : deFace(0);
   const V = V0.map(tourne);
@@ -89,7 +90,14 @@ export function icosaedre({ taille = 200, angles = null, police = "Georgia, 'Tim
     svg += `<text transform="${m}" x="-0.08" y="0.42" font-family="${police}" font-weight="700" font-size="1.2" text-anchor="middle" fill="#2b1d06" fill-opacity="${op}">${o.lettre}</text>`
       + `<text transform="${m}" x="0.5" y="0.62" font-family="Inter, Arial, sans-serif" font-weight="700" font-size="0.42" text-anchor="middle" fill="#2b1d06" fill-opacity="${op}">${LETTER_VALUE[o.lettre]}</text>`;
   }
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${taille} ${taille}" width="${taille}" height="${taille}" role="img" aria-label="Jeton icosaèdre : ajoute la lettre de ton choix">
+  const label = 'role="img" aria-label="Dé du tirage complétif : ajoute la lettre de ton choix"';
+  if (serre) {
+    // cadre = contour du dé (+ demi-trait), sans marge ni ombre
+    const xs = P.map(p => p[0]), ys = P.map(p => p[1]), m = taille / 160;
+    const x0 = Math.min(...xs) - m, y0 = Math.min(...ys) - m, w = Math.max(...xs) - x0 + m, h = Math.max(...ys) - y0 + m;
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${x0.toFixed(2)} ${y0.toFixed(2)} ${w.toFixed(2)} ${h.toFixed(2)}" ${label}>${svg}</svg>`;
+  }
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${taille} ${taille}" width="${taille}" height="${taille}" ${label}>
 <defs><radialGradient id="${id}-ombre" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#000" stop-opacity=".35"/><stop offset="1" stop-color="#000" stop-opacity="0"/></radialGradient></defs>
 <ellipse cx="${taille * 0.53}" cy="${taille * 0.93}" rx="${taille * 0.36}" ry="${taille * 0.06}" fill="url(#${id}-ombre)"/>
 ${svg}</svg>`;

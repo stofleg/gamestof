@@ -654,7 +654,7 @@ function renderRack() {
     if (blank) cls.push("blank");
     const draggable = t.used ? "" : `draggable="true" data-rack-id="${t.id}"`;
     // Tirage complétif : le dé à 20 faces (on choisit la lettre en la tapant, ou en touchant le dé).
-    if (t.letter === "!") return `<div class="tile de-choix${t.used ? " used" : ""}" ${draggable} title="Tirage complétif : tape une lettre absente de ton tirage, ou touche le dé">${icosaedre({ taille: 64, id: `de${t.id}` })}</div>`;
+    if (t.letter === "!") return `<div class="tile de-choix${t.used ? " used" : ""}" ${draggable} title="Tirage complétif : tape une lettre absente de ton tirage, ou touche le dé">${icosaedre({ taille: 64, id: `de${t.id}`, serre: true })}</div>`;
     return `<div class="${cls.join(" ")}" ${draggable}>${t.letter || ""}<span class="val">${val ?? ""}</span></div>`;
   }).join("");
   // Bind handlers DnD + tap (mobile-friendly : tap = place la lettre au curseur,
