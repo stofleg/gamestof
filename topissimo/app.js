@@ -3793,7 +3793,7 @@ const PG_SUPER_OPTIONS = `
     <option value="grillerandom">Grille random</option>
     <option value="grillecoeur">Grille cœur</option>
     <option value="paques">Pâques (œufs cachés)</option>
-    <option value="lettrechoix">Lettre au choix (dé)</option>
+    <option value="lettrechoix">Tirage complétif (dé)</option>
     <option value="invasion">Invasion</option>
     <option value="puzzle">Grille puzzle (Jigsaw — à placer en dernier)</option>
   </optgroup>`;

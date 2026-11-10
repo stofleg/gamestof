@@ -55,7 +55,7 @@ export const REGLES = {
     ],
   },
   lettrechoix: {
-    titre: "🎲 Lettre au choix",
+    titre: "🎲 Tirage complétif",
     points: [
       "On pioche <b>6 lettres</b> (joker compris ou non, au moins 1 voyelle et 1 consonne), et le dé 🎲 du chevalet te laisse <b>ajouter la lettre de ton choix</b> parmi les lettres restant au sac.",
       "Pour l'utiliser, tape simplement une lettre absente de ton tirage (ou touche le dé). C'est une vraie lettre : <b>sa valeur compte</b>.",

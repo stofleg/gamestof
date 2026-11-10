@@ -42,7 +42,7 @@ export function bagFor(modeKey) {
   if (m?.sansE) return { ...LETTER_BAG, E: 0 };   // Pâques : les E (œufs) ont disparu du sac
   return (m && m.english) ? LETTER_BAG_EN : LETTER_BAG;
 }
-/** Lettre au choix : lettres encore disponibles (sac = jeu complet − grille − chevalet). */
+/** Tirage complétif : lettres encore disponibles (sac = jeu complet − grille − chevalet). */
 export function lettresAuChoix(board, rackLetters, bag = LETTER_BAG) {
   const n = { ...bag };
   for (const row of board) for (const c of row) if (c && !c.isBlank) n[c.letter] = (n[c.letter] || 0) - 1;
@@ -202,11 +202,11 @@ export const GAME_MODES = {
   // TopSping : tournoi façon Roland-Garros contre le top (game.js, section TopSping). Les
   // parties sont pré-générées (topissimo/topsping/<réserve>/), une formule par tour :
   // le mode n'est jamais proposé dans les menus (création du tournoi par stof, en SQL).
-  // Lettre au choix : on pioche 6 lettres (joker compris ou non, au moins 1 voyelle et 1
+  // Tirage complétif : on pioche 6 lettres (joker compris ou non, au moins 1 voyelle et 1
   // consonne dès le 1er coup) et le joueur ajoute la lettre de son choix parmi les lettres
   // restantes (sac) — jeton « dé » noté "!" dans le tirage. Cette lettre est une vraie
   // lettre (sa valeur compte) ; le top est calculé en tenant compte de ce choix.
-  lettrechoix: { label: "Lettre au choix", rackSize: 7, maxPlayed: 7, bonuses: { 7: 50 },
+  lettrechoix: { label: "Tirage complétif", rackSize: 7, maxPlayed: 7, bonuses: { 7: 50 },
     defaultTime: 120, stofOnly: true, lettreChoix: true, tirage: 6, minVowels: 1, minCons: 1 },
   // Pâques : pas de E dans le sac, partie joker (jokerForce) où le joker ne peut pas valoir
   // E non plus (bonuses.jokerSauf : la règle est portée par la table de primes pour suivre
@@ -800,7 +800,7 @@ export function drawForDuplicate(bag, kept, moveNo, target = 7, opts = {}) {
   // réduit de 1 à partir du coup 15 (comme la règle FFSC standard 2→1).
   const baseV = opts.minVowels || 2;
   const minV = moveNo >= 15 ? Math.max(1, baseV - 1) : baseV;
-  const minC = moveNo >= 15 ? 1 : (opts.minCons || 2);   // « Lettre au choix » : 1 dès le coup 1
+  const minC = moveNo >= 15 ? 1 : (opts.minCons || 2);   // « Tirage complétif » : 1 dès le coup 1
   const minVC = minV;   // conservé pour minApplied (compat logs)
   // Règle FFSC du tirage, sensible au numéro de coup :
   //  • jusqu'au coup 14 inclus (min 2/2) : le joker PEUT servir de voyelle ou de
