@@ -128,7 +128,7 @@ export function generateGame(dict, options = {}, onProgress = null) {
 
     // Compléter le chevalet (+ direction imposée éventuelle).
     // Gigogne : le tirage grandit d'un coup à l'autre (coup n → n+1 lettres).
-    const target = mode.gigogne ? gigogneRackSize(moveNo) : mode.rackSize;
+    const target = mode.gigogne ? gigogneRackSize(moveNo) : (mode.tirage || mode.rackSize);   // Lettre au choix : 6 piochées + le dé
     // Gigogne : on peut poser autant de lettres qu'on en a (jusqu'à la taille du tirage).
     const maxTiles = mode.gigogne ? target : mode.maxPlayed;
     // Mode Horizontal/Vertical : H au coup 1, V au 2, H au 3, etc.
@@ -180,7 +180,7 @@ export function generateGame(dict, options = {}, onProgress = null) {
       const forceJoker = withJoker && spareJokers > 0 && !jokerInRack;
       const regularTarget = forceJoker ? target - 1 : target;
       kept = rack.map(t => t.letter);
-      const result = drawForDuplicate(bag, kept, moveNo, regularTarget, { minVowels: mode.minVowels });
+      const result = drawForDuplicate(bag, kept, moveNo, regularTarget, { minVowels: mode.minVowels, minCons: mode.minCons });
       if (result.failed) { endNow = true; break; }
       bag = result.bag;
       if (result.fresh) rack = rack.filter(t => t.letter === "?");
@@ -189,6 +189,7 @@ export function generateGame(dict, options = {}, onProgress = null) {
       freshRack = !!result.fresh;
       if (rack.length === 0) { endNow = true; break; }
       rackLetters = rack.map(t => t.letter);
+      if (mode.lettreChoix) rackLetters.push("!");   // le dé : lettre au choix parmi le sac
       top = mode.snake
         ? snakeBestTop(board, rackLetters, dict, snakeEnds, { maxTilesUsed: mode.maxPlayed, bonuses: mode.bonuses, layout })
         : findTopRanked(board, rackLetters, dict, bag, {
@@ -197,6 +198,7 @@ export function generateGame(dict, options = {}, onProgress = null) {
             preserveJoker: withJoker && spareJokers > 0,
             jokerPays,
             jokerReliquat: !!mode.jokerReliquat,
+            choixLettres: mode.lettreChoix ? Object.keys(bag).filter(L => L !== "?" && bag[L] > 0) : null,
             forceDir,
             layout,
           });
@@ -315,6 +317,8 @@ export function generateGame(dict, options = {}, onProgress = null) {
       if (u.isBlank) idx = rack.findIndex(t => t.letter === "?");
       else {
         idx = rack.findIndex(t => t.letter === u.letter);
+        // Lettre au choix : lettre absente du chevalet → c'est la lettre du dé, prise dans le sac.
+        if (idx === -1 && mode.lettreChoix && (bag[u.letter] || 0) > 0) { bag[u.letter]--; continue; }
         if (idx === -1) idx = rack.findIndex(t => t.letter === "?");
       }
       if (idx !== -1) rack.splice(idx, 1);

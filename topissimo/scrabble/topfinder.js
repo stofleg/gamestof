@@ -1443,6 +1443,7 @@ export function findTop(board, rack, dict, opts = {}) {
           bonuses,
           jokerPays: opts.jokerPays,
           jokerReliquat: !!opts.jokerReliquat,   // Joker payant : joker = lettre du reliquat seulement
+          choixLettres: opts.choixLettres || [],   // Lettre au choix : lettres possibles pour le dé "!"
           layout: opts.layout,
           freeCons: opts.freeCons,
           freeConsBudget,
@@ -1634,6 +1635,25 @@ function extend(ctx) {
   const tried = new Set();
   for (let i = 0; i < rack.length; i++) {
     const tile = rack[i];
+    if (tile === "!") {
+      // Lettre au choix : le dé devient une VRAIE lettre (sa valeur compte), prise parmi les
+      // lettres restantes du sac.
+      for (const L of ctx.choixLettres) {
+        if (tried.has("!" + L)) continue;
+        tried.add("!" + L);
+        if (!crossWordOk(board, r, c, L, dir, dict)) continue;
+        const newRack = rack.slice(); newRack.splice(i, 1);
+        extend({
+          ...ctx,
+          rack: newRack,
+          r: r + dr, c: c + dc,
+          currentWord: currentWord + L,
+          tilesUsed: tilesUsed + 1,
+          anchorCovered: anchorCovered || (r === ar && c === ac),
+        });
+      }
+      continue;
+    }
     if (tile === "?") {
       for (let code = 65; code <= 90; code++) {
         const L = String.fromCharCode(code);

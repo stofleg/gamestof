@@ -29,8 +29,9 @@ import {
   bagTotalVowels, bagTotalConsonants, GAME_MODES, modeDisplayName, modeNomOrigine, ecranMobile, MSG_MORT_MOBILE, layoutPourMode, GRILLE_COEUR_FOND, snakeEndpointsAfter, sablierTime, gigogneRackSize,
   setLetterValues, letterValue, valuesFor, bagFor, isCrossingCell, wordHiddenCount,
   drawVowelRack, VOWELS_NO_Y, MARATHON_TARGET, MARATHON_GAMES, consonnesDisponibles, CONSONANTS_FR, jokersDisponibles,
-  tireOeufs, POINTS_OEUF, jokerHorsReliquat,
+  tireOeufs, POINTS_OEUF, jokerHorsReliquat, lettresAuChoix,
 } from "./engine.js?v=483";
+import { icosaedre } from "./icosaedre.js?v=483";
 import { Dictionary } from "./dictionary.js?v=483";
 import * as invasion from "./araignees.js?v=483";
 import { REGLES, afficheRegles } from "./regles.js?v=483";
@@ -614,6 +615,8 @@ function renderRack() {
   // _tempUnsorted : override transitoire (F1 / drag-reorder) qui ignore le tri pour ce render
   if (state.settings.sortRack && !state._tempUnsorted) {
     tiles.sort((a, b) => {
+      if (a.letter === "!" && b.letter !== "!") return 1;   // dé « lettre au choix » en dernier
+      if (b.letter === "!" && a.letter !== "!") return -1;
       if (a.letter === "?" && b.letter !== "?") return 1;
       if (b.letter === "?" && a.letter !== "?") return -1;
       return a.letter.localeCompare(b.letter);
@@ -629,6 +632,8 @@ function renderRack() {
     if (t.used) cls.push("used");
     if (blank) cls.push("blank");
     const draggable = t.used ? "" : `draggable="true" data-rack-id="${t.id}"`;
+    // Lettre au choix : le dé à 20 faces (on choisit la lettre en la tapant, ou en touchant le dé).
+    if (t.letter === "!") return `<div class="tile de-choix${t.used ? " used" : ""}" ${draggable} title="Lettre au choix : tape une lettre absente de ton tirage, ou touche le dé">${icosaedre({ taille: 64, id: `de${t.id}` })}</div>`;
     return `<div class="${cls.join(" ")}" ${draggable}>${t.letter || ""}<span class="val">${val ?? ""}</span></div>`;
   }).join("");
   // Bind handlers DnD + tap (mobile-friendly : tap = place la lettre au curseur,
@@ -655,6 +660,8 @@ function tapRackTile(id) {
   }
   if (t.letter === "?") {
     openJokerPicker();
+  } else if (t.letter === "!") {
+    openJokerPicker("choix");
   } else {
     // On passe l'ID de la tuile cliquée pour que ce soit CETTE tuile-là qui
     // disparaisse du chevalet (pas la première de la même lettre).
@@ -666,7 +673,8 @@ function onRackTileTap(e) {
 }
 
 // --- Sélecteur de lettre pour joker (mobile + desktop) ---
-function openJokerPicker() {
+function openJokerPicker(type = "joker") {
+  const choix = type === "choix";   // Lettre au choix : seulement les lettres restant au sac
   let modal = document.getElementById("jokerPicker");
   if (!modal) {
     modal = document.createElement("div");
@@ -682,13 +690,15 @@ function openJokerPicker() {
     document.body.appendChild(modal);
   }
   const grid = modal.querySelector("#jokerPickerGrid");
+  modal.querySelector("h2").textContent = choix ? "Lettre au choix (parmi le sac)" : "Joker : choisir la lettre";
+  const dispo = choix ? new Set(choixLettres() || []) : null;
   grid.innerHTML = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("").map(L =>
-    `<button class="joker-pick" data-letter="${L}">${L}</button>`).join("");
+    `<button class="joker-pick" data-letter="${L}"${dispo && !dispo.has(L) ? " disabled" : ""}>${L}</button>`).join("");
   grid.querySelectorAll(".joker-pick").forEach(b => {
     b.onclick = () => {
       const L = b.dataset.letter;
       closeJokerPicker();
-      state.jokerPending = true;
+      if (choix) state.choixPending = true; else state.jokerPending = true;
       placeLetter(L);
     };
   });
@@ -737,6 +747,11 @@ function placeRackTileOnCell(rackId, r, c) {
     const L = (prompt("Lettre à associer au joker (A-Z) :", "") || "").trim().toUpperCase();
     if (!/^[A-Z]$/.test(L)) return;
     letter = L; isBlank = true;
+  } else if (tile.letter === "!") {
+    const dispo = choixLettres() || [];
+    const L = (prompt(`Lettre au choix (${dispo.join(" ")}) :`, "") || "").trim().toUpperCase();
+    if (!dispo.includes(L)) { if (L) flashFeedback("error", `Plus de ${L} dans le sac`, "Choisis une lettre encore disponible."); return; }
+    letter = L;
   }
   tile.used = true;
   state.pending.push({ row: r, col: c, letter, rackId: tile.id, isBlank });
@@ -2232,7 +2247,12 @@ function placeLetter(L, preferTileId = null) {
   // sinon la lettre exacte, sinon joker.
   let rackTile;
   let isBlank = false;
-  if (state.jokerPending) {
+  if (state.choixPending) {
+    // Lettre au choix choisie dans le sélecteur (dé touché).
+    state.choixPending = false;
+    rackTile = state.rack.find(t => t.letter === "!" && !t.used);
+    if (!rackTile) { flashFeedback("error", "Lettre au choix déjà utilisée", ""); return; }
+  } else if (state.jokerPending) {
     rackTile = state.rack.find(t => t.letter === "?" && !t.used);
     if (!rackTile) {
       flashFeedback("error", "Pas de joker disponible", "");
@@ -2246,13 +2266,17 @@ function placeLetter(L, preferTileId = null) {
       rackTile = state.rack.find(t => t.id === preferTileId && !t.used && t.letter === L);
     }
     if (!rackTile) rackTile = state.rack.find(t => t.letter === L && !t.used);
+    // Lettre au choix : lettre absente du tirage → le dé, si elle reste au sac (sinon le joker).
+    if (!rackTile && currentMode().lettreChoix && (choixLettres() || []).includes(L)) rackTile = state.rack.find(t => t.letter === "!" && !t.used);
     if (!rackTile) {
       rackTile = state.rack.find(t => t.letter === "?" && !t.used);
       if (rackTile) isBlank = true;
     }
   }
   if (!rackTile) {
-    flashFeedback("error", `Pas de "${L}" dans le chevalet`, "Et plus de joker disponible non plus.");
+    flashFeedback("error", `Pas de "${L}" dans le chevalet`, currentMode().lettreChoix
+      ? ((choixLettres() || []).includes(L) ? "Ta lettre au choix est déjà utilisée." : `Et plus de ${L} dans le sac pour ta lettre au choix.`)
+      : "Et plus de joker disponible non plus.");
     return;
   }
   rackTile.used = true;
@@ -2436,7 +2460,7 @@ function topSolutions() {
   const rackLetters = state.rack.map(t => t.letter);
   const ranked = rankIsotops(state.board, rackLetters, state.dict, state.bag, {
     maxTilesUsed: mode.maxPlayed, bonuses: mode.bonuses,
-    jokerPays: mode.jokerPays, layout: state.boardLayout, jokerReliquat: jokerReliquatActif(),
+    jokerPays: mode.jokerPays, layout: state.boardLayout, jokerReliquat: jokerReliquatActif(), choixLettres: choixLettres(),
     preserveJoker: effJoker() && state.spareJokers > 0, moveNo: state.moveNo,
   });
   const seen = new Set();
@@ -2577,6 +2601,8 @@ function validate() {
     showTransientError("Rien à valider", "Place d'abord des lettres sur la grille.");
     return;
   }
+  // Lettre au choix : joker et dé dans le même mot → on garde la répartition la plus payante.
+  if (currentMode().lettreChoix) optimiseDeJoker();
   // Reconstituer le coup (mot principal dans la direction)
   const move = buildMoveFromPending();
   if (!move) {
@@ -2628,7 +2654,7 @@ function validate() {
     const rackLetters = state.rack.map(t => t.letter);
     const allMoves = findTop(state.board, rackLetters, state.dict, {
       all: true, maxTilesUsed: mode.maxPlayed, bonuses: mode.bonuses,
-      jokerPays: mode.jokerPays, layout: state.boardLayout, freeCons: mode.voyelles, jokerReliquat: jokerReliquatActif(),
+      jokerPays: mode.jokerPays, layout: state.boardLayout, freeCons: mode.voyelles, jokerReliquat: jokerReliquatActif(), choixLettres: choixLettres(),
       consAvail: consonnesLimitees() ? consonnesDisponibles(state.board) : null,
       jokersAvail: jokersDisponibles(state.board),
     }) || [];
@@ -3031,6 +3057,8 @@ function placeTopAndAdvance(playerScore, playedWord = null, playedScore = null, 
         idx = state.rack.findIndex(t => t.letter === "?");
       } else {
         idx = state.rack.findIndex(t => t.letter === nl.letter);
+        // Lettre au choix : lettre absente du chevalet → celle du dé, prise dans le sac.
+        if (idx === -1 && currentMode().lettreChoix && (state.bag[nl.letter] || 0) > 0) { state.bag[nl.letter]--; continue; }
         if (idx === -1) idx = state.rack.findIndex(t => t.letter === "?");
       }
       if (idx !== -1) state.rack.splice(idx, 1);
@@ -3371,7 +3399,7 @@ function nextMove() {
   // consonnes dans l'UNION du sac ET du chevalet conservé du joueur.
   // → la partie continue même si le tirage est < 7 lettres, tant qu'on
   //   peut faire AU MOINS un mot.
-  const remainingRackLetters = state.rack.filter(t => !t.used).map(t => t.letter);
+  const remainingRackLetters = state.rack.filter(t => !t.used && t.letter !== "!").map(t => t.letter);
   let vAvail = bagTotalVowels(state.bag);
   let cAvail = bagTotalConsonants(state.bag);
   for (const L of remainingRackLetters) {
@@ -3402,13 +3430,14 @@ function nextMove() {
   // Mode joker : si jokers actifs disponibles, on impose 1 joker dans le tirage
   const jokerInRack = state.rack.some(t => t.letter === "?");
   const forceJoker = effJoker() && state.spareJokers > 0 && !jokerInRack;
-  const regularTarget = forceJoker ? targetSize - 1 : targetSize;
+  const tirage = mode.tirage || targetSize;   // Lettre au choix : 6 lettres piochées + le dé
+  const regularTarget = forceJoker ? tirage - 1 : tirage;
 
   // Gigogne (tirages courts, surtout au coup 1) : on RE-TIRE tant qu'aucun coup
   // n'est jouable, et on n'affiche le tirage qu'une fois une solution trouvée.
   const retryUntilPlayable = !!mode.gigogne;
   const bagSnap = { ...state.bag };
-  const keptTiles = state.rack.map(t => ({ letter: t.letter, isBlank: !!t.isBlank }));
+  const keptTiles = state.rack.filter(t => t.letter !== "!").map(t => ({ letter: t.letter, isBlank: !!t.isBlank }));
   let tries = retryUntilPlayable ? 120 : 1;
   let computed = false;
   while (tries-- > 0) {
@@ -3416,7 +3445,7 @@ function nextMove() {
     state.bag = { ...bagSnap };
     state.rack = keptTiles.map(t => ({ letter: t.letter, isBlank: t.isBlank, used: false, id: nextTileId() }));
     const kept = state.rack.map(t => t.letter);
-    const result = drawForDuplicate(state.bag, kept, state.moveNo, regularTarget, { minVowels: mode.minVowels });
+    const result = drawForDuplicate(state.bag, kept, state.moveNo, regularTarget, { minVowels: mode.minVowels, minCons: mode.minCons });
     if (result.failed) { endGame(); return; }
     state.bag = result.bag;
     if (result.fresh) state.rack = state.rack.filter(t => t.letter === "?");
@@ -3424,6 +3453,7 @@ function nextMove() {
     state.currentKept = result.fresh ? "" : kept.join("");
     for (const L of (result.drawn || [])) state.rack.push({ letter: L, used: false, id: nextTileId() });
     if (forceJoker) state.rack.push({ letter: "?", used: false, id: nextTileId() });
+    if (mode.lettreChoix) state.rack.push({ letter: "!", used: false, id: nextTileId() });   // le dé
     for (const t of state.rack) t.used = false;
     if (!retryUntilPlayable) break;
     // Vérifier qu'un coup est jouable ; sinon on retente un tirage.
@@ -3521,7 +3551,7 @@ function computeTop() {
     maxTilesUsed: maxPlayedNow(),
     bonuses: mode.bonuses,
     preserveJoker: effJoker() && state.spareJokers > 0,
-    jokerPays, forceDir, layout, jokerReliquat: jokerReliquatActif(),
+    jokerPays, forceDir, layout, jokerReliquat: jokerReliquatActif(), choixLettres: choixLettres(),
   });
   // H/V : si aucun coup dans la direction imposée (rare), on retombe sans contrainte
   // pour ne pas figer l'entraînement.
@@ -3575,6 +3605,27 @@ function jokersHorsReliquat() {
   }
   _nbHorsReliquat = out.size;
   return out;
+}
+
+/** Lettre au choix : lettres possibles pour le dé (lettres restant au sac), sinon null. */
+function choixLettres(board = state.board, rack = state.rack.map(t => t.letter)) {
+  return currentMode().lettreChoix ? lettresAuChoix(board, rack) : null;
+}
+
+/** Lettre au choix : si le mot utilise le dé (lettre X, vraie valeur) ET le joker (lettre Y,
+ *  0 point), échanger leurs rôles (joker en X, dé en Y) quand Y reste au sac et que ça
+ *  rapporte plus. La saisie au clavier attribue le dé à la 1re lettre absente du tirage. */
+function optimiseDeJoker() {
+  const de = state.rack.find(t => t.letter === "!");
+  const pDe = de && state.pending.find(p => p.rackId === de.id);
+  const pJ = state.pending.find(p => p.isBlank);
+  if (!pDe || !pJ) return;
+  const score = () => { const m = buildMoveFromPending(); if (!m) return -1; const r = scoreMove(state.board, m, state.dict, { bonuses: currentMode().bonuses, layout: state.boardLayout }); return r.errors.length ? -1 : r.score; };
+  const avant = score();
+  const echange = () => { [pDe.rackId, pJ.rackId] = [pJ.rackId, pDe.rackId]; [pDe.isBlank, pJ.isBlank] = [pJ.isBlank, pDe.isBlank]; };
+  if (!(choixLettres() || []).includes(pJ.letter)) return;
+  echange();
+  if (score() <= avant) echange();   // pas mieux : on revient à la répartition saisie
 }
 
 /** Clé des règles à afficher : Joker payant d'avant la règle du reliquat → ancien texte. */
@@ -6027,6 +6078,7 @@ function renderReviewSolutions(idx) {
       maxTilesUsed: GAME_MODES[review.game.mode]?.maxPlayed || 7,
       jokerPays: !!GAME_MODES[review.game.mode]?.jokerPays,
       jokerReliquat: !!GAME_MODES[review.game.mode]?.jokerReliquat && !!review.game.moves?.[0]?._jokerReliquat,
+      choixLettres: GAME_MODES[review.game.mode]?.lettreChoix ? lettresAuChoix(boardBefore, rackLetters) : null,
       layout: state.boardLayout,
     }) || [];
     // Au 1er coup, on ne joue jamais verticalement en duplicate. (En review d'un
@@ -7765,7 +7817,7 @@ async function syncPreparedToChampionship(pid, totalTime) {
 //   - tirage complet neuf    → "–AEGRTUY"
 //   - ancien format (sans flag) → tirage brut
 function rackDisplay(h) {
-  const rack = h.rack || "";
+  const rack = (h.rack || "").replace(/!/g, "🎲");   // Lettre au choix : le dé
   if (h.kept) {
     const rest = rack.split("");
     for (const ch of h.kept) { const i = rest.indexOf(ch); if (i >= 0) rest.splice(i, 1); }

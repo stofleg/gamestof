@@ -3793,6 +3793,7 @@ const PG_SUPER_OPTIONS = `
     <option value="grillerandom">Grille random</option>
     <option value="grillecoeur">Grille cœur</option>
     <option value="paques">Pâques (œufs cachés)</option>
+    <option value="lettrechoix">Lettre au choix (dé)</option>
     <option value="invasion">Invasion</option>
     <option value="puzzle">Grille puzzle (Jigsaw — à placer en dernier)</option>
   </optgroup>`;
@@ -3805,7 +3806,7 @@ const PG_STD_MODES = ["duplicate", "blitz", "7sur8", "7et8", "789"];   // modes 
 const PG_DEFAULT_TIME = {
   duplicate: 120, blitz: 60, "7sur8": 120, "7et8": 120, "789": 120,
   "6lettres": 66, hyperblitz: 30, "7sur15": 240, jokerpayant: 120,
-  horizvert: 120, topsoustop: 180, infjoker: 120, grillerandom: 120, grillecoeur: 120, paques: 120, sablier: 120, gigogne: 120, anglaise: 120, lettrecachee: 120, voyelles: 120, marathon: 120,
+  horizvert: 120, topsoustop: 180, infjoker: 120, grillerandom: 120, grillecoeur: 120, paques: 120, lettrechoix: 120, sablier: 120, gigogne: 120, anglaise: 120, lettrecachee: 120, voyelles: 120, marathon: 120,
   invasion: 120, puzzle: 120,
 };
 const pgDefaultTime = (mode) => PG_DEFAULT_TIME[mode] ?? 120;

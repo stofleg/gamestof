@@ -2222,3 +2222,9 @@ body.theme-topsping #btnNextGame { display: none !important; }
 .board td .tile.joker-hors-reliquat { box-shadow: 0 0 0 3px #d62828 inset; }
 .board td .tile.joker-hors-reliquat::after { content: "!"; position: absolute; top: -4px; right: -3px; width: 1.15em; height: 1.15em; border-radius: 50%;
   background: #d62828; color: #fff; font: 800 calc(var(--cell-size) * .3)/1.15em Inter, sans-serif; text-align: center; z-index: 21; }
+
+/* Lettre au choix : le dé à 20 faces dans le chevalet (pas de fond de jeton) */
+.rack .tile.de-choix { background: none !important; box-shadow: none !important; border: 0 !important; padding: 0; display: flex; align-items: center; justify-content: center; }
+.rack .tile.de-choix svg { width: 112%; height: 112%; overflow: visible; }
+.rack .tile.de-choix.used { opacity: .3; }
+.joker-pick:disabled { opacity: .25; cursor: not-allowed; }
