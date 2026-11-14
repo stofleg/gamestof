@@ -126,7 +126,7 @@ function nouveauCoup() {
   for (const L of kept) { if (L === "?") continue; if (VOY.has(L)) v++; else c++; }
   const jok = (S.bag["?"] || 0) + kept.filter(l => l === "?").length, ys = (S.bag.Y || 0) + kept.filter(l => l === "Y").length;
   if ((v === 0 || c === 0) && !jok && !ys) return finPartie();
-  const res = drawForDuplicate(S.bag, kept, coupRegleCube(S.coup + 1, S.bag), 7, {});   // 2 et 2 tant que le sac est bien rempli
+  const res = drawForDuplicate(S.bag, kept, coupRegleCube(S.coup + 1), 7, {});   // 2 et 2 jusqu'au coup 109, puis 1 et 1
   if (res.failed) return finPartie();
   S.bag = res.bag;
   let lettres = res.fresh ? kept.filter(l => l === "?") : kept;
