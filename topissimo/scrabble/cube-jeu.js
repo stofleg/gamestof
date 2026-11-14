@@ -8,7 +8,7 @@ import { Dictionary } from "./dictionary.js?v=483";
 import { LETTER_BAG, drawForDuplicate, bagTotalVowels, bagTotalConsonants, letterValue } from "./engine.js?v=483";
 import {
   FACES, NOM_FACE, BONUS_CUBE, LIGNES, ligneDe, voisin, rangLigne, PIVOTS, cheminFaces,
-  cubeVide, appliqueCoup, casesDuCoup, positionCoup, scoreCube, topCube, sacCube, JEUX_CUBE,
+  cubeVide, appliqueCoup, casesDuCoup, positionCoup, scoreCube, topCube, sacCube, JEUX_CUBE, coupRegleCube,
 } from "./cube.js?v=483";
 
 const $ = id => document.getElementById(id);
@@ -126,7 +126,7 @@ function nouveauCoup() {
   for (const L of kept) { if (L === "?") continue; if (VOY.has(L)) v++; else c++; }
   const jok = (S.bag["?"] || 0) + kept.filter(l => l === "?").length, ys = (S.bag.Y || 0) + kept.filter(l => l === "Y").length;
   if ((v === 0 || c === 0) && !jok && !ys) return finPartie();
-  const res = drawForDuplicate(S.bag, kept, S.coup + 1, 7, {});
+  const res = drawForDuplicate(S.bag, kept, coupRegleCube(S.coup + 1, S.bag), 7, {});   // 2 et 2 tant que le sac est bien rempli
   if (res.failed) return finPartie();
   S.bag = res.bag;
   let lettres = res.fresh ? kept.filter(l => l === "?") : kept;

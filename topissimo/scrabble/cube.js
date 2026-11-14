@@ -276,6 +276,15 @@ export function topCube(cube, rack, dict, opts = {}) {
 /** Partie duplicate complète sur le cube : [{ moveNo, rack, freshRack, kept, top }]. */
 export const JEUX_CUBE = 6;   // une face = un jeu de jetons : le sac contient 6 jeux complets
 export const sacCube = (jeux = JEUX_CUBE, LETTER_BAG) => Object.fromEntries(Object.entries(LETTER_BAG).map(([l, n]) => [l, n * jeux]));
+// Règle du tirage (2 voyelles et 2 consonnes, puis 1 et 1 à partir du coup 15) transposée aux
+// 6 jeux : dans une partie normale, il reste en moyenne 26 jetons au sac au tirage du coup 15 ;
+// ici on garde « 2 et 2 » tant qu'il en reste plus de 6 × 26 = 158, puis « 1 et 1 ».
+export const SEUIL_TIRAGE_CUBE = 158;
+/** Numéro de coup à passer à drawForDuplicate pour appliquer cette règle. */
+export function coupRegleCube(moveNo, bag, jeux = JEUX_CUBE) {
+  const restant = Object.values(bag).reduce((a, n) => a + n, 0);
+  return restant > Math.round(SEUIL_TIRAGE_CUBE * jeux / JEUX_CUBE) ? Math.min(moveNo, 14) : Math.max(moveNo, 15);
+}
 export async function genereCube(dict, { withJoker = false, onProgress = null, jeux = JEUX_CUBE, maxCoups = 400 } = {}) {
   const { drawForDuplicate, bagTotalVowels, bagTotalConsonants, LETTER_BAG } = await import("./engine.js?v=483");
   const VOY = new Set(["A", "E", "I", "O", "U", "Y"]);
@@ -289,7 +298,7 @@ export async function genereCube(dict, { withJoker = false, onProgress = null, j
     if ((v === 0 || c === 0) && !jokers && !ys) break;
     const forceJoker = withJoker && spare > 0 && !rack.includes("?");
     const kept = rack.slice();
-    const res = drawForDuplicate(bag, kept, moveNo, forceJoker ? 6 : 7, {});
+    const res = drawForDuplicate(bag, kept, coupRegleCube(moveNo, bag, jeux), forceJoker ? 6 : 7, {});
     if (res.failed) break;
     bag = res.bag;
     if (res.fresh) rack = rack.filter(t => t === "?");
