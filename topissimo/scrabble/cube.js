@@ -274,13 +274,15 @@ export function topCube(cube, rack, dict, opts = {}) {
 
 // ---------- génération d'une partie (tournoi) ----------
 /** Partie duplicate complète sur le cube : [{ moveNo, rack, freshRack, kept, top }]. */
-export async function genereCube(dict, { withJoker = false, onProgress = null } = {}) {
+export const JEUX_CUBE = 6;   // une face = un jeu de jetons : le sac contient 6 jeux complets
+export const sacCube = (jeux = JEUX_CUBE, LETTER_BAG) => Object.fromEntries(Object.entries(LETTER_BAG).map(([l, n]) => [l, n * jeux]));
+export async function genereCube(dict, { withJoker = false, onProgress = null, jeux = JEUX_CUBE, maxCoups = 400 } = {}) {
   const { drawForDuplicate, bagTotalVowels, bagTotalConsonants, LETTER_BAG } = await import("./engine.js?v=483");
   const VOY = new Set(["A", "E", "I", "O", "U", "Y"]);
-  let bag = { ...LETTER_BAG }, spare = 0;
+  let bag = sacCube(jeux, LETTER_BAG), spare = 0;
   if (withJoker) { spare = bag["?"] || 0; bag["?"] = 0; }
   let cube = cubeVide(), rack = [], moves = [], total = 0;
-  for (let moveNo = 1; moveNo <= 60; moveNo++) {
+  for (let moveNo = 1; moveNo <= maxCoups; moveNo++) {
     let v = bagTotalVowels(bag), c = bagTotalConsonants(bag);
     for (const t of rack) { if (t === "?") continue; if (VOY.has(t)) v++; else c++; }
     const jokers = (bag["?"] || 0) + rack.filter(t => t === "?").length, ys = (bag.Y || 0) + rack.filter(t => t === "Y").length;

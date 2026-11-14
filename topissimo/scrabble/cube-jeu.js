@@ -8,7 +8,7 @@ import { Dictionary } from "./dictionary.js?v=483";
 import { LETTER_BAG, drawForDuplicate, bagTotalVowels, bagTotalConsonants, letterValue } from "./engine.js?v=483";
 import {
   FACES, NOM_FACE, BONUS_CUBE, LIGNES, ligneDe, voisin, rangLigne, PIVOTS, cheminFaces,
-  cubeVide, appliqueCoup, casesDuCoup, positionCoup, scoreCube, topCube,
+  cubeVide, appliqueCoup, casesDuCoup, positionCoup, scoreCube, topCube, sacCube, JEUX_CUBE,
 } from "./cube.js?v=483";
 
 const $ = id => document.getElementById(id);
@@ -115,7 +115,7 @@ async function allerVers(face, pause = 0) { for (const s of cheminFaces(S.face, 
 // ------------------------------------------------------------ partie
 async function nouvellePartie() {
   clearInterval(minuteur);
-  Object.assign(S, { cube: cubeVide(), bag: { ...LETTER_BAG }, rack: [], pending: [], face: "F", cursor: { f: "F", r: 7, c: 7, dir: "H" },
+  Object.assign(S, { cube: cubeVide(), bag: sacCube(JEUX_CUBE, LETTER_BAG),   // 6 jeux de jetons, un par face rack: [], pending: [], face: "F", cursor: { f: "F", r: 7, c: 7, dir: "H" },
     coup: 0, top: null, best: null, cumul: 0, neg: 0, tops: 0, fin: false, topCells: [] });
   infos();
   nouveauCoup();
