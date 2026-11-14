@@ -53,13 +53,41 @@ for (const f of ["U", "D"]) for (let r = 0; r < N; r++) ajouteLigne("H", false, 
 for (let c = 0; c < N; c++) ajouteLigne("V", false, ["U", "F", "D"].flatMap(f => Array.from({ length: N }, (_, r) => [f, r, c])));
 for (const f of ["R", "B", "L"]) for (let c = 0; c < N; c++) ajouteLigne("V", false, Array.from({ length: N }, (_, r) => [f, r, c]));
 export const ligneDe = (f, r, c, dir) => LIGNE_DE[f][r][c][dir];
+/** Case voisine de (f, r, c) dans le sens `dir` ("H" ou "V"), `delta` = ±1 ; null derrière un mur. */
+export function voisin(f, r, c, dir, delta) {
+  const [li, k] = LIGNE_DE[f][r][c][dir];
+  return rangLigne(LIGNES[li], k + delta);
+}
+/** Déplacements de la vue : face atteinte par ◀ ▶ ▲ ▼ depuis chaque face (null = mur). */
+export const PIVOTS = {
+  F: { gauche: "L", droite: "R", haut: "U", bas: "D" },
+  R: { gauche: "F", droite: "B", haut: null, bas: null },
+  B: { gauche: "R", droite: "L", haut: null, bas: null },
+  L: { gauche: "B", droite: "F", haut: null, bas: null },
+  U: { gauche: null, droite: null, haut: null, bas: "F" },
+  D: { gauche: null, droite: null, haut: "F", bas: null },
+};
+/** Suite de pivots pour aller d'une face à une autre (par la face principale si besoin). */
+export function cheminFaces(de, vers) {
+  if (de === vers) return [];
+  const tour = ["F", "R", "B", "L"];
+  const parTour = (a, b) => {   // a, b dans la bande : sens le plus court
+    const i = tour.indexOf(a), j = tour.indexOf(b), d = (j - i + 4) % 4;
+    return d === 0 ? [] : d <= 2 ? Array(d).fill("droite") : ["gauche"];
+  };
+  if (de === "U") return ["bas", ...cheminFaces("F", vers)];
+  if (de === "D") return ["haut", ...cheminFaces("F", vers)];
+  if (vers === "U") return [...parTour(de, "F"), "haut"];
+  if (vers === "D") return [...parTour(de, "F"), "bas"];
+  return parTour(de, vers);
+}
 
 // ---------- plateau ----------
 export const cubeVide = () => Object.fromEntries(FACES.map(f => [f, Array.from({ length: N }, () => Array(N).fill(null))]));
 export const estVide = cube => FACES.every(f => cube[f].every(l => l.every(x => !x)));
 const caseDe = (cube, [f, r, c]) => cube[f][r][c];
 /** Case de rang k d'une ligne (null hors ligne). */
-function rangLigne(L, k) {
+export function rangLigne(L, k) {
   const n = L.cases.length;
   if (L.cyclique) return L.cases[((k % n) + n) % n];
   return k >= 0 && k < n ? L.cases[k] : null;

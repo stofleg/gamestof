@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Grille cube · Topissimo</title>
+<link rel="icon" href="../icon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  /* Couleurs et jetons de Topissimo (game.css) ; cadre pétrole autour de la face active. */
+  :root {
+    --petrol: #002e44; --petrol-2: #0c4a66; --cream: #f8f5ea; --ink: #12313f; --muted: #5d6f78;
+    --normal: #ece4cf; --dl: #a6d8e3; --tl: #3a8bb8; --dw: #f0a7a7; --tw: #c9403a;
+    --tile-hi: #fce8a8; --tile: #f5d97a; --tile-2: #e8c548; --tile-fg: #1f2a2e; --joker: #c62828;
+    --yellow: #ffd400; --ok: #2e7d4f; --err: #b3261e; --mur: #ffd400;
+    --case: clamp(18px, min(calc((100vw - 120px) / 17), calc((100vh - 230px) / 17)), 40px);
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--cream); color: var(--ink); font-family: Inter, system-ui, sans-serif; }
+  .page { max-width: 1200px; margin: 0 auto; padding: 12px max(16px, env(safe-area-inset-left, 0px)) 20px; display: flex; gap: 22px; align-items: flex-start; flex-wrap: wrap; justify-content: center; }
+  .gauche { display: grid; gap: 10px; justify-items: center; }
+  .droite { flex: 1 1 300px; max-width: 420px; display: grid; gap: 12px; }
+
+  /* ----- vue d'une face : grille 17×17 (liserés voisins + 15×15), flèches autour ----- */
+  .vue { position: relative; padding: 34px; }
+  .cadre { background: var(--petrol); border-radius: 10px; padding: 6px; position: relative; }
+  .face { display: grid; grid-template-columns: calc(var(--case) * .45) repeat(15, var(--case)) calc(var(--case) * .45);
+    grid-template-rows: calc(var(--case) * .45) repeat(15, var(--case)) calc(var(--case) * .45); gap: 1px; }
+  .c { position: relative; border-radius: 2px; background: var(--normal); display: grid; place-items: center; cursor: pointer; user-select: none; }
+  .c.dl { background: var(--dl); } .c.tl { background: var(--tl); } .c.dw { background: var(--dw); } .c.tw { background: var(--tw); }
+  .c.etoile::after { content: "★"; color: rgba(0,0,0,.45); font-size: calc(var(--case) * .55); }
+  .c.has::after { content: none; }
+  .liseret { opacity: .45; cursor: default; }
+  .liseret .jeton span { display: none; }
+  .mur { background: var(--mur); border-radius: 3px; cursor: default; box-shadow: 0 0 0 1px rgba(0,0,0,.25) inset; }
+  .coin { background: transparent; }
+  .jeton { position: absolute; inset: 0; border-radius: 3px; display: grid; place-items: center; font: 700 calc(var(--case) * .62) Georgia, "Times New Roman", serif;
+    background: linear-gradient(135deg, var(--tile-hi) 0%, var(--tile) 50%, var(--tile-2) 100%); color: var(--tile-fg); box-shadow: inset 0 -2px 0 rgba(0,0,0,.12); }
+  .jeton.joker { color: var(--joker); }
+  .jeton span { position: absolute; right: 2px; bottom: 0; font: 600 calc(var(--case) * .26) Inter, sans-serif; }
+  .jeton.pose { outline: 2px solid var(--yellow); outline-offset: -2px; }
+  .jeton.invalide { background: #f4b1ab; }
+  .c.top::before { content: ""; position: absolute; inset: -1px; border: 3px solid #12a150; border-radius: 3px; z-index: 3; pointer-events: none; }
+  .c.curseur { outline: 3px solid #111; outline-offset: -2px; z-index: 2; }
+  .c.curseur .dir { position: absolute; right: 1px; top: -1px; font: 800 calc(var(--case) * .42) Inter, sans-serif; color: #111; }
+  .titre-face { font: 700 .9rem Inter, sans-serif; color: var(--petrol); letter-spacing: .04em; background: #fff; border-radius: 999px; padding: 3px 14px; box-shadow: 0 1px 3px rgba(0,0,0,.1); margin-bottom: -6px; }
+  .fleche { position: absolute; width: 30px; height: 30px; border-radius: 50%; border: 0; background: var(--petrol); color: var(--yellow); font: 700 15px Inter, sans-serif; cursor: pointer; display: grid; place-items: center; }
+  .fleche:disabled { background: #c9cdd0; color: #f2f2f2; cursor: not-allowed; }
+  .fleche:focus-visible { outline: 3px solid var(--yellow); outline-offset: 2px; }
+  .f-gauche { left: 0; top: calc(50% - 15px); } .f-droite { right: 0; top: calc(50% - 15px); }
+  .f-haut { top: 0; left: calc(50% - 15px); } .f-bas { bottom: 0; left: calc(50% - 15px); }
+  .f-haut, .f-bas { top: auto; }
+  .f-haut { top: 0; }
+  /* ----- pivot 3D : les deux faces visibles ensemble ----- */
+  .scene { position: absolute; inset: 34px; perspective: 1400px; display: none; z-index: 5; }
+  .scene.on { display: block; }
+  .prisme { position: absolute; inset: 0; transform-style: preserve-3d; transition: transform .38s ease-in-out; }
+  .prisme .pf { position: absolute; inset: 0; backface-visibility: hidden; }
+  /* ----- chevalet et boutons ----- */
+  .rack { display: flex; gap: 5px; background: linear-gradient(180deg, #002e44, #001e2d); padding: 8px 12px; border-radius: 8px; min-height: 56px; }
+  .rack .t { width: 44px; height: 48px; border-radius: 5px; display: grid; place-items: center; position: relative; cursor: pointer; font: 700 28px Georgia, serif;
+    background: linear-gradient(135deg, var(--tile-hi) 0%, var(--tile) 50%, var(--tile-2) 100%); color: var(--tile-fg); border: 1px solid rgba(138,106,31,.4); }
+  .rack .t span { position: absolute; right: 3px; bottom: 1px; font: 600 10px Inter, sans-serif; }
+  .rack .t.joker { color: var(--joker); }
+  .rack .t.used { opacity: .25; }
+  .actions-mob { display: flex; gap: 6px; width: 100%; }
+  .actions-mob button { flex: 1; height: 44px; border: 0; border-radius: 8px; font: 700 20px Inter, sans-serif; color: #fff; cursor: pointer; }
+  .b-eff { background: var(--petrol); color: var(--yellow) !important; } .b-ann { background: #a32323; } .b-val { background: #2e7d32; }
+  .carte { background: #fff; border-radius: 10px; padding: 12px 14px; box-shadow: 0 1px 4px rgba(0,0,0,.08); display: grid; gap: 8px; }
+  h1 { margin: 0; font-size: 1.15rem; } h1 small { color: var(--muted); font-weight: 500; }
+  .infos { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; text-align: center; font-variant-numeric: tabular-nums; }
+  .infos div { background: var(--cream); border-radius: 6px; padding: 4px; } .infos small { display: block; font-size: .65rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+  .infos b { font-size: 1.15rem; }
+  .chrono { background: var(--petrol); color: #fff; border-radius: 8px; padding: 6px 12px; display: flex; justify-content: space-between; align-items: baseline; border: 2px solid var(--yellow); }
+  .chrono small { color: var(--yellow); font-weight: 700; letter-spacing: .08em; } .chrono b { font-size: 1.6rem; font-variant-numeric: tabular-nums; }
+  .msg { min-height: 2.6em; font-size: .92rem; line-height: 1.35; }
+  .msg.ok { color: var(--ok); } .msg.err { color: var(--err); }
+  .msg .top { display: block; color: var(--ok); }
+  .boutons { display: flex; gap: 8px; flex-wrap: wrap; }
+  .boutons button { font: 600 .9rem Inter, sans-serif; padding: 8px 12px; border-radius: 8px; border: 1px solid #c8cfd3; background: #fff; color: var(--ink); cursor: pointer; }
+  .aide { font-size: .8rem; color: var(--muted); margin: 0; line-height: 1.4; }
+  .picker { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: grid; place-items: center; z-index: 50; }
+  .picker[hidden] { display: none; }
+  .picker div { background: #fff; padding: 14px; border-radius: 10px; display: grid; grid-template-columns: repeat(7, 38px); gap: 5px; }
+  .picker button { height: 38px; font: 700 18px Georgia, serif; border: 1px solid #ccc; border-radius: 6px; background: var(--cream); cursor: pointer; }
+  @media (max-width: 760px) {
+    :root { --case: calc((100vw - 32px - 60px - 14px) / 15.9); }
+    .page { padding-top: 6px; gap: 10px; }
+    .vue { padding: 30px; }
+    .scene { inset: 30px; }
+    .droite { order: -1; max-width: none; }
+    .infos b { font-size: 1rem; }
+    .rack .t { width: calc((100vw - 60px) / 7.4); height: calc((100vw - 60px) / 7); font-size: 24px; }
+  }
+  @media (min-width: 761px) { .actions-mob { display: none; } }
+</style>
+</head>
+<body>
+<main class="page">
+  <div class="gauche">
+    <div class="titre-face" id="titreFace"></div>
+    <div class="vue" id="vue">
+      <div class="cadre" id="cadre"></div>
+      <div class="scene" id="scene"><div class="prisme" id="prisme"></div></div>
+      <button class="fleche f-haut" id="fHaut" type="button" aria-label="Face du dessus">▲</button>
+      <button class="fleche f-bas" id="fBas" type="button" aria-label="Face du dessous">▼</button>
+      <button class="fleche f-gauche" id="fGauche" type="button" aria-label="Face de gauche">◀</button>
+      <button class="fleche f-droite" id="fDroite" type="button" aria-label="Face de droite">▶</button>
+    </div>
+    <div class="actions-mob">
+      <button class="b-eff" id="mEff" type="button" aria-label="Effacer la dernière lettre">⌫</button>
+      <button class="b-ann" id="mAnn" type="button" aria-label="Annuler la saisie">✕</button>
+      <button class="b-val" id="mVal" type="button" aria-label="Valider">✓</button>
+    </div>
+    <div class="rack" id="rack"></div>
+  </div>
+  <div class="droite">
+    <div class="carte">
+      <h1>🎁 Grille cube <small>· entraînement</small></h1>
+      <div class="infos">
+        <div><small>Coup</small><b id="iCoup">—</b></div>
+        <div><small>Cumul</small><b id="iCumul">0</b></div>
+        <div><small>Négatif</small><b id="iNeg">0</b></div>
+        <div><small>Tops</small><b id="iTops">0</b></div>
+      </div>
+      <div class="chrono"><small id="cLabel">COUP</small><b id="cTemps">—</b></div>
+      <div class="msg" id="msg" role="status">Chargement du dictionnaire…</div>
+      <div class="boutons">
+        <button id="bTop" type="button">👁 Voir le top</button>
+        <button id="bNouvelle" type="button">🔄 Nouvelle partie</button>
+      </div>
+      <p class="aide">Touche une case (une 2ᵉ fois pour changer de sens) et tape ton mot ; il peut passer d'une face à l'autre dans le sens de lecture, la vue suit. Les murs jaunes bloquent les mots et les déplacements. Entrée pour valider, Échap pour annuler, « ? » pour un joker.</p>
+    </div>
+  </div>
+</main>
+<div class="picker" id="picker" hidden><div id="pickerGrille"></div></div>
+<script type="module" src="cube-jeu.js?v=483"></script>
+</body>
+</html>
