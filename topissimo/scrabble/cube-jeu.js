@@ -44,8 +44,8 @@ function versMoi(f, k = V.k, p = V.p) {
 const VISIBLE = .3;   // de face (1) ou sur une arête (0,71)
 const visibles = (k = V.k, p = V.p) => ORDRE.filter(f => versMoi(f, k, p) > VISIBLE);
 // La face pleine reste bien de face (carrée) : l'œil est placé au-dessus du cube (perspective-origin),
-// on voit donc une partie du dessus sans incliner la face. Sur une arête haut/bas, léger biais latéral.
-const transformee = () => `rotateY(${V.p % 2 ? -17 : 0}deg) rotateX(${-V.p * 45}deg) rotateY(${-V.k * 45}deg)`;
+// on voit donc une partie du dessus sans incliner la face. Aucun biais : les pivots sont bien droits.
+const transformee = () => `rotateX(${-V.p * 45}deg) rotateY(${-V.k * 45}deg)`;
 const droit = () => ((V.k % 8) + 8) % 8 === 0;
 
 // ------------------------------------------------------------ rendu
