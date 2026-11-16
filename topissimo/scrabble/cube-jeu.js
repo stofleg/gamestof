@@ -66,6 +66,13 @@ function htmlCase(cs) {
   const j = t ? `<div class="jeton${t.isBlank ? " joker" : ""}${t.pose ? " pose" : ""}${t.invalide ? " invalide" : ""}">${t.letter}${t.isBlank ? "" : `<span>${letterValue(t.letter)}</span>`}</div>` : "";
   return `<div class="${cls.join(" ")}" data-f="${f}" data-r="${r}" data-c="${c}">${j}${cur ? `<span class="dir">${S.cursor.dir === "H" ? "→" : "↓"}</span>` : ""}</div>`;
 }
+/** Face aperçue (bande du dessus) mais inaccessible depuis la vue actuelle : le dessus quand le cube
+ *  est tourné (on n'y monte que depuis la face principale), l'arrière vu depuis le dessus. */
+function interdite(f, vis) {
+  if (vis.includes(f) || f === "F") return false;
+  if ((f === "U" || f === "D") && droit()) return false;
+  return true;
+}
 /** Une face 15×15 ; contour plus foncé (murs) là où aucune ligne ne continue. */
 function htmlFace(f, vis) {
   const murs = [];
@@ -73,7 +80,7 @@ function htmlFace(f, vis) {
   if (!voisin(f, 14, 7, "V", 1)) murs.push("mur-b");
   if (!voisin(f, 7, 0, "H", -1)) murs.push("mur-g");
   if (!voisin(f, 7, 14, "H", 1)) murs.push("mur-d");
-  let h = `<div class="face ${f} ${murs.join(" ")}${vis.includes(f) ? "" : " cachee"}" data-face="${f}">`;
+  let h = `<div class="face ${f} ${murs.join(" ")}${vis.includes(f) ? "" : " cachee"}${interdite(f, vis) ? " interdite" : ""}" data-face="${f}">`;
   for (let r = 0; r < 15; r++) for (let c = 0; c < 15; c++) h += htmlCase([f, r, c]);
   return h + `</div>`;
 }
