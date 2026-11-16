@@ -43,9 +43,9 @@ function versMoi(f, k = V.k, p = V.p) {
 }
 const VISIBLE = .3;   // de face (1) ou sur une arête (0,71)
 const visibles = (k = V.k, p = V.p) => ORDRE.filter(f => versMoi(f, k, p) > VISIBLE);
-// Biais constant vers le haut ; biais latéral seulement quand une face est de face (une arête
-// reste symétrique, ses deux faces également lisibles).
-const transformee = () => `rotateX(${V.p % 2 ? 0 : -13}deg) rotateY(${V.k % 2 ? 0 : -17}deg) rotateX(${-V.p * 45}deg) rotateY(${-V.k * 45}deg)`;
+// Une face pleine est montrée bien de face, sans biais. Sur une arête, léger biais dans l'autre
+// sens (le dessus, ou le côté) pour bien voir le volume du cube.
+const transformee = () => `rotateX(${V.k % 2 ? -13 : 0}deg) rotateY(${V.p % 2 ? -17 : 0}deg) rotateX(${-V.p * 45}deg) rotateY(${-V.k * 45}deg)`;
 const droit = () => ((V.k % 8) + 8) % 8 === 0;
 
 // ------------------------------------------------------------ rendu
