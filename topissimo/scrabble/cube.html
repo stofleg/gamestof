@@ -31,7 +31,7 @@
 
   /* ----- scène 3D ----- */
   .vue { position: relative; width: calc(var(--S) * 1.48 + 76px); height: calc(var(--S) * 1.48 + 76px); }
-  .scene { position: absolute; inset: 38px; perspective: calc(var(--S) * 3.4); perspective-origin: 50% -15%; display: grid; place-items: center; }
+  .scene { position: absolute; inset: 38px; perspective: calc(var(--S) * 3.4); perspective-origin: 50% 2%; display: grid; place-items: center; }
   .cube { position: relative; width: var(--S); height: var(--S); transform-style: preserve-3d; transition: transform .45s ease-in-out; }
   .face { position: absolute; inset: 0; backface-visibility: hidden; -webkit-backface-visibility: hidden; background: var(--trait);
     display: grid; grid-template-columns: repeat(15, var(--c)); grid-template-rows: repeat(15, var(--c)); gap: 1px; }
@@ -44,10 +44,13 @@
   /* murs : barrière rayée jaune et noir sur les arêtes sans passage ; aucun contour entre faces jouables */
   .barriere { position: absolute; z-index: 12; pointer-events: none; --e: max(7px, calc(var(--c) * .36));
     background: repeating-linear-gradient(45deg, var(--mur) 0 7px, #111 7px 14px); box-shadow: 0 0 0 1px #111; }
-  .barriere.mur-h { left: 0; right: 0; top: 0; height: var(--e); }
-  .barriere.mur-b { left: 0; right: 0; bottom: 0; height: var(--e); }
-  .barriere.mur-g { top: 0; bottom: 0; left: 0; width: var(--e); }
-  .barriere.mur-d { top: 0; bottom: 0; right: 0; width: var(--e); }
+  /* posée à l'extérieur de la face, le long de l'arête et relevée à 45° vers l'extérieur du cube
+     (comme une glissière) : elle ne recouvre aucune case, ni de cette face ni de la voisine */
+  .face { transform-style: preserve-3d; }
+  .barriere.mur-h { left: 0; right: 0; top: calc(var(--e) * -1); height: var(--e); transform-origin: 50% 100%; transform: rotateX(-45deg); }
+  .barriere.mur-b { left: 0; right: 0; bottom: calc(var(--e) * -1); height: var(--e); transform-origin: 50% 0; transform: rotateX(45deg); }
+  .barriere.mur-g { top: 0; bottom: 0; left: calc(var(--e) * -1); width: var(--e); transform-origin: 100% 50%; transform: rotateY(45deg); }
+  .barriere.mur-d { top: 0; bottom: 0; right: calc(var(--e) * -1); width: var(--e); transform-origin: 0 50%; transform: rotateY(-45deg); }
   .face.cachee { pointer-events: none; }
   .face.cachee .c { cursor: default; }
 
