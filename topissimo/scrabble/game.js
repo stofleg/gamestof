@@ -6560,9 +6560,10 @@ function startGame() {
   if (partieMortEnCours()) saveTrainingState();   // tournoi de la Mort : la partie est « commencée »
   // Invasion : les araignées arrivent dès le début ; plateau recouvert = perdu.
   sonHalloween.nouvellePartie();
+  // Plateau recouvert = partie perdue : comme pour les 666 s ou un abandon, les coups non joués
+  // comptent dans le négatif (sinon le négatif paraissait meilleur que celui des joueurs allés au bout).
   if (currentMode().invasion) invasion.demarre($("#board"), () => {
-    showTransientError("Invasion !", "Les araignées ont recouvert tout le plateau.", 3000);
-    endGame();
+    clotureCoupsRestants("timeout", "🕷️ Les araignées ont envahi la grille", "Les coups non joués comptent dans le négatif.");
   });
   nextMove();
 }
