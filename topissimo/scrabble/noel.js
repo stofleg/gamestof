@@ -9,6 +9,7 @@
 //  Le son ne démarre qu'après une première interaction (règle des navigateurs) et se coupe
 //  avec le bouton 🔊/🔇 (choix mémorisé).
 // ============================================================
+import { decor, CSS_DECOR } from "./noel-decor.js?v=485";
 const CLE = "topissimo:noel-son";
 let ctx = null, maitre = null, reverb = null, actif = false, bouton = null, passer = null, legende = null;
 let coupe = (() => { try { return localStorage.getItem(CLE) === "off"; } catch { return false; } })();
@@ -234,7 +235,10 @@ function majBouton() { if (bouton) bouton.textContent = coupe ? "🔇" : "🔊";
 /** Allume ou éteint l'ambiance de Noël (décor tout de suite, son au premier geste). */
 export function ambiance(on) {
   document.body.classList.toggle("theme-noel", on);
-  neige(on); guirlandeLumineuse(on);
+  if (on && !document.getElementById("noelDecorCss")) {
+    const st = document.createElement("style"); st.id = "noelDecorCss"; st.textContent = CSS_DECOR; document.head.appendChild(st);
+  }
+  decor(on); neige(on); guirlandeLumineuse(on);
   if (on && !bouton) {
     bouton = document.createElement("button"); bouton.type = "button";
     bouton.className = "noel-son"; bouton.title = "Son de Noël";
