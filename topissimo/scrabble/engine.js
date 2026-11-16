@@ -199,6 +199,10 @@ export const GAME_MODES = {
   // vite possible. Elle a sa propre page (`page`), ouverte au lancement.
   puzzle: { label: "Grille puzzle", rackSize: 7, maxPlayed: 7, bonuses: { 7: 50 },
     defaultTime: 120, stofOnly: true, page: "puzzle.html" },
+  // Grille cube (tournoi de Noël, en préparation) : partie sur les 6 faces d'un cube, page dédiée
+  // (cube.html, moteur cube.js). Entraînement réservé à stof pour l'instant.
+  cube: { label: "Grille cube", rackSize: 7, maxPlayed: 7, bonuses: { 7: 50 },
+    defaultTime: 120, stofOnly: true, page: "cube.html" },
   // TopSping : tournoi façon Roland-Garros contre le top (game.js, section TopSping). Les
   // parties sont pré-générées (topissimo/topsping/<réserve>/), une formule par tour :
   // le mode n'est jamais proposé dans les menus (création du tournoi par stof, en SQL).

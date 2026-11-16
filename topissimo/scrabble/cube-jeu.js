@@ -4,12 +4,12 @@
 //  avec des flèches pour tourner le cube (grisées derrière un mur). Le pivot montre un
 //  instant les deux faces ensemble (mots à cheval sur l'arête).
 // ============================================================
-import { Dictionary } from "./dictionary.js?v=483";
-import { LETTER_BAG, drawForDuplicate, bagTotalVowels, bagTotalConsonants, letterValue } from "./engine.js?v=483";
+import { Dictionary } from "./dictionary.js?v=484";
+import { LETTER_BAG, drawForDuplicate, bagTotalVowels, bagTotalConsonants, letterValue } from "./engine.js?v=484";
 import {
   FACES, NOM_FACE, BONUS_CUBE, LIGNES, ligneDe, voisin, rangLigne, PIVOTS, cheminFaces,
   cubeVide, appliqueCoup, casesDuCoup, positionCoup, scoreCube, topCube, sacCube, JEUX_CUBE, coupRegleCube,
-} from "./cube.js?v=483";
+} from "./cube.js?v=484";
 
 const $ = id => document.getElementById(id);
 const TEMPS = 120;
@@ -322,6 +322,9 @@ $("mEff").onclick = () => enFile(retire); $("mAnn").onclick = () => enFile(effac
 window.__cube = { etat: () => S, pivote, valide, pose, allerVers, cases: m => casesDuCoup(m), dir: m => LIGNES[m.ligne].dir };
 
 (async () => {
+  // En préparation : réservé à stof (mode admin).
+  const stof = (localStorage.getItem("currentPseudo") || "").toLowerCase() === "stof" && localStorage.getItem("topissimo:superadmin") === "1";
+  if (!stof) { message("La grille cube est en préparation : elle n'est pas encore ouverte.", "err"); return; }
   dict = await new Dictionary().load("ods9.txt");
   nouvellePartie();
 })();
