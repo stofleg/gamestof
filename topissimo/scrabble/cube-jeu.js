@@ -66,12 +66,10 @@ function htmlCase(cs) {
   const j = t ? `<div class="jeton${t.isBlank ? " joker" : ""}${t.pose ? " pose" : ""}${t.invalide ? " invalide" : ""}">${t.letter}${t.isBlank ? "" : `<span>${letterValue(t.letter)}</span>`}</div>` : "";
   return `<div class="${cls.join(" ")}" data-f="${f}" data-r="${r}" data-c="${c}">${j}${cur ? `<span class="dir">${S.cursor.dir === "H" ? "→" : "↓"}</span>` : ""}</div>`;
 }
-/** Face aperçue (bande du dessus) mais inaccessible depuis la vue actuelle : le dessus quand le cube
- *  est tourné (on n'y monte que depuis la face principale), l'arrière vu depuis le dessus. */
+/** Dessus (ou dessous) aperçu mais inaccessible : le cube est tourné (on n'y monte que depuis la
+ *  face principale). Les faces latérales ne sont jamais grisées. */
 function interdite(f, vis) {
-  if (vis.includes(f) || f === "F") return false;
-  if ((f === "U" || f === "D") && droit()) return false;
-  return true;
+  return (f === "U" || f === "D") && !vis.includes(f) && !droit();
 }
 /** Une face 15×15 ; contour plus foncé (murs) là où aucune ligne ne continue. */
 function htmlFace(f, vis) {

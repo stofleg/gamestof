@@ -47,10 +47,9 @@
   .face.mur-g { border-left-color: var(--arete); } .face.mur-d { border-right-color: var(--arete); }
   .face.cachee { pointer-events: none; }
   .face.cachee .c { cursor: default; }
-  /* face inaccessible : grille passée en gris doux, voilée de fines rayures, avec un cadenas */
+  /* dessus inaccessible : grille passée en gris doux, voilée de fines rayures */
   .face.interdite { filter: grayscale(1) contrast(.8) brightness(1.06); }
-  .face.interdite::after { content: "🔒"; position: absolute; inset: 0; z-index: 20; display: grid; place-items: center;
-    font-size: calc(var(--c) * 3); color: #4f6573;
+  .face.interdite::after { content: ""; position: absolute; inset: 0; z-index: 20;
     background: repeating-linear-gradient(135deg, rgba(255,255,255,.62) 0 calc(var(--c) * .3), rgba(207,226,240,.5) calc(var(--c) * .3) calc(var(--c) * .6)); }
 
   /* ----- cases et jetons DupliJeu ----- */
