@@ -4417,12 +4417,19 @@ window.closeSettings = () => {
   const oldJoker = state.settings.withJoker;
   const oldPlayMode = state.settings.playMode;
   const oldAutoDraw = state.settings.autoDraw;
-  state.settings.playMode = $("#optPlayMode").value || "topping";
-  state.settings.autoDraw = $("#optAutoDraw").checked;
+  // Partie de tournoi, ou partie en cours : la formule et ses réglages sont FIGÉS (champs grisés).
+  // On ne les relit pas : le menu ne propose pas les formules superoriginales aux joueurs, et
+  // relire sa valeur (vide) faisait repasser la partie en formule « Normal » — ex. Top/sous-top
+  // joué sans sous-top après un simple passage par ⚙️ Paramètres.
+  const formuleFigee = !!state.prepared || (state.started && state.chronoFinal == null);
+  if (!formuleFigee) {
+    state.settings.playMode = $("#optPlayMode").value || "topping";
+    state.settings.autoDraw = $("#optAutoDraw").checked;
+    state.settings.gameMode = $("#optGameMode").value || state.settings.gameMode;
+    state.settings.withJoker = $("#optWithJoker").checked;
+  }
   state.settings.autoTop = $("#optAutoTop").checked;
   state.settings.signalZeros = $("#optSignalZeros").checked;
-  state.settings.gameMode = $("#optGameMode").value;
-  state.settings.withJoker = $("#optWithJoker").checked;
   state.settings.rackPos = $("#optRackPos").value;
   state.settings.sortRack = $("#optSortRack").checked;
   state.settings.showCoords = $("#optShowCoords").checked;
@@ -4430,7 +4437,7 @@ window.closeSettings = () => {
   state.settings.chronoType = $("#optChronoType").value || "challenge";
   state.settings.highlightTop = $("#optHighlightTop").checked;
   state.settings.showPace = $("#optShowPace").checked;
-  state.settings.timePerMove = +$("#optTimePerMove").value || 0;
+  if (!formuleFigee) state.settings.timePerMove = +$("#optTimePerMove").value || 0;
   saveSettings();
   saveSettingsToSupabase().catch(() => {});   // sync compte (silencieux si pas connecté ou pas de colonne)
   applyRackPos();
