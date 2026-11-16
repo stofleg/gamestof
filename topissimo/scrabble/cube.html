@@ -31,7 +31,7 @@
 
   /* ----- scène 3D ----- */
   .vue { position: relative; width: calc(var(--S) * 1.48 + 76px); height: calc(var(--S) * 1.48 + 76px); }
-  .scene { position: absolute; inset: 38px; perspective: calc(var(--S) * 3.4); display: grid; place-items: center; }
+  .scene { position: absolute; inset: 38px; perspective: calc(var(--S) * 3.4); perspective-origin: 50% -15%; display: grid; place-items: center; }
   .cube { position: relative; width: var(--S); height: var(--S); transform-style: preserve-3d; transition: transform .45s ease-in-out; }
   .face { position: absolute; inset: 0; backface-visibility: hidden; -webkit-backface-visibility: hidden; background: var(--trait);
     border: 5px solid var(--arete); display: grid; grid-template-columns: repeat(15, var(--c)); grid-template-rows: repeat(15, var(--c)); gap: 1px; }
