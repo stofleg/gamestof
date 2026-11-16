@@ -1,32 +1,52 @@
 // ============================================================
 //  Grille cube : écran de jeu (entraînement). Moteur : cube.js.
-//  La face active est affichée à plat, bordée d'un liseré de la face voisine (ou d'un mur),
-//  avec des flèches pour tourner le cube (grisées derrière un mur). Le pivot montre un
-//  instant les deux faces ensemble (mots à cheval sur l'arête).
+//  Le cube est toujours affiché en 3D (légèrement de biais). Les flèches le tournent d'un
+//  huitième de tour : arrêt possible sur une arête, les deux faces sont alors visibles et
+//  jouables. Gauche/droite quand le cube est droit ; haut/bas seulement depuis la face
+//  principale (k multiple de 8). Les arêtes sans passage sont des murs jaunes.
 // ============================================================
-import { Dictionary } from "./dictionary.js?v=484";
-import { LETTER_BAG, drawForDuplicate, bagTotalVowels, bagTotalConsonants, letterValue } from "./engine.js?v=484";
+import { Dictionary } from "./dictionary.js?v=485";
+import { LETTER_BAG, drawForDuplicate, bagTotalVowels, bagTotalConsonants, letterValue } from "./engine.js?v=485";
 import {
   FACES, NOM_FACE, BONUS_CUBE, LIGNES, ligneDe, voisin, rangLigne, PIVOTS, cheminFaces,
   cubeVide, appliqueCoup, casesDuCoup, positionCoup, scoreCube, topCube, sacCube, JEUX_CUBE, coupRegleCube,
-} from "./cube.js?v=484";
+} from "./cube.js?v=485";
 
 const $ = id => document.getElementById(id);
 const TEMPS = 120;
 const CLASSE = { ".": "", d: "dl", t: "tl", D: "dw", T: "tw", "*": "dw etoile" };
 const VOY = new Set(["A", "E", "I", "O", "U", "Y"]);
 const TITRES = { F: "Principale ★", R: "Droite", B: "Arrière", L: "Gauche", U: "Dessus", D: "Dessous" };
+const ORDRE = ["F", "R", "B", "L", "U", "D"];
 
 let dict = null;
 const S = {
-  cube: cubeVide(), bag: null, rack: [], pending: [], face: "F", cursor: null, coup: 0,
+  cube: cubeVide(), bag: null, rack: [], pending: [], cursor: null, coup: 0,
   top: null, best: null, cumul: 0, neg: 0, tops: 0, fin: false, debut: 0, topCells: [], anim: false,
 };
+/** Vue du cube : k = huitièmes de tour horizontaux (vers la droite), p = huitièmes vers le haut (-2..2). */
+const V = { k: 0, p: 0 };
 let nextId = 1, minuteur = null;
 // Toutes les actions du joueur passent par une file : une lettre tapée pendant que le cube
-// tourne attend la fin du pivot et de la lettre précédente (ordre de saisie garanti).
+// tourne attend la fin de la rotation et de la lettre précédente (ordre de saisie garanti).
 let file = Promise.resolve();
 const enFile = action => { file = file.then(action).catch(e => console.error(e)); return file; };
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+// ------------------------------------------------------------ géométrie de la vue
+const NORMALE = { F: [0, 0, 1], R: [1, 0, 0], B: [0, 0, -1], L: [-1, 0, 0], U: [0, -1, 0], D: [0, 1, 0] };
+/** Composante vers l'observateur de la normale d'une face (repère CSS), pour la vue (k, p). */
+function versMoi(f, k = V.k, p = V.p) {
+  const a = -k * Math.PI / 4, b = -p * Math.PI / 4, [x, y, z] = NORMALE[f];
+  const z1 = -x * Math.sin(a) + z * Math.cos(a);
+  return y * Math.sin(b) + z1 * Math.cos(b);
+}
+const VISIBLE = .3;   // de face (1) ou sur une arête (0,71)
+const visibles = (k = V.k, p = V.p) => ORDRE.filter(f => versMoi(f, k, p) > VISIBLE);
+// Biais constant vers le haut ; biais latéral seulement quand une face est de face (une arête
+// reste symétrique, ses deux faces également lisibles).
+const transformee = () => `rotateX(${V.p % 2 ? 0 : -13}deg) rotateY(${V.k % 2 ? 0 : -17}deg) rotateX(${-V.p * 45}deg) rotateY(${-V.k * 45}deg)`;
+const droit = () => ((V.k % 8) + 8) % 8 === 0;
 
 // ------------------------------------------------------------ rendu
 const cle = cs => cs.join();
@@ -35,40 +55,48 @@ function tuile(cs) {
   if (p) return { letter: p.letter, isBlank: p.isBlank, pose: true, invalide: p.invalide };
   return S.cube[cs[0]][cs[1]][cs[2]];
 }
-function htmlCase(cs, extra = "") {
+function htmlCase(cs) {
   const [f, r, c] = cs, t = tuile(cs);
   const cls = ["c", CLASSE[BONUS_CUBE[f][r][c]] || ""];
   if (f !== "F" && BONUS_CUBE[f][r][c] === "*") cls.push("dw");
   if (t) cls.push("has");
   if (S.topCells.some(x => cle(x) === cle(cs))) cls.push("top");
-  const cur = !extra && S.cursor && cle([S.cursor.f, S.cursor.r, S.cursor.c]) === cle(cs);
+  const cur = S.cursor && cle([S.cursor.f, S.cursor.r, S.cursor.c]) === cle(cs);
   if (cur) cls.push("curseur");
   const j = t ? `<div class="jeton${t.isBlank ? " joker" : ""}${t.pose ? " pose" : ""}${t.invalide ? " invalide" : ""}">${t.letter}${t.isBlank ? "" : `<span>${letterValue(t.letter)}</span>`}</div>` : "";
-  return `<div class="${cls.join(" ")} ${extra}" data-f="${f}" data-r="${r}" data-c="${c}">${j}${cur ? `<span class="dir">${S.cursor.dir === "H" ? "→" : "↓"}</span>` : ""}</div>`;
+  return `<div class="${cls.join(" ")}" data-f="${f}" data-r="${r}" data-c="${c}">${j}${cur ? `<span class="dir">${S.cursor.dir === "H" ? "→" : "↓"}</span>` : ""}</div>`;
 }
-/** Grille 17×17 d'une face : liserés (cases voisines ou murs) autour des 15×15 cases. */
-function htmlFace(f) {
-  const bord = cs => cs ? htmlCase(cs, "liseret") : `<div class="mur"></div>`;
-  let h = `<div class="face">`;
-  h += `<div class="coin"></div>`;
-  for (let c = 0; c < 15; c++) h += bord(voisin(f, 0, c, "V", -1));
-  h += `<div class="coin"></div>`;
-  for (let r = 0; r < 15; r++) {
-    h += bord(voisin(f, r, 0, "H", -1));
-    for (let c = 0; c < 15; c++) h += htmlCase([f, r, c]);
-    h += bord(voisin(f, r, 14, "H", 1));
-  }
-  h += `<div class="coin"></div>`;
-  for (let c = 0; c < 15; c++) h += bord(voisin(f, 14, c, "V", 1));
-  return h + `<div class="coin"></div></div>`;
+/** Une face 15×15 ; arêtes jaunes (murs) là où aucune ligne ne continue. */
+function htmlFace(f, vis) {
+  const murs = [];
+  if (!voisin(f, 0, 7, "V", -1)) murs.push("mur-h");
+  if (!voisin(f, 14, 7, "V", 1)) murs.push("mur-b");
+  if (!voisin(f, 7, 0, "H", -1)) murs.push("mur-g");
+  if (!voisin(f, 7, 14, "H", 1)) murs.push("mur-d");
+  let h = `<div class="face ${f} ${murs.join(" ")}${vis.includes(f) ? "" : " cachee"}" data-face="${f}">`;
+  for (let r = 0; r < 15; r++) for (let c = 0; c < 15; c++) h += htmlCase([f, r, c]);
+  return h + `</div>`;
+}
+function titreVue(vis) {
+  const tri = vis.slice().sort((a, b) => versMoi(b) - versMoi(a));
+  return tri.length === 1 ? TITRES[tri[0]] : "Arête " + tri.map(f => TITRES[f].replace(" ★", "")).join(" · ");
+}
+function majFleches() {
+  const g = V.p === 0, hb = droit();
+  $("fGauche").disabled = !g; $("fDroite").disabled = !g;
+  $("fHaut").disabled = !(hb && V.p < 2); $("fBas").disabled = !(hb && V.p > -2);
+  const mur = "Mur : on ne tourne dans ce sens que depuis la face principale";
+  $("fGauche").title = g ? "Tourner d'un huitième de tour" : "Revenir d'abord à la face principale";
+  $("fDroite").title = $("fGauche").title;
+  $("fHaut").title = $("fHaut").disabled ? mur : "Tourner vers le dessus";
+  $("fBas").title = $("fBas").disabled ? mur : "Tourner vers le dessous";
 }
 function dessine() {
-  $("cadre").innerHTML = htmlFace(S.face);
-  $("titreFace").textContent = TITRES[S.face];
-  const p = PIVOTS[S.face];
-  $("fGauche").disabled = !p.gauche; $("fDroite").disabled = !p.droite; $("fHaut").disabled = !p.haut; $("fBas").disabled = !p.bas;
-  for (const [id, dirn] of [["fGauche", "gauche"], ["fDroite", "droite"], ["fHaut", "haut"], ["fBas", "bas"]])
-    $(id).title = p[dirn] ? `Face ${NOM_FACE[p[dirn]]}` : "Mur : pas de passage de ce côté";
+  const vis = visibles();
+  $("cube").innerHTML = ORDRE.map(f => htmlFace(f, vis)).join("");
+  $("cube").style.transform = transformee();
+  $("titreFace").textContent = titreVue(vis);
+  majFleches();
   dessineChevalet();
 }
 function dessineChevalet() {
@@ -79,43 +107,53 @@ function infos() {
 }
 function message(html, cls = "") { const m = $("msg"); m.innerHTML = html; m.className = "msg" + (cls ? " " + cls : ""); }
 
-// ------------------------------------------------------------ pivot du cube
-const sleep = ms => new Promise(r => setTimeout(r, ms));
-const ROT = { droite: ["rotateY(90deg)", "rotateY(-45deg)", "rotateY(-90deg)"], gauche: ["rotateY(-90deg)", "rotateY(45deg)", "rotateY(90deg)"],
-  haut: ["rotateX(90deg)", "rotateX(-45deg)", "rotateX(-90deg)"], bas: ["rotateX(-90deg)", "rotateX(45deg)", "rotateX(90deg)"] };
-/** Pivote vers la face voisine `sens` ; `pause` : temps d'arrêt à mi-chemin (deux faces visibles). */
-async function pivote(sens, pause = 650) {
-  const cible = PIVOTS[S.face][sens];
-  if (!cible || S.anim) return false;
+// ------------------------------------------------------------ rotations du cube
+/** Anime la vue vers (k, p) ; `pas` = nombre de huitièmes parcourus (durée). */
+async function anime(k, p, pas) {
+  if (k === V.k && p === V.p) return;
   S.anim = true;
-  const w = $("cadre").offsetWidth, h = $("cadre").offsetHeight, demi = (sens === "haut" || sens === "bas" ? h : w) / 2;
-  const scene = $("scene"), prisme = $("prisme");
-  scene.style.width = w + "px"; scene.style.height = h + "px";
-  prisme.style.transition = "none";
-  prisme.style.transform = `translateZ(${-demi}px)`;
-  prisme.innerHTML = `<div class="pf cadre" style="transform: translateZ(${demi}px)">${htmlFace(S.face)}</div>`
-    + `<div class="pf cadre" style="transform: ${ROT[sens][0]} translateZ(${demi}px)">${htmlFace(cible)}</div>`;
-  scene.classList.add("on");
-  $("cadre").style.visibility = "hidden";
-  await sleep(20);
-  prisme.style.transition = "";
-  prisme.style.transform = `translateZ(${-demi}px) ${ROT[sens][1]}`;
-  await sleep(380 + pause);
-  prisme.style.transform = `translateZ(${-demi}px) ${ROT[sens][2]}`;
-  await sleep(400);
-  S.face = cible;
+  V.k = k; V.p = p;
+  $("cube").style.transitionDuration = `${Math.min(.3 + .17 * pas, .9)}s`;
   dessine();
-  $("cadre").style.visibility = "";
-  scene.classList.remove("on");
+  await sleep(Math.min(300 + 170 * pas, 900) + 40);
   S.anim = false;
+}
+/** Flèche : un huitième de tour (gauche/droite si le cube est droit, haut/bas depuis la face principale). */
+async function pivote(sens) {
+  if (S.anim) return false;
+  if ((sens === "gauche" || sens === "droite") && V.p !== 0) return false;
+  if ((sens === "haut" || sens === "bas") && !droit()) return false;
+  const dk = sens === "droite" ? 1 : sens === "gauche" ? -1 : 0, dp = sens === "haut" ? 1 : sens === "bas" ? -1 : 0;
+  if (Math.abs(V.p + dp) > 2) return false;
+  await anime(V.k + dk, V.p + dp, 1);
   return true;
 }
-async function allerVers(face, pause = 0) { for (const s of cheminFaces(S.face, face)) await pivote(s, pause); }
+/** Tourne au plus court pour rendre visibles les faces voulues (la 1re obligatoirement) ;
+ *  `deFace` : la 1re face bien en face (pas sur une arête). */
+async function voir(faces, deFace = false) {
+  faces = [...new Set(faces)];
+  if (!deFace && faces.every(f => visibles().includes(f))) return;
+  const base = Math.round(V.k / 8) * 8;   // face principale la plus proche
+  const cands = [];
+  for (let k = V.k - 8; k <= V.k + 8; k++) cands.push([k, 0]);
+  for (const p of [-2, -1, 1, 2]) cands.push([base, p]);
+  let best = null;
+  for (const [k, p] of cands) {
+    const vis = visibles(k, p);
+    if (!vis.includes(faces[0]) || (deFace && versMoi(faces[0], k, p) < .99)) continue;
+    const n = faces.filter(f => vis.includes(f)).length;
+    const cout = (p === V.p && (p === 0 || k === V.k)) ? Math.abs(k - V.k) + Math.abs(p - V.p) : Math.abs(V.p) + Math.abs(k - V.k) + Math.abs(p);
+    if (!best || n > best.n || (n === best.n && cout < best.cout)) best = { k, p, n, cout };
+  }
+  if (best) await anime(best.k, best.p, best.cout);
+}
+async function allerVers(face) { await voir([face], true); }
 
 // ------------------------------------------------------------ partie
 async function nouvellePartie() {
   clearInterval(minuteur);
-  Object.assign(S, { cube: cubeVide(), bag: sacCube(JEUX_CUBE, LETTER_BAG),   // 6 jeux de jetons, un par face rack: [], pending: [], face: "F", cursor: { f: "F", r: 7, c: 7, dir: "H" },
+  // 6 jeux de jetons, un par face
+  Object.assign(S, { cube: cubeVide(), bag: sacCube(JEUX_CUBE, LETTER_BAG), rack: [], pending: [], cursor: { f: "F", r: 7, c: 7, dir: "H" },
     coup: 0, top: null, best: null, cumul: 0, neg: 0, tops: 0, fin: false, topCells: [] });
   infos();
   nouveauCoup();
@@ -173,8 +211,8 @@ async function finCoup(statut, joue = null) {
   infos();
   const lib = `<span class="top">✅ Top : <b>${mv.word}</b> — ${top.score} pts, ${positionCoup(mv)}${top.isotops > 1 ? ` (${top.isotops} isotops)` : ""}</span>`;
   message(statut === "top" ? `${lib}Bravo, tu as trouvé le top !` : `${lib}${statut === "timeout" ? "⏱ Temps écoulé" : "Top révélé"} — tu marques ${score} pts${S.best ? ` (${S.best.word})` : ""}.`, statut === "top" ? "ok" : "");
-  // la vue va montrer le top (face de sa 1re lettre), sans arrêt aux étapes
-  await allerVers(S.topCells[0][0], 0);
+  // la vue montre le top (sur une arête s'il est à cheval sur deux faces)
+  await voir(S.topCells.map(cs => cs[0]));
   S.cursor = null;
   dessine();
   setTimeout(nouveauCoup, statut === "top" ? 600 : 1500);
@@ -196,8 +234,8 @@ function avance(cur, delta = 1) {
   return null;
 }
 async function suitCurseur() {
-  if (S.cursor && S.cursor.f !== S.face) await allerVers(S.cursor.f, 0);
-  else dessine();
+  if (S.cursor && !visibles().includes(S.cursor.f)) await voir([S.cursor.f]);
+  dessine();
 }
 async function pose(L, tileId = null) {
   if (!S.top || S.fin) return;
@@ -209,8 +247,9 @@ async function pose(L, tileId = null) {
   if (!t) return message(`Pas de ${L} dans ton tirage.`, "err");
   let isBlank = t.letter === "?";
   if (isBlank && (!L || L === "?")) { L = await choisitJoker(); if (!L) return; }
-  // la vue ne tourne que si la lettre tombe vraiment sur une autre face (mot à cheval)
-  if (cur.f !== S.face) await allerVers(cur.f, 0);
+  // la vue ne tourne que si la lettre tombe sur une face cachée (mot à cheval) : de préférence
+  // jusqu'à l'arête, pour garder sous les yeux le début du mot
+  if (!visibles().includes(cur.f)) await voir([cur.f, ...S.pending.map(p => p.f)]);
   t.used = true;
   S.pending.push({ f: cur.f, r: cur.r, c: cur.c, letter: L, isBlank, id: t.id });
   S.cursor = avance(cur) || null;
@@ -300,10 +339,10 @@ document.addEventListener("keydown", e => {
 });
 $("vue").addEventListener("click", e => {
   const d = e.target.closest(".c[data-f]");
-  if (!d || d.classList.contains("liseret")) return;
+  if (!d) return;
   const cs = { f: d.dataset.f, r: +d.dataset.r, c: +d.dataset.c };
   enFile(async () => {
-    if (S.cube[cs.f][cs.r][cs.c] || cs.f !== S.face) return;
+    if (S.cube[cs.f][cs.r][cs.c] || !visibles().includes(cs.f)) return;
     if (S.cursor && S.cursor.f === cs.f && S.cursor.r === cs.r && S.cursor.c === cs.c && !S.pending.length) S.cursor.dir = S.cursor.dir === "H" ? "V" : "H";
     else {
       if (S.pending.length) { for (const p of S.pending) S.rack.find(t => t.id === p.id).used = false; S.pending = []; }
@@ -319,9 +358,10 @@ $("bNouvelle").onclick = () => enFile(() => nouvellePartie());
 $("mEff").onclick = () => enFile(retire); $("mAnn").onclick = () => enFile(efface); $("mVal").onclick = () => enFile(valide);
 
 // tests automatiques (lecture seule)
-window.__cube = { etat: () => S, pivote, valide, pose, allerVers, cases: m => casesDuCoup(m), dir: m => LIGNES[m.ligne].dir };
+window.__cube = { etat: () => S, vue: () => ({ ...V, visibles: visibles() }), pivote, valide, pose, allerVers, cases: m => casesDuCoup(m), dir: m => LIGNES[m.ligne].dir };
 
 (async () => {
+  dessine();
   // En préparation : réservé à stof (mode admin).
   const stof = (localStorage.getItem("currentPseudo") || "").toLowerCase() === "stof" && localStorage.getItem("topissimo:superadmin") === "1";
   if (!stof) { message("La grille cube est en préparation : elle n'est pas encore ouverte.", "err"); return; }

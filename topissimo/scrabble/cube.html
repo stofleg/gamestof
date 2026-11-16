@@ -7,94 +7,118 @@
 <link rel="icon" href="../icon.svg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
-  /* Couleurs et jetons de Topissimo (game.css) ; cadre pétrole autour de la face active. */
+  /* Style DupliJeu (comme le thème « DupliJeu » de Topissimo) : cases blanches, traits gris-bleu,
+     cases bonus pleines avec 4 petits triangles, jetons beige unis à lettres sans empattement.
+     Le cube est toujours montré en 3D, légèrement de biais ; les flèches le tournent d'un huitième
+     de tour : on peut s'arrêter sur une arête (deux faces visibles, et jouables). */
   :root {
-    --petrol: #002e44; --petrol-2: #0c4a66; --cream: #f8f5ea; --ink: #12313f; --muted: #5d6f78;
-    --normal: #ece4cf; --dl: #a6d8e3; --tl: #3a8bb8; --dw: #f0a7a7; --tw: #c9403a;
-    --tile-hi: #fce8a8; --tile: #f5d97a; --tile-2: #e8c548; --tile-fg: #1f2a2e; --joker: #c62828;
-    --yellow: #ffd400; --ok: #2e7d4f; --err: #b3261e; --mur: #ffd400;
-    --case: clamp(18px, min(calc((100vw - 120px) / 17), calc((100vh - 230px) / 17)), 40px);
+    --fond: #cfe2f0; --petrol: #002e44; --ink: #12313f; --muted: #4f6573;
+    --trait: #b3c1ce; --arete: #5d7686; --case: #ffffff;
+    --dl: #a4d8e1; --tl: #3a8db5; --dw: #f0a8a8; --tw: #cc4040;
+    --jeton: #d8b975; --joker: #c62828; --pose: #cfe9c4;
+    --jaune: #ffd400; --ok: #2e7d4f; --err: #b3261e; --mur: #ffd400;
+    --c: clamp(14px, min(calc((100vw - 470px) / 23), calc((100vh - 190px) / 23)), 30px);
+    --S: calc(var(--c) * 15 + 14px + 10px);   /* côté d'une face : 15 cases + 14 traits + bords */
   }
   * { box-sizing: border-box; }
-  body { margin: 0; background: var(--cream); color: var(--ink); font-family: Inter, system-ui, sans-serif; }
-  .page { max-width: 1200px; margin: 0 auto; padding: 12px max(16px, env(safe-area-inset-left, 0px)) 20px; display: flex; gap: 22px; align-items: flex-start; flex-wrap: wrap; justify-content: center; }
-  .gauche { display: grid; gap: 10px; justify-items: center; }
-  .droite { flex: 1 1 300px; max-width: 420px; display: grid; gap: 12px; }
+  body { margin: 0; background: var(--fond); color: var(--ink); font-family: Inter, system-ui, sans-serif; }
+  .page { max-width: 1280px; margin: 0 auto; padding: 10px max(16px, env(safe-area-inset-right, 0px)) 20px max(16px, env(safe-area-inset-left, 0px));
+    display: flex; gap: 18px; align-items: flex-start; flex-wrap: wrap; justify-content: center; }
+  .gauche { display: grid; gap: 8px; justify-items: center; }
+  .droite { flex: 1 1 300px; max-width: 400px; display: grid; gap: 12px; }
 
-  /* ----- vue d'une face : grille 17×17 (liserés voisins + 15×15), flèches autour ----- */
-  .vue { position: relative; padding: 34px; }
-  .cadre { background: var(--petrol); border-radius: 10px; padding: 6px; position: relative; }
-  .face { display: grid; grid-template-columns: calc(var(--case) * .45) repeat(15, var(--case)) calc(var(--case) * .45);
-    grid-template-rows: calc(var(--case) * .45) repeat(15, var(--case)) calc(var(--case) * .45); gap: 1px; }
-  .c { position: relative; border-radius: 2px; background: var(--normal); display: grid; place-items: center; cursor: pointer; user-select: none; }
+  /* ----- scène 3D ----- */
+  .vue { position: relative; width: calc(var(--S) * 1.48 + 76px); height: calc(var(--S) * 1.48 + 76px); }
+  .scene { position: absolute; inset: 38px; perspective: calc(var(--S) * 3.4); display: grid; place-items: center; }
+  .cube { position: relative; width: var(--S); height: var(--S); transform-style: preserve-3d; transition: transform .45s ease-in-out; }
+  .face { position: absolute; inset: 0; backface-visibility: hidden; -webkit-backface-visibility: hidden; background: var(--trait);
+    border: 5px solid var(--arete); display: grid; grid-template-columns: repeat(15, var(--c)); grid-template-rows: repeat(15, var(--c)); gap: 1px; }
+  .face.F { transform: translateZ(calc(var(--S) / 2)); }
+  .face.R { transform: rotateY(90deg) translateZ(calc(var(--S) / 2)); }
+  .face.B { transform: rotateY(180deg) translateZ(calc(var(--S) / 2)); }
+  .face.L { transform: rotateY(-90deg) translateZ(calc(var(--S) / 2)); }
+  .face.U { transform: rotateX(90deg) translateZ(calc(var(--S) / 2)); }
+  .face.D { transform: rotateX(-90deg) translateZ(calc(var(--S) / 2)); }
+  /* murs : arête jaune là où il n'y a pas de passage */
+  .face.mur-h { border-top-color: var(--mur); } .face.mur-b { border-bottom-color: var(--mur); }
+  .face.mur-g { border-left-color: var(--mur); } .face.mur-d { border-right-color: var(--mur); }
+  .face.cachee { pointer-events: none; }
+  .face.cachee .c { cursor: default; }
+
+  /* ----- cases et jetons DupliJeu ----- */
+  .c { position: relative; background: var(--case); display: grid; place-items: center; cursor: pointer; user-select: none; -webkit-user-select: none; }
   .c.dl { background: var(--dl); } .c.tl { background: var(--tl); } .c.dw { background: var(--dw); } .c.tw { background: var(--tw); }
-  .c.etoile::after { content: "★"; color: rgba(0,0,0,.45); font-size: calc(var(--case) * .55); }
-  .c.has::after { content: none; }
-  .liseret { opacity: .45; cursor: default; }
-  .liseret .jeton span { display: none; }
-  .mur { background: var(--mur); border-radius: 3px; cursor: default; box-shadow: 0 0 0 1px rgba(0,0,0,.25) inset; }
-  .coin { background: transparent; }
-  .jeton { position: absolute; inset: 0; border-radius: 3px; display: grid; place-items: center; font: 700 calc(var(--case) * .62) Georgia, "Times New Roman", serif;
-    background: linear-gradient(135deg, var(--tile-hi) 0%, var(--tile) 50%, var(--tile-2) 100%); color: var(--tile-fg); box-shadow: inset 0 -2px 0 rgba(0,0,0,.12); }
+  .c.dl, .c.tl, .c.dw, .c.tw { z-index: 1; }
+  .c.dl::after, .c.tl::after, .c.dw::after, .c.tw::after { content: ""; position: absolute; inset: calc(var(--c) * -.14); background-size: 100% 100%; pointer-events: none; z-index: -1; }
+  .c.dl::after { background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><g fill='%23a4d8e1'><polygon points='38,13 62,13 50,0'/><polygon points='38,87 62,87 50,100'/><polygon points='13,38 13,62 0,50'/><polygon points='87,38 87,62 100,50'/></g></svg>"); }
+  .c.tl::after { background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><g fill='%233a8db5'><polygon points='38,13 62,13 50,0'/><polygon points='38,87 62,87 50,100'/><polygon points='13,38 13,62 0,50'/><polygon points='87,38 87,62 100,50'/></g></svg>"); }
+  .c.dw::after { background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><g fill='%23f0a8a8'><polygon points='38,13 62,13 50,0'/><polygon points='38,87 62,87 50,100'/><polygon points='13,38 13,62 0,50'/><polygon points='87,38 87,62 100,50'/></g></svg>"); }
+  .c.tw::after { background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><g fill='%23cc4040'><polygon points='38,13 62,13 50,0'/><polygon points='38,87 62,87 50,100'/><polygon points='13,38 13,62 0,50'/><polygon points='87,38 87,62 100,50'/></g></svg>"); }
+  .c.etoile::before { content: "★"; color: #111; font-size: calc(var(--c) * .62); line-height: 1; }
+  .c.has::before { content: none; }
+  .jeton { position: absolute; inset: 0; border: .5px solid #000; border-radius: 3px; background: var(--jeton); display: grid; place-items: center;
+    font: 600 calc(var(--c) * .64) Inter, system-ui, sans-serif; line-height: 1; color: #111; z-index: 3; }
   .jeton.joker { color: var(--joker); }
-  .jeton span { position: absolute; right: 2px; bottom: 0; font: 600 calc(var(--case) * .26) Inter, sans-serif; }
-  .jeton.pose { outline: 2px solid var(--yellow); outline-offset: -2px; }
+  .jeton span { position: absolute; right: 1px; bottom: 0; font: 300 calc(var(--c) * .28) Inter, sans-serif; line-height: 1; opacity: .8; }
+  .jeton.pose { background: var(--pose); border-color: #3f7f3f; }
   .jeton.invalide { background: #f4b1ab; }
-  .c.top::before { content: ""; position: absolute; inset: -1px; border: 3px solid #12a150; border-radius: 3px; z-index: 3; pointer-events: none; }
-  .c.curseur { outline: 3px solid #111; outline-offset: -2px; z-index: 2; }
-  .c.curseur .dir { position: absolute; right: 1px; top: -1px; font: 800 calc(var(--case) * .42) Inter, sans-serif; color: #111; }
-  .titre-face { font: 700 .9rem Inter, sans-serif; color: var(--petrol); letter-spacing: .04em; background: #fff; border-radius: 999px; padding: 3px 14px; box-shadow: 0 1px 3px rgba(0,0,0,.1); margin-bottom: -6px; }
-  .fleche { position: absolute; width: 30px; height: 30px; border-radius: 50%; border: 0; background: var(--petrol); color: var(--yellow); font: 700 15px Inter, sans-serif; cursor: pointer; display: grid; place-items: center; }
-  .fleche:disabled { background: #c9cdd0; color: #f2f2f2; cursor: not-allowed; }
-  .fleche:focus-visible { outline: 3px solid var(--yellow); outline-offset: 2px; }
-  .f-gauche { left: 0; top: calc(50% - 15px); } .f-droite { right: 0; top: calc(50% - 15px); }
-  .f-haut { top: 0; left: calc(50% - 15px); } .f-bas { bottom: 0; left: calc(50% - 15px); }
-  .f-haut, .f-bas { top: auto; }
-  .f-haut { top: 0; }
-  /* ----- pivot 3D : les deux faces visibles ensemble ----- */
-  .scene { position: absolute; inset: 34px; perspective: 1400px; display: none; z-index: 5; }
-  .scene.on { display: block; }
-  .prisme { position: absolute; inset: 0; transform-style: preserve-3d; transition: transform .38s ease-in-out; }
-  .prisme .pf { position: absolute; inset: 0; backface-visibility: hidden; }
-  /* ----- chevalet et boutons ----- */
-  .rack { display: flex; gap: 5px; background: linear-gradient(180deg, #002e44, #001e2d); padding: 8px 12px; border-radius: 8px; min-height: 56px; }
-  .rack .t { width: 44px; height: 48px; border-radius: 5px; display: grid; place-items: center; position: relative; cursor: pointer; font: 700 28px Georgia, serif;
-    background: linear-gradient(135deg, var(--tile-hi) 0%, var(--tile) 50%, var(--tile-2) 100%); color: var(--tile-fg); border: 1px solid rgba(138,106,31,.4); }
-  .rack .t span { position: absolute; right: 3px; bottom: 1px; font: 600 10px Inter, sans-serif; }
+  .c.top .jeton { box-shadow: inset 0 0 0 2px #12a150; }
+  .c.curseur { outline: 3px solid #111; outline-offset: -2px; z-index: 4; }
+  .c.curseur .dir { position: absolute; right: 1px; top: 0; font: 800 calc(var(--c) * .45) Inter, sans-serif; line-height: 1; color: #111; z-index: 5; }
+
+  /* ----- flèches ----- */
+  .fleche { position: absolute; width: 34px; height: 34px; border-radius: 50%; border: 0; background: var(--petrol); color: var(--jaune);
+    font: 700 15px Inter, sans-serif; cursor: pointer; display: grid; place-items: center; z-index: 20; box-shadow: 0 2px 5px rgba(0,46,68,.3); }
+  .fleche:disabled { background: #a9b6bf; color: #eef2f4; cursor: not-allowed; box-shadow: none; }
+  .fleche:focus-visible { outline: 3px solid var(--jaune); outline-offset: 2px; }
+  .f-gauche { left: 0; top: calc(50% - 17px); } .f-droite { right: 0; top: calc(50% - 17px); }
+  .f-haut { top: 0; left: calc(50% - 17px); } .f-bas { bottom: 0; left: calc(50% - 17px); }
+  .titre-face { font: 700 .85rem Inter, sans-serif; color: var(--petrol); background: #fff; border-radius: 999px; padding: 3px 14px; box-shadow: 0 1px 3px rgba(0,0,0,.1); }
+
+  /* ----- chevalet, panneau ----- */
+  .rack { display: flex; gap: 5px; background: #fff; padding: 8px 12px; border-radius: 8px; min-height: 60px; box-shadow: 0 2px 8px rgba(0,46,68,.15); }
+  .rack .t { width: 44px; height: 46px; border-radius: 3px; display: grid; place-items: center; position: relative; cursor: pointer;
+    font: 600 26px Inter, system-ui, sans-serif; background: var(--jeton); color: #111; border: .5px solid #000; }
+  .rack .t span { position: absolute; right: 3px; bottom: 1px; font: 300 10px Inter, sans-serif; opacity: .8; }
   .rack .t.joker { color: var(--joker); }
   .rack .t.used { opacity: .25; }
   .actions-mob { display: flex; gap: 6px; width: 100%; }
   .actions-mob button { flex: 1; height: 44px; border: 0; border-radius: 8px; font: 700 20px Inter, sans-serif; color: #fff; cursor: pointer; }
-  .b-eff { background: var(--petrol); color: var(--yellow) !important; } .b-ann { background: #a32323; } .b-val { background: #2e7d32; }
+  .b-eff { background: var(--petrol); color: var(--jaune) !important; } .b-ann { background: #a32323; } .b-val { background: #2e7d32; }
   .carte { background: #fff; border-radius: 10px; padding: 12px 14px; box-shadow: 0 1px 4px rgba(0,0,0,.08); display: grid; gap: 8px; }
   h1 { margin: 0; font-size: 1.15rem; } h1 small { color: var(--muted); font-weight: 500; }
   .infos { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; text-align: center; font-variant-numeric: tabular-nums; }
-  .infos div { background: var(--cream); border-radius: 6px; padding: 4px; } .infos small { display: block; font-size: .65rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+  .infos div { background: #eef4f9; border-radius: 6px; padding: 4px; } .infos small { display: block; font-size: .65rem; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
   .infos b { font-size: 1.15rem; }
-  .chrono { background: var(--petrol); color: #fff; border-radius: 8px; padding: 6px 12px; display: flex; justify-content: space-between; align-items: baseline; border: 2px solid var(--yellow); }
-  .chrono small { color: var(--yellow); font-weight: 700; letter-spacing: .08em; } .chrono b { font-size: 1.6rem; font-variant-numeric: tabular-nums; }
+  .chrono { background: var(--petrol); color: #fff; border-radius: 8px; padding: 6px 12px; display: flex; justify-content: space-between; align-items: baseline; border: 2px solid var(--jaune); }
+  .chrono small { color: var(--jaune); font-weight: 700; letter-spacing: .08em; } .chrono b { font-size: 1.6rem; font-variant-numeric: tabular-nums; }
   .msg { min-height: 2.6em; font-size: .92rem; line-height: 1.35; }
   .msg.ok { color: var(--ok); } .msg.err { color: var(--err); }
   .msg .top { display: block; color: var(--ok); }
   .boutons { display: flex; gap: 8px; flex-wrap: wrap; }
-  .boutons button { font: 600 .9rem Inter, sans-serif; padding: 8px 12px; border-radius: 8px; border: 1px solid #c8cfd3; background: #fff; color: var(--ink); cursor: pointer; }
+  .boutons button, .boutons a { font: 600 .9rem Inter, sans-serif; padding: 8px 12px; border-radius: 8px; border: 1px solid #c8cfd3; background: #fff; color: var(--ink); cursor: pointer; text-decoration: none; }
   .aide { font-size: .8rem; color: var(--muted); margin: 0; line-height: 1.4; }
   .picker { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: grid; place-items: center; z-index: 50; }
   .picker[hidden] { display: none; }
   .picker div { background: #fff; padding: 14px; border-radius: 10px; display: grid; grid-template-columns: repeat(7, 38px); gap: 5px; }
-  .picker button { height: 38px; font: 700 18px Georgia, serif; border: 1px solid #ccc; border-radius: 6px; background: var(--cream); cursor: pointer; }
-  @media (max-width: 760px) {
-    :root { --case: calc((100vw - 32px - 60px - 14px) / 15.9); }
+  .picker button { height: 38px; font: 600 18px Inter, sans-serif; border: .5px solid #000; border-radius: 3px; background: var(--jeton); cursor: pointer; }
+  @media (max-width: 860px) {
+    :root { --c: min(calc((100vw - 32px - 76px - 24px) / 22.3), 30px); }
     .page { padding-top: 6px; gap: 10px; }
-    .vue { padding: 30px; }
-    .scene { inset: 30px; }
-    .droite { order: -1; max-width: none; }
-    .infos b { font-size: 1rem; }
-    .rack .t { width: calc((100vw - 60px) / 7.4); height: calc((100vw - 60px) / 7); font-size: 24px; }
+    .vue { height: calc(var(--S) * 1.3 + 76px); }
+    .droite { order: -1; max-width: none; flex-basis: 100%; }
+    .rack .t { width: calc((100vw - 70px) / 7.4); height: calc((100vw - 70px) / 7.2); font-size: 22px; }
+    .aide, h1 { display: none; }
+    .carte { padding: 8px 10px; gap: 6px; }
+    .chrono b { font-size: 1.25rem; } .infos b { font-size: 1rem; }
+    .msg { min-height: 1.4em; font-size: .85rem; }
+    .boutons { flex-wrap: nowrap; gap: 6px; }
+    .boutons button, .boutons a { padding: 5px 8px; font-size: .78rem; white-space: nowrap; }
   }
-  @media (min-width: 761px) { .actions-mob { display: none; } }
+  @media (min-width: 861px) { .actions-mob { display: none; } }
+  @media (prefers-reduced-motion: reduce) { .cube { transition: none; } }
 </style>
 </head>
 <body>
@@ -102,12 +126,11 @@
   <div class="gauche">
     <div class="titre-face" id="titreFace"></div>
     <div class="vue" id="vue">
-      <div class="cadre" id="cadre"></div>
-      <div class="scene" id="scene"><div class="prisme" id="prisme"></div></div>
-      <button class="fleche f-haut" id="fHaut" type="button" aria-label="Face du dessus">▲</button>
-      <button class="fleche f-bas" id="fBas" type="button" aria-label="Face du dessous">▼</button>
-      <button class="fleche f-gauche" id="fGauche" type="button" aria-label="Face de gauche">◀</button>
-      <button class="fleche f-droite" id="fDroite" type="button" aria-label="Face de droite">▶</button>
+      <div class="scene"><div class="cube" id="cube"></div></div>
+      <button class="fleche f-haut" id="fHaut" type="button" aria-label="Tourner vers le dessus">▲</button>
+      <button class="fleche f-bas" id="fBas" type="button" aria-label="Tourner vers le dessous">▼</button>
+      <button class="fleche f-gauche" id="fGauche" type="button" aria-label="Tourner vers la gauche">◀</button>
+      <button class="fleche f-droite" id="fDroite" type="button" aria-label="Tourner vers la droite">▶</button>
     </div>
     <div class="actions-mob">
       <button class="b-eff" id="mEff" type="button" aria-label="Effacer la dernière lettre">⌫</button>
@@ -130,13 +153,13 @@
       <div class="boutons">
         <button id="bTop" type="button">👁 Voir le top</button>
         <button id="bNouvelle" type="button">🔄 Nouvelle partie</button>
-        <a href="game.html" style="font:600 .9rem Inter,sans-serif;padding:8px 12px;border-radius:8px;border:1px solid #c8cfd3;background:#fff;color:inherit;text-decoration:none">← Topissimo</a>
+        <a href="game.html" id="bRetour">← Topissimo</a>
       </div>
-      <p class="aide">Touche une case (une 2ᵉ fois pour changer de sens) et tape ton mot ; il peut passer d'une face à l'autre dans le sens de lecture, la vue suit. Les murs jaunes bloquent les mots et les déplacements. Entrée pour valider, Échap pour annuler, « ? » pour un joker.</p>
+      <p class="aide">Les flèches tournent le cube d'un huitième de tour : on peut s'arrêter sur une arête, les deux faces sont visibles et jouables. Gauche et droite quand le cube est droit ; dessus et dessous seulement depuis la face principale. Les arêtes jaunes sont des murs. Touche une case (une 2ᵉ fois pour changer de sens) et tape ton mot ; Entrée pour valider, Échap pour annuler, « ? » pour un joker.</p>
     </div>
   </div>
 </main>
 <div class="picker" id="picker" hidden><div id="pickerGrille"></div></div>
-<script type="module" src="cube-jeu.js?v=484"></script>
+<script type="module" src="cube-jeu.js?v=485"></script>
 </body>
 </html>
