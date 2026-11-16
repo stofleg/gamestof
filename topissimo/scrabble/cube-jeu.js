@@ -11,6 +11,7 @@ import {
   FACES, NOM_FACE, BONUS_CUBE, LIGNES, ligneDe, voisin, rangLigne, PIVOTS, cheminFaces,
   cubeVide, appliqueCoup, casesDuCoup, positionCoup, scoreCube, topCube, sacCube, JEUX_CUBE, coupRegleCube,
 } from "./cube.js?v=485";
+import * as noel from "./noel.js?v=485";
 
 const $ = id => document.getElementById(id);
 const TEMPS = 120;
@@ -161,6 +162,7 @@ async function nouvellePartie() {
   Object.assign(S, { cube: cubeVide(), bag: sacCube(JEUX_CUBE, LETTER_BAG), rack: [], pending: [], cursor: { f: "F", r: 7, c: 7, dir: "H" },
     coup: 0, top: null, best: null, cumul: 0, neg: 0, tops: 0, fin: false, topCells: [] });
   infos();
+  noel.nouvellePartie();
   nouveauCoup();
 }
 function nouveauCoup() {
@@ -199,6 +201,8 @@ async function finCoup(statut, joue = null) {
   if (!S.top || S.fin) return;
   clearInterval(minuteur);
   const top = S.top, mv = top.move;
+  const posees = casesDuCoup(mv).filter(cs => !S.cube[cs[0]][cs[1]][cs[2]]).length;
+  if (statut === "top") { if (posees >= 7) noel.carillon(); else noel.grelots(); }
   const score = statut === "top" ? top.score : (S.best?.score || 0);
   S.cumul += score; S.neg += score - top.score; if (statut === "top") S.tops++;
   // lettres du top retirées du chevalet (le reliquat reste pour le coup suivant)
@@ -310,6 +314,7 @@ async function valide() {
     S.pending.forEach(p => { p.invalide = inv.has(cle([p.f, p.r, p.c])); });
     dessine();
     message(`❌ ${r.errors[0]}`, "err");
+    noel.rate();
     setTimeout(() => enFile(async () => { S.pending.forEach(p => delete p.invalide); await efface(); }), 1100);
     return;
   }
@@ -366,6 +371,7 @@ $("mEff").onclick = () => enFile(retire); $("mAnn").onclick = () => enFile(effac
 window.__cube = { etat: () => S, vue: () => ({ ...V, visibles: visibles() }), pivote, valide, pose, allerVers, cases: m => casesDuCoup(m), dir: m => LIGNES[m.ligne].dir };
 
 (async () => {
+  noel.ambiance(true);   // la grille cube est la grille du tournoi de Noël
   dessine();
   // En préparation : réservé à stof (mode admin).
   const stof = (localStorage.getItem("currentPseudo") || "").toLowerCase() === "stof" && localStorage.getItem("topissimo:superadmin") === "1";
