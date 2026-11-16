@@ -15,12 +15,12 @@
      de tour : on peut s'arrêter sur une arête (deux faces visibles, et jouables). */
   :root {
     --fond: #cfe2f0; --petrol: #002e44; --ink: #12313f; --muted: #4f6573;
-    --trait: #b3c1ce; --arete: #5d7686; --case: #ffffff;
+    --trait: #b3c1ce; --arete: #2f4a5a; --case: #ffffff;
     --dl: #a4d8e1; --tl: #3a8db5; --dw: #f0a8a8; --tw: #cc4040;
     --jeton: #d8b975; --joker: #c62828; --pose: #cfe9c4;
     --jaune: #ffd400; --ok: #2e7d4f; --err: #b3261e; --mur: #ffd400;
     --c: clamp(14px, min(calc((100vw - 470px) / 23), calc((100vh - 190px) / 23)), 30px);
-    --S: calc(var(--c) * 15 + 14px);   /* côté d'une face : 15 cases + 14 traits (pas de contour) */
+    --S: calc(var(--c) * 15 + 14px + 6px);   /* côté d'une face : 15 cases + 14 traits + contour */
   }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--fond); color: var(--ink); font-family: Inter, system-ui, sans-serif; }
@@ -41,16 +41,10 @@
   .face.L { transform: rotateY(-90deg) translateZ(calc(var(--S) / 2)); }
   .face.U { transform: rotateX(90deg) translateZ(calc(var(--S) / 2)); }
   .face.D { transform: rotateX(-90deg) translateZ(calc(var(--S) / 2)); }
-  /* murs : barrière rayée jaune et noir sur les arêtes sans passage ; aucun contour entre faces jouables */
-  .barriere { position: absolute; z-index: 12; pointer-events: none; --e: max(7px, calc(var(--c) * .36));
-    background: repeating-linear-gradient(45deg, var(--mur) 0 7px, #111 7px 14px); box-shadow: 0 0 0 1px #111; }
-  /* posée à l'extérieur de la face, le long de l'arête et relevée à 45° vers l'extérieur du cube
-     (comme une glissière) : elle ne recouvre aucune case, ni de cette face ni de la voisine */
-  .face { transform-style: preserve-3d; }
-  .barriere.mur-h { left: 0; right: 0; top: calc(var(--e) * -1); height: var(--e); transform-origin: 50% 100%; transform: rotateX(-45deg); }
-  .barriere.mur-b { left: 0; right: 0; bottom: calc(var(--e) * -1); height: var(--e); transform-origin: 50% 0; transform: rotateX(45deg); }
-  .barriere.mur-g { top: 0; bottom: 0; left: calc(var(--e) * -1); width: var(--e); transform-origin: 100% 50%; transform: rotateY(45deg); }
-  .barriere.mur-d { top: 0; bottom: 0; right: calc(var(--e) * -1); width: var(--e); transform-origin: 0 50%; transform: rotateY(-45deg); }
+  /* contour discret de chaque face (encadrement) ; plus foncé sur les arêtes sans passage (murs) */
+  .face { border: 3px solid #93a7b5; }
+  .face.mur-h { border-top-color: var(--arete); } .face.mur-b { border-bottom-color: var(--arete); }
+  .face.mur-g { border-left-color: var(--arete); } .face.mur-d { border-right-color: var(--arete); }
   .face.cachee { pointer-events: none; }
   .face.cachee .c { cursor: default; }
 
@@ -164,7 +158,7 @@
         <button id="bNouvelle" type="button">🔄 Nouvelle partie</button>
         <a href="game.html" id="bRetour">← Topissimo</a>
       </div>
-      <p class="aide">Les flèches tournent le cube d'un huitième de tour : on peut s'arrêter sur une arête, les deux faces sont visibles et jouables. Gauche et droite quand le cube est droit ; dessus et dessous seulement depuis la face principale. Les barrières rayées sont des murs : on ne peut pas passer. Touche une case (une 2ᵉ fois pour changer de sens) et tape ton mot ; Entrée pour valider, Échap pour annuler, « ? » pour un joker.</p>
+      <p class="aide">Les flèches tournent le cube d'un huitième de tour : on peut s'arrêter sur une arête, les deux faces sont visibles et jouables. Gauche et droite quand le cube est droit ; dessus et dessous seulement depuis la face principale. Un contour plus foncé marque un mur : on ne peut pas passer. Touche une case (une 2ᵉ fois pour changer de sens) et tape ton mot ; Entrée pour valider, Échap pour annuler, « ? » pour un joker.</p>
     </div>
   </div>
 </main>
