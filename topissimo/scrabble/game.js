@@ -982,6 +982,7 @@ function restoreRackSort() {
 }
 
 function renderInfo() {
+  majBoutonReglages();
   const moveNoEl = document.getElementById("moveNo");
   if (moveNoEl) moveNoEl.textContent = state.moveNo;
   const prevNoEl = document.getElementById("prevMoveNo");
@@ -4299,7 +4300,23 @@ function syncPlayModeRows() {
   show("#rowAutoTop", pm === "duplicate");
   show("#rowSignalZeros", pm === "duplicate");
 }
+/** ⚙️ Paramètres : jamais pour les joueurs du tournoi public ; grisé pendant une partie de
+ *  tournoi (rien ne doit pouvoir y toucher à la formule en cours de partie). */
+function reglagesBloques() {
+  return PUBLIC_EVENT || (!!state.prepared && state.started && state.chronoFinal == null && !review.active);
+}
+function majBoutonReglages() {
+  const b = document.getElementById("btnSettings");
+  if (!b) return;
+  b.hidden = PUBLIC_EVENT;
+  const bloque = reglagesBloques();
+  b.disabled = bloque;
+  b.title = bloque ? "Paramètres indisponibles pendant une partie de tournoi" : "Paramètres";
+  b.style.opacity = bloque ? ".4" : "";
+  b.style.cursor = bloque ? "not-allowed" : "";
+}
 window.openSettings = () => {
+  if (reglagesBloques()) return;
   $("#optPlayMode").value = state.settings.playMode || "topping";
   $("#optAutoDraw").checked = state.settings.autoDraw !== false;
   $("#optAutoTop").checked = state.settings.autoTop !== false;
@@ -4613,6 +4630,7 @@ function populateAdminModes() {
 async function initGame() {
   captureSwVersion();   // détecter un éventuel service worker périmé
   populateAdminModes();
+  majBoutonReglages();   // tournoi public : pas de ⚙️ Paramètres
   state.bag = { ...bagFor(state.settings.gameMode) };
   state.prepared = null;
   state.isPuzzle = false;
@@ -6540,6 +6558,7 @@ function startGame() {
   }
   state.started = true;
   state.bestAttempt = null;
+  majBoutonReglages();   // ⚙️ grisé pendant une partie de tournoi
   diagLog("game_started", {
     prepared: !!state.prepared,
     isPuzzle: !!state.isPuzzle,
@@ -7492,6 +7511,7 @@ function endGame() {
     return;
   }
   invasion.arrete();
+  setTimeout(majBoutonReglages, 0);   // partie finie : ⚙️ de nouveau disponible (sauf tournoi public)
   console.log(`[endGame] ${BUILD_VERSION} — reconstruction plateau depuis ${state.history?.length || 0} coups d'historique`);
   stopChrono();
   stopMoveTimer();
