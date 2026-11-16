@@ -20,7 +20,7 @@
     --jeton: #d8b975; --joker: #c62828; --pose: #cfe9c4;
     --jaune: #ffd400; --ok: #2e7d4f; --err: #b3261e; --mur: #ffd400;
     --c: clamp(14px, min(calc((100vw - 470px) / 23), calc((100vh - 190px) / 23)), 30px);
-    --S: calc(var(--c) * 15 + 14px + 10px);   /* côté d'une face : 15 cases + 14 traits + bords */
+    --S: calc(var(--c) * 15 + 14px);   /* côté d'une face : 15 cases + 14 traits (pas de contour) */
   }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--fond); color: var(--ink); font-family: Inter, system-ui, sans-serif; }
@@ -34,16 +34,20 @@
   .scene { position: absolute; inset: 38px; perspective: calc(var(--S) * 3.4); perspective-origin: 50% -15%; display: grid; place-items: center; }
   .cube { position: relative; width: var(--S); height: var(--S); transform-style: preserve-3d; transition: transform .45s ease-in-out; }
   .face { position: absolute; inset: 0; backface-visibility: hidden; -webkit-backface-visibility: hidden; background: var(--trait);
-    border: 5px solid var(--arete); display: grid; grid-template-columns: repeat(15, var(--c)); grid-template-rows: repeat(15, var(--c)); gap: 1px; }
+    display: grid; grid-template-columns: repeat(15, var(--c)); grid-template-rows: repeat(15, var(--c)); gap: 1px; }
   .face.F { transform: translateZ(calc(var(--S) / 2)); }
   .face.R { transform: rotateY(90deg) translateZ(calc(var(--S) / 2)); }
   .face.B { transform: rotateY(180deg) translateZ(calc(var(--S) / 2)); }
   .face.L { transform: rotateY(-90deg) translateZ(calc(var(--S) / 2)); }
   .face.U { transform: rotateX(90deg) translateZ(calc(var(--S) / 2)); }
   .face.D { transform: rotateX(-90deg) translateZ(calc(var(--S) / 2)); }
-  /* murs : arête jaune là où il n'y a pas de passage */
-  .face.mur-h { border-top-color: var(--mur); } .face.mur-b { border-bottom-color: var(--mur); }
-  .face.mur-g { border-left-color: var(--mur); } .face.mur-d { border-right-color: var(--mur); }
+  /* murs : barrière rayée jaune et noir sur les arêtes sans passage ; aucun contour entre faces jouables */
+  .barriere { position: absolute; z-index: 12; pointer-events: none; --e: max(7px, calc(var(--c) * .36));
+    background: repeating-linear-gradient(45deg, var(--mur) 0 7px, #111 7px 14px); box-shadow: 0 0 0 1px #111; }
+  .barriere.mur-h { left: 0; right: 0; top: 0; height: var(--e); }
+  .barriere.mur-b { left: 0; right: 0; bottom: 0; height: var(--e); }
+  .barriere.mur-g { top: 0; bottom: 0; left: 0; width: var(--e); }
+  .barriere.mur-d { top: 0; bottom: 0; right: 0; width: var(--e); }
   .face.cachee { pointer-events: none; }
   .face.cachee .c { cursor: default; }
 
@@ -71,7 +75,9 @@
   /* ----- flèches ----- */
   .fleche { position: absolute; width: 34px; height: 34px; border-radius: 50%; border: 0; background: var(--petrol); color: var(--jaune);
     font: 700 15px Inter, sans-serif; cursor: pointer; display: grid; place-items: center; z-index: 20; box-shadow: 0 2px 5px rgba(0,46,68,.3); }
-  .fleche:disabled { background: #a9b6bf; color: #eef2f4; cursor: not-allowed; box-shadow: none; }
+  /* flèche interdite : panneau « sens interdit » */
+  .fleche:disabled { background: #c62828; color: transparent; cursor: not-allowed; box-shadow: 0 0 0 2px #fff, 0 2px 5px rgba(0,0,0,.25); }
+  .fleche:disabled::after { content: ""; position: absolute; width: 18px; height: 5px; border-radius: 2px; background: #fff; }
   .fleche:focus-visible { outline: 3px solid var(--jaune); outline-offset: 2px; }
   .f-gauche { left: 0; top: calc(50% - 17px); } .f-droite { right: 0; top: calc(50% - 17px); }
   .f-haut { top: 0; left: calc(50% - 17px); } .f-bas { bottom: 0; left: calc(50% - 17px); }
@@ -155,7 +161,7 @@
         <button id="bNouvelle" type="button">🔄 Nouvelle partie</button>
         <a href="game.html" id="bRetour">← Topissimo</a>
       </div>
-      <p class="aide">Les flèches tournent le cube d'un huitième de tour : on peut s'arrêter sur une arête, les deux faces sont visibles et jouables. Gauche et droite quand le cube est droit ; dessus et dessous seulement depuis la face principale. Les arêtes jaunes sont des murs. Touche une case (une 2ᵉ fois pour changer de sens) et tape ton mot ; Entrée pour valider, Échap pour annuler, « ? » pour un joker.</p>
+      <p class="aide">Les flèches tournent le cube d'un huitième de tour : on peut s'arrêter sur une arête, les deux faces sont visibles et jouables. Gauche et droite quand le cube est droit ; dessus et dessous seulement depuis la face principale. Les barrières rayées sont des murs : on ne peut pas passer. Touche une case (une 2ᵉ fois pour changer de sens) et tape ton mot ; Entrée pour valider, Échap pour annuler, « ? » pour un joker.</p>
     </div>
   </div>
 </main>

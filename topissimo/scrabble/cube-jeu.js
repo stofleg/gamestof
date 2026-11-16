@@ -3,7 +3,7 @@
 //  Le cube est toujours affiché en 3D (légèrement de biais). Les flèches le tournent d'un
 //  huitième de tour : arrêt possible sur une arête, les deux faces sont alors visibles et
 //  jouables. Gauche/droite quand le cube est droit ; haut/bas seulement depuis la face
-//  principale (k multiple de 8). Les arêtes sans passage sont des murs jaunes.
+//  principale (k multiple de 8). Les arêtes sans passage sont des barrières rayées.
 // ============================================================
 import { Dictionary } from "./dictionary.js?v=485";
 import { LETTER_BAG, drawForDuplicate, bagTotalVowels, bagTotalConsonants, letterValue } from "./engine.js?v=485";
@@ -66,7 +66,7 @@ function htmlCase(cs) {
   const j = t ? `<div class="jeton${t.isBlank ? " joker" : ""}${t.pose ? " pose" : ""}${t.invalide ? " invalide" : ""}">${t.letter}${t.isBlank ? "" : `<span>${letterValue(t.letter)}</span>`}</div>` : "";
   return `<div class="${cls.join(" ")}" data-f="${f}" data-r="${r}" data-c="${c}">${j}${cur ? `<span class="dir">${S.cursor.dir === "H" ? "→" : "↓"}</span>` : ""}</div>`;
 }
-/** Une face 15×15 ; arêtes jaunes (murs) là où aucune ligne ne continue. */
+/** Une face 15×15 ; barrières (murs) là où aucune ligne ne continue. */
 function htmlFace(f, vis) {
   const murs = [];
   if (!voisin(f, 0, 7, "V", -1)) murs.push("mur-h");
@@ -75,7 +75,8 @@ function htmlFace(f, vis) {
   if (!voisin(f, 7, 14, "H", 1)) murs.push("mur-d");
   let h = `<div class="face ${f} ${murs.join(" ")}${vis.includes(f) ? "" : " cachee"}" data-face="${f}">`;
   for (let r = 0; r < 15; r++) for (let c = 0; c < 15; c++) h += htmlCase([f, r, c]);
-  return h + `</div>`;
+  // barrière rayée (jaune et noir) sur chaque arête sans passage
+  return h + murs.map(m => `<div class="barriere ${m}" title="Mur : pas de passage"></div>`).join("") + `</div>`;
 }
 function titreVue(vis) {
   const tri = vis.slice().sort((a, b) => versMoi(b) - versMoi(a));
