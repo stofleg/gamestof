@@ -1358,25 +1358,31 @@ function clotureCoupsRestants(statut, titre, detail) {
     recordMove({ status: statut, playerScore, playedWord, playedMove: playedMoveObj });
     placeTopAndAdvance(playerScore, playedWord || null, playedWord ? playerScore : null, playedMoveObj);
   }
-  // Coups restants de la partie pré-tirée : non joués, top perdu.
-  if (state.prepared) {
-    const moves = state.prepared.moves || [];
-    for (let i = state.preparedIdx; i < moves.length; i++) {
-      const t = moves[i]?.top;
-      if (!t) continue;
-      state.sumNeg -= (t.score || 0);
-      state.history.push({
-        moveNo: state.moveNo, rack: moves[i].rack || "", freshRack: !!moves[i].freshRack, kept: moves[i].kept || "",
-        top: { word: t.word, score: t.score, row: t.row, col: t.col, dir: t.dir, blanks: t.blanks || [], words: t.words || [] },
-        played: null, playedPos: null, placedCount: 0, gotBonus: false,
-        playerScore: 0, neg: -(t.score || 0), status: statut, invalidCount: 0, timeMs: 0, horsTemps: true, v: 2,
-      });
-      state.moveNo++;
-    }
-    state.preparedIdx = moves.length;
-  }
+  ajouteCoupsRestants(statut);
   showFeedback("miss", titre, detail);
   endGame();
+}
+
+/** Partie pré-tirée arrêtée avant la fin (temps total écoulé, abandon, invasion, « Arrêter ») :
+ *  chaque coup non joué compte dans le négatif (top perdu ; top + sous-top en Top/sous-top),
+ *  sinon le négatif paraîtrait meilleur que celui des joueurs allés au bout. */
+function ajouteCoupsRestants(statut) {
+  if (!state.prepared || state.live) return;
+  const moves = state.prepared.moves || [];
+  for (let i = state.preparedIdx; i < moves.length; i++) {
+    const t = moves[i]?.top;
+    if (!t) continue;
+    const ref = (t.score || 0) + (currentMode().dualTop ? (moves[i].subTop?.score || 0) : 0);
+    state.sumNeg -= ref;
+    state.history.push({
+      moveNo: state.moveNo, rack: moves[i].rack || "", freshRack: !!moves[i].freshRack, kept: moves[i].kept || "",
+      top: { word: t.word, score: t.score, row: t.row, col: t.col, dir: t.dir, blanks: t.blanks || [], words: t.words || [] },
+      played: null, playedPos: null, placedCount: 0, gotBonus: false,
+      playerScore: 0, neg: -ref, status: statut, invalidCount: 0, timeMs: 0, horsTemps: true, v: 2,
+    });
+    state.moveNo++;
+  }
+  state.preparedIdx = moves.length;
 }
 
 // ===== Tournoi de la Mort : quitter une partie en cours = l'abandonner =====
@@ -4362,7 +4368,9 @@ async function stopGameFromSettings() {
   state.paused = false;
 
   if (wasPrepared) {
-    // Verrouiller : enregistrer en l'état (pas de reprise possible) sans révéler.
+    // Verrouiller : enregistrer en l'état (pas de reprise possible) sans révéler. Les coups non
+    // joués (celui en cours compris) comptent dans le négatif, comme pour un abandon.
+    if (!state.topsping) ajouteCoupsRestants("giveup");
     clearSavedTraining();
     if (state.prepared) clearSuspendedPrepared(state.prepared.id);
     try { await saveResultIfPrepared(); }
