@@ -11,10 +11,14 @@
 // ============================================================
 import { decor, traineauPasse, CSS_DECOR } from "./noel-decor.js?v=485";
 const CLE = "topissimo:noel-son";
-let ctx = null, maitre = null, reverb = null, actif = false, bouton = null, passer = null, legende = null;
+let horsLigne = false, ctx = null, maitre = null, reverb = null, actif = false, bouton = null, passer = null, legende = null;
 let coupe = (() => { try { return localStorage.getItem(CLE) === "off"; } catch { return false; } })();
 const bus = {};
-const NIVEAUX = { musique: 1, feu: .55, grelots: .8, carillon: .7, rate: .6 };
+// Un bus (niveau) par famille de sons, réglé par mesure (voir __mesure plus bas).
+// Cibles (« fort » = moyenne des passages les plus forts) : musique ≈ −31 dBFS en fond, feu ≈ −48
+// (à peine), grelots du top ≈ −28, ouverture ≈ −28, « ho ho ho » ≈ −27,5, scrabble ≈ −27 (le
+// moment fort). Pendant un effet marquant, la musique s'efface un peu (voir baisseMusique).
+const NIVEAUX = { musique: .67, feu: 1.32, top: 1.04, scrabble: 1.46, ouverture: .72, carillon: .95, ho: .7 };
 
 function bruit(secondes) {
   const b = ctx.createBuffer(1, Math.max(1, ctx.sampleRate * secondes), ctx.sampleRate), d = b.getChannelData(0);
@@ -24,7 +28,11 @@ function bruit(secondes) {
 function initialise() {
   if (ctx) return;
   ctx = new (window.AudioContext || window.webkitAudioContext)();
-  maitre = ctx.createGain(); maitre.gain.value = coupe ? 0 : .6; maitre.connect(ctx.destination);
+  construit(coupe ? 0 : VOLUME);
+}
+const VOLUME = .6;
+function construit(volume) {
+  maitre = ctx.createGain(); maitre.gain.value = volume; maitre.connect(ctx.destination);
   // réverbération de salle : bruit qui décroît sur 2,5 s
   const n = ctx.sampleRate * 2.5, b = ctx.createBuffer(2, n, ctx.sampleRate);
   for (let ch = 0; ch < 2; ch++) { const d = b.getChannelData(ch); for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / n, 3); }
@@ -34,7 +42,7 @@ function initialise() {
   for (const [nom, g] of Object.entries(NIVEAUX)) {
     bus[nom] = ctx.createGain(); bus[nom].gain.value = g;
     bus[nom].connect(maitre);
-    if (nom !== "feu") bus[nom].connect(reverb);
+    if (nom !== "feu" && nom !== "ho") bus[nom].connect(reverb);
   }
 }
 
@@ -83,20 +91,20 @@ function secousse(sortie, t, volume = .05) {
 // ------------------------------------------------------------ musique (domaine public)
 // Mélodies notées « note:durée » (durée en temps ; « - » = silence), jouées à la boîte à musique.
 const MORCEAUX = [
-  { titre: "Vive le vent (Jingle Bells)", credit: "James Lord Pierpont, 1857 — domaine public", tempo: .3, transpo: 12, grelots: true,
+  { titre: "Vive le vent (Jingle Bells)", g: .91, credit: "James Lord Pierpont, 1857 — domaine public", tempo: .3, transpo: 12, grelots: true,
     m: "E4:1 E4:1 E4:2 E4:1 E4:1 E4:2 E4:1 G4:1 C4:1.5 D4:.5 E4:4 F4:1 F4:1 F4:1.5 F4:.5 F4:1 E4:1 E4:1 E4:.5 E4:.5 E4:1 D4:1 D4:1 E4:1 D4:2 G4:2 "
      + "E4:1 E4:1 E4:2 E4:1 E4:1 E4:2 E4:1 G4:1 C4:1.5 D4:.5 E4:4 F4:1 F4:1 F4:1.5 F4:.5 F4:1 E4:1 E4:1 E4:.5 E4:.5 G4:1 G4:1 F4:1 D4:1 C4:4" },
-  { titre: "Douce nuit", credit: "Franz Xaver Gruber, 1818 — domaine public", tempo: .24, transpo: 12,
+  { titre: "Douce nuit", g: 1.02, credit: "Franz Xaver Gruber, 1818 — domaine public", tempo: .24, transpo: 12,
     m: "G4:3 A4:1 G4:2 E4:6 G4:3 A4:1 G4:2 E4:6 D5:4 D5:2 B4:6 C5:4 C5:2 G4:6 A4:4 A4:2 C5:3 B4:1 A4:2 G4:3 A4:1 G4:2 E4:6 "
      + "A4:4 A4:2 C5:3 B4:1 A4:2 G4:3 A4:1 G4:2 E4:6 D5:4 D5:2 F5:3 D5:1 B4:2 C5:6 E5:6 C5:3 G4:1 E4:2 G4:3 F4:1 D4:2 C4:12" },
-  { titre: "We Wish You a Merry Christmas", credit: "chant traditionnel anglais — domaine public", tempo: .3, transpo: 12, grelots: true,
+  { titre: "We Wish You a Merry Christmas", g: .92, credit: "chant traditionnel anglais — domaine public", tempo: .3, transpo: 12, grelots: true,
     m: "D4:1 G4:1 G4:.5 A4:.5 G4:.5 F#4:.5 E4:1 E4:1 E4:1 A4:1 A4:.5 B4:.5 A4:.5 G4:.5 F#4:1 D4:1 D4:1 B4:1 B4:.5 C5:.5 B4:.5 A4:.5 G4:1 E4:1 D4:.5 D4:.5 E4:1 A4:1 F#4:1 G4:3" },
-  { titre: "Deck the Halls", credit: "chant traditionnel gallois — domaine public", tempo: .28, transpo: 12,
+  { titre: "Deck the Halls", g: .9, credit: "chant traditionnel gallois — domaine public", tempo: .28, transpo: 12,
     m: "C5:1.5 Bb4:.5 A4:1 G4:1 F4:1 G4:1 A4:1 F4:1 G4:.5 A4:.5 Bb4:.5 G4:.5 A4:1.5 G4:.5 F4:1 E4:1 F4:2 "
      + "C5:1.5 Bb4:.5 A4:1 G4:1 F4:1 G4:1 A4:1 F4:1 G4:.5 A4:.5 Bb4:.5 G4:.5 A4:1.5 G4:.5 F4:1 E4:1 F4:2 "
      + "G4:1.5 A4:.5 Bb4:1 G4:1 A4:1.5 Bb4:.5 C5:1 G4:1 A4:.5 B4:.5 C5:1 D5:.5 E5:.5 F5:1 E5:1 D5:1 C5:2 "
      + "C5:1.5 Bb4:.5 A4:1 G4:1 F4:1 G4:1 A4:1 F4:1 D5:.5 D5:.5 D5:.5 D5:.5 C5:1.5 Bb4:.5 A4:1 G4:1 F4:2" },
-  { titre: "God Rest Ye Merry Gentlemen", credit: "chant traditionnel anglais — domaine public", tempo: .3, transpo: 12,
+  { titre: "God Rest Ye Merry Gentlemen", g: .94, credit: "chant traditionnel anglais — domaine public", tempo: .3, transpo: 12,
     m: "E4:1 E4:1 B4:1 B4:1 A4:1 G4:1 F#4:1 E4:1 D4:1 E4:1 F#4:1 G4:1 A4:1 B4:3 E4:1 E4:1 B4:1 B4:1 A4:1 G4:1 F#4:1 E4:1 D4:1 E4:1 F#4:1 G4:1 A4:1 B4:3 "
      + "B4:1 C5:1 A4:1 B4:1 C5:1 D5:1 E5:1 B4:1 A4:1 G4:1 E4:1 F#4:1 G4:1 A4:2 G4:1 A4:1 B4:1 C5:1 B4:1 A4:1 G4:1 F#4:1 E4:2 "
      + "G4:.5 F#4:.5 E4:1 A4:1 G4:1 A4:1 B4:1 C5:1 B4:1 A4:1 G4:1 F#4:1 E4:4" },
@@ -108,9 +116,10 @@ function melange() {
   if (a.length > 1 && a[0] === dernier) a.push(a.shift());
   return a;
 }
+// g : gain de chaque morceau, mesuré pour que tous sonnent au même niveau (±0,2 dB).
 /** Joue un morceau deux fois (la 2ᵉ fois, une octave plus haut, doublé de clochettes). */
 function joue(mc) {
-  const sortie = ctx.createGain(); sortie.gain.value = 1; sortie.connect(bus.musique);
+  const sortie = ctx.createGain(); sortie.gain.value = mc.g ?? 1; sortie.connect(bus.musique);
   morceauGain = sortie;
   const notes = mc.m.trim().split(/\s+/).map(x => { const [n, d] = x.split(":"); return { n, d: +d }; });
   let t = ctx.currentTime + .3;
@@ -145,24 +154,26 @@ export function nouvellePartie() { ordre = []; if (actif) morceauSuivantInterne(
 
 // ------------------------------------------------------------ feu de cheminée
 let feuNoeuds = null, feuT = null;
-function feu() {
+/** `horsLigne` (mesure) : durée à programmer d'un coup, sans minuterie. */
+function feu(horsLigne = 0) {
   const s = ctx.createBufferSource(); s.buffer = bruit(3); s.loop = true;
   const f = ctx.createBiquadFilter(); f.type = "lowpass"; f.frequency.value = 500;
   const g = ctx.createGain(); g.gain.value = .02;
   s.connect(f).connect(g).connect(bus.feu); s.start();
   feuNoeuds = [s];
-  const crepite = () => {
+  const crepite = (t0 = ctx.currentTime) => {
     if (!actif) return;
     const n = Math.random() < .3 ? 2 + Math.floor(Math.random() * 4) : 1;
     for (let i = 0; i < n; i++) {
-      const t = ctx.currentTime + Math.random() * .15, c = ctx.createBufferSource(); c.buffer = bruit(.03);
+      const t = t0 + Math.random() * .15, c = ctx.createBufferSource(); c.buffer = bruit(.03);
       const bf = ctx.createBiquadFilter(); bf.type = "bandpass"; bf.frequency.value = 1500 + Math.random() * 3500; bf.Q.value = 1.5;
       const cg = ctx.createGain(); cg.gain.setValueAtTime(.05 + Math.random() * .12, t); cg.gain.exponentialRampToValueAtTime(.0001, t + .02 + Math.random() * .03);
       c.connect(bf).connect(cg).connect(bus.feu); c.start(t); c.stop(t + .06);
     }
-    feuT = setTimeout(crepite, 120 + Math.random() * 600);
+    if (!horsLigne) feuT = setTimeout(crepite, 120 + Math.random() * 600);
   };
-  crepite();
+  if (horsLigne) for (let t = 0; t < horsLigne; t += .12 + Math.random() * .6) crepite(t);
+  else crepite();
 }
 
 // ------------------------------------------------------------ effets du jeu
@@ -170,65 +181,77 @@ function feu() {
 export function grelots() {
   if (!actif) return;
   const t = ctx.currentTime;
-  for (let i = 0; i < 10; i++) secousse(bus.grelots, t + i * .14 + Math.random() * .03, .045 * Math.sin(Math.PI * (i + .5) / 10));
-  ["C6", "E6", "G6", "C7"].forEach((n, i) => lame(bus.grelots, freq(n), t + .25 + i * .09, .09, 1.6));
+  for (let i = 0; i < 10; i++) secousse(bus.top, t + i * .14 + Math.random() * .03, .045 * Math.sin(Math.PI * (i + .5) / 10));
+  ["C6", "E6", "G6", "C7"].forEach((n, i) => lame(bus.top, freq(n), t + .25 + i * .09, .09, 1.6));
 }
 /** Top avec les 7 lettres : carillon de cloches. */
 export function carillon() {
   if (!actif) return;
   const t = ctx.currentTime;
   ["G4", "E4", "C4", "G3", "C4", "E4", "G4", "C5"].forEach((n, i) => cloche(bus.carillon, freq(n), t + i * .28, .07));
-  for (let i = 0; i < 16; i++) secousse(bus.grelots, t + i * .14, .03);
+  for (let i = 0; i < 16; i++) secousse(bus.carillon, t + i * .14, .03);
 }
 /** Ouverture du cadeau : ruban qu'on tire (zip), papier froissé qu'on déchire, puis pluie d'étincelles. */
 export function ouverture() {
   if (!actif) return;
   const t = ctx.currentTime;
+  baisseMusique(2.6, -6);
   // ruban : bruit dont le filtre monte vite
   const z = ctx.createBufferSource(); z.buffer = bruit(.5);
   const zf = ctx.createBiquadFilter(); zf.type = "bandpass"; zf.Q.value = 4;
   zf.frequency.setValueAtTime(600, t); zf.frequency.exponentialRampToValueAtTime(5000, t + .4);
   const zg = ctx.createGain(); zg.gain.setValueAtTime(0, t); zg.gain.linearRampToValueAtTime(.35, t + .05); zg.gain.exponentialRampToValueAtTime(.001, t + .45);
-  z.connect(zf).connect(zg).connect(bus.grelots); z.start(t); z.stop(t + .5);
+  z.connect(zf).connect(zg).connect(bus.ouverture); z.start(t); z.stop(t + .5);
   // papier : une dizaine de froissements secs
   for (let i = 0; i < 12; i++) {
     const d = t + .45 + i * .07 + Math.random() * .05, c = ctx.createBufferSource(); c.buffer = bruit(.12);
     const f = ctx.createBiquadFilter(); f.type = "highpass"; f.frequency.value = 1800 + Math.random() * 2500;
     const g = ctx.createGain(); g.gain.setValueAtTime(.18 + Math.random() * .2, d); g.gain.exponentialRampToValueAtTime(.001, d + .06 + Math.random() * .08);
-    c.connect(f).connect(g).connect(bus.grelots); c.start(d); c.stop(d + .15);
+    c.connect(f).connect(g).connect(bus.ouverture); c.start(d); c.stop(d + .15);
   }
   // étincelles : arpège de clochettes qui monte, puis accord
-  ["C5", "E5", "G5", "C6", "E6", "G6", "C7"].forEach((n, i) => lame(bus.carillon, freq(n), t + 1.25 + i * .07, .1, 1.8));
-  ["C4", "G4", "E5"].forEach(n => cloche(bus.carillon, freq(n), t + 1.8, .05));
-  for (let i = 0; i < 8; i++) secousse(bus.grelots, t + 1.25 + i * .12, .03);
+  ["C5", "E5", "G5", "C6", "E6", "G6", "C7"].forEach((n, i) => lame(bus.ouverture, freq(n), t + 1.25 + i * .07, .1, 1.8));
+  ["C4", "G4", "E5"].forEach(n => cloche(bus.ouverture, freq(n), t + 1.8, .05));
+  for (let i = 0; i < 8; i++) secousse(bus.ouverture, t + 1.25 + i * .12, .03);
+}
+/** La musique s'efface de `db` décibels pendant `duree` secondes (un effet marquant passe devant). */
+function baisseMusique(duree, db = -7) {
+  if (!bus.musique || horsLigne) return;
+  const g = bus.musique.gain, t = ctx.currentTime, n = NIVEAUX.musique;
+  g.cancelScheduledValues(t); g.setValueAtTime(g.value, t);
+  g.linearRampToValueAtTime(n * Math.pow(10, db / 20), t + .15);
+  g.setValueAtTime(n * Math.pow(10, db / 20), t + duree);
+  g.linearRampToValueAtTime(n, t + duree + .8);
 }
 /** Scrabble (7 lettres posées) : le traîneau traverse le ciel au son des grelots, qui passent
  *  de gauche à droite en enflant puis en s'éloignant. */
 export function scrabble() {
-  const ms = traineauPasse(7);
+  const ms = horsLigne ? 7000 : traineauPasse(7);
   if (!actif) return;
   const t = ctx.currentTime, duree = ms / 1000 || 7;
+  baisseMusique(duree);
   const pan = ctx.createStereoPanner ? ctx.createStereoPanner() : null;
   const sortie = ctx.createGain(); sortie.gain.value = 1;
-  if (pan) { pan.pan.setValueAtTime(-.9, t); pan.pan.linearRampToValueAtTime(.9, t + duree); sortie.connect(pan).connect(bus.grelots); }
-  else sortie.connect(bus.grelots);
+  if (pan) { pan.pan.setValueAtTime(-.9, t); pan.pan.linearRampToValueAtTime(.9, t + duree); sortie.connect(pan).connect(bus.scrabble); }
+  else sortie.connect(bus.scrabble);
   for (let x = 0; x < duree; x += .13) {
     const env = Math.sin(Math.PI * Math.min(1, x / duree));          // arrive, passe, s'éloigne
     secousse(sortie, t + x + Math.random() * .03, .05 * (.25 + .75 * env));
   }
-  ["G5", "C6", "E6", "G6", "C7"].forEach((n, i) => lame(bus.carillon, freq(n), t + duree * .45 + i * .1, .08, 1.8));
+  ["G5", "C6", "E6", "G6", "C7"].forEach((n, i) => lame(bus.scrabble, freq(n), t + duree * .45 + i * .1, .08, 1.8));
   setTimeout(() => sortie.disconnect(), (duree + 1) * 1000);
 }
 /** Mot refusé : le père Noël rit « Ho ho ho ! » (voix grave synthétisée par formants). */
 export function rate() {
   if (!actif) return;
   const t = ctx.currentTime;
+  baisseMusique(1.2, -6);
   [[0, 1, 118], [.38, .85, 108], [.76, .95, 98]].forEach(([dt, v, f0]) => ho(t + dt, v, f0));
 }
 /** Une syllabe « ho » : souffle du H, puis voyelle O (source en dents de scie filtrée par les
  *  formants d'un O grave : ≈ 450, 800, 2600 Hz). */
 function ho(t, vol, f0) {
-  const sortie = ctx.createGain(); sortie.gain.value = vol * 1.4; sortie.connect(bus.rate);
+  const sortie = ctx.createGain(); sortie.gain.value = vol * 1.4; sortie.connect(bus.ho);
   // H : souffle
   const h = ctx.createBufferSource(); h.buffer = bruit(.2);
   const hf = ctx.createBiquadFilter(); hf.type = "bandpass"; hf.frequency.value = 1100; hf.Q.value = .8;
@@ -337,3 +360,35 @@ export function ambiance(on) {
   if (ctx && ctx.state === "running") demarre();
   else { addEventListener("pointerdown", demarre, { once: true }); addEventListener("keydown", demarre, { once: true }); }
 }
+
+// ------------------------------------------------------------ mesure des niveaux (réglage)
+/** Rend un son hors ligne et renvoie son niveau : `max` = RMS maximal sur 400 ms (dBFS),
+ *  `fort` = moyenne des 10 % de fenêtres les plus fortes, `crete` = crête. Sert à équilibrer
+ *  effets et musiques (outil de réglage, appelé depuis la console ou un robot). */
+export async function __mesure(nom, duree = 6) {
+  const sauve = { ctx, maitre, reverb, actif, bus: { ...bus }, morceauGain };
+  const sr = 44100, off = new OfflineAudioContext(2, Math.ceil(sr * duree), sr);
+  ctx = off; horsLigne = true; actif = true; for (const k of Object.keys(bus)) delete bus[k];
+  try {
+    construit(VOLUME);
+    if (nom.startsWith("morceau:")) joue(MORCEAUX[+nom.slice(8)]);
+    else if (nom === "feu") feu(duree);
+    else ({ grelots, carillon, rate, scrabble, ouverture })[nom]();
+    const buf = await off.startRendering();
+    const L = buf.getChannelData(0), R = buf.getChannelData(1), w = Math.round(sr * .4), rms = [];
+    let crete = 0;
+    for (let i = 0; i + w <= L.length; i += w / 4) {
+      let e = 0;
+      for (let j = i; j < i + w; j++) { e += (L[j] * L[j] + R[j] * R[j]) / 2; crete = Math.max(crete, Math.abs(L[j]), Math.abs(R[j])); }
+      rms.push(Math.sqrt(e / w));
+    }
+    rms.sort((a, b) => b - a);
+    const db = x => +(20 * Math.log10(Math.max(x, 1e-9))).toFixed(1);
+    const top = rms.slice(0, Math.max(1, Math.round(rms.length * .1)));
+    return { nom, max: db(rms[0]), fort: db(top.reduce((a, b) => a + b, 0) / top.length), crete: db(crete) };
+  } finally {
+    ({ ctx, maitre, reverb, actif, morceauGain } = sauve); horsLigne = false;
+    for (const k of Object.keys(bus)) delete bus[k]; Object.assign(bus, sauve.bus);
+  }
+}
+export const __morceaux = () => MORCEAUX.map(m => m.titre);
