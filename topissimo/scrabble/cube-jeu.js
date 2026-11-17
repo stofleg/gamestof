@@ -5,13 +5,13 @@
 //  jouables. Gauche/droite quand le cube est droit ; haut/bas seulement depuis la face
 //  principale (k multiple de 8). Chaque face a un contour discret, plus foncé sur les arêtes sans passage.
 // ============================================================
-import { Dictionary } from "./dictionary.js?v=495";
-import { LETTER_BAG, drawForDuplicate, bagTotalVowels, bagTotalConsonants, letterValue } from "./engine.js?v=495";
+import { Dictionary } from "./dictionary.js?v=496";
+import { LETTER_BAG, drawForDuplicate, bagTotalVowels, bagTotalConsonants, letterValue } from "./engine.js?v=496";
 import {
   FACES, NOM_FACE, BONUS_CUBE, LIGNES, ligneDe, voisin, rangLigne, PIVOTS, cheminFaces,
   cubeVide, appliqueCoup, casesDuCoup, positionCoup, scoreCube, topCube, sacCube, JEUX_CUBE, coupRegleCube,
-} from "./cube.js?v=495";
-import * as noel from "./noel.js?v=495";
+} from "./cube.js?v=496";
+import * as noel from "./noel.js?v=496";
 
 const $ = id => document.getElementById(id);
 const TEMPS = 240;   // 4 minutes par coup
@@ -494,19 +494,42 @@ document.addEventListener("keydown", e => {
   const k = e.key;
   enFile(() => touche(k));
 });
+/** Place le curseur sur une case (même case touchée deux fois : on change de sens). */
+function choisitCase(cs, dir = null) {
+  if (S.pause || S.emballe || S.cube[cs.f][cs.r][cs.c] || !visibles().includes(cs.f)) return;
+  if (!dir && S.cursor && S.cursor.f === cs.f && S.cursor.r === cs.r && S.cursor.c === cs.c && !S.pending.length) S.cursor.dir = S.cursor.dir === "H" ? "V" : "H";
+  else {
+    if (S.pending.length) { for (const p of S.pending) S.rack.find(t => t.id === p.id).used = false; S.pending = []; }
+    S.cursor = { ...cs, dir: dir || S.cursor?.dir || "H" };
+  }
+  dessine();
+}
+// Téléphone (comme dans Topissimo) : un toucher place le curseur sur la case, un double toucher
+// change le sens. La case est prise à l'endroit exact du doigt (touchend), sans attendre le clic
+// simulé du navigateur ; le double toucher ne zoome plus la page.
+let dernierToucher = { t: 0, k: null }, debutToucher = null;
+$("vue").addEventListener("touchstart", e => { const t = e.touches[0]; debutToucher = { x: t.clientX, y: t.clientY }; }, { passive: true });
+$("vue").addEventListener("touchend", e => {
+  const t = e.changedTouches[0];
+  if (!t || !debutToucher || Math.hypot(t.clientX - debutToucher.x, t.clientY - debutToucher.y) > 12) return;   // glissement : pas un toucher
+  const d = document.elementFromPoint(t.clientX, t.clientY)?.closest("#cube .c[data-f]");
+  if (!d) return;
+  e.preventDefault();                                   // pas de clic simulé ni de zoom
+  const cs = { f: d.dataset.f, r: +d.dataset.r, c: +d.dataset.c }, k = cle([cs.f, cs.r, cs.c]), now = Date.now();
+  const double = now - dernierToucher.t < 350 && dernierToucher.k === k;
+  dernierToucher = { t: double ? 0 : now, k };
+  if (S.pause || S.emballe || !visibles().includes(cs.f)) return;
+  enFile(async () => {
+    if (double && S.cursor && !S.pending.length) { S.cursor = { ...cs, dir: S.cursor.dir === "H" ? "V" : "H" }; dessine(); }
+    else choisitCase(cs, S.cursor?.dir || "H");
+  });
+}, { passive: false });
 $("vue").addEventListener("click", e => {
   const d = e.target.closest(".c[data-f]");
   if (!d) return;
   const cs = { f: d.dataset.f, r: +d.dataset.r, c: +d.dataset.c };
-  enFile(async () => {
-    if (S.pause || S.emballe || S.cube[cs.f][cs.r][cs.c] || !visibles().includes(cs.f)) return;
-    if (S.cursor && S.cursor.f === cs.f && S.cursor.r === cs.r && S.cursor.c === cs.c && !S.pending.length) S.cursor.dir = S.cursor.dir === "H" ? "V" : "H";
-    else {
-      if (S.pending.length) { for (const p of S.pending) S.rack.find(t => t.id === p.id).used = false; S.pending = []; }
-      S.cursor = { ...cs, dir: S.cursor?.dir || "H" };
-    }
-    dessine();
-  });
+  if (S.pause || S.emballe || !visibles().includes(cs.f)) return;
+  enFile(async () => choisitCase(cs));
 });
 $("rack").addEventListener("click", e => { const t = e.target.closest(".t[data-id]"); if (t) enFile(() => pose(null, +t.dataset.id)); });
 for (const [id, sens] of [["fGauche", "gauche"], ["fDroite", "droite"], ["fHaut", "haut"], ["fBas", "bas"]]) $(id).onclick = () => enFile(() => pivote(sens));

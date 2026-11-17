@@ -274,6 +274,9 @@
   @keyframes givreScintille { from { opacity: .35; } to { opacity: .9; } }
   body.theme-noel .jeton { box-shadow: 0 0 0 .5px rgba(255,255,255,.6), 0 1px 2px rgba(0,40,80,.25); }
   @media (prefers-reduced-motion: reduce) { body.theme-noel .face .givre::after, body.theme-noel .face .givre::before { animation: none; } }
+
+  /* ================= Toucher (téléphone) : pas de zoom au double toucher ================= */
+  .vue, .rack, .actions-mob { touch-action: manipulation; }
 </style>
 </head>
 <body>
@@ -320,6 +323,6 @@
   </div>
 </main>
 <div class="picker" id="picker" hidden><div id="pickerGrille"></div></div>
-<script type="module" src="cube-jeu.js?v=495"></script>
+<script type="module" src="cube-jeu.js?v=496"></script>
 </body>
 </html>
