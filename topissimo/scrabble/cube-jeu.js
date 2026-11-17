@@ -5,13 +5,13 @@
 //  jouables. Gauche/droite quand le cube est droit ; haut/bas seulement depuis la face
 //  principale (k multiple de 8). Chaque face a un contour discret, plus foncé sur les arêtes sans passage.
 // ============================================================
-import { Dictionary } from "./dictionary.js?v=487";
-import { LETTER_BAG, drawForDuplicate, bagTotalVowels, bagTotalConsonants, letterValue } from "./engine.js?v=487";
+import { Dictionary } from "./dictionary.js?v=488";
+import { LETTER_BAG, drawForDuplicate, bagTotalVowels, bagTotalConsonants, letterValue } from "./engine.js?v=488";
 import {
   FACES, NOM_FACE, BONUS_CUBE, LIGNES, ligneDe, voisin, rangLigne, PIVOTS, cheminFaces,
   cubeVide, appliqueCoup, casesDuCoup, positionCoup, scoreCube, topCube, sacCube, JEUX_CUBE, coupRegleCube,
-} from "./cube.js?v=487";
-import * as noel from "./noel.js?v=487";
+} from "./cube.js?v=488";
+import * as noel from "./noel.js?v=488";
 
 const $ = id => document.getElementById(id);
 const TEMPS = 240;   // 4 minutes par coup
@@ -173,29 +173,8 @@ function dessine() {
   $("vue").classList.toggle("en-pause", !!S.pause);
   majFleches();
   dessineChevalet();
-  if (!S.anim) placeFleches();
 }
-/** Les flèches se collent à la grille (comme la flèche du bas) : autour du contour réellement
- *  affiché des faces tournées vers l'observateur, quelle que soit la position du cube. */
-function placeFleches() {
-  const vue = $("vue"), rv = vue.getBoundingClientRect();
-  let g = Infinity, d = -Infinity, h = Infinity, b = -Infinity;
-  for (const el of $("cube").querySelectorAll(".face")) {
-    if (versMoi(el.dataset.face) < -.01) continue;
-    const r = el.getBoundingClientRect();
-    if (!r.width) continue;
-    g = Math.min(g, r.left); d = Math.max(d, r.right); h = Math.min(h, r.top); b = Math.max(b, r.bottom);
-  }
-  if (!isFinite(g)) return;
-  const T = 34, ecart = 8, cx = (g + d) / 2 - rv.left, cy = (h + b) / 2 - rv.top;
-  const borne = (v, max) => Math.max(0, Math.min(max - T, v));
-  const pose = (id, x, y) => { const e = $(id); e.style.left = borne(x, rv.width) + "px"; e.style.top = borne(y, rv.height) + "px"; e.style.right = "auto"; e.style.bottom = "auto"; };
-  pose("fGauche", g - rv.left - T - ecart, cy - T / 2);
-  pose("fDroite", d - rv.left + ecart, cy - T / 2);
-  pose("fHaut", cx - T / 2, h - rv.top - T - ecart);
-  pose("fBas", cx - T / 2, b - rv.top + ecart);
-}
-addEventListener("resize", () => placeFleches());
+
 function dessineChevalet() {
   $("rack").innerHTML = S.rack.map(t => `<div class="t${t.used ? " used" : ""}${t.letter === "?" ? " joker" : ""}" data-id="${t.id}">${t.letter}${t.letter === "?" ? "" : `<span>${letterValue(t.letter)}</span>`}</div>`).join("");
 }
@@ -214,7 +193,6 @@ async function anime(k, p, pas) {
   dessine();
   await sleep(Math.min(300 + 170 * pas, 900) + 40);
   S.anim = false;
-  placeFleches();
 }
 /** Flèche : un huitième de tour (gauche/droite si le cube est droit, haut/bas depuis la face principale). */
 async function pivote(sens) {

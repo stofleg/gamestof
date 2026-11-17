@@ -9,8 +9,8 @@
 //  Le son ne démarre qu'après une première interaction (règle des navigateurs) et se coupe
 //  avec le bouton 🔊/🔇 (choix mémorisé).
 // ============================================================
-import { decor, traineauPasse, CSS_DECOR } from "./noel-decor.js?v=487";
-import { MORCEAUX_NOEL } from "./noel-morceaux.js?v=487";
+import { decor, traineauPasse, CSS_DECOR } from "./noel-decor.js?v=488";
+import { MORCEAUX_NOEL } from "./noel-morceaux.js?v=488";
 const CLE = "topissimo:noel-son";
 let horsLigne = false, ctx = null, maitre = null, reverb = null, actif = false, bouton = null, passer = null, legende = null;
 let coupe = (() => { try { return localStorage.getItem(CLE) === "off"; } catch { return false; } })();
@@ -19,7 +19,7 @@ const bus = {};
 // Cibles (« fort » = moyenne des passages les plus forts) : musique ≈ −31 dBFS en fond, feu ≈ −48
 // (à peine), grelots du top ≈ −28, ouverture ≈ −28, « ho ho ho » ≈ −27,5, scrabble ≈ −27 (le
 // moment fort). Pendant un effet marquant, la musique s'efface un peu (voir baisseMusique).
-const NIVEAUX = { musique: .67, feu: .093, top: 1.04, scrabble: 1.46, ouverture: .72, carillon: .95, ho: .7 };
+const NIVEAUX = { musique: .67, feu: .093, top: 1.04, scrabble: .39, ouverture: .72, carillon: .95, ho: .335 };
 
 function bruit(secondes) {
   const b = ctx.createBuffer(1, Math.max(1, ctx.sampleRate * secondes), ctx.sampleRate), d = b.getChannelData(0);
@@ -204,54 +204,31 @@ function baisseMusique(duree, db = -7) {
 /** Scrabble (7 lettres posées) : le traîneau traverse le ciel au son des grelots, qui passent
  *  de gauche à droite en enflant puis en s'éloignant. */
 export function scrabble() {
-  const ms = horsLigne ? 7000 : traineauPasse(7);
-  if (!actif) return;
-  const t = ctx.currentTime, duree = ms / 1000 || 7;
+  const ms = horsLigne ? 7500 : traineauPasse(7.5);
+  if (!actif || !sons.traineau) return;
+  const t = ctx.currentTime, duree = ms / 1000 || 7.5;
   baisseMusique(duree);
-  const pan = ctx.createStereoPanner ? ctx.createStereoPanner() : null;
-  const sortie = ctx.createGain(); sortie.gain.value = 1;
-  if (pan) { pan.pan.setValueAtTime(-.9, t); pan.pan.linearRampToValueAtTime(.9, t + duree); sortie.connect(pan).connect(bus.scrabble); }
-  else sortie.connect(bus.scrabble);
-  for (let x = 0; x < duree; x += .13) {
-    const env = Math.sin(Math.PI * Math.min(1, x / duree));          // arrive, passe, s'éloigne
-    secousse(sortie, t + x + Math.random() * .03, .05 * (.25 + .75 * env));
-  }
-  ["G5", "C6", "E6", "G6", "C7"].forEach((n, i) => lame(bus.scrabble, freq(n), t + duree * .45 + i * .1, .08, 1.8));
-  setTimeout(() => sortie.disconnect(), (duree + 1) * 1000);
+  const src = ctx.createBufferSource(); src.buffer = sons.traineau;
+  const pan = ctx.createStereoPanner ? ctx.createStereoPanner() : null;   // de gauche à droite, avec le traîneau
+  if (pan) { pan.pan.setValueAtTime(-.85, t); pan.pan.linearRampToValueAtTime(.85, t + duree); src.connect(pan).connect(bus.scrabble); }
+  else src.connect(bus.scrabble);
+  src.start(t);
 }
-/** Mot refusé : le père Noël rit « Ho ho ho ! » (voix grave synthétisée par formants). */
+/** Mot refusé : le père Noël rit « Ho ! Ho ! Ho ! » (voix grave de synthèse par formants, en salle). */
 export function rate() {
-  if (!actif) return;
-  const t = ctx.currentTime;
-  baisseMusique(1.2, -6);
-  [[0, 1, 118], [.38, .85, 108], [.76, .95, 98]].forEach(([dt, v, f0]) => ho(t + dt, v, f0));
+  if (!actif || !sons.hohoho) return;
+  baisseMusique(2, -6);
+  const src = ctx.createBufferSource(); src.buffer = sons.hohoho;
+  src.connect(bus.ho); src.start();
 }
-/** Une syllabe « ho » : souffle du H, puis voyelle O (source en dents de scie filtrée par les
- *  formants d'un O grave : ≈ 450, 800, 2600 Hz). */
-function ho(t, vol, f0) {
-  const sortie = ctx.createGain(); sortie.gain.value = vol * 1.4; sortie.connect(bus.ho);
-  // H : souffle
-  const h = ctx.createBufferSource(); h.buffer = bruit(.2);
-  const hf = ctx.createBiquadFilter(); hf.type = "bandpass"; hf.frequency.value = 1100; hf.Q.value = .8;
-  const hg = ctx.createGain(); hg.gain.setValueAtTime(0, t); hg.gain.linearRampToValueAtTime(.12, t + .04); hg.gain.linearRampToValueAtTime(0, t + .11);
-  h.connect(hf).connect(hg).connect(sortie); h.start(t); h.stop(t + .2);
-  // O : voix
-  const v = t + .07, fin = v + .26;
-  const src = ctx.createOscillator(); src.type = "sawtooth";
-  src.frequency.setValueAtTime(f0 * 1.06, v); src.frequency.exponentialRampToValueAtTime(f0 * .9, fin);
-  const vib = ctx.createOscillator(); vib.frequency.value = 5.5; const vg = ctx.createGain(); vg.gain.value = 2.5; vib.connect(vg).connect(src.frequency);
-  const env = ctx.createGain();
-  env.gain.setValueAtTime(0, v); env.gain.linearRampToValueAtTime(.5, v + .035); env.gain.setValueAtTime(.5, fin - .09); env.gain.exponentialRampToValueAtTime(.001, fin + .06);
-  src.connect(env);
-  for (const [f, q, g] of [[450, 7, 1], [800, 9, .55], [2600, 12, .08]]) {
-    const bp = ctx.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.value = f; bp.Q.value = q;
-    const bg = ctx.createGain(); bg.gain.value = g * 2.2;
-    env.connect(bp).connect(bg).connect(sortie);
+// sons enregistrés (fabriqués hors ligne : grelots échantillonnés, voix de synthèse)
+const sons = {};
+async function chargeSons(c = ctx) {
+  for (const n of ["traineau", "hohoho"]) {
+    if (sons[n]) continue;
+    try { sons[n] = await c.decodeAudioData(await (await fetch(url(`noel-${n}.m4a`))).arrayBuffer()); }
+    catch (e) { console.warn("Son de Noël indisponible :", n, e); }
   }
-  const corps = ctx.createBiquadFilter(); corps.type = "lowpass"; corps.frequency.value = 350;   // poitrine
-  const cg = ctx.createGain(); cg.gain.value = .25; env.connect(corps).connect(cg).connect(sortie);
-  src.start(v); vib.start(v); src.stop(fin + .1); vib.stop(fin + .1);
-  setTimeout(() => sortie.disconnect(), 2000);
 }
 
 // ------------------------------------------------------------ décor : neige et guirlande
@@ -333,7 +310,7 @@ export function ambiance(on) {
   const demarre = () => {
     initialise(); ctx.resume();
     if (actif) return;
-    actif = true; feu(); morceauSuivantInterne();
+    actif = true; feu(); chargeSons(); morceauSuivantInterne();
   };
   if (ctx && ctx.state === "running") demarre();
   else { addEventListener("pointerdown", demarre, { once: true }); addEventListener("keydown", demarre, { once: true }); }
@@ -356,7 +333,7 @@ export async function __mesure(nom, duree = 6) {
       const g = off.createGain(); g.gain.value = nom === "feu" ? 1 : GAIN_MUSIQUE;
       s.connect(g).connect(nom === "feu" ? bus.feu : bus.musique); s.start(0, Math.min(20, buf.duration / 3));
     }
-    else ({ grelots, carillon, rate, scrabble, ouverture })[nom]();
+    else { if (nom === "scrabble" || nom === "rate") await chargeSons(off); ({ grelots, carillon, rate, scrabble, ouverture })[nom](); }
     const buf = await off.startRendering();
     const L = buf.getChannelData(0), R = buf.getChannelData(1), w = Math.round(sr * .4), rms = [];
     let crete = 0;

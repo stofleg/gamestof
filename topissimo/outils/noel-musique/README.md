@@ -19,3 +19,5 @@ jouée en alternance (chant connu, classique, chant, pièce originale) par `scra
 
 Le corpus music21 se récupère avec `pip download --no-deps music21` (fichiers `.mxl` / `.abc` dans
 `music21/corpus/`). Les niveaux de lecture (GAIN_MUSIQUE, NIVEAUX) se règlent dans `noel.js` avec `__mesure`.
+- `traineau.mjs` : passage du traîneau (grelots échantillonnés, trot, célesta, cloches) → `musique/noel-traineau.m4a`.
+- `hohoho.py` : « Ho ! Ho ! Ho ! » par synthèse de voix à formants → `musique/noel-hohoho.m4a`.
