@@ -14,7 +14,7 @@ import {
 import * as noel from "./noel.js?v=485";
 
 const $ = id => document.getElementById(id);
-const TEMPS = 120;
+const TEMPS = 240;   // 4 minutes par coup
 const CLASSE = { ".": "", d: "dl", t: "tl", D: "dw", T: "tw", "*": "dw etoile" };
 const VOY = new Set(["A", "E", "I", "O", "U", "Y"]);
 const TITRES = { F: "Principale ★", R: "Droite", B: "Arrière", L: "Gauche", U: "Dessus", D: "Dessous" };
@@ -259,7 +259,7 @@ function nouveauCoup() {
 }
 function tic() {
   const reste = Math.max(0, TEMPS - (Date.now() - S.debut) / 1000);
-  $("cLabel").textContent = `COUP ${S.coup}`; $("cTemps").textContent = `${Math.ceil(reste)}s`;
+  $("cLabel").textContent = `COUP ${S.coup}`; const sec = Math.ceil(reste); $("cTemps").textContent = `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`;
   if (reste <= 0) finCoup("timeout");
 }
 /** Fin du coup : top trouvé, temps écoulé ou « Voir le top ». Le top officiel est posé. */
