@@ -30,14 +30,14 @@ import {
   setLetterValues, letterValue, valuesFor, bagFor, isCrossingCell, wordHiddenCount,
   drawVowelRack, VOWELS_NO_Y, MARATHON_TARGET, MARATHON_GAMES, consonnesDisponibles, CONSONANTS_FR, jokersDisponibles,
   tireOeufs, POINTS_OEUF, jokerHorsReliquat, lettresAuChoix,
-} from "./engine.js?v=489";
-import { icosaedre } from "./icosaedre.js?v=489";
-import { Dictionary } from "./dictionary.js?v=489";
-import * as invasion from "./araignees.js?v=489";
-import { REGLES, afficheRegles } from "./regles.js?v=489";
-import * as sonHalloween from "./halloween-son.js?v=489";
-import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=489";
-import { TOURS, TEMPS_COUP, nouveauTournoi, nouvellePartie, jouerPoint, scoreJeu, niveauAtteint, nomNiveau } from "./topsping-regles.js?v=489";
+} from "./engine.js?v=490";
+import { icosaedre } from "./icosaedre.js?v=490";
+import { Dictionary } from "./dictionary.js?v=490";
+import * as invasion from "./araignees.js?v=490";
+import { REGLES, afficheRegles } from "./regles.js?v=490";
+import * as sonHalloween from "./halloween-son.js?v=490";
+import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=490";
+import { TOURS, TEMPS_COUP, nouveauTournoi, nouvellePartie, jouerPoint, scoreJeu, niveauAtteint, nomNiveau } from "./topsping-regles.js?v=490";
 
 // État du mode review (parcours coup par coup)
 const review = {
@@ -78,7 +78,7 @@ const FFSC_LIVE = URL_PARAMS.get("ffsclive");      // jouer une partie FFSC en d
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v489";
+const BUILD_VERSION = "garenna-v490";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -6697,7 +6697,7 @@ function tsModeCourant() {
 
 async function tsChargeReserves(nom) {
   return Promise.all(TOURS.map(async (_, i) => {
-    const r = await fetch(`../topsping/${encodeURIComponent(nom)}/tour-${i + 1}.json?v=489`);
+    const r = await fetch(`../topsping/${encodeURIComponent(nom)}/tour-${i + 1}.json?v=490`);
     if (!r.ok) throw new Error(`parties du ${TOURS[i].nom} introuvables (${nom})`);
     return (await r.json()).parties;
   }));

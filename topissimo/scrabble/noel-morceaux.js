@@ -1,4 +1,4 @@
-// Playlist de Noël de la grille cube (61 morceaux, 156 min), produite par
+// Playlist de Noël de la grille cube (62 morceaux, 158 min), produite par
 // topissimo/outils/noel-musique (arrangements Topissimo, banque de sons GeneralUser GS, −18 LUFS).
 export const MORCEAUX_NOEL = [
  {
@@ -426,6 +426,13 @@ export const MORCEAUX_NOEL = [
   "titre": "Tchaïkovski — Les Saisons : Août, « La Moisson »",
   "credit": "domaine public · partition : Mutopia Project · piano (GeneralUser GS)",
   "duree": 206,
+  "cat": "classique"
+ },
+ {
+  "f": "noel/97-tchaikovski-casse-noisette-danse-des-mirlitons.m4a",
+  "titre": "Tchaïkovski — Casse-Noisette : Danse des mirlitons",
+  "credit": "domaine public · séquence MIDI orchestrale · GeneralUser GS",
+  "duree": 133,
   "cat": "classique"
  }
 ];
