@@ -9,8 +9,8 @@
 //  Le son ne démarre qu'après une première interaction (règle des navigateurs) et se coupe
 //  avec le bouton 🔊/🔇 (choix mémorisé).
 // ============================================================
-import { decor, traineauPasse, CSS_DECOR } from "./noel-decor.js?v=490";
-import { MORCEAUX_NOEL } from "./noel-morceaux.js?v=490";
+import { decor, traineauPasse, CSS_DECOR } from "./noel-decor.js?v=491";
+import { MORCEAUX_NOEL } from "./noel-morceaux.js?v=491";
 const CLE = "topissimo:noel-son";
 let horsLigne = false, ctx = null, maitre = null, reverb = null, actif = false, bouton = null, passer = null, legende = null;
 let coupe = (() => { try { return localStorage.getItem(CLE) === "off"; } catch { return false; } })();

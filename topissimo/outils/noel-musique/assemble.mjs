@@ -16,7 +16,7 @@ for (const m of tous) {
   await fs.copyFile(src, `${DEST}/musique/${m.f}`);
   const d = +execFileSync("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", src]).toString();
   m.duree = Math.round(d); total += d;
-  m.cat = m.credit.startsWith("composition originale") ? "original" : /^(Bach|Haydn|Mozart|Tchaïkovski) —/.test(m.titre) ? "classique" : "chant";
+  m.cat = m.credit.startsWith("composition originale") ? "original" : /^(Bach|Haydn|Mozart|Tchaïkovski|Corelli) —/.test(m.titre) ? "classique" : "chant";
 }
 const js = `// Playlist de Noël de la grille cube (${tous.length} morceaux, ${Math.round(total / 60)} min), produite par
 // topissimo/outils/noel-musique (arrangements Topissimo, banque de sons GeneralUser GS, −18 LUFS).
