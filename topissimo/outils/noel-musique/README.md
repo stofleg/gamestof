@@ -1,13 +1,21 @@
 # Musiques et feu de cheminée de Noël (grille cube)
 
-Fabrication des fichiers `topissimo/scrabble/musique/noel-*.m4a` :
+Playlist d'environ 2 h 25 (`topissimo/scrabble/musique/noel/`, liste dans `scrabble/noel-morceaux.js`),
+jouée en alternance (chant connu, classique, chant, pièce originale) par `scrabble/noel.js`.
 
-- `arrange.mjs` : arrangements orchestraux de chants du domaine public (mélodie, accords,
-  orchestration par couplet) écrits en MIDI, puis rendus avec la banque de sons libre
-  GeneralUser GS (`npm install generaluser spessasynth_core midi-file`). Produit `<cle>.wav`.
-- `ir.py` : réponse impulsionnelle de salle (réverbération, appliquée avec ffmpeg `afir`).
-- `feu.py` : feu de cheminée de synthèse (40 s, boucle sans couture).
+- `chants.mjs` : Vive le vent, Douce nuit, We Wish You a Merry Christmas, Deck the Halls, Joy to the
+  World (mélodie, accords, arrangement de référence) ; `fabrique.mjs` en fait plusieurs versions
+  (galop, valse, boîte à musique, chœur et orgue, marche…) et compose les pièces originales
+  (`compose.mjs` : forme A A' B A', motifs, séquences, cadences).
+- `lecture_abc.py` + `populaires.py` : chants de Noël populaires du corpus libre de music21 (notation
+  ABC), harmonisés automatiquement ; `lecture.py` : partitions MusicXML (chorals de Noël de Bach,
+  quatuors « La Chasse » de Haydn et Mozart) ; `partition.mjs` les orchestre ; `fabrique2.mjs` rend
+  cette deuxième série.
+- `moteur.mjs` : arrangement → MIDI → rendu avec la banque de sons libre GeneralUser GS
+  (`npm install generaluser spessasynth_core midi-file`).
+- `traite.mjs` : salle (`ir.py`), compression douce, normalisation linéaire à −18 LUFS, AAC 64 kbit/s.
+- `assemble.mjs` : sélection, copie des fichiers et écriture de `noel-morceaux.js`.
+- `feu.py` : feu de cheminée de synthèse (boucle sans couture, `musique/noel-feu.m4a`).
 
-Chaîne ffmpeg par morceau : réverbération (18 %), compression douce (ratio 2), normalisation
-linéaire en deux passes à −18 LUFS (crête vraie −1,5 dBTP), AAC 128 kbit/s. Le feu : AAC 96 kbit/s.
-Les niveaux de lecture (GAIN_MUSIQUE, NIVEAUX) sont réglés dans `scrabble/noel.js` avec `__mesure`.
+Le corpus music21 se récupère avec `pip download --no-deps music21` (fichiers `.mxl` / `.abc` dans
+`music21/corpus/`). Les niveaux de lecture (GAIN_MUSIQUE, NIVEAUX) se règlent dans `noel.js` avec `__mesure`.

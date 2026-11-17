@@ -9,7 +9,8 @@
 //  Le son ne démarre qu'après une première interaction (règle des navigateurs) et se coupe
 //  avec le bouton 🔊/🔇 (choix mémorisé).
 // ============================================================
-import { decor, traineauPasse, CSS_DECOR } from "./noel-decor.js?v=486";
+import { decor, traineauPasse, CSS_DECOR } from "./noel-decor.js?v=487";
+import { MORCEAUX_NOEL } from "./noel-morceaux.js?v=487";
 const CLE = "topissimo:noel-son";
 let horsLigne = false, ctx = null, maitre = null, reverb = null, actif = false, bouton = null, passer = null, legende = null;
 let coupe = (() => { try { return localStorage.getItem(CLE) === "off"; } catch { return false; } })();
@@ -89,26 +90,31 @@ function secousse(sortie, t, volume = .05) {
 }
 
 // ------------------------------------------------------------ musique (domaine public)
-// Arrangements orchestraux de chants de Noël du domaine public (célesta, harpe, cordes, cors,
-// flûte, chœur, glockenspiel, timbales, grelots), écrits pour Topissimo et joués avec la banque
-// de sons libre GeneralUser GS (S. Christian Collins), réverbération de salle. Tous les fichiers
-// sont ramenés au même volume (−18 LUFS) ; GAIN_MUSIQUE les place sous les effets.
-const ARRANGE = "arrangement orchestral Topissimo (GeneralUser GS)";
-const MORCEAUX = [
-  { f: "noel-vive.m4a", titre: "Vive le vent (Jingle Bells)", credit: `James Lord Pierpont, 1857 — domaine public · ${ARRANGE}` },
-  { f: "noel-nuit.m4a", titre: "Douce nuit", credit: `Franz Xaver Gruber, 1818 — domaine public · ${ARRANGE}` },
-  { f: "noel-wish.m4a", titre: "We Wish You a Merry Christmas", credit: `chant traditionnel anglais — domaine public · ${ARRANGE}` },
-  { f: "noel-deck.m4a", titre: "Deck the Halls", credit: `chant traditionnel gallois — domaine public · ${ARRANGE}` },
-  { f: "noel-joie.m4a", titre: "Joy to the World", credit: `Lowell Mason d’après Haendel, 1839 — domaine public · ${ARRANGE}` },
-];
+// Playlist d'environ 2 h 25 (noel-morceaux.js) : chants de Noël connus en plusieurs versions
+// (galop, valse, boîte à musique, chœur et orgue…), chants populaires de Noël, classiques (chorals
+// de Noël de Bach, Haydn et Mozart « La Chasse ») et quelques pièces originales. Tout est arrangé
+// pour Topissimo et joué avec la banque de sons libre GeneralUser GS (S. Christian Collins), en
+// salle ; chaque fichier est ramené à −18 LUFS. GAIN_MUSIQUE place la musique sous les effets.
+// Fabrication : topissimo/outils/noel-musique.
+const MORCEAUX = MORCEAUX_NOEL;
 const GAIN_MUSIQUE = .63;
 const url = f => new URL(`musique/${f}`, import.meta.url).href;
 let lecteur = null, lecteurGain = null, morceauT = null, ordre = [], dernier = null;
+/** Ordre de lecture : chaque catégorie est mélangée, puis on les fait alterner (chant connu,
+ *  classique, chant, pièce originale…), sans rejouer tout de suite le dernier morceau entendu. */
 function melange() {
-  const a = [...MORCEAUX];
-  for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
-  if (a.length > 1 && a[0] === dernier) a.push(a.shift());
-  return a;
+  const paquets = {};
+  for (const m of MORCEAUX) (paquets[m.cat || "chant"] ??= []).push(m);
+  for (const a of Object.values(paquets)) for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+  const motif = ["chant", "classique", "chant", "original"], out = [];
+  for (let k = 0; out.length < MORCEAUX.length; k++) {
+    const p = paquets[motif[k % motif.length]] || [];
+    const reste = Object.values(paquets).find(a => a.length);
+    const m = p.length ? p.shift() : reste?.shift();
+    if (m) out.push(m);
+  }
+  if (out.length > 1 && out[0] === dernier) out.push(out.shift());
+  return out;
 }
 /** Lecteur unique, branché dans le graphe Web Audio (bus musique : volume, sourdine, effacement). */
 function prepareLecteur() {

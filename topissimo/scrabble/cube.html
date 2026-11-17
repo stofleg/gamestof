@@ -228,6 +228,33 @@
     padding: 12px 28px; cursor: pointer; box-shadow: 0 0 0 3px #e8c35a, 0 6px 16px rgba(0,0,0,.4); }
   .voile-pause button:disabled { opacity: .6; cursor: wait; }
   .gauche:has(.vue.en-pause) .rack, .gauche:has(.vue.en-pause) .actions-mob { visibility: hidden; }
+
+  /* ================= Givre sur la grille ================= */
+  .givre { display: none; }
+  body.theme-noel .face .givre { display: block; position: absolute; inset: 0; z-index: 2; pointer-events: none; overflow: hidden;
+    background:
+      radial-gradient(circle at 0 0, rgba(255,255,255,.75), rgba(232,244,255,.35) 13%, rgba(232,244,255,0) 26%),
+      radial-gradient(circle at 100% 0, rgba(255,255,255,.6), rgba(232,244,255,.25) 11%, rgba(232,244,255,0) 22%),
+      radial-gradient(circle at 0 100%, rgba(255,255,255,.6), rgba(232,244,255,.25) 11%, rgba(232,244,255,0) 22%),
+      radial-gradient(circle at 100% 100%, rgba(255,255,255,.75), rgba(232,244,255,.35) 13%, rgba(232,244,255,0) 26%),
+      url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 160 160'><g fill='none' stroke='%23ffffff' stroke-linecap='round'><g stroke-width='1.1' opacity='.55'><path d='M10 150 L52 104 L70 60 L96 34'/><path d='M52 104 L40 88 M52 104 L70 108 M62 80 L50 70 M62 80 L80 84 M70 60 L60 48 M70 60 L86 60 M84 46 L78 34 M84 46 L98 48'/></g><g stroke-width='.8' opacity='.45'><path d='M150 12 L118 40 L104 74'/><path d='M118 40 L112 26 M118 40 L132 46 M110 58 L98 52 M110 58 L122 66'/></g><g stroke-width='.7' opacity='.5' transform='translate(122 120)'><path d='M0 -9 V9 M-7.8 -4.5 L7.8 4.5 M-7.8 4.5 L7.8 -4.5'/><path d='M-2 -7 L0 -5 L2 -7 M-2 7 L0 5 L2 7'/></g><g stroke-width='.6' opacity='.45' transform='translate(30 30)'><path d='M0 -6 V6 M-5.2 -3 L5.2 3 M-5.2 3 L5.2 -3'/></g></g></svg>"),
+      linear-gradient(160deg, rgba(210,235,255,.16), rgba(255,255,255,0) 45%, rgba(190,220,255,.14));
+    background-size: 100% 100%, 100% 100%, 100% 100%, 100% 100%, calc(var(--c) * 6.5) calc(var(--c) * 6.5), 100% 100%;
+    box-shadow: inset 0 0 calc(var(--c) * .9) rgba(255,255,255,.85), inset 0 0 calc(var(--c) * .25) rgba(190,225,255,.9); }
+  /* reflet qui glisse lentement sur la glace */
+  body.theme-noel .face .givre::after { content: ""; position: absolute; inset: -50%;
+    background: linear-gradient(115deg, rgba(255,255,255,0) 44%, rgba(255,255,255,.32) 49%, rgba(255,255,255,.08) 52%, rgba(255,255,255,0) 56%);
+    animation: givreReflet 11s ease-in-out infinite; }
+  body.theme-noel .face.R .givre::after { animation-delay: -3s; } body.theme-noel .face.L .givre::after { animation-delay: -6s; } body.theme-noel .face.U .givre::after { animation-delay: -8s; }
+  @keyframes givreReflet { 0%, 55% { transform: translateX(-60%); } 85%, 100% { transform: translateX(60%); } }
+  /* paillettes de glace qui scintillent */
+  body.theme-noel .face .givre::before { content: ""; position: absolute; inset: 0;
+    background-image: radial-gradient(circle, rgba(255,255,255,.95) 0 1px, transparent 1.6px), radial-gradient(circle, rgba(220,240,255,.9) 0 .8px, transparent 1.4px);
+    background-size: calc(var(--c) * 3.7) calc(var(--c) * 4.1), calc(var(--c) * 5.3) calc(var(--c) * 2.9); background-position: 0 0, calc(var(--c) * 1.3) calc(var(--c) * 2);
+    animation: givreScintille 3.2s ease-in-out infinite alternate; }
+  @keyframes givreScintille { from { opacity: .35; } to { opacity: .9; } }
+  body.theme-noel .jeton { box-shadow: 0 0 0 .5px rgba(255,255,255,.6), 0 1px 2px rgba(0,40,80,.25); }
+  @media (prefers-reduced-motion: reduce) { body.theme-noel .face .givre::after, body.theme-noel .face .givre::before { animation: none; } }
 </style>
 </head>
 <body>
@@ -274,6 +301,6 @@
   </div>
 </main>
 <div class="picker" id="picker" hidden><div id="pickerGrille"></div></div>
-<script type="module" src="cube-jeu.js?v=486"></script>
+<script type="module" src="cube-jeu.js?v=487"></script>
 </body>
 </html>

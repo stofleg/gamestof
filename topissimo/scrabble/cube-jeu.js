@@ -5,13 +5,13 @@
 //  jouables. Gauche/droite quand le cube est droit ; haut/bas seulement depuis la face
 //  principale (k multiple de 8). Chaque face a un contour discret, plus foncé sur les arêtes sans passage.
 // ============================================================
-import { Dictionary } from "./dictionary.js?v=486";
-import { LETTER_BAG, drawForDuplicate, bagTotalVowels, bagTotalConsonants, letterValue } from "./engine.js?v=486";
+import { Dictionary } from "./dictionary.js?v=487";
+import { LETTER_BAG, drawForDuplicate, bagTotalVowels, bagTotalConsonants, letterValue } from "./engine.js?v=487";
 import {
   FACES, NOM_FACE, BONUS_CUBE, LIGNES, ligneDe, voisin, rangLigne, PIVOTS, cheminFaces,
   cubeVide, appliqueCoup, casesDuCoup, positionCoup, scoreCube, topCube, sacCube, JEUX_CUBE, coupRegleCube,
-} from "./cube.js?v=486";
-import * as noel from "./noel.js?v=486";
+} from "./cube.js?v=487";
+import * as noel from "./noel.js?v=487";
 
 const $ = id => document.getElementById(id);
 const TEMPS = 240;   // 4 minutes par coup
@@ -82,7 +82,7 @@ function htmlFace(f, vis) {
   if (!voisin(f, 7, 14, "H", 1)) murs.push("mur-d");
   let h = `<div class="face ${f} ${murs.join(" ")}${vis.includes(f) ? "" : " cachee"}${interdite(f, vis) ? " interdite" : ""}" data-face="${f}">`;
   for (let r = 0; r < 15; r++) for (let c = 0; c < 15; c++) h += htmlCase([f, r, c]);
-  return h + `</div>`;
+  return h + `<i class="givre" aria-hidden="true"></i></div>`;   // voile de givre (thème de Noël)
 }
 function titreVue(vis) {
   const tri = vis.slice().sort((a, b) => versMoi(b) - versMoi(a));
