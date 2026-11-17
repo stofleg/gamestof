@@ -127,7 +127,24 @@
     .boutons { flex-wrap: wrap; gap: 6px; }
     .boutons button, .boutons a { padding: 5px 8px; font-size: .78rem; white-space: nowrap; }
   }
-  @media (min-width: 861px) { .actions-mob { display: none; } }
+  @media (min-width: 861px) { .actions-mob { display: none; } #cFace { display: none; } }
+  /* ----- téléphone : flèches dans la barre sous le cube, cube aussi grand que l'écran le permet ----- */
+  @media (max-width: 860px) {
+    :root { --c: min(calc((100vw - 61px) / 21.6), calc((100vh - 335px) / 23.25), calc((100svh - 335px) / 23.25), 30px); }
+    .vue { --yc: calc(var(--S) * .72); width: calc(var(--S) * 1.44); height: calc(var(--S) * 1.55); }
+    .titre-face { display: none; }
+    #cFace { flex: 1; text-align: center; font: 700 .72rem Inter, sans-serif; color: #fff; opacity: .9; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 6px; }
+    .chrono { padding: 3px 10px; align-items: center; } .chrono b { font-size: 1.15rem; }
+    .infos div { padding: 2px; } .infos small { font-size: .58rem; } .infos b { font-size: .95rem; }
+    .msg { min-height: 1.3em; font-size: .8rem; line-height: 1.25; }
+    .boutons { gap: 5px; } .boutons button, .boutons a { padding: 4px 7px; font-size: .72rem; }
+    .gauche { gap: 6px; width: 100%; }
+    .actions-mob { gap: 5px; }
+    .actions-mob button { height: 42px; font-size: 18px; }
+    .actions-mob .fleche { position: static; width: auto; height: 42px; flex: 1; border-radius: 8px; font-size: 15px; }
+    .actions-mob .fleche:disabled::after { width: 14px; height: 4px; }
+    .rack { padding: 6px 8px; min-height: 0; }
+  }
   @media (prefers-reduced-motion: reduce) { .cube { transition: none; } }
 
   /* ================= Ambiance de Noël (noel.js) ================= */
@@ -273,7 +290,7 @@
         <div><b>⏸ Partie en pause</b><span id="pauseInfo"></span><button type="button" id="bReprendre">▶ Reprendre</button></div>
       </div>
     </div>
-    <div class="actions-mob">
+    <div class="actions-mob" id="actionsMob">
       <button class="b-eff" id="mEff" type="button" aria-label="Effacer la dernière lettre">⌫</button>
       <button class="b-ann" id="mAnn" type="button" aria-label="Annuler la saisie">✕</button>
       <button class="b-val" id="mVal" type="button" aria-label="Valider">✓</button>
@@ -290,7 +307,7 @@
         <div><small>Négatif</small><b id="iNeg">0</b></div>
         <div><small>Tops</small><b id="iTops">0</b></div>
       </div>
-      <div class="chrono"><small id="cLabel">COUP</small><b id="cTemps">—</b></div>
+      <div class="chrono"><small id="cLabel">COUP</small><span id="cFace"></span><b id="cTemps">—</b></div>
       <div class="msg" id="msg" role="status">Chargement du dictionnaire…</div>
       <div class="boutons">
         <button id="bPause" type="button">⏸ Pause</button>
@@ -303,6 +320,6 @@
   </div>
 </main>
 <div class="picker" id="picker" hidden><div id="pickerGrille"></div></div>
-<script type="module" src="cube-jeu.js?v=493"></script>
+<script type="module" src="cube-jeu.js?v=494"></script>
 </body>
 </html>

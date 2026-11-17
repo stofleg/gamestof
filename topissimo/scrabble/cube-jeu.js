@@ -5,13 +5,13 @@
 //  jouables. Gauche/droite quand le cube est droit ; haut/bas seulement depuis la face
 //  principale (k multiple de 8). Chaque face a un contour discret, plus foncé sur les arêtes sans passage.
 // ============================================================
-import { Dictionary } from "./dictionary.js?v=493";
-import { LETTER_BAG, drawForDuplicate, bagTotalVowels, bagTotalConsonants, letterValue } from "./engine.js?v=493";
+import { Dictionary } from "./dictionary.js?v=494";
+import { LETTER_BAG, drawForDuplicate, bagTotalVowels, bagTotalConsonants, letterValue } from "./engine.js?v=494";
 import {
   FACES, NOM_FACE, BONUS_CUBE, LIGNES, ligneDe, voisin, rangLigne, PIVOTS, cheminFaces,
   cubeVide, appliqueCoup, casesDuCoup, positionCoup, scoreCube, topCube, sacCube, JEUX_CUBE, coupRegleCube,
-} from "./cube.js?v=493";
-import * as noel from "./noel.js?v=493";
+} from "./cube.js?v=494";
+import * as noel from "./noel.js?v=494";
 
 const $ = id => document.getElementById(id);
 const TEMPS = 240;   // 4 minutes par coup
@@ -168,7 +168,7 @@ function dessine() {
   const vis = visibles();
   $("cube").innerHTML = ORDRE.map(f => htmlFace(f, vis)).join("") + (S.emballe ? htmlEmballage() : "");
   $("cube").style.transform = transformee();
-  $("titreFace").textContent = titreVue(vis);
+  $("titreFace").textContent = $("cFace").textContent = titreVue(vis);
   $("vue").classList.toggle("emballe", !!S.emballe);
   $("vue").classList.toggle("en-pause", !!S.pause);
   majFleches();
@@ -398,6 +398,7 @@ async function pose(L, tileId = null) {
   if (!t && tileId == null) t = S.rack.find(x => !x.used && x.letter === "?");
   if (!t) return message(`Pas de ${L} dans ton tirage.`, "err");
   let isBlank = t.letter === "?";
+  if (!isBlank) L = t.letter;          // lettre touchée sur le chevalet (téléphone)
   if (isBlank && (!L || L === "?")) { L = await choisitJoker(); if (!L) return; }
   // la vue ne tourne que si la lettre tombe sur une face cachée (mot à cheval) : de préférence
   // jusqu'à l'arête, pour garder sous les yeux le début du mot
@@ -513,6 +514,14 @@ $("bNouvelle").onclick = () => {
   if (S.coup > 0 && !S.fin && !confirm("Abandonner la partie en cours et en commencer une nouvelle ?")) return;
   enFile(() => nouvellePartie());
 };
+// Sur téléphone, les flèches rejoignent la barre de boutons sous le cube (le cube gagne la largeur).
+const ecranEtroit = matchMedia("(max-width: 860px)");
+function rangeFleches() {
+  const ids = ["fGauche", "fHaut", "fBas", "fDroite"];
+  if (ecranEtroit.matches) { const barre = $("actionsMob"); ids.slice().reverse().forEach(id => barre.prepend($(id))); }
+  else ids.forEach(id => $("vue").appendChild($(id)));
+}
+ecranEtroit.addEventListener?.("change", rangeFleches); rangeFleches();
 $("bPause").onclick = () => S.pause ? reprendre() : pause();
 $("bReprendre").onclick = () => reprendre();
 $("bOuvrir").onclick = () => ouvreCadeau();
