@@ -18,7 +18,7 @@
 //  Un coup : { ligne, debut, word, blanks } — `ligne` : indice de la ligne, `debut` : rang
 //  de la 1re lettre dans la ligne, `blanks` : rangs (dans le mot) des jokers.
 // ============================================================
-import { BOARD_BONUSES, letterValue } from "./engine.js?v=496";
+import { BOARD_BONUSES, letterValue } from "./engine.js?v=497";
 
 export const FACES = ["F", "R", "B", "L", "U", "D"];
 export const NOM_FACE = { F: "principale", R: "droite", B: "arrière", L: "gauche", U: "dessus", D: "dessous" };
@@ -284,7 +284,7 @@ export function coupRegleCube(moveNo) {
   return moveNo < COUP_REGLE_CUBE ? Math.min(moveNo, 14) : Math.max(moveNo, 15);
 }
 export async function genereCube(dict, { withJoker = false, onProgress = null, jeux = JEUX_CUBE, maxCoups = 400 } = {}) {
-  const { drawForDuplicate, bagTotalVowels, bagTotalConsonants, LETTER_BAG } = await import("./engine.js?v=496");
+  const { drawForDuplicate, bagTotalVowels, bagTotalConsonants, LETTER_BAG } = await import("./engine.js?v=497");
   const VOY = new Set(["A", "E", "I", "O", "U", "Y"]);
   let bag = sacCube(jeux, LETTER_BAG), spare = 0;
   if (withJoker) { spare = bag["?"] || 0; bag["?"] = 0; }
@@ -323,3 +323,40 @@ export async function genereCube(dict, { withJoker = false, onProgress = null, j
   }
   return { moves, totalTopScore: total, cube };
 }
+
+// ============================================================
+//  Le cube vu comme une grille plate : le PATRON (45 lignes × 60 colonnes), pour que le moteur
+//  de Topissimo (engine.js, game.js) le parcoure comme une grille ordinaire.
+//    lignes  0–14, colonnes 15–29 : dessus (U)
+//    lignes 15–29, colonnes  0–59 : bande gauche (L) · principale (F) · droite (R) · arrière (B),
+//                                   qui reboucle (colonne 59 → colonne 0 : la couture, à l'arrière)
+//    lignes 30–44, colonnes 15–29 : dessous (D)
+//  Toutes les autres cases n'existent pas (murs). Vérifié : les 5 400 voisinages du cube
+//  correspondent exactement aux pas ±1 dans le patron.
+// ============================================================
+const COL_BANDE = { L: 0, F: 15, R: 30, B: 45 };
+export function versPatron(f, r, c) { return f === "U" ? [r, 15 + c] : f === "D" ? [30 + r, 15 + c] : [15 + r, COL_BANDE[f] + c]; }
+export function versFace(R, C) {
+  if (R >= 15 && R < 30) { C = ((C % 60) + 60) % 60; return [["L", "F", "R", "B"][Math.floor(C / 15)], R - 15, C % 15]; }
+  if (C < 15 || C >= 30) return null;
+  if (R >= 0 && R < 15) return ["U", R, C - 15];
+  if (R >= 30 && R < 45) return ["D", R - 30, C - 15];
+  return null;
+}
+const existePatron = (R, C) => R >= 0 && R < 45 && C >= 0 && C < 60 && !!versFace(R, C);
+export const GEO_CUBE = {
+  nom: "cube", lignes: 45, colonnes: 60,
+  existe: existePatron,
+  pas(R, C, dr, dc) {
+    let r2 = R + dr, c2 = C + dc;
+    if (r2 >= 15 && r2 < 30 && R >= 15 && R < 30) c2 = ((c2 % 60) + 60) % 60;   // la bande reboucle
+    return existePatron(r2, c2) ? [r2, c2] : null;
+  },
+  estDepart: (R, C) => R === 22 && C === 22,                       // l'étoile de la face principale
+  layout: Array.from({ length: 45 }, (_, R) => Array.from({ length: 60 }, (_, C) => { const p = versFace(R, C); return p ? BONUS_CUBE[p[0]][p[1]][p[2]] : "#"; }).join("")),
+};
+/** Coup du moteur cube {ligne, debut, word, blanks} → coup du patron {row, col, dir, word, blanks}. */
+export function coupVersPatron(mv) { const [f, r, c] = casesDuCoup(mv)[0]; const [row, col] = versPatron(f, r, c); return { row, col, dir: LIGNES[mv.ligne].dir, word: mv.word, blanks: mv.blanks || [] }; }
+/** Grille du patron (45 × 60) ↔ cube (6 faces). */
+export function cubeVersPatron(cube) { const b = Array.from({ length: 45 }, () => Array(60).fill(null)); for (const f of FACES) for (let r = 0; r < 15; r++) for (let c = 0; c < 15; c++) { const [R, C] = versPatron(f, r, c); b[R][C] = cube[f][r][c]; } return b; }
+export function patronVersCube(b) { const cube = cubeVide(); for (let R = 0; R < 45; R++) for (let C = 0; C < 60; C++) { const p = versFace(R, C); if (p && b[R][C]) cube[p[0]][p[1]][p[2]] = b[R][C]; } return cube; }

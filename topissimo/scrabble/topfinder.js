@@ -12,7 +12,8 @@
 //     aussi les mots croisés) et on garde le maximum.
 // ============================================================
 
-import { BOARD_SIZE, BOARD_BONUSES, CENTER, scoreMove, applyMove, LETTER_VALUE, VOWELS, VOWELS_NO_Y, CONSONANTS_FR, isSimplePath, isSnakeMove, jokerHorsReliquat } from "./engine.js?v=496";
+import { geometrie, BOARD_SIZE, BOARD_BONUSES, CENTER, scoreMove, applyMove, LETTER_VALUE, VOWELS, VOWELS_NO_Y, CONSONANTS_FR, isSimplePath, isSnakeMove, jokerHorsReliquat } from "./engine.js?v=497";
+import { coupsCube, patronVersCube, coupVersPatron } from "./cube.js?v=497";
 
 // Un coup PROLONGE le serpent s'il s'accroche à une extrémité (isSnakeMove ; les
 // mots croisés latéraux sont permis), OU s'il garde un chemin simple (extension
@@ -1372,6 +1373,13 @@ function scoreLeave(board, rack, move, bag) {
 // ============================================================
 
 export function findTop(board, rack, dict, opts = {}) {
+  // Grille cube : recherche par le moteur du cube (lignes du cube, couture), coups rendus dans le patron.
+  if (geometrie().nom === "cube") {
+    const all = coupsCube(patronVersCube(board), rack, dict, { bonuses: opts.bonuses || { 7: 50 }, maxTilesUsed: opts.maxTilesUsed ?? rack.length })
+      .map(c => ({ ...c, move: coupVersPatron(c.move) }));
+    if (!all.length) return null;
+    return opts.all ? all : all[0];
+  }
   const maxTilesUsed = opts.maxTilesUsed ?? rack.length;
   const bonuses = opts.bonuses || { 7: 50 };
   // Mode Voyelles : le chevalet a 7 « cases » = voyelles tirées (rack) + le reste

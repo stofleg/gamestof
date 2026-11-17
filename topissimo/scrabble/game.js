@@ -30,16 +30,34 @@ import {
   setLetterValues, letterValue, valuesFor, bagFor, isCrossingCell, wordHiddenCount,
   drawVowelRack, VOWELS_NO_Y, MARATHON_TARGET, MARATHON_GAMES, consonnesDisponibles, CONSONANTS_FR, jokersDisponibles,
   tireOeufs, POINTS_OEUF, jokerHorsReliquat, lettresAuChoix,
-} from "./engine.js?v=496";
-import { icosaedre } from "./icosaedre.js?v=496";
-import { Dictionary } from "./dictionary.js?v=496";
-import * as invasion from "./araignees.js?v=496";
-import { REGLES, afficheRegles } from "./regles.js?v=496";
-import * as sonHalloween from "./halloween-son.js?v=496";
-import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=496";
-import { TOURS, TEMPS_COUP, nouveauTournoi, nouvellePartie, jouerPoint, scoreJeu, niveauAtteint, nomNiveau } from "./topsping-regles.js?v=496";
+  geometrie, setGeometrie, casesLigne, GEO_CLASSIQUE,
+} from "./engine.js?v=497";
+import { GEO_CUBE, versFace, versPatron, coupRegleCube, NOM_FACE } from "./cube.js?v=497";
+import * as cubeVue from "./cube-vue.js?v=497";
+import { icosaedre } from "./icosaedre.js?v=497";
+import { Dictionary } from "./dictionary.js?v=497";
+import * as invasion from "./araignees.js?v=497";
+import { REGLES, afficheRegles } from "./regles.js?v=497";
+import * as sonHalloween from "./halloween-son.js?v=497";
+import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=497";
+import { TOURS, TEMPS_COUP, nouveauTournoi, nouvellePartie, jouerPoint, scoreJeu, niveauAtteint, nomNiveau } from "./topsping-regles.js?v=497";
 
 // État du mode review (parcours coup par coup)
+// ===== Géométrie de la grille : classique (15 × 15) ou cube (patron 45 × 60, voir cube.js) =====
+// Le mode de jeu choisit la géométrie ; tout le parcours de la grille passe par elle.
+const enCube = () => geometrie().nom === "cube";
+function appliqueGeometrie() { setGeometrie(GAME_MODES[state.settings.gameMode]?.cube ? GEO_CUBE : GEO_CLASSIQUE); }
+function grilleVide() { appliqueGeometrie(); return emptyBoard(); }
+/** Géométrie déduite de la grille en mémoire (partie reprise, revue…) : 45 lignes = cube. */
+function syncGeometrie() { setGeometrie(state.board?.length === GEO_CUBE.lignes ? GEO_CUBE : GEO_CLASSIQUE); }
+/** Cases d'un coup {row, col, dir, word}, dans l'ordre du mot (bouclage du cube compris). */
+function casesMot(mv) { return casesLigne(mv.row, mv.col, mv.dir === "V" ? 1 : 0, mv.dir === "H" ? 1 : 0, mv.word.length) || []; }
+/** Case de départ du curseur : l'étoile (centre, ou étoile de la face principale du cube). */
+function caseDepart() { return enCube() ? { row: 22, col: 22 } : { row: CENTER, col: CENTER }; }
+/** Case voisine dans la grille (null : bord ou mur). */
+const voisine = (r, c, dr, dc) => geometrie().pas(r, c, dr, dc);
+const LONGUEUR_MAX = 64;   // garde-fou pour les lignes qui bouclent (bande du cube)
+
 const review = {
   active: false,
   game: null,           // prepared_games row
@@ -78,7 +96,7 @@ const FFSC_LIVE = URL_PARAMS.get("ffsclive");      // jouer une partie FFSC en d
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v496";
+const BUILD_VERSION = "garenna-v497";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -425,7 +443,9 @@ function placeJokersVoyelles(move) {
 }
 
 function renderBoard() {
+  syncGeometrie();
   const div = $("#board");
+  if (!enCube()) div.classList.remove("board-cube");
   // Sur mobile (< 700 px) on supprime les coords pour gagner de la place
   const isMobile = window.matchMedia && window.matchMedia("(max-width: 700px)").matches;
   const showCoords = state.settings.showCoords && !isMobile;
@@ -444,27 +464,20 @@ function renderBoard() {
       const r0 = scoreMove(state.board, mv, null, { bonuses: currentMode().bonuses, jokerPays: currentMode().jokerPays, layout: state.boardLayout, raw: true });
       badgeScore = r0.score;
       badgeDir = mv.dir;
-      const dr = mv.dir === "V" ? 1 : 0, dc = mv.dir === "H" ? 1 : 0;
-      badgeCell = { r: mv.row + (mv.word.length - 1) * dr, c: mv.col + (mv.word.length - 1) * dc };
+      const derniere = casesMot(mv).at(-1);
+      if (derniere) badgeCell = { r: derniere[0], c: derniere[1] };
     }
   }
   // Joker payant : jokers posés sur une lettre absente du reliquat (mot qui sera refusé).
   const horsReliquat = jokersHorsReliquat();
-  let html = "<table>";
-  if (showCoords) {
-    html += `<tr><td class="coord corner"></td>`;
-    for (let c = 0; c < BOARD_SIZE; c++) html += `<td class="coord">${c + 1}</td>`;
-    html += `<td class="coord corner"></td></tr>`;
-  }
-  for (let r = 0; r < BOARD_SIZE; r++) {
-    html += "<tr>";
-    if (showCoords) html += `<td class="coord">${ROW_LETTERS[r]}</td>`;
-    for (let c = 0; c < BOARD_SIZE; c++) {
-      const bonus = (state.boardLayout || BOARD_BONUSES)[r][c];
+  const cube = enCube(), dep = caseDepart();
+  const topCles = cube ? new Set((state.settings.highlightTop !== false ? (state.lastTopCells || []) : []).map(t => `${t.row ?? t.r ?? t[0]},${t.col ?? t.c ?? t[1]}`)) : null;
+  const caseHtml = (r, c) => {
+      let bonus = (state.boardLayout || geometrie().layout || BOARD_BONUSES)[r][c];
       // Centre : en grille random, on garde la couleur de la case tirée + une étoile
       // de départ (classe "start") ; sinon case centre classique (mot ×2 + étoile).
       let cls;
-      if (r === CENTER && c === CENTER) cls = state.boardLayout ? [bonusClass(bonus), "start"] : ["center"];
+      if (r === dep.row && c === dep.col) cls = state.boardLayout ? [bonusClass(bonus), "start"] : ["center"];
       else cls = [bonusClass(bonus)];
       const tile = cellTile(r, c);
       if (tile) cls.push("has-tile");
@@ -472,6 +485,7 @@ function renderBoard() {
       else if (bonus === "." && currentMode().fixedBoard && GRILLE_COEUR_FOND[r][c] === "x") cls.push("case-noire");
       const isCursor = state.cursor && state.cursor.row === r && state.cursor.col === c;
       if (isCursor) cls.push("cursor", state.cursor.dir === "H" ? "dir-h" : "dir-v");
+      if (cube && topCles.has(`${r},${c}`)) cls.push("top-mot");   // cube : contour du top case par case
       // Pâques : cases déjà parcourues par les mots du joueur, et œufs trouvés.
       const visitee = !review.active && state.visitees?.has(`${r},${c}`);
       const oeuf = !visitee ? "" : state.oeufsTrouves.has(`${r},${c}`)
@@ -501,8 +515,19 @@ function renderBoard() {
         cls.push("has-badge");   // remonte la case au-dessus du curseur voisin
       }
       const annot = renderAnnotations(r, c);
-      html += `<td class="${cls.join(" ")}" data-r="${r}" data-c="${c}">${tileHtmlStr}${badge}${annot}${oeuf}</td>`;
-    }
+      return `<td class="${cls.join(" ")}" data-r="${r}" data-c="${c}">${tileHtmlStr}${badge}${annot}${oeuf}</td>`;
+  };
+  if (cube) { renderBoardCube(div, caseHtml); return; }
+  let html = "<table>";
+  if (showCoords) {
+    html += `<tr><td class="coord corner"></td>`;
+    for (let c = 0; c < BOARD_SIZE; c++) html += `<td class="coord">${c + 1}</td>`;
+    html += `<td class="coord corner"></td></tr>`;
+  }
+  for (let r = 0; r < BOARD_SIZE; r++) {
+    html += "<tr>";
+    if (showCoords) html += `<td class="coord">${ROW_LETTERS[r]}</td>`;
+    for (let c = 0; c < BOARD_SIZE; c++) html += caseHtml(r, c);
     if (showCoords) html += `<td class="coord">${ROW_LETTERS[r]}</td>`;
     html += "</tr>";
   }
@@ -514,6 +539,42 @@ function renderBoard() {
   html += "</table>";
   div.innerHTML = html;
   invasion.rattache();
+  brancheCases(div);
+  renderTopFrame();
+}
+
+/** Grille cube : les six faces (tables de cases) sur le cube 3D ; la vue suit le curseur. */
+function renderBoardCube(div, caseHtml) {
+  div.classList.add("board-cube");
+  cubeVue.surRendu(renderBoard);
+  window.__cube = { etat: () => state, rendu: renderBoard, vue: cubeVue.vue };   // pour les tests automatiques
+  cubeVue.dessine(div, f => {
+    let h = "<table>";
+    for (let r = 0; r < 15; r++) { h += "<tr>"; for (let c = 0; c < 15; c++) { const [R, C] = versPatron(f, r, c); h += caseHtml(R, C); } h += "</tr>"; }
+    return h + "</table>";
+  });
+  brancheCases(div);
+  // La vue suit la saisie : quand le curseur (ou une lettre en cours) arrive sur une face cachée,
+  // on tourne. Seulement quand il BOUGE (sinon la vue reviendrait sans cesse vers lui).
+  const cle = state.cursor ? `${state.cursor.row},${state.cursor.col},${state.pending.length}` : "";
+  if (cle !== cubeSuivi && !cubeVue.vue().anim) {
+    cubeSuivi = cle;
+    const faces = [state.cursor && versFace(state.cursor.row, state.cursor.col)?.[0], ...state.pending.map(p => versFace(p.row, p.col)?.[0])].filter(Boolean);
+    if (faces.length && !cubeVue.visibles().includes(faces[0])) cubeVue.voir(faces);
+  }
+}
+let cubeSuivi = "";
+/** Cube : tourne pour montrer des cases (le top joué…) ; le curseur actuel est tenu pour « vu ». */
+function montreSurCube(cases) {
+  cubeSuivi = state.cursor ? `${state.cursor.row},${state.cursor.col},${state.pending.length}` : "";
+  const faces = cases.map(([r, c]) => versFace(r, c)?.[0]);
+  // la face qui porte le plus de lettres du mot d'abord
+  const n = f => faces.filter(x => x === f).length;
+  cubeVue.voir([...new Set(faces)].sort((a, b) => n(b) - n(a)));
+}
+
+/** Gestionnaires des cases (clic, glisser-déposer, toucher…), grille classique comme cube. */
+function brancheCases(div) {
   div.querySelectorAll("td[data-r]").forEach(td => {
     const r = +td.dataset.r, c = +td.dataset.c;
     td.onclick = () => handleBoardClick(r, c);
@@ -532,7 +593,6 @@ function renderBoard() {
     el.addEventListener("dragstart", onPendingTileDragStart);
     el.addEventListener("dragend", onDragEnd);
   });
-  renderTopFrame();
 }
 
 // Cadre de mise en évidence du mot top : un SEUL rectangle posé en superposition
@@ -541,7 +601,7 @@ function renderBoard() {
 // chaque rendu à partir des cases du mot (persiste jusqu'au clic sur la grille).
 function renderTopFrame() {
   const board = $("#board");
-  if (!board) return;
+  if (!board || enCube()) return;   // cube : contour du top case par case (classe top-mot)
   let frame = board.querySelector(".top-frame");
   const tw = (state.settings.highlightTop !== false) ? (state.lastTopCells || []) : [];
   if (!tw.length) { if (frame) frame.remove(); return; }
@@ -932,6 +992,14 @@ function onCellDrop(e) {
 function updateCursorAfterDrop(r, c) {
   const pending = state.pending;
   if (pending.length === 0) return;
+  if (enCube()) {   // cube : on repart de la dernière lettre du mot formé
+    const mv = buildMoveFromPendingGeo();
+    if (!mv) return;
+    const cs = casesMot(mv), last = cs[cs.length - 1];
+    state.cursor = { row: last[0], col: last[1], dir: mv.dir };
+    advanceCursor();
+    return;
+  }
   let row, col, dir;
   if (pending.length === 1) {
     row = r; col = c + 1; dir = "H";
@@ -1842,6 +1910,7 @@ function clearPending() {
 // place sur des cases libres consécutives dans le nouveau sens. Le curseur se
 // place juste après la dernière lettre.
 function relayPendingInDirection(newDir) {
+  if (enCube()) return relayPendingGeo(newDir);
   const oldDir = state.cursor.dir;
   const ps = state.pending.slice().sort((a, b) => oldDir === "H" ? a.col - b.col : a.row - b.row);
   if (!ps.length) { state.cursor.dir = newDir; return; }
@@ -1859,6 +1928,22 @@ function relayPendingInDirection(newDir) {
   state.cursor = (r < BOARD_SIZE && c < BOARD_SIZE)
     ? { row: r, col: c, dir: newDir }
     : { row: ps[0].row, col: ps[0].col, dir: newDir };
+}
+
+function relayPendingGeo(newDir) {
+  const mv = buildMoveFromPendingGeo();
+  const ordre = mv ? casesMot(mv).map(([r, c]) => state.pending.find(p => p.row === r && p.col === c)).filter(Boolean) : state.pending.slice();
+  if (!ordre.length) { state.cursor.dir = newDir; return; }
+  const dr = newDir === "V" ? 1 : 0, dc = newDir === "H" ? 1 : 0;
+  let cur = [ordre[0].row, ordre[0].col];
+  for (const p of ordre) {
+    let k = 0; while (cur && state.board[cur[0]][cur[1]] && k++ < LONGUEUR_MAX) cur = voisine(cur[0], cur[1], dr, dc);
+    if (!cur) break;
+    p.row = cur[0]; p.col = cur[1];
+    cur = voisine(cur[0], cur[1], dr, dc);
+  }
+  let k = 0; while (cur && state.board[cur[0]][cur[1]] && k++ < LONGUEUR_MAX) cur = voisine(cur[0], cur[1], dr, dc);
+  state.cursor = cur ? { row: cur[0], col: cur[1], dir: newDir } : { row: ordre[0].row, col: ordre[0].col, dir: newDir };
 }
 
 function clearPendingFrom(r, c) {
@@ -1880,6 +1965,12 @@ function moveCursorKey(key) {
   if (!delta) return;
   // Déplacement d'UNE case (le curseur n'enjambe plus les jetons : il passe
   // par-dessus toutes les cases, occupées ou non).
+  if (enCube()) {   // cube : on suit les lignes du cube ; un mur arrête le curseur
+    const n = voisine(state.cursor.row, state.cursor.col, delta[0], delta[1]);
+    if (n) { state.cursor.row = n[0]; state.cursor.col = n[1]; }
+    renderBoard();
+    return;
+  }
   const row = (state.cursor.row + delta[0] + BOARD_SIZE) % BOARD_SIZE;
   const col = (state.cursor.col + delta[1] + BOARD_SIZE) % BOARD_SIZE;
   state.cursor.row = row;
@@ -2079,6 +2170,14 @@ function isOccupied(r, c) {
 // Avance le curseur à la prochaine case libre dans la direction
 function advanceCursor() {
   if (!state.cursor) return;
+  if (enCube()) {
+    const dr = state.cursor.dir === "V" ? 1 : 0, dc = state.cursor.dir === "H" ? 1 : 0;
+    let n = voisine(state.cursor.row, state.cursor.col, dr, dc), k = 0;
+    while (n && isOccupied(n[0], n[1]) && k++ < LONGUEUR_MAX) n = voisine(n[0], n[1], dr, dc);
+    if (!n || k >= LONGUEUR_MAX) return;   // mur ou bout de la ligne
+    state.cursor.row = n[0]; state.cursor.col = n[1];
+    return;
+  }
   const dr = state.cursor.dir === "V" ? 1 : 0;
   const dc = state.cursor.dir === "H" ? 1 : 0;
   let r = state.cursor.row + dr;
@@ -2823,8 +2922,9 @@ function bestJokerVariant(board, move, dict, opts) {
   const dc = move.dir === "H" ? 1 : 0;
   // Positions des tuiles nouvellement posées (par index dans le mot)
   const placedIdx = [];
+  const casesBJ = casesMot(move);
   for (let i = 0; i < move.word.length; i++) {
-    const r = move.row + i * dr, c = move.col + i * dc;
+    const [r, c] = casesBJ[i] || [move.row + i * dr, move.col + i * dc];
     if (!board[r][c]) placedIdx.push(i);
   }
   let bestBlanks = blanks.slice();
@@ -2913,6 +3013,7 @@ function clearInvalidFlash() {
 }
 
 function buildMoveFromPending() {
+  if (enCube()) return buildMoveFromPendingGeo();
   const ps = [...state.pending];
   // déterminer la direction d'après l'alignement
   const allSameRow = ps.every(p => p.row === ps[0].row);
@@ -2985,6 +3086,40 @@ function buildMoveFromPending() {
   return { word, row: startR, col: startC, dir, blanks };
 }
 
+/** Version « géométrie » (grille cube : lignes qui bouclent, murs) : on part d'une lettre posée,
+ *  on recule tant que la case précédente est occupée, puis on lit le mot en avançant. */
+function buildMoveFromPendingGeo() {
+  const ps = [...state.pending];
+  if (!ps.length) return null;
+  const allSameRow = ps.every(p => p.row === ps[0].row);
+  const allSameCol = ps.every(p => p.col === ps[0].col);
+  if (!allSameRow && !allSameCol) return null;
+  const occupe = (r, c) => !!state.board[r][c];
+  let dir;
+  if (ps.length === 1) {
+    const p = ps[0];
+    const a = (dr, dc) => { const n = voisine(p.row, p.col, dr, dc); return n && occupe(n[0], n[1]); };
+    const vN = a(-1, 0) || a(1, 0), hN = a(0, -1) || a(0, 1);
+    dir = vN && !hN ? "V" : hN && !vN ? "H" : (state.cursor?.dir || "H");
+  } else dir = allSameRow ? "H" : "V";
+  const dr = dir === "V" ? 1 : 0, dc = dir === "H" ? 1 : 0;
+  const pendingMap = new Map(ps.map(p => [`${p.row},${p.col}`, p]));
+  const plein = (r, c) => occupe(r, c) || pendingMap.has(`${r},${c}`);
+  let [sr, sc] = [ps[0].row, ps[0].col];
+  for (let k = 0; k < LONGUEUR_MAX; k++) { const n = voisine(sr, sc, -dr, -dc); if (!n || !plein(n[0], n[1]) || (n[0] === ps[0].row && n[1] === ps[0].col)) break; [sr, sc] = n; }
+  let word = ""; const blanks = [], vus = new Set();
+  let cur = [sr, sc];
+  while (cur && plein(cur[0], cur[1]) && word.length < LONGUEUR_MAX) {
+    const k = `${cur[0]},${cur[1]}`; if (vus.has(k)) break; vus.add(k);
+    const t = state.board[cur[0]][cur[1]] || pendingMap.get(k);
+    if (t.isBlank) blanks.push(word.length);
+    word += t.letter;
+    cur = voisine(cur[0], cur[1], dr, dc);
+  }
+  if (ps.some(p => !vus.has(`${p.row},${p.col}`))) return null;
+  return { word, row: sr, col: sc, dir, blanks };
+}
+
 // Place le TOP sur le plateau, retire ses lettres du chevalet,
 // met à jour score/négatif selon le score du joueur (0 si rien tenté).
 // Gère le mode joker (remplacement par la lettre du sac si possible).
@@ -3001,8 +3136,9 @@ function placeTopAndAdvance(playerScore, playedWord = null, playedScore = null, 
   let jokerUsedAsLetter = null;
   let jokerCellIdx = -1;
   let jokerWordIdx = -1;
+  const casesTop = casesMot(tm.move);
   for (let i = 0; i < word.length; i++) {
-    const r = row + i * dr, c = col + i * dc;
+    const [r, c] = casesTop[i];
     if (!state.board[r][c]) {
       const isBlank = blanks.includes(i);
       newLetters.push({ letter: word[i], isBlank });
@@ -3016,9 +3152,8 @@ function placeTopAndAdvance(playerScore, playedWord = null, playedScore = null, 
   }
   state.lastPlaced = lastPlaced;
   // Toutes les cases du mot top, pour dessiner le contour bleu nuit.
-  state.lastTopCells = Array.from({ length: word.length }, (_, i) => ({
-    row: row + i * dr, col: col + i * dc,
-  }));
+  state.lastTopCells = casesTop.map(([r, c]) => ({ row: r, col: c }));
+  if (enCube()) montreSurCube(casesTop);   // cube : on tourne pour montrer le top
   // Le contour du top PERSISTE jusqu'à ce que le joueur clique sur la grille
   // (cf. clearTopHighlight()). Plus d'effacement automatique au bout de 1,5 s.
   if (topWordTimer) { clearTimeout(topWordTimer); topWordTimer = null; }
@@ -3234,6 +3369,7 @@ function recordMove({ status, playerScore, playedWord = null, playedMove = null,
 }
 
 function posLabel(move) {
+  if (enCube()) return posLabelCube(move);
   // Notation FFSC : horizontal = "H8" (lettre puis nombre), vertical = "8H"
   const letter = ROW_LETTERS[move.row];
   const num = move.col + 1;
@@ -3291,7 +3427,7 @@ function nextMove() {
     // (le compteur de streak, lui, est conservé). Le 1er coup de chaque sous-partie
     // (sauf la 1re) porte `newGame:true` (posé à la génération).
     if (next && next.newGame && currentMode().marathon) {
-      state.board = emptyBoard();
+      state.board = grilleVide();
       state.hiddenCells = new Set();
       state.snakeEnds = null;
       state.lastPlaced = [];
@@ -3473,7 +3609,7 @@ function nextMove() {
     state.bag = { ...bagSnap };
     state.rack = keptTiles.map(t => ({ letter: t.letter, isBlank: t.isBlank, used: false, id: nextTileId() }));
     const kept = state.rack.map(t => t.letter);
-    const result = drawForDuplicate(state.bag, kept, state.moveNo, regularTarget, { minVowels: mode.minVowels, minCons: mode.minCons });
+    const result = drawForDuplicate(state.bag, kept, mode.cube ? coupRegleCube(state.moveNo) : state.moveNo, regularTarget, { minVowels: mode.minVowels, minCons: mode.minCons });
     if (result.failed) { endGame(); return; }
     state.bag = result.bag;
     if (result.fresh) state.rack = state.rack.filter(t => t.letter === "?");
@@ -3504,23 +3640,31 @@ function nextMove() {
   }
 }
 
+/** Grille cube : « Principale H8 » (face de la 1re lettre + notation FFSc sur cette face). */
+function posLabelCube(move) {
+  const p = versFace(move.row, move.col);
+  if (!p) return "?";
+  const [f, r, c] = p;
+  return `${NOM_FACE[f]} ${move.dir === "H" ? ROW_LETTERS[r] + (c + 1) : (c + 1) + ROW_LETTERS[r]}`;
+}
+
 // Garde le curseur sur le plateau et sur une case libre après l'avancement
 // d'un coup, pour permettre une navigation 100 % clavier.
 function ensureCursorOnFreeCell() {
   if (!state.cursor) {
-    state.cursor = { row: CENTER, col: CENTER, dir: "H" };
+    state.cursor = { ...caseDepart(), dir: "H" };
     renderBoard();
     return;
   }
   if (!isOccupied(state.cursor.row, state.cursor.col)) return;
   // Tenter d'avancer dans la direction du curseur
   let guard = 0;
-  while (isOccupied(state.cursor.row, state.cursor.col) && guard++ < BOARD_SIZE * 2) {
+  while (isOccupied(state.cursor.row, state.cursor.col) && guard++ < LONGUEUR_MAX * 2) {
     const before = { row: state.cursor.row, col: state.cursor.col };
     advanceCursor();
     if (state.cursor.row === before.row && state.cursor.col === before.col) {
       // bord atteint : on remet le curseur au centre par défaut
-      state.cursor = { row: CENTER, col: CENTER, dir: state.cursor.dir };
+      state.cursor = { ...caseDepart(), dir: state.cursor.dir };
       break;
     }
   }
@@ -3878,8 +4022,9 @@ function enterEditorMode() {
 // `base`). Les jokers (blanks) retirent un « ? ».
 function removeMoveLettersFromRack(move, base) {
   const dr = move.dir === "V" ? 1 : 0, dc = move.dir === "H" ? 1 : 0;
+  const casesRM = casesMot(move);
   for (let i = 0; i < move.word.length; i++) {
-    const r = move.row + i * dr, c = move.col + i * dc;
+    const [r, c] = casesRM[i] || [move.row + i * dr, move.col + i * dc];
     if (base[r] && base[r][c]) continue;                 // déjà sur le plateau
     const isBlank = (move.blanks || []).includes(i);
     let idx = isBlank ? state.rack.findIndex(t => t.letter === "?")
@@ -4400,7 +4545,7 @@ async function stopGameFromSettings() {
     // Arrêt explicite d'un entraînement : on abandonne la partie (pas de reprise)
     // et on RESTE sur la page → grille vidée + écran pré-départ + préférences ouvertes.
     clearSavedTraining();
-    state.board = emptyBoard();
+    state.board = grilleVide();
     state.rack = [];
     state.pending = [];
     state.cursor = null;
@@ -4647,7 +4792,7 @@ async function initGame() {
   state.snakeEnds = null;   // mode Snake : extrémités du serpent
   state.hiddenCells = new Set();   // mode Lettre cachée : cases retournées
 
-  state.board = emptyBoard();
+  state.board = grilleVide();
   state.rack = [];
   state.pending = [];
   state.cursor = null;
@@ -4875,7 +5020,7 @@ async function enterPuzzleMode(gameId, moveNo) {
     throw new Error(`Coup ${moveNo} introuvable (la partie ne compte que ${g.moves.length} coups).`);
   }
   // Appliquer les coups 0..idx-1 au plateau
-  let board = emptyBoard();
+  let board = grilleVide();
   for (let i = 0; i < idx; i++) {
     const prevTop = g.moves[i]?.top;
     if (!prevTop || !prevTop.word) {
@@ -5253,7 +5398,7 @@ async function enterFfscLiveMode() {
   const done = moves.filter(m => m.top);
 
   // État vierge, puis grille au coup en cours : les tops déjà joués sont posés.
-  state.board = emptyBoard();
+  state.board = grilleVide();
   state.rack = []; state.pending = []; state.cursor = null; state.history = [];
   state.totalScore = 0; state.sumNeg = 0; state.topMove = null; state.subTop = null;
   state.bestAttempt = null; state._dual = null; state._dupLast = null;
@@ -5713,7 +5858,7 @@ async function enterReviewMode(id) {
 // Plateau de départ pour la review : vide en général, mais en review d'un SOLO
 // (puzzle) on part du contexte des coups précédents pour afficher toute la grille.
 function reviewBaseBoard() {
-  return ((state.isPuzzle || state.live) && review._puzzleBase) ? review._puzzleBase.map(r => r.slice()) : emptyBoard();
+  return ((state.isPuzzle || state.live) && review._puzzleBase) ? review._puzzleBase.map(r => r.slice()) : grilleVide();
 }
 
 function renderReviewStep() {
@@ -5753,9 +5898,7 @@ function renderReviewStep() {
     const boardBefore = moves.slice(0, idx).reduce((b, mv) => applyMove(b, mv.top), reviewBaseBoard());
     state.lastPlaced = computeLastPlacedCells(boardBefore, m.top);
     const dr = m.top.dir === "V" ? 1 : 0, dc = m.top.dir === "H" ? 1 : 0;
-    state.lastTopCells = Array.from({ length: m.top.word.length }, (_, i) => ({
-      row: m.top.row + i * dr, col: m.top.col + i * dc,
-    }));
+    state.lastTopCells = casesMot(m.top).map(([r, c]) => ({ row: r, col: c }));
   }
 
   // Chevalet du coup courant
@@ -5936,10 +6079,7 @@ function computeLastPlacedCells(boardBefore, mv) {
   const dr = mv.dir === "V" ? 1 : 0;
   const dc = mv.dir === "H" ? 1 : 0;
   const cells = [];
-  for (let i = 0; i < mv.word.length; i++) {
-    const r = mv.row + i * dr, c = mv.col + i * dc;
-    if (!boardBefore[r][c]) cells.push({ row: r, col: c });
-  }
+  casesMot(mv).forEach(([r, c]) => { if (!boardBefore[r][c]) cells.push({ row: r, col: c }); });
   return cells;
 }
 
@@ -5953,7 +6093,7 @@ async function shareReviewSnapshot() {
   const m = moves[idx];
   if (!m) return;
   // État du plateau AVANT le coup courant (donc sans la solution du coup en review)
-  let board = emptyBoard();
+  let board = grilleVide();
   for (let i = 0; i < idx; i++) board = applyMove(board, moves[i].top);
   const rack = m.rack || "";
   const moveNo = m.moveNo || review.step;
@@ -6151,8 +6291,9 @@ function renderReviewSolutions(idx) {
       if (tb.length) {
         const dr = topSol.move.dir === "V" ? 1 : 0, dc = topSol.move.dir === "H" ? 1 : 0;
         let changed = false;
+        const casesTS = casesMot(topSol.move);
         for (const bi of tb) {
-          const r = topSol.move.row + bi * dr, c = topSol.move.col + bi * dc;
+          const [r, c] = casesTS[bi] || [topSol.move.row + bi * dr, topSol.move.col + bi * dc];
           if (state.board[r]?.[c] && !state.board[r][c].isBlank) {
             state.board[r][c] = { ...state.board[r][c], isBlank: true };
             changed = true;
@@ -6203,9 +6344,7 @@ function previewSolution(i) {
   state.lastPlaced = computeLastPlacedCells(review._boardBefore, sol.move);
   // Le contour doit épouser le mot sélectionné (et pas rester sur le top initial).
   const dr = sol.move.dir === "V" ? 1 : 0, dc = sol.move.dir === "H" ? 1 : 0;
-  state.lastTopCells = Array.from({ length: sol.move.word.length }, (_, k) => ({
-    row: sol.move.row + k * dr, col: sol.move.col + k * dc,
-  }));
+  state.lastTopCells = casesMot(sol.move).map(([r, c]) => ({ row: r, col: c }));
   renderBoard();
   // Marquer visuellement la ligne sélectionnée
   $$("#rvSolutions tr").forEach(tr => tr.classList.remove("selected"));
@@ -6411,7 +6550,7 @@ async function loadPreparedGame(id) {
   // Réinitialisation COMPLÈTE de l'état de jeu : évite qu'un reliquat d'une partie
   // précédente (plateau, tirage, index) ne déborde si l'état n'a pas été remis à zéro
   // (cache navigateur / réentrée). C'est la cause du « 1er tirage erroné » corrigé au refresh.
-  state.board = emptyBoard();
+  state.board = grilleVide();
   state.rack = [];
   state.pending = [];
   state.cursor = null;
@@ -6697,7 +6836,7 @@ function tsModeCourant() {
 
 async function tsChargeReserves(nom) {
   return Promise.all(TOURS.map(async (_, i) => {
-    const r = await fetch(`../topsping/${encodeURIComponent(nom)}/tour-${i + 1}.json?v=496`);
+    const r = await fetch(`../topsping/${encodeURIComponent(nom)}/tour-${i + 1}.json?v=497`);
     if (!r.ok) throw new Error(`parties du ${TOURS[i].nom} introuvables (${nom})`);
     return (await r.json()).parties;
   }));
@@ -6748,7 +6887,7 @@ async function tsChargeTest(reserveNom) {
   state.settings.gameMode = "topsping";
   state.settings.withJoker = false;
   state.settings.timePerMove = TEMPS_COUP;
-  state.board = emptyBoard(); state.rack = []; state.pending = []; state.history = [];
+  state.board = grilleVide(); state.rack = []; state.pending = []; state.history = [];
   state.preparedIdx = 0; state.moveNo = 1; state.totalScore = 0; state.sumNeg = 0;
   state.bag = { ...bagFor("duplicate") }; state.spareJokers = 0;
   await tsCharge("test-" + reserveNom, reserveNom, true, null);
@@ -6763,7 +6902,7 @@ function tsPrepareCoup() {
   const partie = reserve[e.partie];
   const [rack, word, row, col, dir, blanks, score] = partie[e.coup];
   state.prepared.moves[state.preparedIdx] = { rack, top: { word, row, col, dir, blanks, score } };
-  let b = emptyBoard();
+  let b = grilleVide();
   for (let i = 0; i < e.coup; i++) { const m = partie[i]; b = applyMove(b, { word: m[1], row: m[2], col: m[3], dir: m[4], blanks: m[5] }); }
   const cle = `${e.tour}/${e.partie}/${e.coup}`;
   if (ts.cle !== cle) { state.lastPlaced = []; state.lastTopCells = []; }   // nouveau jeu : autre grille
@@ -6975,7 +7114,7 @@ function marathonStartNextGame() {
   M.gameIdx++;
   // Nouvelle partie duplicate : plateau/sac/tirage remis à zéro, STREAK conservé.
   // Le chrono général continue (on ne rappelle pas startChrono).
-  state.board = emptyBoard();
+  state.board = grilleVide();
   state.rack = [];
   state.pending = [];
   state.cursor = null;
@@ -7534,7 +7673,7 @@ function endGame() {
   // on garde la grille telle quelle (elle porte déjà tous les tops).
   if (!state.isPuzzle && !state.live && !currentMode().marathon && Array.isArray(state.history) && state.history.length) {
     const playedTops = state.history.filter(h => h?.top?.word);
-    let board = emptyBoard();
+    let board = grilleVide();
     let lastNewCells = [], lastAllCells = [], lastReliquat = null;
     for (let k = 0; k < playedTops.length; k++) {
       const top = playedTops[k].top;
@@ -7543,8 +7682,9 @@ function endGame() {
         const { word, row, col, dir, blanks = [] } = top;
         const dr = dir === "V" ? 1 : 0, dc = dir === "H" ? 1 : 0;
         const used = [];
+        const casesEG = casesMot(top);
         for (let i = 0; i < word.length; i++) {
-          const r = row + i * dr, c = col + i * dc;
+          const [r, c] = casesEG[i] || [row + i * dr, col + i * dc];
           lastAllCells.push({ row: r, col: c });
           if (!board[r][c]) {
             lastNewCells.push({ row: r, col: c });
@@ -7667,7 +7807,7 @@ function exitLocalReview() {
   document.querySelector(".info-bar")?.style.removeProperty("display");
   // Remettre le plateau dans l'état de fin de partie
   const moves = state.history || [];
-  let board = emptyBoard();
+  let board = grilleVide();
   for (const h of moves) board = applyMove(board, h.top);
   state.board = board;
   state.lastPlaced = [];

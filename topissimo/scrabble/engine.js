@@ -40,6 +40,7 @@ export function letterValue(l) { return _activeValues[l] || 0; }
 export function bagFor(modeKey) {
   const m = GAME_MODES[modeKey];
   if (m?.sansE) return { ...LETTER_BAG, E: 0 };   // Pâques : les E (œufs) ont disparu du sac
+  if (m?.jeux) return Object.fromEntries(Object.entries(LETTER_BAG).map(([l, n]) => [l, n * m.jeux]));   // grille cube : 6 jeux
   return (m && m.english) ? LETTER_BAG_EN : LETTER_BAG;
 }
 /** Tirage complétif : lettres encore disponibles (sac = jeu complet − grille − chevalet). */
@@ -199,10 +200,11 @@ export const GAME_MODES = {
   // vite possible. Elle a sa propre page (`page`), ouverte au lancement.
   puzzle: { label: "Grille puzzle", rackSize: 7, maxPlayed: 7, bonuses: { 7: 50 },
     defaultTime: 120, stofOnly: true, page: "puzzle.html" },
-  // Grille cube (tournoi de Noël, en préparation) : partie sur les 6 faces d'un cube, page dédiée
-  // (cube.html, moteur cube.js). Entraînement réservé à stof pour l'instant.
+  // Grille cube (tournoi de Noël, en préparation) : partie sur les 6 faces d'un cube (6 jeux de
+  // jetons), jouée dans Topissimo avec la géométrie du cube (patron 45 × 60, cube.js) et affichée
+  // en 3D. Tirage : 2 voyelles et 2 consonnes jusqu'au coup 109. Réservée à stof pour l'instant.
   cube: { label: "Grille cube", rackSize: 7, maxPlayed: 7, bonuses: { 7: 50 },
-    defaultTime: 120, stofOnly: true, page: "cube.html" },
+    defaultTime: 240, stofOnly: true, cube: true, jeux: 6 },
   // TopSping : tournoi façon Roland-Garros contre le top (game.js, section TopSping). Les
   // parties sont pré-générées (topissimo/topsping/<réserve>/), une formule par tour :
   // le mode n'est jamais proposé dans les menus (création du tournoi par stof, en SQL).
@@ -381,9 +383,32 @@ export const BOARD_BONUSES = [
 export const BOARD_SIZE = 15;
 export const CENTER = 7;
 
+// ============================================================
+//  Géométrie de la grille. Par défaut, la grille classique 15 × 15. Une autre géométrie
+//  (la grille cube, dépliée en patron : voir cube.js) fournit ses dimensions, les cases qui
+//  existent, le pas d'une case à la voisine (avec bouclage éventuel), la case de départ et
+//  la disposition des bonus. Le moteur passe TOUJOURS par elle pour parcourir la grille.
+// ============================================================
+export const GEO_CLASSIQUE = {
+  nom: "classique", lignes: BOARD_SIZE, colonnes: BOARD_SIZE, layout: null,
+  existe: (r, c) => r >= 0 && c >= 0 && r < BOARD_SIZE && c < BOARD_SIZE,
+  pas(r, c, dr, dc) { const R = r + dr, C = c + dc; return R >= 0 && C >= 0 && R < BOARD_SIZE && C < BOARD_SIZE ? [R, C] : null; },
+  estDepart: (r, c) => r === CENTER && c === CENTER,
+};
+let GEO = GEO_CLASSIQUE;
+export function setGeometrie(g) { GEO = g || GEO_CLASSIQUE; }
+export function geometrie() { return GEO; }
+/** Cases d'une ligne de `len` cases depuis (row, col) dans la direction (dr, dc), ou null si elle sort de la grille. */
+export function casesLigne(row, col, dr, dc, len) {
+  if (!GEO.existe(row, col)) return null;
+  const out = [[row, col]];
+  for (let i = 1; i < len; i++) { const n = GEO.pas(out[i - 1][0], out[i - 1][1], dr, dc); if (!n) return null; out.push(n); }
+  return out;
+}
+
 export function emptyBoard() {
-  return Array.from({ length: BOARD_SIZE }, () =>
-    Array.from({ length: BOARD_SIZE }, () => null)
+  return Array.from({ length: GEO.lignes }, () =>
+    Array.from({ length: GEO.colonnes }, () => null)
   );
 }
 
@@ -598,13 +623,15 @@ export function scoreMove(board, move, dict, opts = {}) {
 
   // 1) Vérifier que les lettres tiennent sur le plateau et matchent les lettres existantes
   const placed = []; // tuiles nouvellement posées
+  const ligne = [];
   for (let i = 0; i < len; i++) {
-    const r = row + i * dr;
-    const c = col + i * dc;
-    if (r < 0 || r >= BOARD_SIZE || c < 0 || c >= BOARD_SIZE) {
+    const cell = i === 0 ? (GEO.existe(row, col) ? [row, col] : null) : GEO.pas(ligne[i - 1][0], ligne[i - 1][1], dr, dc);
+    if (!cell) {
       errors.push("Mot hors plateau");
       return { score: 0, words: [], errors };
     }
+    ligne.push(cell);
+    const [r, c] = cell;
     const existing = board[r][c];
     if (existing) {
       if (existing.letter !== word[i]) {
@@ -631,25 +658,16 @@ export function scoreMove(board, move, dict, opts = {}) {
   //    sinon le mot doit toucher au moins une lettre déjà posée.
   const isFirstMove = board.every(row => row.every(c => !c));
   if (isFirstMove) {
-    let passesCenter = false;
-    for (let i = 0; i < len; i++) {
-      if (row + i * dr === CENTER && col + i * dc === CENTER) passesCenter = true;
-    }
-    if (!passesCenter) errors.push("Le premier coup doit passer par l'étoile centrale");
+    const passesCenter = ligne.some(([r, c]) => GEO.estDepart(r, c));
+    if (!passesCenter) errors.push(GEO === GEO_CLASSIQUE ? "Le premier coup doit passer par l'étoile centrale" : "Le premier coup doit passer par l'étoile de la face principale");
   } else {
     // doit toucher une lettre existante (soit le mot principal a une lettre existante,
     // soit l'un des nouveaux placements a un voisin existant)
-    const hasExistingInWord = (() => {
-      for (let i = 0; i < len; i++) {
-        const r = row + i * dr, c = col + i * dc;
-        if (board[r][c]) return true;
-      }
-      return false;
-    })();
+    const hasExistingInWord = ligne.some(([r, c]) => board[r][c]);
     const hasAdjacent = placed.some(({ r, c }) =>
       [[1,0],[-1,0],[0,1],[0,-1]].some(([dr2,dc2]) => {
-        const nr = r + dr2, nc = c + dc2;
-        return nr>=0 && nr<BOARD_SIZE && nc>=0 && nc<BOARD_SIZE && board[nr][nc];
+        const n = GEO.pas(r, c, dr2, dc2);
+        return n && board[n[0]][n[1]];
       })
     );
     if (!hasExistingInWord && !hasAdjacent) {
@@ -663,27 +681,22 @@ export function scoreMove(board, move, dict, opts = {}) {
   for (const p of placed) {
     b[p.r][p.c] = { letter: p.letter, isBlank: p.isBlank };
   }
+  const maxLong = Math.max(GEO.lignes, GEO.colonnes);   // garde-fou (ligne qui boucle sur elle-même)
 
   // 4) Étendre le mot principal aux deux extrémités
-  let mainStartR = row, mainStartC = col;
-  while (true) {
-    const pr = mainStartR - dr, pc = mainStartC - dc;
-    if (pr < 0 || pc < 0 || !b[pr][pc]) break;
-    mainStartR = pr; mainStartC = pc;
-  }
-  let mainEndR = row + (len-1)*dr, mainEndC = col + (len-1)*dc;
-  while (true) {
-    const nr = mainEndR + dr, nc = mainEndC + dc;
-    if (nr >= BOARD_SIZE || nc >= BOARD_SIZE || !b[nr][nc]) break;
-    mainEndR = nr; mainEndC = nc;
+  let [mainStartR, mainStartC] = ligne[0];
+  for (let k = 0; k < maxLong; k++) {
+    const n = GEO.pas(mainStartR, mainStartC, -dr, -dc);
+    if (!n || !b[n[0]][n[1]]) break;
+    [mainStartR, mainStartC] = n;
   }
 
   const collectWord = (sr, sc, ddr, ddc) => {
     const cells = [];
-    let r = sr, c = sc;
-    while (r>=0 && r<BOARD_SIZE && c>=0 && c<BOARD_SIZE && b[r][c]) {
-      cells.push({ r, c, ...b[r][c] });
-      r += ddr; c += ddc;
+    let p = [sr, sc];
+    while (p && b[p[0]][p[1]] && cells.length < maxLong) {
+      cells.push({ r: p[0], c: p[1], ...b[p[0]][p[1]] });
+      p = GEO.pas(p[0], p[1], ddr, ddc);
     }
     return cells;
   };
@@ -697,10 +710,10 @@ export function scoreMove(board, move, dict, opts = {}) {
   for (const p of placed) {
     // trouver début perp
     let sr = p.r, sc = p.c;
-    while (true) {
-      const pr = sr - pdr, pc = sc - pdc;
-      if (pr<0 || pc<0 || pr>=BOARD_SIZE || pc>=BOARD_SIZE || !b[pr][pc]) break;
-      sr = pr; sc = pc;
+    for (let k = 0; k < maxLong; k++) {
+      const n = GEO.pas(sr, sc, -pdr, -pdc);
+      if (!n || !b[n[0]][n[1]]) break;
+      [sr, sc] = n;
     }
     const cells = collectWord(sr, sc, pdr, pdc);
     if (cells.length > 1) wordsFormed.push({ cells, isMain: false });
@@ -745,7 +758,7 @@ export function scoreMove(board, move, dict, opts = {}) {
         : _activeValues[cell.letter];
       if (isNew) {
         // Grille random : disposition des bonus propre à la partie (opts.layout).
-        const b = (opts.layout || BOARD_BONUSES)[cell.r][cell.c];
+        const b = (opts.layout || GEO.layout || BOARD_BONUSES)[cell.r][cell.c];
         if (b === "d") letterScore *= 2;
         else if (b === "t") letterScore *= 3;
         else if (b === "D" || b === "*") wordMult *= 2;
@@ -773,10 +786,9 @@ export function applyMove(board, move) {
   const dr = dir === "V" ? 1 : 0;
   const dc = dir === "H" ? 1 : 0;
   const b = board.map(r => r.slice());
-  for (let i = 0; i < word.length; i++) {
-    const r = row + i * dr, c = col + i * dc;
-    if (!b[r][c]) b[r][c] = { letter: word[i], isBlank: blanks.includes(i) };
-  }
+  const ligne = casesLigne(row, col, dr, dc, word.length);
+  if (!ligne) return b;
+  ligne.forEach(([r, c], i) => { if (!b[r][c]) b[r][c] = { letter: word[i], isBlank: blanks.includes(i) }; });
   return b;
 }
 

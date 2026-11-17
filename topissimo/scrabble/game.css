@@ -2087,7 +2087,7 @@ body.in-live #actionRowInGame #btnPause { display: none !important; }
 /* Halloween : deux morts-vivants à la place du squelette qui danse (le pendu reste) */
 body.theme-halloween::before {
   right: 1%; bottom: 0; width: 300px; height: 197px;
-  background: url("zombies.svg?v=496") no-repeat center bottom / contain;
+  background: url("zombies.svg?v=497") no-repeat center bottom / contain;
   filter: drop-shadow(0 0 6px rgba(120,200,90,.25));
   transform-origin: 50% 100%;
   animation: hw-zombies 5s ease-in-out infinite alternate;
@@ -2231,3 +2231,46 @@ body.theme-topsping #btnNextGame { display: none !important; }
 .rack .tile.de-choix.used { opacity: .3; }
 .joker-pick:disabled { opacity: .25; cursor: not-allowed; }
 .clavier-consonnes.de-utilise { opacity: .35; }
+
+/* ============================================================
+   Grille cube : les six faces (mêmes cases que la grille classique) posées sur un cube 3D.
+   Zone dimensionnée d'après l'encombrement réel du cube dans toutes les positions (±0,71 S en
+   largeur, 0,71 S au-dessus et 0,82 S sous le centre) + 42 px autour pour les flèches.
+   ============================================================ */
+.board.board-cube { background: transparent; box-shadow: none; padding: 0; --cs-cube: calc((var(--cell-size) * 15 - 116px) / 23.6); }
+.board-cube .cube-zone { --cell-size: var(--cs-cube); --S: calc(var(--cell-size) * 15 + 6px);
+  display: grid; justify-items: center; gap: 4px; }
+.board-cube .cube-titre { height: 24px; white-space: nowrap; font: 700 .85rem/18px Inter, sans-serif; color: var(--petrol);
+  background: #fff; border-radius: 999px; padding: 3px 14px; box-shadow: 0 1px 3px rgba(0,0,0,.1); }
+.board-cube .cube-vue { --yc: calc(var(--S) * .72 + 42px); position: relative; width: calc(var(--S) * 1.44 + 84px); height: calc(var(--S) * 1.55 + 84px); }
+.board-cube .cube-scene { position: absolute; width: calc(var(--S) * 1.48); height: calc(var(--S) * 1.48); left: calc(50% - var(--S) * .74); top: calc(var(--yc) - var(--S) * .74);
+  perspective: calc(var(--S) * 3.4); perspective-origin: 50% 2%; display: grid; place-items: center; }
+.board-cube .cube-3d { position: relative; width: var(--S); height: var(--S); transform-style: preserve-3d; transition: transform .45s ease-in-out; }
+.board-cube .cube-face { position: absolute; inset: 0; backface-visibility: hidden; -webkit-backface-visibility: hidden;
+  background: var(--petrol); border: 3px solid #93a7b5; }
+.board-cube .cube-face table { border-collapse: collapse; table-layout: fixed; width: 100%; height: 100%; }
+.board-cube .cube-face.F { transform: translateZ(calc(var(--S) / 2)); }
+.board-cube .cube-face.R { transform: rotateY(90deg) translateZ(calc(var(--S) / 2)); }
+.board-cube .cube-face.B { transform: rotateY(180deg) translateZ(calc(var(--S) / 2)); }
+.board-cube .cube-face.L { transform: rotateY(-90deg) translateZ(calc(var(--S) / 2)); }
+.board-cube .cube-face.U { transform: rotateX(90deg) translateZ(calc(var(--S) / 2)); }
+.board-cube .cube-face.D { transform: rotateX(-90deg) translateZ(calc(var(--S) / 2)); }
+/* arêtes sans passage (murs) : contour plus foncé */
+.board-cube .cube-face.mur-h { border-top-color: #2f4a5a; } .board-cube .cube-face.mur-b { border-bottom-color: #2f4a5a; }
+.board-cube .cube-face.mur-g { border-left-color: #2f4a5a; } .board-cube .cube-face.mur-d { border-right-color: #2f4a5a; }
+.board-cube .cube-face.cachee { pointer-events: none; }
+.board-cube .cube-face.interdite { filter: grayscale(1) contrast(.8) brightness(1.06); }
+.board-cube .cube-face.interdite::after { content: ""; position: absolute; inset: 0; z-index: 30; pointer-events: none;
+  background: repeating-linear-gradient(135deg, rgba(255,255,255,.62) 0 calc(var(--cell-size) * .3), rgba(207,226,240,.5) calc(var(--cell-size) * .3) calc(var(--cell-size) * .6)); }
+.board-cube td.top-mot .tile { box-shadow: inset 0 0 0 2px #12a150; }
+.board-cube .cube-fleche { position: absolute; width: 34px; height: 34px; border-radius: 50%; border: 0; background: var(--petrol); color: #ffd400;
+  font: 700 15px Inter, sans-serif; cursor: pointer; display: grid; place-items: center; z-index: 40; box-shadow: 0 2px 5px rgba(0,46,68,.3); padding: 0; }
+.board-cube .cube-fleche:disabled { background: #c62828; color: transparent; cursor: not-allowed; box-shadow: 0 0 0 2px #fff, 0 2px 5px rgba(0,0,0,.25); }
+.board-cube .cube-fleche:disabled::after { content: ""; position: absolute; width: 18px; height: 5px; border-radius: 2px; background: #fff; }
+.board-cube .f-gauche { left: 0; top: calc(var(--yc) - 17px); } .board-cube .f-droite { right: 0; top: calc(var(--yc) - 17px); }
+.board-cube .f-haut { top: 0; left: calc(50% - 17px); } .board-cube .f-bas { bottom: 0; left: calc(50% - 17px); }
+.board-cube .givre { display: none; }
+/* Téléphone : le cube prend toute la largeur (flèches comprises). */
+@media (max-width: 700px) {
+  .board.board-cube { --cs-cube: min(calc((100vw - 96px) / 21.6), calc((100dvh - 330px) / 23.3), 30px); display: flex; justify-content: center; width: 100%; }
+}
