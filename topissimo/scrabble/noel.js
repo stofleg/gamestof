@@ -180,6 +180,28 @@ export function carillon() {
   ["G4", "E4", "C4", "G3", "C4", "E4", "G4", "C5"].forEach((n, i) => cloche(bus.carillon, freq(n), t + i * .28, .07));
   for (let i = 0; i < 16; i++) secousse(bus.grelots, t + i * .14, .03);
 }
+/** Ouverture du cadeau : ruban qu'on tire (zip), papier froissé qu'on déchire, puis pluie d'étincelles. */
+export function ouverture() {
+  if (!actif) return;
+  const t = ctx.currentTime;
+  // ruban : bruit dont le filtre monte vite
+  const z = ctx.createBufferSource(); z.buffer = bruit(.5);
+  const zf = ctx.createBiquadFilter(); zf.type = "bandpass"; zf.Q.value = 4;
+  zf.frequency.setValueAtTime(600, t); zf.frequency.exponentialRampToValueAtTime(5000, t + .4);
+  const zg = ctx.createGain(); zg.gain.setValueAtTime(0, t); zg.gain.linearRampToValueAtTime(.35, t + .05); zg.gain.exponentialRampToValueAtTime(.001, t + .45);
+  z.connect(zf).connect(zg).connect(bus.grelots); z.start(t); z.stop(t + .5);
+  // papier : une dizaine de froissements secs
+  for (let i = 0; i < 12; i++) {
+    const d = t + .45 + i * .07 + Math.random() * .05, c = ctx.createBufferSource(); c.buffer = bruit(.12);
+    const f = ctx.createBiquadFilter(); f.type = "highpass"; f.frequency.value = 1800 + Math.random() * 2500;
+    const g = ctx.createGain(); g.gain.setValueAtTime(.18 + Math.random() * .2, d); g.gain.exponentialRampToValueAtTime(.001, d + .06 + Math.random() * .08);
+    c.connect(f).connect(g).connect(bus.grelots); c.start(d); c.stop(d + .15);
+  }
+  // étincelles : arpège de clochettes qui monte, puis accord
+  ["C5", "E5", "G5", "C6", "E6", "G6", "C7"].forEach((n, i) => lame(bus.carillon, freq(n), t + 1.25 + i * .07, .1, 1.8));
+  ["C4", "G4", "E5"].forEach(n => cloche(bus.carillon, freq(n), t + 1.8, .05));
+  for (let i = 0; i < 8; i++) secousse(bus.grelots, t + 1.25 + i * .12, .03);
+}
 /** Mot refusé : deux notes douces qui descendent. */
 export function rate() {
   if (!actif) return;

@@ -97,9 +97,73 @@ function majFleches() {
   $("fHaut").title = $("fHaut").disabled ? mur : "Tourner vers le dessus";
   $("fBas").title = $("fBas").disabled ? mur : "Tourner vers le dessous";
 }
+// ------------------------------------------------------------ cadeau à ouvrir
+// Au début de chaque partie, le cube est emballé : papier cadeau sur les 6 faces, deux rubans
+// qui se croisent sur le devant, un nœud sur le dessus et une étiquette. « Ouvrir le cadeau »
+// fait sauter le nœud, glisser les rubans, tomber le papier… et la grille apparaît.
+const MOTIF_PAPIER = ["F", "R", "B", "L", "U", "D"];
+const RUBAN_V = new Set(["F", "U", "B", "D"]), RUBAN_H = new Set(["F", "R", "B", "L"]);
+function htmlEmballage() {
+  let h = MOTIF_PAPIER.map(f => `<div class="papier ${f}">${RUBAN_V.has(f) ? `<i class="ruban rv"></i>` : ""}${RUBAN_H.has(f) ? `<i class="ruban rh"></i>` : ""}`
+    + (f === "F" ? `<div class="etiquette">Joyeux Noël !<small>Ouvre-moi</small></div>` : "") + `</div>`).join("");
+  return h + `<div class="noeud"><svg viewBox="0 0 200 120" aria-hidden="true">
+    <defs><linearGradient id="orNoeud" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffe9a8"/><stop offset=".5" stop-color="#e8c35a"/><stop offset="1" stop-color="#b8892a"/></linearGradient></defs>
+    <path d="M96 70 L60 118 L74 118 L84 104 L92 118 Z M104 70 L140 118 L126 118 L116 104 L108 118 Z" fill="#c99a3a"/>
+    <path d="M98 64 C70 20 18 18 22 52 C26 84 76 78 98 64 Z" fill="url(#orNoeud)" stroke="#a87a22" stroke-width="2"/>
+    <path d="M102 64 C130 20 182 18 178 52 C174 84 124 78 102 64 Z" fill="url(#orNoeud)" stroke="#a87a22" stroke-width="2"/>
+    <path d="M92 60 C70 40 44 36 40 52 M108 60 C130 40 156 36 160 52" stroke="#fff3c9" stroke-width="3" fill="none" opacity=".7"/>
+    <ellipse cx="100" cy="64" rx="13" ry="15" fill="url(#orNoeud)" stroke="#a87a22" stroke-width="2"/>
+  </svg></div>`;
+}
+let ouverture = null;   // résolue quand le joueur ouvre le cadeau
+async function emballe() {
+  S.emballe = true; S.ouvert = false;
+  clearInterval(minuteur);
+  Object.assign(S, { cube: cubeVide(), rack: [], pending: [], cursor: null, top: null, topCells: [], fin: false, coup: 0, cumul: 0, neg: 0, tops: 0 });
+  if (V.k || V.p) await anime(0, 0, Math.abs(V.k % 8) + Math.abs(V.p));
+  V.k = 0; V.p = 0;
+  infos(); dessine();
+  $("cTemps").textContent = "—";
+  $("bOuvrir").hidden = false; $("rack").hidden = true;
+  message(dict ? "🎁 Un cadeau t'attend… Ouvre-le pour commencer la partie !" : "Chargement du dictionnaire…");
+  $("bOuvrir").disabled = !dict;
+  return new Promise(ok => { ouverture = ok; });
+}
+async function ouvreCadeau() {
+  if (!S.emballe || !dict || S.ouvert) return;
+  S.ouvert = true;
+  $("bOuvrir").disabled = true; $("bOuvrir").hidden = true;
+  noel.ouverture();
+  const cube = $("cube");
+  cube.classList.add("deballe");                       // CSS : nœud, rubans, puis papier
+  etincelles();
+  await sleep(2100);
+  S.emballe = false;
+  cube.classList.remove("deballe");
+  $("rack").hidden = false;
+  dessine();
+  ouverture?.(); ouverture = null;
+}
+/** Pluie d'étoiles dorées qui jaillit autour du cube quand le papier tombe. */
+function etincelles() {
+  const vue = $("vue"), r = vue.getBoundingClientRect();
+  for (let i = 0; i < 46; i++) {
+    const e = document.createElement("span");
+    e.className = "etincelle"; e.textContent = ["✦", "✧", "★", "❄"][i % 4];
+    const a = Math.random() * Math.PI * 2, d = r.width * (.3 + Math.random() * .45);
+    e.style.left = r.width / 2 + "px"; e.style.top = r.height / 2 + "px";
+    e.style.setProperty("--dx", `${Math.cos(a) * d}px`); e.style.setProperty("--dy", `${Math.sin(a) * d}px`);
+    e.style.animationDelay = `${1.05 + Math.random() * .35}s`;
+    e.style.color = ["#ffe08a", "#fff", "#ffd23f", "#ff8ad8", "#9fe7ff"][i % 5];
+    e.style.fontSize = `${12 + Math.random() * 16}px`;
+    vue.appendChild(e);
+    setTimeout(() => e.remove(), 3600);
+  }
+}
+
 function dessine() {
   const vis = visibles();
-  $("cube").innerHTML = ORDRE.map(f => htmlFace(f, vis)).join("");
+  $("cube").innerHTML = ORDRE.map(f => htmlFace(f, vis)).join("") + (S.emballe ? htmlEmballage() : "");
   $("cube").style.transform = transformee();
   $("titreFace").textContent = titreVue(vis);
   majFleches();
@@ -157,6 +221,8 @@ async function allerVers(face) { await voir([face], true); }
 
 // ------------------------------------------------------------ partie
 async function nouvellePartie() {
+  clearInterval(minuteur);
+  await emballe();          // chaque partie commence par un cadeau à ouvrir
   clearInterval(minuteur);
   // 6 jeux de jetons, un par face
   Object.assign(S, { cube: cubeVide(), bag: sacCube(JEUX_CUBE, LETTER_BAG), rack: [], pending: [], cursor: { f: "F", r: 7, c: 7, dir: "H" },
@@ -364,11 +430,13 @@ $("vue").addEventListener("click", e => {
 $("rack").addEventListener("click", e => { const t = e.target.closest(".t[data-id]"); if (t) enFile(() => pose(null, +t.dataset.id)); });
 for (const [id, sens] of [["fGauche", "gauche"], ["fDroite", "droite"], ["fHaut", "haut"], ["fBas", "bas"]]) $(id).onclick = () => enFile(() => pivote(sens));
 $("bTop").onclick = () => enFile(() => finCoup("giveup"));
-$("bNouvelle").onclick = () => enFile(() => nouvellePartie());
+$("bNouvelle").onclick = () => { if (!S.emballe) enFile(() => nouvellePartie()); };
+$("bOuvrir").onclick = () => ouvreCadeau();
+$("cube").addEventListener("click", e => { if (S.emballe) { e.stopPropagation(); ouvreCadeau(); } });
 $("mEff").onclick = () => enFile(retire); $("mAnn").onclick = () => enFile(efface); $("mVal").onclick = () => enFile(valide);
 
 // tests automatiques (lecture seule)
-window.__cube = { etat: () => S, vue: () => ({ ...V, visibles: visibles() }), pivote, valide, pose, allerVers, cases: m => casesDuCoup(m), dir: m => LIGNES[m.ligne].dir };
+window.__cube = { ouvre: ouvreCadeau, etat: () => S, vue: () => ({ ...V, visibles: visibles() }), pivote, valide, pose, allerVers, cases: m => casesDuCoup(m), dir: m => LIGNES[m.ligne].dir };
 
 (async () => {
   noel.ambiance(true);   // la grille cube est la grille du tournoi de Noël
@@ -376,6 +444,9 @@ window.__cube = { etat: () => S, vue: () => ({ ...V, visibles: visibles() }), pi
   // En préparation : réservé à stof (mode admin).
   const stof = (localStorage.getItem("currentPseudo") || "").toLowerCase() === "stof" && localStorage.getItem("topissimo:superadmin") === "1";
   if (!stof) { message("La grille cube est en préparation : elle n'est pas encore ouverte.", "err"); return; }
+  const partie = nouvellePartie();   // le cadeau s'affiche tout de suite, le bouton attend le dictionnaire
   dict = await new Dictionary().load("ods9.txt");
-  nouvellePartie();
+  $("bOuvrir").disabled = false;
+  message("🎁 Un cadeau t'attend… Ouvre-le pour commencer la partie !");
+  await partie;
 })();
