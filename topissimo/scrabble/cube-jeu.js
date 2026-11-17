@@ -5,13 +5,13 @@
 //  jouables. Gauche/droite quand le cube est droit ; haut/bas seulement depuis la face
 //  principale (k multiple de 8). Chaque face a un contour discret, plus foncé sur les arêtes sans passage.
 // ============================================================
-import { Dictionary } from "./dictionary.js?v=494";
-import { LETTER_BAG, drawForDuplicate, bagTotalVowels, bagTotalConsonants, letterValue } from "./engine.js?v=494";
+import { Dictionary } from "./dictionary.js?v=495";
+import { LETTER_BAG, drawForDuplicate, bagTotalVowels, bagTotalConsonants, letterValue } from "./engine.js?v=495";
 import {
   FACES, NOM_FACE, BONUS_CUBE, LIGNES, ligneDe, voisin, rangLigne, PIVOTS, cheminFaces,
   cubeVide, appliqueCoup, casesDuCoup, positionCoup, scoreCube, topCube, sacCube, JEUX_CUBE, coupRegleCube,
-} from "./cube.js?v=494";
-import * as noel from "./noel.js?v=494";
+} from "./cube.js?v=495";
+import * as noel from "./noel.js?v=495";
 
 const $ = id => document.getElementById(id);
 const TEMPS = 240;   // 4 minutes par coup
@@ -176,7 +176,9 @@ function dessine() {
 }
 
 function dessineChevalet() {
-  $("rack").innerHTML = S.rack.map(t => `<div class="t${t.used ? " used" : ""}${t.letter === "?" ? " joker" : ""}" data-id="${t.id}">${t.letter}${t.letter === "?" ? "" : `<span>${letterValue(t.letter)}</span>`}</div>`).join("");
+  // tirage rangé dans l'ordre alphabétique, joker(s) à la fin
+  const ordre = S.rack.slice().sort((a, b) => (a.letter === "?") - (b.letter === "?") || a.letter.localeCompare(b.letter));
+  $("rack").innerHTML = ordre.map(t => `<div class="t${t.used ? " used" : ""}${t.letter === "?" ? " joker" : ""}" data-id="${t.id}">${t.letter}${t.letter === "?" ? "" : `<span>${letterValue(t.letter)}</span>`}</div>`).join("");
 }
 function infos() {
   $("iCoup").textContent = S.coup || "—"; $("iCumul").textContent = S.cumul; $("iNeg").textContent = S.neg; $("iTops").textContent = S.tops;
