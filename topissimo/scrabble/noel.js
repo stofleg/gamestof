@@ -9,17 +9,17 @@
 //  Le son ne démarre qu'après une première interaction (règle des navigateurs) et se coupe
 //  avec le bouton 🔊/🔇 (choix mémorisé).
 // ============================================================
-import { decor, traineauPasse, CSS_DECOR } from "./noel-decor.js?v=492";
-import { MORCEAUX_NOEL } from "./noel-morceaux.js?v=492";
+import { decor, traineauPasse, CSS_DECOR } from "./noel-decor.js?v=493";
+import { MORCEAUX_NOEL } from "./noel-morceaux.js?v=493";
 const CLE = "topissimo:noel-son";
 let horsLigne = false, ctx = null, maitre = null, reverb = null, actif = false, bouton = null, passer = null, legende = null;
 let coupe = (() => { try { return localStorage.getItem(CLE) === "off"; } catch { return false; } })();
 const bus = {};
 // Un bus (niveau) par famille de sons, réglé par mesure (voir __mesure plus bas).
 // Cibles (« fort » = moyenne des passages les plus forts) : musique ≈ −31 dBFS en fond, feu ≈ −48
-// (à peine), grelots du top ≈ −28, ouverture ≈ −28, « ho ho ho » ≈ −27,5, scrabble ≈ −27 (le
+// (à peine), grelots du top ≈ −33, ouverture ≈ −28, « ho ho ho » ≈ −27,5, scrabble ≈ −27 (le
 // moment fort). Pendant un effet marquant, la musique s'efface un peu (voir baisseMusique).
-const NIVEAUX = { musique: .67, feu: .093, top: 1.04, scrabble: .39, ouverture: .72, carillon: .95, ho: .335 };
+const NIVEAUX = { musique: .67, feu: .093, top: .6, scrabble: .39, ouverture: .72, carillon: .95, ho: .335 };
 
 function bruit(secondes) {
   const b = ctx.createBuffer(1, Math.max(1, ctx.sampleRate * secondes), ctx.sampleRate), d = b.getChannelData(0);

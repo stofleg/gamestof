@@ -19,7 +19,7 @@
     --dl: #a4d8e1; --tl: #3a8db5; --dw: #f0a8a8; --tw: #cc4040;
     --jeton: #d8b975; --joker: #c62828; --pose: #cfe9c4;
     --jaune: #ffd400; --ok: #2e7d4f; --err: #b3261e; --mur: #ffd400;
-    --c: clamp(14px, min(calc((100vw - 470px) / 23), calc((100vh - 190px) / 23)), 30px);
+    --c: clamp(14px, min(calc((100vw - 585px) / 21.6), calc((100vh - 285px) / 23.3)), 30px);
     --S: calc(var(--c) * 15 + 14px + 6px);   /* côté d'une face : 15 cases + 14 traits + contour */
   }
   * { box-sizing: border-box; }
@@ -30,8 +30,12 @@
   .droite { flex: 1 1 300px; max-width: 400px; display: grid; gap: 12px; }
 
   /* ----- scène 3D ----- */
-  .vue { position: relative; width: calc(var(--S) * 1.48 + 76px); height: calc(var(--S) * 1.48 + 76px); }
-  .scene { position: absolute; inset: 38px; perspective: calc(var(--S) * 3.4); perspective-origin: 50% 2%; display: grid; place-items: center; }
+  /* Zone du cube dimensionnée d'après son encombrement réel dans toutes les positions (mesuré :
+     ±0,71 S en largeur, 0,71 S au-dessus et 0,82 S sous son centre, l'œil étant placé au-dessus),
+     plus une bande de 42 px tout autour pour les flèches : elles ne touchent jamais la grille. */
+  .vue { --yc: calc(var(--S) * .72 + 42px); position: relative; width: calc(var(--S) * 1.44 + 84px); height: calc(var(--S) * 1.55 + 84px); }
+  .scene { position: absolute; width: calc(var(--S) * 1.48); height: calc(var(--S) * 1.48); left: calc(50% - var(--S) * .74); top: calc(var(--yc) - var(--S) * .74);
+    perspective: calc(var(--S) * 3.4); perspective-origin: 50% 2%; display: grid; place-items: center; }
   .cube { position: relative; width: var(--S); height: var(--S); transform-style: preserve-3d; transition: transform .45s ease-in-out; }
   .face { position: absolute; inset: 0; backface-visibility: hidden; -webkit-backface-visibility: hidden; background: var(--trait);
     display: grid; grid-template-columns: repeat(15, var(--c)); grid-template-rows: repeat(15, var(--c)); gap: 1px; }
@@ -80,9 +84,9 @@
   .fleche:disabled { background: #c62828; color: transparent; cursor: not-allowed; box-shadow: 0 0 0 2px #fff, 0 2px 5px rgba(0,0,0,.25); }
   .fleche:disabled::after { content: ""; position: absolute; width: 18px; height: 5px; border-radius: 2px; background: #fff; }
   .fleche:focus-visible { outline: 3px solid var(--jaune); outline-offset: 2px; }
-  .f-gauche { left: 0; top: calc(50% - 17px); } .f-droite { right: 0; top: calc(50% - 17px); }
+  .f-gauche { left: 0; top: calc(var(--yc) - 17px); } .f-droite { right: 0; top: calc(var(--yc) - 17px); }
   .f-haut { top: 0; left: calc(50% - 17px); } .f-bas { bottom: 0; left: calc(50% - 17px); }
-  .titre-face { font: 700 .85rem Inter, sans-serif; color: var(--petrol); background: #fff; border-radius: 999px; padding: 3px 14px; box-shadow: 0 1px 3px rgba(0,0,0,.1); }
+  .titre-face { height: 24px; line-height: 18px; white-space: nowrap; font: 700 .85rem/18px Inter, sans-serif; color: var(--petrol); background: #fff; border-radius: 999px; padding: 3px 14px; box-shadow: 0 1px 3px rgba(0,0,0,.1); }
 
   /* ----- chevalet, panneau ----- */
   .rack { display: flex; gap: 5px; background: #fff; padding: 8px 12px; border-radius: 8px; min-height: 60px; box-shadow: 0 2px 8px rgba(0,46,68,.15); }
@@ -112,9 +116,8 @@
   .picker div { background: #fff; padding: 14px; border-radius: 10px; display: grid; grid-template-columns: repeat(7, 38px); gap: 5px; }
   .picker button { height: 38px; font: 600 18px Inter, sans-serif; border: .5px solid #000; border-radius: 3px; background: var(--jeton); cursor: pointer; }
   @media (max-width: 860px) {
-    :root { --c: min(calc((100vw - 32px - 76px - 24px) / 22.3), 30px); }
+    :root { --c: min(calc((100vw - 147px) / 21.6), 30px); }
     .page { padding-top: 6px; gap: 10px; }
-    .vue { height: calc(var(--S) * 1.3 + 76px); }
     .droite { order: -1; max-width: none; flex-basis: 100%; }
     .rack .t { width: calc((100vw - 70px) / 7.4); height: calc((100vw - 70px) / 7.2); font-size: 22px; }
     .aide, h1 { display: none; }
@@ -300,6 +303,6 @@
   </div>
 </main>
 <div class="picker" id="picker" hidden><div id="pickerGrille"></div></div>
-<script type="module" src="cube-jeu.js?v=492"></script>
+<script type="module" src="cube-jeu.js?v=493"></script>
 </body>
 </html>
