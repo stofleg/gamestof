@@ -24,6 +24,7 @@ let dict = null;
 const S = {
   cube: cubeVide(), bag: null, rack: [], pending: [], cursor: null, coup: 0,
   top: null, best: null, cumul: 0, neg: 0, tops: 0, fin: false, debut: 0, topCells: [], anim: false,
+  pause: false, entreCoups: false, resteDebut: TEMPS, emballe: false,
 };
 /** Vue du cube : k = huitièmes de tour horizontaux (vers la droite), p = huitièmes vers le haut (-2..2). */
 const V = { k: 0, p: 0 };
@@ -117,8 +118,10 @@ function htmlEmballage() {
 }
 let ouverture = null;   // résolue quand le joueur ouvre le cadeau
 async function emballe() {
-  S.emballe = true; S.ouvert = false;
+  S.emballe = true; S.ouvert = false; S.pause = false; S.entreCoups = false;
   clearInterval(minuteur);
+  oublie();                 // nouvelle partie : l'ancienne sauvegarde disparaît
+  majPause();
   Object.assign(S, { cube: cubeVide(), rack: [], pending: [], cursor: null, top: null, topCells: [], fin: false, coup: 0, cumul: 0, neg: 0, tops: 0 });
   if (V.k || V.p) await anime(0, 0, Math.abs(V.k % 8) + Math.abs(V.p));
   V.k = 0; V.p = 0;
@@ -141,7 +144,7 @@ async function ouvreCadeau() {
   S.emballe = false;
   cube.classList.remove("deballe");
   $("rack").hidden = false;
-  dessine();
+  dessine(); majPause();
   ouverture?.(); ouverture = null;
 }
 /** Pluie d'étoiles dorées qui jaillit autour du cube quand le papier tombe. */
@@ -166,9 +169,33 @@ function dessine() {
   $("cube").innerHTML = ORDRE.map(f => htmlFace(f, vis)).join("") + (S.emballe ? htmlEmballage() : "");
   $("cube").style.transform = transformee();
   $("titreFace").textContent = titreVue(vis);
+  $("vue").classList.toggle("emballe", !!S.emballe);
+  $("vue").classList.toggle("en-pause", !!S.pause);
   majFleches();
   dessineChevalet();
+  if (!S.anim) placeFleches();
 }
+/** Les flèches se collent à la grille (comme la flèche du bas) : autour du contour réellement
+ *  affiché des faces tournées vers l'observateur, quelle que soit la position du cube. */
+function placeFleches() {
+  const vue = $("vue"), rv = vue.getBoundingClientRect();
+  let g = Infinity, d = -Infinity, h = Infinity, b = -Infinity;
+  for (const el of $("cube").querySelectorAll(".face")) {
+    if (versMoi(el.dataset.face) < -.01) continue;
+    const r = el.getBoundingClientRect();
+    if (!r.width) continue;
+    g = Math.min(g, r.left); d = Math.max(d, r.right); h = Math.min(h, r.top); b = Math.max(b, r.bottom);
+  }
+  if (!isFinite(g)) return;
+  const T = 34, ecart = 8, cx = (g + d) / 2 - rv.left, cy = (h + b) / 2 - rv.top;
+  const borne = (v, max) => Math.max(0, Math.min(max - T, v));
+  const pose = (id, x, y) => { const e = $(id); e.style.left = borne(x, rv.width) + "px"; e.style.top = borne(y, rv.height) + "px"; e.style.right = "auto"; e.style.bottom = "auto"; };
+  pose("fGauche", g - rv.left - T - ecart, cy - T / 2);
+  pose("fDroite", d - rv.left + ecart, cy - T / 2);
+  pose("fHaut", cx - T / 2, h - rv.top - T - ecart);
+  pose("fBas", cx - T / 2, b - rv.top + ecart);
+}
+addEventListener("resize", () => placeFleches());
 function dessineChevalet() {
   $("rack").innerHTML = S.rack.map(t => `<div class="t${t.used ? " used" : ""}${t.letter === "?" ? " joker" : ""}" data-id="${t.id}">${t.letter}${t.letter === "?" ? "" : `<span>${letterValue(t.letter)}</span>`}</div>`).join("");
 }
@@ -187,10 +214,11 @@ async function anime(k, p, pas) {
   dessine();
   await sleep(Math.min(300 + 170 * pas, 900) + 40);
   S.anim = false;
+  placeFleches();
 }
 /** Flèche : un huitième de tour (gauche/droite si le cube est droit, haut/bas depuis la face principale). */
 async function pivote(sens) {
-  if (S.anim) return false;
+  if (S.anim || S.pause || S.emballe) return false;
   if ((sens === "gauche" || sens === "droite") && V.p !== 0) return false;
   if ((sens === "haut" || sens === "bas") && !droit()) return false;
   const dk = sens === "droite" ? 1 : sens === "gauche" ? -1 : 0, dp = sens === "haut" ? 1 : sens === "bas" ? -1 : 0;
@@ -245,30 +273,99 @@ function nouveauCoup() {
   if (!lettres.length) return finPartie();
   S.coup++;
   S.rack = lettres.map(letter => ({ letter, used: false, id: nextId++ }));
-  S.pending = []; S.best = null; S.top = null;
+  S.pending = []; S.best = null; S.top = null; S.entreCoups = false;
   infos(); dessine();
   message("Calcul du top…");
   setTimeout(() => {
     S.top = topCube(S.cube, S.rack.map(t => t.letter), dict, { maxTilesUsed: 7 });
     if (!S.top) return finPartie();
     message(S.coup === 1 ? "Premier coup : il passe par l'étoile de la face principale." : "À toi de jouer.");
-    S.debut = Date.now();
-    clearInterval(minuteur);
-    minuteur = setInterval(tic, 250); tic();
+    if (S.pause) { S.resteDebut = TEMPS; afficheChrono(); sauve(); }
+    else { demarreChrono(TEMPS); sauve(); }
   }, 30);
 }
-function tic() {
-  const reste = Math.max(0, TEMPS - (Date.now() - S.debut) / 1000);
-  $("cLabel").textContent = `COUP ${S.coup}`; const sec = Math.ceil(reste); $("cTemps").textContent = `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`;
-  if (reste <= 0) finCoup("timeout");
+// ------------------------------------------------------------ chrono, pause, sauvegarde
+// Le temps du coup ne s'écoule que pendant le jeu : en pause, ou quand le joueur quitte la page
+// (onglet caché, fermeture, mise en veille du téléphone), il est figé et la partie est enregistrée.
+// En revenant, on retrouve la partie en pause, au même coup, avec le temps qui restait.
+let dernierSave = 0;
+const resteCoup = () => S.pause || !S.top ? S.resteDebut : Math.max(0, S.resteDebut - (Date.now() - S.debut) / 1000);
+function demarreChrono(sec) { S.resteDebut = sec; S.debut = Date.now(); clearInterval(minuteur); minuteur = setInterval(tic, 250); tic(); }
+function afficheChrono() {
+  const sec = Math.ceil(resteCoup());
+  $("cLabel").textContent = S.pause ? `COUP ${S.coup} · PAUSE` : `COUP ${S.coup}`;
+  $("cTemps").textContent = S.top ? `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}` : "—";
 }
+function tic() {
+  afficheChrono();
+  if (S.pause || !S.top) return;
+  if (resteCoup() <= 0) return finCoup("timeout");
+  if (Date.now() - dernierSave > 5000) sauve();
+}
+const pseudo = () => (localStorage.getItem("currentPseudo") || "invite").toLowerCase();
+const CLE_PARTIE = () => `topissimo:cube-partie:${pseudo()}`;
+/** Enregistre la partie (états stables seulement : coup en cours avec son top, entre deux coups, fin). */
+function sauve() {
+  if (S.emballe || (!S.top && !S.entreCoups && !S.fin)) return;
+  const d = { v: 1, cube: S.cube, bag: S.bag, rack: S.rack.map(t => t.letter), coup: S.coup, top: S.top, best: S.best,
+    cumul: S.cumul, neg: S.neg, tops: S.tops, fin: S.fin, topCells: S.topCells, entreCoups: S.entreCoups,
+    reste: S.top ? resteCoup() : TEMPS, quand: Date.now() };
+  try { localStorage.setItem(CLE_PARTIE(), JSON.stringify(d)); dernierSave = Date.now(); }
+  catch (e) { console.error("Sauvegarde de la partie impossible", e); }
+}
+function oublie() { try { localStorage.removeItem(CLE_PARTIE()); } catch {} }
+/** Reprend une partie enregistrée (en pause). Renvoie false s'il n'y en a pas. */
+function restaure() {
+  let d = null;
+  try { d = JSON.parse(localStorage.getItem(CLE_PARTIE()) || "null"); } catch {}
+  if (!d || d.v !== 1 || !d.cube || !d.bag) return false;
+  Object.assign(S, { cube: d.cube, bag: d.bag, rack: d.rack.map(letter => ({ letter, used: false, id: nextId++ })), coup: d.coup, top: d.top, best: d.best,
+    cumul: d.cumul, neg: d.neg, tops: d.tops, fin: !!d.fin, topCells: d.topCells || [], entreCoups: !!d.entreCoups, resteDebut: d.reste ?? TEMPS,
+    pending: [], cursor: d.top ? { f: "F", r: 7, c: 7, dir: "H" } : null, emballe: false, ouvert: true, pause: !d.fin });
+  $("bOuvrir").hidden = true; $("rack").hidden = false;
+  infos(); dessine();
+  if (S.fin) { finPartie(); return true; }
+  majPause();
+  message(`Partie retrouvée : coup ${S.coup}${S.top ? `, il restait ${Math.floor(Math.ceil(S.resteDebut) / 60)}:${String(Math.ceil(S.resteDebut) % 60).padStart(2, "0")}` : ""}. Clique sur « Reprendre » quand tu es prêt.`);
+  return true;
+}
+function majPause() {
+  $("voilePause").hidden = !S.pause;
+  $("bPause").textContent = S.pause ? "▶ Reprendre" : "⏸ Pause";
+  $("bPause").disabled = S.emballe || S.fin;
+  $("bReprendre").disabled = !dict;
+  $("bReprendre").textContent = dict ? "▶ Reprendre" : "Chargement…";
+  $("pauseInfo").textContent = S.coup ? `Coup ${S.coup}${S.top ? ` · ${Math.floor(Math.ceil(S.resteDebut) / 60)}:${String(Math.ceil(S.resteDebut) % 60).padStart(2, "0")} restantes` : ""} · ${S.cumul} points` : "";
+  $("vue").classList.toggle("en-pause", !!S.pause);
+  afficheChrono();
+}
+/** Pause : le temps se fige, la grille et le tirage sont masqués, la partie est enregistrée. */
+function pause() {
+  if (S.emballe || S.fin) return;
+  if (!S.pause) {
+    if (S.top) S.resteDebut = resteCoup();
+    S.pause = true; clearInterval(minuteur);
+    if (S.pending.length) { for (const p of S.pending) { const t = S.rack.find(x => x.id === p.id); if (t) t.used = false; } S.pending = []; }
+    dessine();
+  }
+  sauve(); majPause();
+}
+function reprendre() {
+  if (!S.pause || !dict) return;
+  S.pause = false; majPause(); dessine();
+  if (S.top) { demarreChrono(S.resteDebut); message("C'est reparti !"); }
+  else if (S.entreCoups && !S.fin) nouveauCoup();
+}
+// quitter la page (onglet, fermeture, veille) = pause automatique et enregistrement
+document.addEventListener("visibilitychange", () => { if (document.hidden) pause(); });
+addEventListener("pagehide", () => pause());
 /** Fin du coup : top trouvé, temps écoulé ou « Voir le top ». Le top officiel est posé. */
 async function finCoup(statut, joue = null) {
-  if (!S.top || S.fin) return;
+  if (!S.top || S.fin || (S.pause && statut !== "timeout")) return;
   clearInterval(minuteur);
   const top = S.top, mv = top.move;
   const posees = casesDuCoup(mv).filter(cs => !S.cube[cs[0]][cs[1]][cs[2]]).length;
-  if (statut === "top") { if (posees >= 7) noel.carillon(); else noel.grelots(); }
+  if (statut === "top" && posees < 7) noel.grelots();   // un scrabble a déjà eu son traîneau (valide)
   const score = statut === "top" ? top.score : (S.best?.score || 0);
   S.cumul += score; S.neg += score - top.score; if (statut === "top") S.tops++;
   // lettres du top retirées du chevalet (le reliquat reste pour le coup suivant)
@@ -281,8 +378,9 @@ async function finCoup(statut, joue = null) {
   });
   S.cube = appliqueCoup(S.cube, mv);
   S.topCells = casesDuCoup(mv);
-  S.pending = []; S.top = null;
+  S.pending = []; S.top = null; S.entreCoups = true; S.resteDebut = TEMPS;
   S.rack = restants.map(letter => ({ letter, used: false, id: nextId++ }));
+  sauve();
   infos();
   const lib = `<span class="top">✅ Top : <b>${mv.word}</b> — ${top.score} pts, ${positionCoup(mv)}${top.isotops > 1 ? ` (${top.isotops} isotops)` : ""}</span>`;
   message(statut === "top" ? `${lib}Bravo, tu as trouvé le top !` : `${lib}${statut === "timeout" ? "⏱ Temps écoulé" : "Top révélé"} — tu marques ${score} pts${S.best ? ` (${S.best.word})` : ""}.`, statut === "top" ? "ok" : "");
@@ -290,10 +388,11 @@ async function finCoup(statut, joue = null) {
   await voir(S.topCells.map(cs => cs[0]));
   S.cursor = null;
   dessine();
-  setTimeout(nouveauCoup, statut === "top" ? 600 : 1500);
+  setTimeout(() => { if (!S.pause && S.entreCoups) nouveauCoup(); }, statut === "top" ? 600 : 1500);
 }
 function finPartie() {
-  S.fin = true; clearInterval(minuteur);
+  S.fin = true; S.pause = false; S.entreCoups = false; clearInterval(minuteur);
+  sauve(); majPause();
   $("cTemps").textContent = "—";
   message(`<b>Partie terminée</b> en ${S.coup} coups : ${S.cumul} points, négatif ${S.neg}, ${S.tops} tops trouvés.`, "ok");
 }
@@ -371,7 +470,7 @@ function coupDesPoses() {
   return { erreur: "Les lettres doivent être alignées sur une même ligne du cube." };
 }
 async function valide() {
-  if (!S.top || S.fin || !S.pending.length) return;
+  if (!S.top || S.fin || S.pause || !S.pending.length) return;
   const c = coupDesPoses();
   if (!c || c.erreur) return message(c?.erreur || "Pose invalide.", "err");
   const r = scoreCube(S.cube, c.move, dict, { bonuses: { 7: 50 } });
@@ -384,8 +483,9 @@ async function valide() {
     setTimeout(() => enFile(async () => { S.pending.forEach(p => delete p.invalide); await efface(); }), 1100);
     return;
   }
+  if (S.pending.length === 7) noel.scrabble();             // scrabble : le traîneau passe dans le ciel
   if (r.score >= S.top.score) return finCoup("top", c.move);
-  if (!S.best || r.score > S.best.score) S.best = { score: r.score, word: c.move.word };
+  if (!S.best || r.score > S.best.score) { S.best = { score: r.score, word: c.move.word }; sauve(); }
   message(`<b>${c.move.word}</b> — ${r.score} pts (${positionCoup(c.move)}). Le top fait plus : cherche encore !<br>Meilleur essai : ${S.best.word} ${S.best.score} pts.`);
   await efface();
 }
@@ -398,7 +498,7 @@ function choisitJoker() {
 }
 
 async function touche(k) {
-  if (!$("picker").hidden) return;
+  if (!$("picker").hidden || S.pause || S.emballe) return;
   if (/^[a-zA-Z]$/.test(k)) await pose(k.toUpperCase());
   else if (k === "?") await pose("?");
   else if (k === "Backspace") await retire();
@@ -418,7 +518,7 @@ $("vue").addEventListener("click", e => {
   if (!d) return;
   const cs = { f: d.dataset.f, r: +d.dataset.r, c: +d.dataset.c };
   enFile(async () => {
-    if (S.cube[cs.f][cs.r][cs.c] || !visibles().includes(cs.f)) return;
+    if (S.pause || S.emballe || S.cube[cs.f][cs.r][cs.c] || !visibles().includes(cs.f)) return;
     if (S.cursor && S.cursor.f === cs.f && S.cursor.r === cs.r && S.cursor.c === cs.c && !S.pending.length) S.cursor.dir = S.cursor.dir === "H" ? "V" : "H";
     else {
       if (S.pending.length) { for (const p of S.pending) S.rack.find(t => t.id === p.id).used = false; S.pending = []; }
@@ -429,14 +529,20 @@ $("vue").addEventListener("click", e => {
 });
 $("rack").addEventListener("click", e => { const t = e.target.closest(".t[data-id]"); if (t) enFile(() => pose(null, +t.dataset.id)); });
 for (const [id, sens] of [["fGauche", "gauche"], ["fDroite", "droite"], ["fHaut", "haut"], ["fBas", "bas"]]) $(id).onclick = () => enFile(() => pivote(sens));
-$("bTop").onclick = () => enFile(() => finCoup("giveup"));
-$("bNouvelle").onclick = () => { if (!S.emballe) enFile(() => nouvellePartie()); };
+$("bTop").onclick = () => { if (!S.pause) enFile(() => finCoup("giveup")); };
+$("bNouvelle").onclick = () => {
+  if (S.emballe) return;
+  if (S.coup > 0 && !S.fin && !confirm("Abandonner la partie en cours et en commencer une nouvelle ?")) return;
+  enFile(() => nouvellePartie());
+};
+$("bPause").onclick = () => S.pause ? reprendre() : pause();
+$("bReprendre").onclick = () => reprendre();
 $("bOuvrir").onclick = () => ouvreCadeau();
 $("cube").addEventListener("click", e => { if (S.emballe) { e.stopPropagation(); ouvreCadeau(); } });
 $("mEff").onclick = () => enFile(retire); $("mAnn").onclick = () => enFile(efface); $("mVal").onclick = () => enFile(valide);
 
 // tests automatiques (lecture seule)
-window.__cube = { ouvre: ouvreCadeau, etat: () => S, vue: () => ({ ...V, visibles: visibles() }), pivote, valide, pose, allerVers, cases: m => casesDuCoup(m), dir: m => LIGNES[m.ligne].dir };
+window.__cube = { ouvre: ouvreCadeau, pause, reprendre, etat: () => S, vue: () => ({ ...V, visibles: visibles() }), pivote, valide, pose, allerVers, cases: m => casesDuCoup(m), dir: m => LIGNES[m.ligne].dir };
 
 (async () => {
   noel.ambiance(true);   // la grille cube est la grille du tournoi de Noël
@@ -444,9 +550,14 @@ window.__cube = { ouvre: ouvreCadeau, etat: () => S, vue: () => ({ ...V, visible
   // En préparation : réservé à stof (mode admin).
   const stof = (localStorage.getItem("currentPseudo") || "").toLowerCase() === "stof" && localStorage.getItem("topissimo:superadmin") === "1";
   if (!stof) { message("La grille cube est en préparation : elle n'est pas encore ouverte.", "err"); return; }
-  const partie = nouvellePartie();   // le cadeau s'affiche tout de suite, le bouton attend le dictionnaire
+  // une partie enregistrée reprend là où elle en était (en pause) ; sinon, un cadeau à ouvrir
+  const retrouvee = restaure();
+  const partie = retrouvee ? null : nouvellePartie();   // le cadeau s'affiche tout de suite, le bouton attend le dictionnaire
   dict = await new Dictionary().load("ods9.txt");
-  $("bOuvrir").disabled = false;
-  message("🎁 Un cadeau t'attend… Ouvre-le pour commencer la partie !");
-  await partie;
+  majPause();
+  if (!retrouvee) {
+    $("bOuvrir").disabled = false;
+    message("🎁 Un cadeau t'attend… Ouvre-le pour commencer la partie !");
+    await partie;
+  }
 })();

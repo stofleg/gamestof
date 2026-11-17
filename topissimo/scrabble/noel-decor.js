@@ -187,25 +187,28 @@ function ciel() {
   return s + `</svg>`;
 }
 
-let racine = null, volT = null;
+let racine = null, traine = null, volT = null;
 /** Affiche ou retire le décor. */
 export function decor(on) {
-  if (!on) { clearTimeout(volT); racine?.remove(); racine = null; return; }
+  if (!on) { clearTimeout(volT); racine?.remove(); traine?.remove(); racine = traine = null; return; }
   if (racine) return;
   racine = document.createElement("div");
   racine.className = "noel-decor"; racine.setAttribute("aria-hidden", "true");
-  racine.innerHTML = ciel() + paysage() + traineau();
+  racine.innerHTML = ciel() + paysage();
   document.body.prepend(racine);
-  if (matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-  // le traîneau traverse le ciel de temps en temps
-  const t = racine.querySelector(".nd-traineau");
-  const vol = () => {
-    t.classList.remove("vole"); void t.offsetWidth;
-    t.style.top = `${3 + Math.random() * 5}vh`;
-    t.classList.add("vole");
-    volT = setTimeout(vol, 35000 + Math.random() * 30000);
-  };
-  volT = setTimeout(vol, 2500);
+  // le traîneau, devant le jeu, ne passe que pour fêter un scrabble (voir traineauPasse)
+  const tmp = document.createElement("div"); tmp.innerHTML = traineau();
+  traine = tmp.firstElementChild; document.body.appendChild(traine);
+}
+/** Le traîneau du père Noël traverse le ciel (scrabble !) ; renvoie la durée du passage en ms. */
+export function traineauPasse(duree = 7) {
+  if (!traine) return 0;
+  traine.style.animationDuration = `${duree}s`;
+  traine.classList.remove("vole"); void traine.getBoundingClientRect();
+  traine.style.top = `${8 + Math.random() * 14}vh`;
+  traine.classList.add("vole");
+  clearTimeout(volT); volT = setTimeout(() => traine?.classList.remove("vole"), duree * 1000 + 200);
+  return duree * 1000;
 }
 
 export const CSS_DECOR = `
@@ -231,8 +234,9 @@ export const CSS_DECOR = `
   .nd-lutin { animation: ndSaute 2.4s ease-in-out infinite; }
   .nd-scene .nd-lutin:nth-of-type(2n) { animation-delay: .8s; }
   @keyframes ndSaute { 0%, 70%, 100% { translate: 0 0; } 80% { translate: 0 -6px; } 90% { translate: 0 0; } }
-  .nd-traineau { position: absolute; left: 0; width: clamp(220px, 28vw, 380px); height: auto; transform: translateX(-120%); opacity: 0; }
-  .nd-traineau.vole { animation: ndVol 16s linear forwards; }
+  .nd-traineau { position: fixed; left: 0; z-index: 60; pointer-events: none; width: clamp(240px, 34vw, 460px); height: auto; transform: translateX(-120%); opacity: 0; filter: drop-shadow(0 6px 10px rgba(0,0,0,.35)); }
+  .nd-traineau.vole { animation: ndVol 7s linear forwards; }
+  @media (prefers-reduced-motion: reduce) { .nd-traineau.vole { animation-duration: 3s !important; } }
   @keyframes ndVol { 0% { transform: translate(-120%, 30px) rotate(-4deg); opacity: 1; } 25% { transform: translate(25vw, -6px) rotate(-6deg); }
     50% { transform: translate(50vw, 12px) rotate(-3deg); } 75% { transform: translate(78vw, -8px) rotate(-6deg); } 100% { transform: translate(110vw, -30px) rotate(-8deg); opacity: 1; } }
   .nd-galop { transform-box: fill-box; transform-origin: 50% 0; animation: ndGalop .45s ease-in-out infinite alternate; }

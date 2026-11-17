@@ -121,7 +121,7 @@
     .carte { padding: 8px 10px; gap: 6px; }
     .chrono b { font-size: 1.25rem; } .infos b { font-size: 1rem; }
     .msg { min-height: 1.4em; font-size: .85rem; }
-    .boutons { flex-wrap: nowrap; gap: 6px; }
+    .boutons { flex-wrap: wrap; gap: 6px; }
     .boutons button, .boutons a { padding: 5px 8px; font-size: .78rem; white-space: nowrap; }
   }
   @media (min-width: 861px) { .actions-mob { display: none; } }
@@ -214,6 +214,20 @@
   @keyframes etincelle { 0% { opacity: 0; transform: translate(-50%, -50%) scale(.3); } 12% { opacity: 1; }
     100% { opacity: 0; transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy) + 40px)) scale(1) rotate(160deg); } }
   @media (prefers-reduced-motion: reduce) { .ouvrir { animation: none; } }
+
+  /* ================= Flèches collées à la grille, pause ================= */
+  .fleche { transition: left .3s ease, top .3s ease, background .2s; }
+  .vue.emballe .fleche, .vue.en-pause .fleche { display: none; }
+  .voile-pause { position: absolute; inset: 0; z-index: 30; display: grid; place-items: center; border-radius: 16px;
+    background: radial-gradient(ellipse at 50% 40%, rgba(20,73,42,.97), rgba(10,27,48,.98)); color: #fff; text-align: center; }
+  .voile-pause[hidden] { display: none; }
+  .voile-pause > div { display: grid; gap: 12px; justify-items: center; padding: 20px; }
+  .voile-pause b { font: 800 1.6rem Inter, sans-serif; color: #ffe08a; }
+  .voile-pause span { font: 500 .95rem Inter, sans-serif; opacity: .9; }
+  .voile-pause button { font: 800 1.1rem Inter, sans-serif; color: #fff; background: linear-gradient(180deg, #d81b3a, #9e0d24); border: 0; border-radius: 999px;
+    padding: 12px 28px; cursor: pointer; box-shadow: 0 0 0 3px #e8c35a, 0 6px 16px rgba(0,0,0,.4); }
+  .voile-pause button:disabled { opacity: .6; cursor: wait; }
+  .gauche:has(.vue.en-pause) .rack, .gauche:has(.vue.en-pause) .actions-mob { visibility: hidden; }
 </style>
 </head>
 <body>
@@ -226,6 +240,9 @@
       <button class="fleche f-bas" id="fBas" type="button" aria-label="Tourner vers le dessous">▼</button>
       <button class="fleche f-gauche" id="fGauche" type="button" aria-label="Tourner vers la gauche">◀</button>
       <button class="fleche f-droite" id="fDroite" type="button" aria-label="Tourner vers la droite">▶</button>
+      <div class="voile-pause" id="voilePause" hidden>
+        <div><b>⏸ Partie en pause</b><span id="pauseInfo"></span><button type="button" id="bReprendre">▶ Reprendre</button></div>
+      </div>
     </div>
     <div class="actions-mob">
       <button class="b-eff" id="mEff" type="button" aria-label="Effacer la dernière lettre">⌫</button>
@@ -247,6 +264,7 @@
       <div class="chrono"><small id="cLabel">COUP</small><b id="cTemps">—</b></div>
       <div class="msg" id="msg" role="status">Chargement du dictionnaire…</div>
       <div class="boutons">
+        <button id="bPause" type="button">⏸ Pause</button>
         <button id="bTop" type="button">👁 Voir le top</button>
         <button id="bNouvelle" type="button">🔄 Nouvelle partie</button>
         <a href="game.html" id="bRetour">← Topissimo</a>
