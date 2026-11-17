@@ -1,4 +1,4 @@
-// Playlist de Noël de la grille cube (58 morceaux, 145 min), produite par
+// Playlist de Noël de la grille cube (61 morceaux, 156 min), produite par
 // topissimo/outils/noel-musique (arrangements Topissimo, banque de sons GeneralUser GS, −18 LUFS).
 export const MORCEAUX_NOEL = [
  {
@@ -405,6 +405,27 @@ export const MORCEAUX_NOEL = [
   "titre": "Mozart — Quatuor « La Chasse » K. 458 : Allegro vivace assai (version de Noël)",
   "credit": "domaine public · partition : corpus music21 · orchestration Topissimo (GeneralUser GS)",
   "duree": 734,
+  "cat": "classique"
+ },
+ {
+  "f": "noel/94-tchaikovski-saisons-janvier-au-coin-du-feu.m4a",
+  "titre": "Tchaïkovski — Les Saisons : Janvier, « Au coin du feu »",
+  "credit": "domaine public · partition : Mutopia Project · piano (GeneralUser GS)",
+  "duree": 261,
+  "cat": "classique"
+ },
+ {
+  "f": "noel/95-tchaikovski-saisons-fevrier-carnaval.m4a",
+  "titre": "Tchaïkovski — Les Saisons : Février, « Carnaval »",
+  "credit": "domaine public · partition : Mutopia Project · piano (GeneralUser GS)",
+  "duree": 172,
+  "cat": "classique"
+ },
+ {
+  "f": "noel/96-tchaikovski-saisons-aout-la-moisson.m4a",
+  "titre": "Tchaïkovski — Les Saisons : Août, « La Moisson »",
+  "credit": "domaine public · partition : Mutopia Project · piano (GeneralUser GS)",
+  "duree": 206,
   "cat": "classique"
  }
 ];
