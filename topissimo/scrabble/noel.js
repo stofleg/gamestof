@@ -1,15 +1,15 @@
 // ============================================================
 //  Ambiance de Noël (grille cube, tournoi de Noël) : son et décor, sans aucun fichier.
-//  - Musique : chants de Noël du domaine public joués par une boîte à musique synthétisée
-//    (Web Audio), enchaînés dans un ordre aléatoire, avec réverbération.
-//  - Fond sonore : feu de cheminée qui crépite doucement.
+//  - Musique : arrangements orchestraux de chants de Noël du domaine public (fichiers m4a),
+//    enchaînés dans un ordre aléatoire.
+//  - Fond sonore : feu de cheminée qui crépite doucement (boucle).
 //  - Effets : grelots de traîneau (top trouvé), carillon (top à 7 lettres posées),
 //    petit « bloup » descendant (mot refusé).
 //  - Décor : neige qui tombe derrière le jeu, guirlande lumineuse en haut de l'écran.
 //  Le son ne démarre qu'après une première interaction (règle des navigateurs) et se coupe
 //  avec le bouton 🔊/🔇 (choix mémorisé).
 // ============================================================
-import { decor, traineauPasse, CSS_DECOR } from "./noel-decor.js?v=485";
+import { decor, traineauPasse, CSS_DECOR } from "./noel-decor.js?v=486";
 const CLE = "topissimo:noel-son";
 let horsLigne = false, ctx = null, maitre = null, reverb = null, actif = false, bouton = null, passer = null, legende = null;
 let coupe = (() => { try { return localStorage.getItem(CLE) === "off"; } catch { return false; } })();
@@ -18,7 +18,7 @@ const bus = {};
 // Cibles (« fort » = moyenne des passages les plus forts) : musique ≈ −31 dBFS en fond, feu ≈ −48
 // (à peine), grelots du top ≈ −28, ouverture ≈ −28, « ho ho ho » ≈ −27,5, scrabble ≈ −27 (le
 // moment fort). Pendant un effet marquant, la musique s'efface un peu (voir baisseMusique).
-const NIVEAUX = { musique: .67, feu: 1.32, top: 1.04, scrabble: 1.46, ouverture: .72, carillon: .95, ho: .7 };
+const NIVEAUX = { musique: .67, feu: .093, top: 1.04, scrabble: 1.46, ouverture: .72, carillon: .95, ho: .7 };
 
 function bruit(secondes) {
   const b = ctx.createBuffer(1, Math.max(1, ctx.sampleRate * secondes), ctx.sampleRate), d = b.getChannelData(0);
@@ -42,7 +42,7 @@ function construit(volume) {
   for (const [nom, g] of Object.entries(NIVEAUX)) {
     bus[nom] = ctx.createGain(); bus[nom].gain.value = g;
     bus[nom].connect(maitre);
-    if (nom !== "feu" && nom !== "ho") bus[nom].connect(reverb);
+    if (!["feu", "ho", "musique"].includes(nom)) bus[nom].connect(reverb);   // la musique a déjà sa salle
   }
 }
 
@@ -89,91 +89,63 @@ function secousse(sortie, t, volume = .05) {
 }
 
 // ------------------------------------------------------------ musique (domaine public)
-// Mélodies notées « note:durée » (durée en temps ; « - » = silence), jouées à la boîte à musique.
+// Arrangements orchestraux de chants de Noël du domaine public (célesta, harpe, cordes, cors,
+// flûte, chœur, glockenspiel, timbales, grelots), écrits pour Topissimo et joués avec la banque
+// de sons libre GeneralUser GS (S. Christian Collins), réverbération de salle. Tous les fichiers
+// sont ramenés au même volume (−18 LUFS) ; GAIN_MUSIQUE les place sous les effets.
+const ARRANGE = "arrangement orchestral Topissimo (GeneralUser GS)";
 const MORCEAUX = [
-  { titre: "Vive le vent (Jingle Bells)", g: .91, credit: "James Lord Pierpont, 1857 — domaine public", tempo: .3, transpo: 12, grelots: true,
-    m: "E4:1 E4:1 E4:2 E4:1 E4:1 E4:2 E4:1 G4:1 C4:1.5 D4:.5 E4:4 F4:1 F4:1 F4:1.5 F4:.5 F4:1 E4:1 E4:1 E4:.5 E4:.5 E4:1 D4:1 D4:1 E4:1 D4:2 G4:2 "
-     + "E4:1 E4:1 E4:2 E4:1 E4:1 E4:2 E4:1 G4:1 C4:1.5 D4:.5 E4:4 F4:1 F4:1 F4:1.5 F4:.5 F4:1 E4:1 E4:1 E4:.5 E4:.5 G4:1 G4:1 F4:1 D4:1 C4:4" },
-  { titre: "Douce nuit", g: 1.02, credit: "Franz Xaver Gruber, 1818 — domaine public", tempo: .24, transpo: 12,
-    m: "G4:3 A4:1 G4:2 E4:6 G4:3 A4:1 G4:2 E4:6 D5:4 D5:2 B4:6 C5:4 C5:2 G4:6 A4:4 A4:2 C5:3 B4:1 A4:2 G4:3 A4:1 G4:2 E4:6 "
-     + "A4:4 A4:2 C5:3 B4:1 A4:2 G4:3 A4:1 G4:2 E4:6 D5:4 D5:2 F5:3 D5:1 B4:2 C5:6 E5:6 C5:3 G4:1 E4:2 G4:3 F4:1 D4:2 C4:12" },
-  { titre: "We Wish You a Merry Christmas", g: .92, credit: "chant traditionnel anglais — domaine public", tempo: .3, transpo: 12, grelots: true,
-    m: "D4:1 G4:1 G4:.5 A4:.5 G4:.5 F#4:.5 E4:1 E4:1 E4:1 A4:1 A4:.5 B4:.5 A4:.5 G4:.5 F#4:1 D4:1 D4:1 B4:1 B4:.5 C5:.5 B4:.5 A4:.5 G4:1 E4:1 D4:.5 D4:.5 E4:1 A4:1 F#4:1 G4:3" },
-  { titre: "Deck the Halls", g: .9, credit: "chant traditionnel gallois — domaine public", tempo: .28, transpo: 12,
-    m: "C5:1.5 Bb4:.5 A4:1 G4:1 F4:1 G4:1 A4:1 F4:1 G4:.5 A4:.5 Bb4:.5 G4:.5 A4:1.5 G4:.5 F4:1 E4:1 F4:2 "
-     + "C5:1.5 Bb4:.5 A4:1 G4:1 F4:1 G4:1 A4:1 F4:1 G4:.5 A4:.5 Bb4:.5 G4:.5 A4:1.5 G4:.5 F4:1 E4:1 F4:2 "
-     + "G4:1.5 A4:.5 Bb4:1 G4:1 A4:1.5 Bb4:.5 C5:1 G4:1 A4:.5 B4:.5 C5:1 D5:.5 E5:.5 F5:1 E5:1 D5:1 C5:2 "
-     + "C5:1.5 Bb4:.5 A4:1 G4:1 F4:1 G4:1 A4:1 F4:1 D5:.5 D5:.5 D5:.5 D5:.5 C5:1.5 Bb4:.5 A4:1 G4:1 F4:2" },
-  { titre: "God Rest Ye Merry Gentlemen", g: .94, credit: "chant traditionnel anglais — domaine public", tempo: .3, transpo: 12,
-    m: "E4:1 E4:1 B4:1 B4:1 A4:1 G4:1 F#4:1 E4:1 D4:1 E4:1 F#4:1 G4:1 A4:1 B4:3 E4:1 E4:1 B4:1 B4:1 A4:1 G4:1 F#4:1 E4:1 D4:1 E4:1 F#4:1 G4:1 A4:1 B4:3 "
-     + "B4:1 C5:1 A4:1 B4:1 C5:1 D5:1 E5:1 B4:1 A4:1 G4:1 E4:1 F#4:1 G4:1 A4:2 G4:1 A4:1 B4:1 C5:1 B4:1 A4:1 G4:1 F#4:1 E4:2 "
-     + "G4:.5 F#4:.5 E4:1 A4:1 G4:1 A4:1 B4:1 C5:1 B4:1 A4:1 G4:1 F#4:1 E4:4" },
+  { f: "noel-vive.m4a", titre: "Vive le vent (Jingle Bells)", credit: `James Lord Pierpont, 1857 — domaine public · ${ARRANGE}` },
+  { f: "noel-nuit.m4a", titre: "Douce nuit", credit: `Franz Xaver Gruber, 1818 — domaine public · ${ARRANGE}` },
+  { f: "noel-wish.m4a", titre: "We Wish You a Merry Christmas", credit: `chant traditionnel anglais — domaine public · ${ARRANGE}` },
+  { f: "noel-deck.m4a", titre: "Deck the Halls", credit: `chant traditionnel gallois — domaine public · ${ARRANGE}` },
+  { f: "noel-joie.m4a", titre: "Joy to the World", credit: `Lowell Mason d’après Haendel, 1839 — domaine public · ${ARRANGE}` },
 ];
-let morceauGain = null, morceauT = null, ordre = [], dernier = null;
+const GAIN_MUSIQUE = .63;
+const url = f => new URL(`musique/${f}`, import.meta.url).href;
+let lecteur = null, lecteurGain = null, morceauT = null, ordre = [], dernier = null;
 function melange() {
   const a = [...MORCEAUX];
   for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
   if (a.length > 1 && a[0] === dernier) a.push(a.shift());
   return a;
 }
-// g : gain de chaque morceau, mesuré pour que tous sonnent au même niveau (±0,2 dB).
-/** Joue un morceau deux fois (la 2ᵉ fois, une octave plus haut, doublé de clochettes). */
-function joue(mc) {
-  const sortie = ctx.createGain(); sortie.gain.value = mc.g ?? 1; sortie.connect(bus.musique);
-  morceauGain = sortie;
-  const notes = mc.m.trim().split(/\s+/).map(x => { const [n, d] = x.split(":"); return { n, d: +d }; });
-  let t = ctx.currentTime + .3;
-  for (const passe of [0, 1]) {
-    for (const { n, d } of notes) {
-      const duree = d * mc.tempo;
-      if (n !== "-") {
-        const f = freq(n, mc.transpo + (passe ? 12 : 0));
-        lame(sortie, f, t, passe ? .11 : .15, Math.min(2.4, .9 + duree * 1.5));
-        if (passe && d >= 1.5) cloche(sortie, f / 2, t, .025);
-        if (!passe) lame(sortie, f / 2, t, .035, 1.2);   // doublure grave très douce
-      }
-      if (mc.grelots && Number.isInteger(d) && Math.random() < .9) secousse(sortie, t, .012);
-      t += duree;
-    }
-    t += mc.tempo * 4;
-  }
-  return t - ctx.currentTime;
+/** Lecteur unique, branché dans le graphe Web Audio (bus musique : volume, sourdine, effacement). */
+function prepareLecteur() {
+  if (lecteur) return;
+  lecteur = new Audio(); lecteur.preload = "auto"; lecteur.crossOrigin = "anonymous";
+  lecteur.addEventListener("ended", () => { clearTimeout(morceauT); morceauT = setTimeout(morceauSuivantInterne, 2500); });
+  lecteurGain = ctx.createGain(); lecteurGain.gain.value = GAIN_MUSIQUE;
+  ctx.createMediaElementSource(lecteur).connect(lecteurGain).connect(bus.musique);
 }
 function morceauSuivantInterne() {
   clearTimeout(morceauT);
-  if (morceauGain) { const g = morceauGain; g.gain.setTargetAtTime(0, ctx.currentTime, .15); setTimeout(() => g.disconnect(), 1500); morceauGain = null; }
   if (!actif) return;
+  prepareLecteur();
   if (!ordre.length) ordre = melange();
   const mc = dernier = ordre.shift();
-  const duree = joue(mc);
-  if (legende) { legende.hidden = false; legende.innerHTML = `♪ ${mc.titre}<br><small>${mc.credit} · boîte à musique</small>`; }
-  morceauT = setTimeout(morceauSuivantInterne, (duree + 3) * 1000);
+  lecteur.src = url(mc.f);
+  lecteur.play().catch(() => {});
+  if (legende) { legende.hidden = false; legende.innerHTML = `♪ ${mc.titre}<br><small>${mc.credit}</small>`; }
 }
 export function morceauSuivant() { if (actif) morceauSuivantInterne(); }
 export function nouvellePartie() { ordre = []; if (actif) morceauSuivantInterne(); }
 
 // ------------------------------------------------------------ feu de cheminée
-let feuNoeuds = null, feuT = null;
-/** `horsLigne` (mesure) : durée à programmer d'un coup, sans minuterie. */
-function feu(horsLigne = 0) {
-  const s = ctx.createBufferSource(); s.buffer = bruit(3); s.loop = true;
-  const f = ctx.createBiquadFilter(); f.type = "lowpass"; f.frequency.value = 500;
-  const g = ctx.createGain(); g.gain.value = .02;
-  s.connect(f).connect(g).connect(bus.feu); s.start();
+// Enregistrement de synthèse (grondement des flammes, souffle, crépitements en grappes, pops de
+// bois), 38 s en boucle sans couture.
+let feuNoeuds = null, feuT = null, feuBuffer = null;
+async function chargeFeu(c = ctx) {
+  const r = await fetch(url("noel-feu.m4a"));
+  return c.decodeAudioData(await r.arrayBuffer());
+}
+async function feu() {
+  try { feuBuffer ??= await chargeFeu(); } catch (e) { console.warn("Feu de cheminée indisponible", e); return; }
+  if (!actif || feuNoeuds) return;
+  const s = ctx.createBufferSource(); s.buffer = feuBuffer; s.loop = true;
+  s.loopStart = .05; s.loopEnd = feuBuffer.duration - .05;   // marge du codeur AAC
+  s.connect(bus.feu); s.start(0, .05);
   feuNoeuds = [s];
-  const crepite = (t0 = ctx.currentTime) => {
-    if (!actif) return;
-    const n = Math.random() < .3 ? 2 + Math.floor(Math.random() * 4) : 1;
-    for (let i = 0; i < n; i++) {
-      const t = t0 + Math.random() * .15, c = ctx.createBufferSource(); c.buffer = bruit(.03);
-      const bf = ctx.createBiquadFilter(); bf.type = "bandpass"; bf.frequency.value = 1500 + Math.random() * 3500; bf.Q.value = 1.5;
-      const cg = ctx.createGain(); cg.gain.setValueAtTime(.05 + Math.random() * .12, t); cg.gain.exponentialRampToValueAtTime(.0001, t + .02 + Math.random() * .03);
-      c.connect(bf).connect(cg).connect(bus.feu); c.start(t); c.stop(t + .06);
-    }
-    if (!horsLigne) feuT = setTimeout(crepite, 120 + Math.random() * 600);
-  };
-  if (horsLigne) for (let t = 0; t < horsLigne; t += .12 + Math.random() * .6) crepite(t);
-  else crepite();
 }
 
 // ------------------------------------------------------------ effets du jeu
@@ -348,7 +320,7 @@ export function ambiance(on) {
   if (!on) {
     actif = false; clearTimeout(morceauT); clearTimeout(feuT);
     feuNoeuds?.forEach(n => { try { n.stop(); } catch {} }); feuNoeuds = null;
-    if (morceauGain) { morceauGain.disconnect(); morceauGain = null; }
+    lecteur?.pause();
     if (legende) legende.hidden = true;
     return;
   }
@@ -366,13 +338,18 @@ export function ambiance(on) {
  *  `fort` = moyenne des 10 % de fenêtres les plus fortes, `crete` = crête. Sert à équilibrer
  *  effets et musiques (outil de réglage, appelé depuis la console ou un robot). */
 export async function __mesure(nom, duree = 6) {
-  const sauve = { ctx, maitre, reverb, actif, bus: { ...bus }, morceauGain };
+  const sauve = { ctx, maitre, reverb, actif, bus: { ...bus } };
   const sr = 44100, off = new OfflineAudioContext(2, Math.ceil(sr * duree), sr);
   ctx = off; horsLigne = true; actif = true; for (const k of Object.keys(bus)) delete bus[k];
   try {
     construit(VOLUME);
-    if (nom.startsWith("morceau:")) joue(MORCEAUX[+nom.slice(8)]);
-    else if (nom === "feu") feu(duree);
+    if (nom.startsWith("morceau:") || nom === "feu") {
+      const f = nom === "feu" ? "noel-feu.m4a" : MORCEAUX[+nom.slice(8)].f;
+      const buf = await off.decodeAudioData(await (await fetch(url(f))).arrayBuffer());
+      const s = off.createBufferSource(); s.buffer = buf; s.loop = true;
+      const g = off.createGain(); g.gain.value = nom === "feu" ? 1 : GAIN_MUSIQUE;
+      s.connect(g).connect(nom === "feu" ? bus.feu : bus.musique); s.start(0, Math.min(20, buf.duration / 3));
+    }
     else ({ grelots, carillon, rate, scrabble, ouverture })[nom]();
     const buf = await off.startRendering();
     const L = buf.getChannelData(0), R = buf.getChannelData(1), w = Math.round(sr * .4), rms = [];
@@ -387,7 +364,7 @@ export async function __mesure(nom, duree = 6) {
     const top = rms.slice(0, Math.max(1, Math.round(rms.length * .1)));
     return { nom, max: db(rms[0]), fort: db(top.reduce((a, b) => a + b, 0) / top.length), crete: db(crete) };
   } finally {
-    ({ ctx, maitre, reverb, actif, morceauGain } = sauve); horsLigne = false;
+    ({ ctx, maitre, reverb, actif } = sauve); horsLigne = false;
     for (const k of Object.keys(bus)) delete bus[k]; Object.assign(bus, sauve.bus);
   }
 }
