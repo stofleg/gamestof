@@ -5,13 +5,13 @@
 //  jouables. Gauche/droite quand le cube est droit ; haut/bas seulement depuis la face
 //  principale (k multiple de 8). Chaque face a un contour discret, plus foncé sur les arêtes sans passage.
 // ============================================================
-import { Dictionary } from "./dictionary.js?v=502";
-import { LETTER_BAG, drawForDuplicate, bagTotalVowels, bagTotalConsonants, letterValue } from "./engine.js?v=502";
+import { Dictionary } from "./dictionary.js?v=503";
+import { LETTER_BAG, drawForDuplicate, bagTotalVowels, bagTotalConsonants, letterValue } from "./engine.js?v=503";
 import {
   FACES, NOM_FACE, BONUS_CUBE, LIGNES, ligneDe, voisin, rangLigne, PIVOTS, cheminFaces,
   cubeVide, appliqueCoup, casesDuCoup, positionCoup, scoreCube, topCube, sacCube, JEUX_CUBE, coupRegleCube,
-} from "./cube.js?v=502";
-import * as noel from "./noel.js?v=502";
+} from "./cube.js?v=503";
+import * as noel from "./noel.js?v=503";
 
 const $ = id => document.getElementById(id);
 const TEMPS = 240;   // 4 minutes par coup
