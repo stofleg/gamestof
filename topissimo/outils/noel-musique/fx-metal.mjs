@@ -11,7 +11,7 @@ function piste(bpm, fn) {
   const c = (t, ch, cc, v) => ev.push({ t, type: "controller", channel: ch, controllerType: cc, value: v });
   ev.push({ t: 0, type: "setTempo", microsecondsPerBeat: Math.round(60e6 / bpm) });
   for (const [ch, prog, pan, vol] of [[0, 30, 14, 100], [1, 30, 114, 100], [2, 34, 64, 104], [3, 29, 64, 96], [4, 52, 64, 80], [9, 16, 64, 120]]) {
-    c(0, ch, 0, 0); ev.push({ t: 0, type: "programChange", channel: ch, programNumber: prog }); c(0, ch, 10, pan); c(0, ch, 7, vol); c(0, ch, 91, 40);
+    c(0, ch, 0, 0); ev.push({ t: 0, type: "programChange", channel: ch, programNumber: prog }); c(0, ch, 10, pan); c(0, ch, 7, vol); c(0, ch, 91, ch === 3 ? 14 : 0); c(0, ch, 93, 0);
     c(0, ch, 101, 0); c(0, ch, 100, 0); c(0, ch, 6, 12); c(0, ch, 38, 0);   // pitch bend : 12 demi-tons
   }
   const pb = (q, ch, v) => ev.push({ t: T(q), type: "pitchBend", channel: ch, value: v });

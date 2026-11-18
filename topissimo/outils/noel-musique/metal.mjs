@@ -72,7 +72,8 @@ export function metal(P, style = "heavy", graine = 1) {
   for (const [nom, [prog, vol, pan]] of Object.entries(SONS)) {
     const ch = CH[nom];
     ctl(0, ch, 0, 0); ev.push({ t: 0, type: "programChange", channel: ch, programNumber: prog });
-    ctl(0, ch, 7, vol); ctl(0, ch, 10, pan); ctl(0, ch, 91, nom === "lead" || nom === "jumelle" ? 52 : nom === "drums" ? 30 : 20);
+    ctl(0, ch, 7, vol); ctl(0, ch, 10, pan); ctl(0, ch, 91, nom === "lead" || nom === "jumelle" ? 14 : nom === "choeur" || nom === "orgue" || nom === "cordes" ? 24 : nom === "claire" ? 18 : 0);
+    ctl(0, ch, 93, 0);   // son sec et proche : pas de chorus, presque pas de réverbération
     // amplitude du pitch bend : 2 demi-tons
     ctl(0, ch, 101, 0); ctl(0, ch, 100, 0); ctl(0, ch, 6, 2); ctl(0, ch, 38, 0);
   }
