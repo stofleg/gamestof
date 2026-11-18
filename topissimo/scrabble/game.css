@@ -2087,7 +2087,7 @@ body.in-live #actionRowInGame #btnPause { display: none !important; }
 /* Halloween : deux morts-vivants à la place du squelette qui danse (le pendu reste) */
 body.theme-halloween::before {
   right: 1%; bottom: 0; width: 300px; height: 197px;
-  background: url("zombies.svg?v=497") no-repeat center bottom / contain;
+  background: url("zombies.svg?v=498") no-repeat center bottom / contain;
   filter: drop-shadow(0 0 6px rgba(120,200,90,.25));
   transform-origin: 50% 100%;
   animation: hw-zombies 5s ease-in-out infinite alternate;
@@ -2273,4 +2273,140 @@ body.theme-topsping #btnNextGame { display: none !important; }
 /* Téléphone : le cube prend toute la largeur (flèches comprises). */
 @media (max-width: 700px) {
   .board.board-cube { --cs-cube: min(calc((100vw - 96px) / 21.6), calc((100dvh - 330px) / 23.3), 30px); display: flex; justify-content: center; width: 100%; }
+}
+
+/* ============================================================
+   Thème Noël (noel.js, noel-decor.js) : ciel d'hiver étoilé, neige, guirlande lumineuse,
+   village et père Noël en bas de page, panneaux crème bordés de rouge, chevalet rouge et or,
+   grille givrée. Réservé à stof (comme Halloween).
+   ============================================================ */
+body.theme-noel {
+  --cream: #0f2a47;
+  background: radial-gradient(ellipse at 50% -10%, #23507e 0%, #12304f 45%, #0a1b30 100%) fixed;
+  color: #f4f1e8;
+}
+body.theme-noel main { position: relative; z-index: 2; padding-top: 30px; }
+.noel-neige { position: fixed; inset: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 1; }
+.noel-guirlande { position: fixed; left: 0; right: 0; top: 0; height: 34px; pointer-events: none; z-index: 30; }
+.noel-guirlande svg { position: absolute; inset: 0; width: 100%; height: 30px; }
+.noel-guirlande span { position: absolute; top: 17px; width: 9px; height: 13px; margin-left: -4.5px; border-radius: 50% 50% 45% 45%; background: var(--c);
+  box-shadow: 0 0 8px 2px var(--c); animation: noelBrille 1.75s ease-in-out infinite alternate; }
+.noel-guirlande span::before { content: ""; position: absolute; left: 2px; top: -3px; width: 5px; height: 4px; background: #2d4a3a; border-radius: 1px; }
+@keyframes noelBrille { 0%, 40% { opacity: 1; } 100% { opacity: .35; box-shadow: 0 0 2px 0 var(--c); } }
+.noel-son { position: fixed; right: 12px; bottom: 12px; z-index: 40; width: 40px; height: 40px; border-radius: 50%; border: 0; cursor: pointer;
+  background: #1f6b3d; color: #fff; font-size: 18px; box-shadow: 0 0 0 2px #e8c35a, 0 3px 8px rgba(0,0,0,.35); }
+.noel-son.noel-passer { right: 60px; color: #ffe08a; }
+.noel-legende { position: fixed; right: 108px; bottom: 14px; z-index: 40; max-width: min(320px, calc(100vw - 130px)); font: 500 .72rem/1.3 Inter, sans-serif; color: #f4f1e8;
+  background: rgba(10,27,48,.72); padding: 5px 10px; border-radius: 8px; }
+.noel-legende small { opacity: .75; }
+.noel-son[hidden], .noel-legende[hidden] { display: none; }
+
+/* panneaux : cartes crème bordées de rouge */
+body.theme-noel .info-bar,
+body.theme-noel .info-bar.two-sections .info-left,
+body.theme-noel .feedback,
+body.theme-noel .dict-panel,
+body.theme-noel .play-info,
+body.theme-noel .bag-display,
+body.theme-noel .review-panel,
+body.theme-noel .annot-toolbar,
+body.theme-noel .modal .content { background: #fffdf7; color: #12313f; }
+body.theme-noel .info-bar { border-top: 5px solid #c8102e; box-shadow: 0 6px 22px rgba(0,0,0,.35); }
+body.theme-noel .info-bar.two-sections .info-right { background: #f3efe2; }
+body.theme-noel .game-title { color: #ffe08a; text-shadow: 0 0 10px rgba(255,210,63,.45); }
+body.theme-noel .game-title .badge { color: #12313f; text-shadow: none; }
+body.theme-noel .btn.ghost { background: #fffdf7; }
+body.theme-noel .move-timer-chip:not(.urgent) { background: linear-gradient(135deg, #1f6b3d, #14492a); color: #fff; border-color: #e8c35a; }
+body.theme-noel .board:not(.board-cube) { box-shadow: 0 0 0 3px #e8c35a, 0 10px 30px rgba(0,0,0,.5); }
+body.theme-noel .rack { background: linear-gradient(180deg, #8a1424, #6c0f1c); box-shadow: 0 0 0 2px #e8c35a, 0 6px 16px rgba(0,0,0,.4); }
+body.theme-noel .board td.center { background: #c8102e; }
+body.theme-noel .cube-titre { background: #c8102e; color: #fff; box-shadow: 0 0 0 2px #e8c35a; }
+body.theme-noel .cube-fleche { background: #1f6b3d; color: #ffe08a; box-shadow: 0 0 0 2px #e8c35a, 0 3px 8px rgba(0,0,0,.4); }
+body.theme-noel .cube-fleche:disabled { background: #c62828; color: transparent; box-shadow: 0 0 0 2px #fff, 0 3px 8px rgba(0,0,0,.4); }
+body.theme-noel .cube-scene { filter: drop-shadow(0 18px 30px rgba(0,0,0,.45)); }
+
+/* ----- givre sur la grille ----- */
+.board > .givre { display: none; }
+body.theme-noel .board > .givre, body.theme-noel .board-cube .cube-face .givre {
+  display: block; position: absolute; inset: 0; z-index: 2; pointer-events: none; overflow: hidden; border-radius: inherit;
+  background:
+    radial-gradient(circle at 0 0, rgba(255,255,255,.75), rgba(232,244,255,.35) 13%, rgba(232,244,255,0) 26%),
+    radial-gradient(circle at 100% 0, rgba(255,255,255,.6), rgba(232,244,255,.25) 11%, rgba(232,244,255,0) 22%),
+    radial-gradient(circle at 0 100%, rgba(255,255,255,.6), rgba(232,244,255,.25) 11%, rgba(232,244,255,0) 22%),
+    radial-gradient(circle at 100% 100%, rgba(255,255,255,.75), rgba(232,244,255,.35) 13%, rgba(232,244,255,0) 26%),
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 160 160'><g fill='none' stroke='%23ffffff' stroke-linecap='round'><g stroke-width='1.1' opacity='.55'><path d='M10 150 L52 104 L70 60 L96 34'/><path d='M52 104 L40 88 M52 104 L70 108 M62 80 L50 70 M62 80 L80 84 M70 60 L60 48 M70 60 L86 60 M84 46 L78 34 M84 46 L98 48'/></g><g stroke-width='.8' opacity='.45'><path d='M150 12 L118 40 L104 74'/><path d='M118 40 L112 26 M118 40 L132 46 M110 58 L98 52 M110 58 L122 66'/></g><g stroke-width='.7' opacity='.5' transform='translate(122 120)'><path d='M0 -9 V9 M-7.8 -4.5 L7.8 4.5 M-7.8 4.5 L7.8 -4.5'/><path d='M-2 -7 L0 -5 L2 -7 M-2 7 L0 5 L2 7'/></g><g stroke-width='.6' opacity='.45' transform='translate(30 30)'><path d='M0 -6 V6 M-5.2 -3 L5.2 3 M-5.2 3 L5.2 -3'/></g></g></svg>"),
+    linear-gradient(160deg, rgba(210,235,255,.16), rgba(255,255,255,0) 45%, rgba(190,220,255,.14));
+  background-size: 100% 100%, 100% 100%, 100% 100%, 100% 100%, calc(var(--cell-size) * 6.5) calc(var(--cell-size) * 6.5), 100% 100%;
+  box-shadow: inset 0 0 calc(var(--cell-size) * .9) rgba(255,255,255,.85), inset 0 0 calc(var(--cell-size) * .25) rgba(190,225,255,.9); }
+body.theme-noel .board > .givre::after, body.theme-noel .board-cube .cube-face .givre::after { content: ""; position: absolute; inset: -50%;
+  background: linear-gradient(115deg, rgba(255,255,255,0) 44%, rgba(255,255,255,.32) 49%, rgba(255,255,255,.08) 52%, rgba(255,255,255,0) 56%);
+  animation: givreReflet 11s ease-in-out infinite; }
+body.theme-noel .cube-face.R .givre::after { animation-delay: -3s; } body.theme-noel .cube-face.L .givre::after { animation-delay: -6s; } body.theme-noel .cube-face.U .givre::after { animation-delay: -8s; }
+@keyframes givreReflet { 0%, 55% { transform: translateX(-60%); } 85%, 100% { transform: translateX(60%); } }
+body.theme-noel .board > .givre::before, body.theme-noel .board-cube .cube-face .givre::before { content: ""; position: absolute; inset: 0;
+  background-image: radial-gradient(circle, rgba(255,255,255,.95) 0 1px, transparent 1.6px), radial-gradient(circle, rgba(220,240,255,.9) 0 .8px, transparent 1.4px);
+  background-size: calc(var(--cell-size) * 3.7) calc(var(--cell-size) * 4.1), calc(var(--cell-size) * 5.3) calc(var(--cell-size) * 2.9);
+  background-position: 0 0, calc(var(--cell-size) * 1.3) calc(var(--cell-size) * 2);
+  animation: givreScintille 3.2s ease-in-out infinite alternate; }
+@keyframes givreScintille { from { opacity: .35; } to { opacity: .9; } }
+@media (prefers-reduced-motion: reduce) { body.theme-noel .givre::after, body.theme-noel .givre::before { animation: none !important; } }
+
+/* ----- cadeau à ouvrir (début de partie) ----- */
+.board .papier { --c: var(--cell-size); position: absolute; inset: 0; z-index: 25; overflow: hidden; background-color: #b3122a;
+  background-image:
+    linear-gradient(135deg, rgba(255,255,255,.16), rgba(255,255,255,0) 40%, rgba(0,0,0,.14)),
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 60 60'><path d='M15 6 l2.6 5.6 6 .7 -4.5 4.1 1.2 6 -5.3-3 -5.3 3 1.2-6 -4.5-4.1 6-.7z' fill='%23e8c35a'/><g stroke='%23ffffff' stroke-width='1.6' stroke-linecap='round' opacity='.85'><path d='M45 36 v16 M38 40 l14 8 M38 48 l14 -8'/></g><circle cx='45' cy='12' r='2' fill='%23ffffff' opacity='.8'/><circle cx='12' cy='46' r='1.6' fill='%23e8c35a'/></svg>");
+  background-size: 100% 100%, calc(var(--c) * 3.2) calc(var(--c) * 3.2); }
+.board .ruban { position: absolute; background: linear-gradient(90deg, #a87a22, #ffe9a8 30%, #e8c35a 55%, #b8892a); box-shadow: 0 0 0 1px rgba(80,50,0,.35); }
+.board .ruban.rv { top: 0; bottom: 0; left: calc(50% - var(--c) * .8); width: calc(var(--c) * 1.6); }
+.board .ruban.rh { left: 0; right: 0; top: calc(50% - var(--c) * .8); height: calc(var(--c) * 1.6); background: linear-gradient(180deg, #a87a22, #ffe9a8 30%, #e8c35a 55%, #b8892a); }
+.board .etiquette { position: absolute; left: calc(50% + var(--c) * 1.4); top: calc(50% + var(--c) * 1.3); padding: calc(var(--c) * .35) calc(var(--c) * .6);
+  background: #fffdf3; border-radius: 4px 14px 14px 4px; transform: rotate(-9deg); transform-origin: 0 0; box-shadow: 0 3px 8px rgba(0,0,0,.35);
+  font: 700 calc(var(--c) * .62) Georgia, serif; color: #9e0d24; text-align: center; line-height: 1.15; }
+.board .etiquette small { display: block; font: 500 calc(var(--c) * .42) Inter, sans-serif; color: #1f6b3d; }
+.board .noeud { --c: var(--cell-size); position: absolute; left: 50%; top: 50%; width: calc(var(--c) * 7); height: calc(var(--c) * 4.2); margin: calc(var(--c) * -2.1) 0 0 calc(var(--c) * -3.5);
+  z-index: 26; filter: drop-shadow(0 4px 4px rgba(0,0,0,.35)); pointer-events: none; }
+.board .noeud svg { width: 100%; height: 100%; display: block; }
+/* grille classique : le papier recouvre le plateau, le nœud au centre */
+.cadeau-plat { position: absolute; inset: 0; z-index: 25; cursor: pointer; border-radius: inherit; overflow: visible; }
+.cadeau-plat .papier { border-radius: inherit; }
+.cadeau-plat .noeud { margin-top: calc(var(--c) * -3.2); }
+.cadeau-plat.deballe .noeud { animation: noeudPlat .7s cubic-bezier(.3,.7,.4,1) forwards; }
+@keyframes noeudPlat { to { transform: translateY(calc(var(--c) * -9)) rotate(-28deg) scale(.5); opacity: 0; } }
+.cadeau-plat.deballe .papier { animation: papierPlat 1s .85s cubic-bezier(.5,0,.8,.6) forwards; transform-origin: 50% 100%; }
+@keyframes papierPlat { to { transform: perspective(900px) rotateX(-75deg) translateY(30%); opacity: 0; } }
+/* grille cube : le papier enveloppe les six faces, le nœud est posé sur le dessus */
+.board-cube .cube-3d .papier { backface-visibility: hidden; -webkit-backface-visibility: hidden; transform: var(--pose); }
+.board-cube .papier.F { --pose: translateZ(calc(var(--S) / 2 + 1px)); }
+.board-cube .papier.R { --pose: rotateY(90deg) translateZ(calc(var(--S) / 2 + 1px)); }
+.board-cube .papier.B { --pose: rotateY(180deg) translateZ(calc(var(--S) / 2 + 1px)); }
+.board-cube .papier.L { --pose: rotateY(-90deg) translateZ(calc(var(--S) / 2 + 1px)); }
+.board-cube .papier.U { --pose: rotateX(90deg) translateZ(calc(var(--S) / 2 + 1px)); }
+.board-cube .papier.D { --pose: rotateX(-90deg) translateZ(calc(var(--S) / 2 + 1px)); }
+.board-cube .cube-3d .noeud { transform: translateY(calc(var(--S) / -2 - var(--c) * 1.9)); }
+.board-cube .cube-3d.emballe { cursor: pointer; }
+.board-cube .cube-zone.emballe .cube-fleche { display: none; }
+.board-cube .cube-3d.deballe .noeud { animation: noeudSaute .7s cubic-bezier(.3,.7,.4,1) forwards; }
+@keyframes noeudSaute { to { transform: translateY(calc(var(--S) / -2 - var(--c) * 9)) rotate(-28deg) scale(.5); opacity: 0; } }
+.board-cube .cube-3d.deballe .papier { animation: papierEnvole .9s .85s ease-in forwards; }
+.board-cube .cube-3d.deballe .papier.F { animation: papierTombe 1s .85s cubic-bezier(.5,0,.8,.6) forwards; }
+@keyframes papierEnvole { 0% { transform: var(--pose); opacity: 1; } 100% { transform: var(--pose) translateZ(calc(var(--c) * 5)); opacity: 0; } }
+@keyframes papierTombe { 0% { transform: var(--pose); opacity: 1; }
+  100% { transform: var(--pose) translateY(calc(var(--S) / 2)) rotateX(-100deg) translateY(calc(var(--S) / -2)); opacity: 0; } }
+.board .deballe .ruban.rv, .board .cube-3d.deballe .ruban.rv { transform-origin: 50% 0; animation: rubanV .45s .35s ease-in forwards; }
+.board .deballe .ruban.rh { transform-origin: 100% 50%; animation: rubanH .45s .35s ease-in forwards; }
+@keyframes rubanV { to { transform: scaleY(0); opacity: .3; } }
+@keyframes rubanH { to { transform: scaleX(0); opacity: .3; } }
+.board .deballe .etiquette { animation: etiquetteTombe .6s .3s ease-in forwards; }
+@keyframes etiquetteTombe { to { transform: translateY(calc(var(--c) * 8)) rotate(40deg); opacity: 0; } }
+.etincelle { position: fixed; z-index: 70; pointer-events: none; opacity: 0; transform: translate(-50%, -50%);
+  animation: etincelle 1.8s ease-out forwards; text-shadow: 0 0 8px currentColor; }
+@keyframes etincelle { 0% { opacity: 0; transform: translate(-50%, -50%) scale(.3); } 12% { opacity: 1; }
+  100% { opacity: 0; transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy) + 40px)) scale(1) rotate(160deg); } }
+@media (max-width: 860px) { .noel-legende { display: none; } }
+@media (max-width: 700px) {
+  body.theme-noel main { padding-top: 22px; }
+  .noel-guirlande { height: 22px; } .noel-guirlande svg { height: 20px; } .noel-guirlande span { top: 11px; width: 7px; height: 10px; }
+  .noel-son { top: auto; bottom: 8px; right: 6px; width: 32px; height: 32px; font-size: 14px; }
+  .noel-son.noel-passer { right: 44px; }
 }

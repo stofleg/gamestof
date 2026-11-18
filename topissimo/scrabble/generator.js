@@ -12,9 +12,9 @@ import {
   bagTotalVowels, bagTotalConsonants, GAME_MODES, layoutPourMode, snakeEndpointsAfter, gigogneRackSize,
   bagFor, valuesFor, setLetterValues, LETTER_VALUE, isCrossingCell, wordHiddenCount,
   drawVowelRack, MARATHON_GAMES, consonnesDisponibles, jokersDisponibles, tireOeufs,
-} from "./engine.js?v=497";
-import { findTopRanked, findTop, snakeBestTop } from "./topfinder.js?v=497";
-import { decoupeRegions } from "./puzzle-pieces.js?v=497";
+} from "./engine.js?v=498";
+import { findTopRanked, findTop, snakeBestTop } from "./topfinder.js?v=498";
+import { decoupeRegions } from "./puzzle-pieces.js?v=498";
 
 const VOWELS_GEN = new Set(["A", "E", "I", "O", "U", "Y"]);
 

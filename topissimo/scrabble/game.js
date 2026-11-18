@@ -31,16 +31,17 @@ import {
   drawVowelRack, VOWELS_NO_Y, MARATHON_TARGET, MARATHON_GAMES, consonnesDisponibles, CONSONANTS_FR, jokersDisponibles,
   tireOeufs, POINTS_OEUF, jokerHorsReliquat, lettresAuChoix,
   geometrie, setGeometrie, casesLigne, GEO_CLASSIQUE,
-} from "./engine.js?v=497";
-import { GEO_CUBE, versFace, versPatron, coupRegleCube, NOM_FACE } from "./cube.js?v=497";
-import * as cubeVue from "./cube-vue.js?v=497";
-import { icosaedre } from "./icosaedre.js?v=497";
-import { Dictionary } from "./dictionary.js?v=497";
-import * as invasion from "./araignees.js?v=497";
-import { REGLES, afficheRegles } from "./regles.js?v=497";
-import * as sonHalloween from "./halloween-son.js?v=497";
-import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=497";
-import { TOURS, TEMPS_COUP, nouveauTournoi, nouvellePartie, jouerPoint, scoreJeu, niveauAtteint, nomNiveau } from "./topsping-regles.js?v=497";
+} from "./engine.js?v=498";
+import { GEO_CUBE, versFace, versPatron, coupRegleCube, NOM_FACE } from "./cube.js?v=498";
+import * as cubeVue from "./cube-vue.js?v=498";
+import { icosaedre } from "./icosaedre.js?v=498";
+import { Dictionary } from "./dictionary.js?v=498";
+import * as invasion from "./araignees.js?v=498";
+import { REGLES, afficheRegles } from "./regles.js?v=498";
+import * as sonHalloween from "./halloween-son.js?v=498";
+import * as noel from "./noel.js?v=498";
+import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=498";
+import { TOURS, TEMPS_COUP, nouveauTournoi, nouvellePartie, jouerPoint, scoreJeu, niveauAtteint, nomNiveau } from "./topsping-regles.js?v=498";
 
 // État du mode review (parcours coup par coup)
 // ===== Géométrie de la grille : classique (15 × 15) ou cube (patron 45 × 60, voir cube.js) =====
@@ -96,7 +97,7 @@ const FFSC_LIVE = URL_PARAMS.get("ffsclive");      // jouer une partie FFSC en d
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v497";
+const BUILD_VERSION = "garenna-v498";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -379,6 +380,7 @@ const ROW_LETTERS = "ABCDEFGHIJKLMNO";
 // Halloween, un scrabble déclenche une nuée de chauves-souris.
 function notePlaced(n) {
   if (n >= 7 && n > state.moveMaxPlaced && themeCouleur() === "halloween") nueeChauvesSouris();
+  if (n >= 7 && n > state.moveMaxPlaced && themeCouleur() === "noel") noel.scrabble();   // le traîneau traverse le ciel
   state.moveMaxPlaced = Math.max(state.moveMaxPlaced, n);
 }
 function nueeChauvesSouris() {
@@ -541,6 +543,68 @@ function renderBoard() {
   invasion.rattache();
   brancheCases(div);
   renderTopFrame();
+  if (themeCouleur() === "noel") div.insertAdjacentHTML("beforeend", `<i class="givre" aria-hidden="true"></i>`);
+  if (cadeauEmballe()) emballePlateau(div);
+}
+
+// ===== Thème Noël : le plateau est un cadeau à ouvrir au début de chaque partie =====
+// Papier cadeau, deux rubans croisés, un nœud et une étiquette ; « Démarrer la partie » (ou un
+// clic sur le cadeau) fait sauter le nœud, glisser les rubans, tomber le papier… et la partie
+// commence. Sur la grille cube, le papier enveloppe les six faces.
+let cadeauOuvert = false, cadeauAnime = false;
+function cadeauEmballe() {
+  return themeCouleur() === "noel" && !cadeauOuvert && !state.started && !review.active && state.chronoFinal == null && !state.isPuzzle;
+}
+const NOEUD_SVG = `<div class="noeud"><svg viewBox="0 0 200 120" aria-hidden="true">
+    <defs><linearGradient id="orNoeud" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffe9a8"/><stop offset=".5" stop-color="#e8c35a"/><stop offset="1" stop-color="#b8892a"/></linearGradient></defs>
+    <path d="M96 70 L60 118 L74 118 L84 104 L92 118 Z M104 70 L140 118 L126 118 L116 104 L108 118 Z" fill="#c99a3a"/>
+    <path d="M98 64 C70 20 18 18 22 52 C26 84 76 78 98 64 Z" fill="url(#orNoeud)" stroke="#a87a22" stroke-width="2"/>
+    <path d="M102 64 C130 20 182 18 178 52 C174 84 124 78 102 64 Z" fill="url(#orNoeud)" stroke="#a87a22" stroke-width="2"/>
+    <path d="M92 60 C70 40 44 36 40 52 M108 60 C130 40 156 36 160 52" stroke="#fff3c9" stroke-width="3" fill="none" opacity=".7"/>
+    <ellipse cx="100" cy="64" rx="13" ry="15" fill="url(#orNoeud)" stroke="#a87a22" stroke-width="2"/>
+  </svg></div>`;
+const ETIQUETTE = `<div class="etiquette">Joyeux Noël !<small>Ouvre-moi</small></div>`;
+function emballePlateau(div) {
+  const ouvre = e => { e.stopPropagation(); $("#btnStart")?.click(); };
+  if (enCube()) {
+    const cube = div.querySelector("#cube3d");
+    if (!cube) return;
+    const V = new Set(["F", "U", "B", "D"]), H = new Set(["F", "R", "B", "L"]);
+    cube.insertAdjacentHTML("beforeend", ["F", "R", "B", "L", "U", "D"].map(f => `<div class="papier ${f}">${V.has(f) ? `<i class="ruban rv"></i>` : ""}${H.has(f) ? `<i class="ruban rh"></i>` : ""}${f === "F" ? ETIQUETTE : ""}</div>`).join("") + NOEUD_SVG);
+    cube.classList.add("emballe");
+    div.querySelector(".cube-zone")?.classList.add("emballe");
+    cube.onclick = ouvre;
+    if (cadeauAnime) cube.classList.add("deballe");
+  } else {
+    div.insertAdjacentHTML("beforeend", `<div class="cadeau-plat${cadeauAnime ? " deballe" : ""}"><div class="papier"><i class="ruban rv"></i><i class="ruban rh"></i>${ETIQUETTE}</div>${NOEUD_SVG}</div>`);
+    div.querySelector(".cadeau-plat").onclick = ouvre;
+  }
+}
+async function ouvreCadeau() {
+  if (cadeauAnime) return;
+  cadeauAnime = true;
+  noel.ouverture();
+  renderBoard();   // relance le rendu avec la classe « deballe » (animations CSS)
+  etincellesCadeau();
+  await new Promise(r => setTimeout(r, 2100));
+  cadeauAnime = false; cadeauOuvert = true;
+  renderBoard();
+}
+/** Pluie d'étoiles dorées qui jaillit autour du plateau quand le papier tombe. */
+function etincellesCadeau() {
+  const zone = $("#board"), r = zone.getBoundingClientRect();
+  for (let i = 0; i < 46; i++) {
+    const e = document.createElement("span");
+    e.className = "etincelle"; e.textContent = ["✦", "✧", "★", "❄"][i % 4];
+    const a = Math.random() * Math.PI * 2, d = r.width * (.3 + Math.random() * .45);
+    e.style.left = r.left + r.width / 2 + "px"; e.style.top = r.top + r.height / 2 + "px";
+    e.style.setProperty("--dx", `${Math.cos(a) * d}px`); e.style.setProperty("--dy", `${Math.sin(a) * d}px`);
+    e.style.animationDelay = `${1.05 + Math.random() * .35}s`;
+    e.style.color = ["#ffe08a", "#fff", "#ffd23f", "#ff8ad8", "#9fe7ff"][i % 5];
+    e.style.fontSize = `${12 + Math.random() * 16}px`;
+    document.body.appendChild(e);
+    setTimeout(() => e.remove(), 3600);
+  }
 }
 
 /** Grille cube : les six faces (tables de cases) sur le cube 3D ; la vue suit le curseur. */
@@ -554,6 +618,10 @@ function renderBoardCube(div, caseHtml) {
     return h + "</table>";
   });
   brancheCases(div);
+  const c3 = div.querySelector("#cube3d");
+  if (c3) { c3.onclick = null; c3.classList.remove("emballe", "deballe"); div.querySelector(".cube-zone")?.classList.remove("emballe"); }
+  if (themeCouleur() === "noel") div.querySelector(".cube-zone")?.classList.add("givree");
+  if (cadeauEmballe()) emballePlateau(div);
   // La vue suit la saisie : quand le curseur (ou une lettre en cours) arrive sur une face cachée,
   // on tourne. Seulement quand il BOUGE (sinon la vue reviendrait sans cesse vers lui).
   const cle = state.cursor ? `${state.cursor.row},${state.cursor.col},${state.pending.length}` : "";
@@ -1746,6 +1814,8 @@ function applyColorTheme() {
   document.body.classList.toggle("theme-duplijeu", theme === "duplijeu");
   document.body.classList.toggle("theme-halloween", theme === "halloween");
   sonHalloween.ambiance(theme === "halloween");
+  noel.ambiance(theme === "noel");   // décor, neige, guirlande, musiques et cheminée (noel.js)
+  if (state.board && $("#board")?.childElementCount) renderBoard();     // cadeau à ouvrir / givre
 }
 
 // Parties du « tournoi de la Mort » (tournoi public) : titres Halloween à la place des
@@ -2952,6 +3022,7 @@ function bestJokerVariant(board, move, dict, opts) {
 // sinon conserve le feedback précédent tel quel.
 function flashInvalidWord(detail, invalidCells) {
   sonHalloween.rire();   // thème Halloween : « Ah ah ah ah ! »
+  noel.rate();           // thème Noël : « Ho ! Ho ! Ho ! »
   state.moveInvalidCount++;  // compteur de mots hors dico
   // Point de départ de la saisie + direction → on y replace le curseur pour que
   // le joueur puisse reprendre immédiatement (ex. AXAO raté en B2 → curseur B2).
@@ -3303,6 +3374,8 @@ function revealTop() {
 
 // Enregistre un coup dans l'historique (pour la feuille de route)
 function recordMove({ status, playerScore, playedWord = null, playedMove = null, dual = null }) {
+  // Thème Noël : grelots quand on trouve le top (un scrabble a déjà eu son traîneau).
+  if (status === "top" && themeCouleur() === "noel" && state.moveMaxPlaced < 7) noel.grelots();
   // Garde-fou pré-tiré : une fois TOUS les coups stockés consommés, la partie est
   // finie — on n'enregistre plus rien (évite un « coup fantôme » en trop, ex. une
   // pause juste après le dernier coup qui, à la reprise, présentait un 24e coup
@@ -4750,7 +4823,8 @@ function populateAdminModes() {
     if (PUBLIC_EVENT) { state.settings.colorTheme = "halloween"; applyColorTheme(); }
     else {
       document.querySelector('#optColorTheme option[value="halloween"]')?.remove();
-      if (state.settings.colorTheme === "halloween") state.settings.colorTheme = "classic";
+      document.querySelector('#optColorTheme option[value="noel"]')?.remove();   // thème Noël : stof seulement
+      if (state.settings.colorTheme === "halloween" || state.settings.colorTheme === "noel") { state.settings.colorTheme = "classic"; applyColorTheme(); }
     }
     if (PUBLIC_EVENT) {
       const home = $("#btnHome");
@@ -4773,6 +4847,7 @@ function populateAdminModes() {
 }
 
 async function initGame() {
+  cadeauOuvert = false;   // thème Noël : chaque nouvelle partie commence par un cadeau à ouvrir
   captureSwVersion();   // détecter un éventuel service worker périmé
   populateAdminModes();
   majBoutonReglages();   // tournoi public : pas de ⚙️ Paramètres
@@ -6733,6 +6808,7 @@ function startGame() {
   if (partieMortEnCours()) saveTrainingState();   // tournoi de la Mort : la partie est « commencée »
   // Invasion : les araignées arrivent dès le début ; plateau recouvert = perdu.
   sonHalloween.nouvellePartie();
+  noel.nouvellePartie();
   // Plateau recouvert = partie perdue : comme pour les 666 s ou un abandon, les coups non joués
   // comptent dans le négatif (sinon le négatif paraissait meilleur que celui des joueurs allés au bout).
   if (currentMode().invasion) invasion.demarre($("#board"), () => {
@@ -6836,7 +6912,7 @@ function tsModeCourant() {
 
 async function tsChargeReserves(nom) {
   return Promise.all(TOURS.map(async (_, i) => {
-    const r = await fetch(`../topsping/${encodeURIComponent(nom)}/tour-${i + 1}.json?v=497`);
+    const r = await fetch(`../topsping/${encodeURIComponent(nom)}/tour-${i + 1}.json?v=498`);
     if (!r.ok) throw new Error(`parties du ${TOURS[i].nom} introuvables (${nom})`);
     return (await r.json()).parties;
   }));
@@ -8148,7 +8224,7 @@ document.addEventListener("keydown", (e) => {
 $$(".annot-btn[data-tool]").forEach(b => {
   b.onclick = () => setAnnotTool(b.dataset.tool || "");
 });
-$("#btnStart").onclick = startGame;
+$("#btnStart").onclick = async () => { if (cadeauEmballe()) await ouvreCadeau(); startGame(); };
 $("#btnGiveUp").onclick = revealTop;
 $("#btnPause").onclick = pauseGame;
 $("#btnResume").onclick = resumeGameGuarded;
