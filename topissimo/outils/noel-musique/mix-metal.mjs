@@ -43,7 +43,7 @@ export async function fabriqueMetal(P, style, graine, m4a, variante = "B", tmp =
   const entrees = [];
   for (const [nom, p] of Object.entries(PISTES)) {
     const brut = `${tmp}/${nom}.wav`, traite = `${tmp}/${nom}-t.wav`;
-    await rendu(r.midiDe(p.canaux), brut);
+    await rendu(r.midiDe(p.canaux), brut, { depuisZero: true });   // même départ pour toutes les pistes
     execFileSync("ffmpeg", ["-hide_banner", "-loglevel", "error", "-y", "-i", brut, "-af", p.chaine(di), "-c:a", "pcm_f32le", traite]);
     const { i } = sonie(traite);
     if (!isFinite(i) || i < -70) continue;                 // piste muette (pas d'orgue, etc.)

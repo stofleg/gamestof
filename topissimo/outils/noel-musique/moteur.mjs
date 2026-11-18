@@ -223,7 +223,9 @@ export function arrange(P, graine = 1) {
 
 // ------------------------------------------------------------ rendu
 let banque = null;
-export async function rendu(bytes, fichierWav) {
+/** `depuisZero` : le rendu commence au temps 0 et non à la première note (indispensable quand
+ *  on rend les instruments séparément pour les mixer : toutes les pistes gardent le même départ). */
+export async function rendu(bytes, fichierWav, { depuisZero = false } = {}) {
   if (!banque) { const sf = await fs.readFile(new URL("./node_modules/generaluser/GeneralUser.sf2", import.meta.url)); banque = SoundBankLoader.fromArrayBuffer(sf.buffer.slice(sf.byteOffset, sf.byteOffset + sf.byteLength)); }
   const midi = BasicMIDI.fromArrayBuffer(new Uint8Array(bytes).buffer);
   const sr = 44100;
@@ -232,6 +234,7 @@ export async function rendu(bytes, fichierWav) {
   await synth.ready;
   synth.setSystemParameter?.("autoAllocateVoices", true);
   const seq = new SpessaSynthSequencer(synth);
+  if (depuisZero) seq.skipToFirstNoteOn = false;
   seq.loadNewSongList([midi]); seq.loopCount = 0; seq.loop = false; seq.play();
   const n = Math.ceil(sr * (midi.duration + 3));
   const L = new Float32Array(n), R = new Float32Array(n);
