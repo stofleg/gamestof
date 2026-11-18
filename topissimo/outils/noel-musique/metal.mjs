@@ -10,7 +10,7 @@ const { writeMidi } = midiFile;
 
 const PC = { C: 0, "C#": 1, Db: 1, D: 2, "D#": 3, Eb: 3, E: 4, F: 5, "F#": 6, Gb: 6, G: 7, "G#": 8, Ab: 8, A: 9, "A#": 10, Bb: 10, B: 11 };
 const KICK = 36, SNARE = 38, HAT = 42, HAT_O = 46, RIDE = 51, CRASH = 49, CRASH2 = 57, CHINA = 52, TOMS = [50, 48, 47, 45, 43, 41];
-const CH = { lead: 0, jumelle: 1, rythG: 2, rythD: 3, basse: 4, claire: 5, choeur: 6, cordes: 7, orgue: 8, drums: 9, hit: 10 };
+export const CH = { lead: 0, jumelle: 1, rythG: 2, rythD: 3, basse: 4, claire: 5, choeur: 6, cordes: 7, orgue: 8, drums: 9, hit: 10 };
 const SONS = {
   // Guitares rythmiques comme deux prises : à fond à gauche et à droite, deux sons (Distortion /
   // Overdrive), légèrement désaccordées l'une de l'autre et jouées avec un léger décalage.
@@ -24,7 +24,9 @@ function accord(a) {
 }
 const parse = (s, u) => s.trim().split(/\s+/).map(x => { const [n, d] = x.split(":"); return { n, q: +d * u }; });
 
-export function metal(P, style = "heavy", graine = 1) {
+/** `opts.di` : guitares jouées en son clair (comme une guitare branchée en direct), la saturation
+ *  et le baffle étant ajoutés au mixage (mix-metal.mjs). */
+export function metal(P, style = "heavy", graine = 1, opts = {}) {
   let s = graine >>> 0;
   const alea = () => { s = (s + 0x6D2B79F5) >>> 0; let t = s; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
   const rnd = a => (alea() * 2 - 1) * a;
@@ -71,9 +73,10 @@ export function metal(P, style = "heavy", graine = 1) {
   };
   const ctl = (t, ch, c, v) => ev.push({ t, type: "controller", channel: ch, controllerType: c, value: v });
   ev.push({ t: 0, type: "setTempo", microsecondsPerBeat: Math.round(60e6 / bpm) });
-  for (const [nom, [prog, vol, pan]] of Object.entries(SONS)) {
-    const ch = CH[nom];
-    ctl(0, ch, 0, 0); ev.push({ t: 0, type: "programChange", channel: ch, programNumber: prog });
+  const DI = { lead: [27, 0], jumelle: [27, 12], rythG: [27, 0], rythD: [27, 12] };
+  for (const [nom, [prog0, vol, pan]] of Object.entries(SONS)) {
+    const ch = CH[nom], [prog, banque] = opts.di && DI[nom] ? DI[nom] : [prog0, 0];
+    ctl(0, ch, 0, banque); ev.push({ t: 0, type: "programChange", channel: ch, programNumber: prog });
     ctl(0, ch, 7, vol); ctl(0, ch, 10, pan); ctl(0, ch, 91, nom === "lead" || nom === "jumelle" ? 14 : nom === "choeur" || nom === "orgue" || nom === "cordes" ? 24 : nom === "claire" ? 18 : 0);
     ctl(0, ch, 93, 0);   // son sec et proche : pas de chorus, presque pas de réverbération
     if (nom === "rythG" || nom === "rythD") ev.push({ t: 0, type: "pitchBend", channel: ch, value: nom === "rythG" ? -300 : 300 });   // ± 7 cents
@@ -271,7 +274,12 @@ export function metal(P, style = "heavy", graine = 1) {
   for (const e of ev) { if (e.type === "setTempo") { glob.push(e); continue; } if (!pistes.has(e.channel)) pistes.set(e.channel, []); pistes.get(e.channel).push(e); }
   glob.push({ t: fini, type: "endOfTrack" });
   const delta = arr => { let p = 0; return arr.map(e => { const { t, ...r } = e; const o = { deltaTime: t - p, ...r }; p = t; return o; }); };
-  const tracks = [delta(glob)];
-  for (const [, arr] of [...pistes.entries()].sort((a, b) => a[0] - b[0])) { arr.push({ t: arr[arr.length - 1].t, type: "endOfTrack" }); tracks.push(delta(arr)); }
-  return { midi: writeMidi({ header: { format: 1, numTracks: tracks.length, ticksPerBeat: TPB }, tracks }), bpm, sections: sections.length };
+  for (const arr of pistes.values()) arr.push({ t: arr[arr.length - 1].t, type: "endOfTrack" });
+  /** MIDI des canaux voulus (tous par défaut) : sert au rendu piste par piste du mixage. */
+  const midiDe = (canaux = null) => {
+    const tracks = [delta(glob)];
+    for (const [ch, arr] of [...pistes.entries()].sort((a, b) => a[0] - b[0])) if (!canaux || canaux.includes(ch)) tracks.push(delta(arr));
+    return writeMidi({ header: { format: 1, numTracks: tracks.length, ticksPerBeat: TPB }, tracks });
+  };
+  return { midi: midiDe(), midiDe, bpm, sections: sections.length };
 }
