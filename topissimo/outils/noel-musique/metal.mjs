@@ -73,7 +73,9 @@ export function metal(P, style = "heavy", graine = 1, opts = {}) {
   };
   const ctl = (t, ch, c, v) => ev.push({ t, type: "controller", channel: ch, controllerType: c, value: v });
   ev.push({ t: 0, type: "setTempo", microsecondsPerBeat: Math.round(60e6 / bpm) });
-  const DI = { lead: [27, 0], jumelle: [27, 12], rythG: [27, 0], rythD: [27, 12] };
+  // En « DI », seules les rythmiques jouent en son clair ; la mélodie part d'une guitare déjà
+  // saturée (Overdrive) que l'ampli pousse encore (plus de tenue, plus de grain).
+  const DI = { rythG: [27, 0], rythD: [27, 12] };
   for (const [nom, [prog0, vol, pan]] of Object.entries(SONS)) {
     const ch = CH[nom], [prog, banque] = opts.di && DI[nom] ? DI[nom] : [prog0, 0];
     ctl(0, ch, 0, banque); ev.push({ t: 0, type: "programChange", channel: ch, programNumber: prog });

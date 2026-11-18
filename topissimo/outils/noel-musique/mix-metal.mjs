@@ -19,7 +19,9 @@ const ampli = (di, gain = 0) => di
 const PISTES = {
   gtrG: { canaux: [CH.rythG], chaine: di => ampli(di), cible: -24 },
   gtrD: { canaux: [CH.rythD], chaine: di => ampli(di), cible: -24 },
-  solo: { canaux: [CH.lead, CH.jumelle], chaine: di => `${ampli(di, 4)},aecho=1:0.9:360:0.2`, cible: -22.5 },
+  // mélodie : compressée avant l'ampli (tenue des notes), pédale qui pousse les médiums, trois étages
+  // de saturation, baffle un peu plus ouvert dans les aigus, écho
+  solo: { canaux: [CH.lead, CH.jumelle], chaine: () => "highpass=f=140,acompressor=threshold=0.1:ratio=6:attack=3:release=120:makeup=3,equalizer=f=800:t=q:w=1:g=7,volume=20dB,asoftclip=type=tanh,volume=-3dB,equalizer=f=1500:t=q:w=1:g=4,volume=14dB,asoftclip=type=tanh,volume=-3dB,volume=8dB,asoftclip=type=atan,volume=-9dB,highpass=f=90,equalizer=f=150:t=q:w=1:g=2,equalizer=f=500:t=q:w=1.2:g=-4,equalizer=f=2600:t=q:w=1:g=4,lowpass=f=6500:p=2,lowpass=f=8000:p=2,aecho=1:0.9:360:0.2", cible: -21.5 },
   basse: { canaux: [CH.basse], chaine: () => "highpass=f=35,acompressor=threshold=0.2:ratio=4:attack=10:release=150,volume=8dB,asoftclip=type=tanh,volume=-8dB,lowpass=f=3500,equalizer=f=80:t=q:w=1:g=2,equalizer=f=800:t=q:w=1:g=2", cible: -25 },
   batterie: { canaux: [CH.drums], chaine: () => "acompressor=threshold=0.25:ratio=3:attack=6:release=120:makeup=1.2,equalizer=f=60:t=q:w=1:g=3,equalizer=f=400:t=q:w=1.2:g=-3,equalizer=f=4500:t=q:w=1:g=3,highshelf=f=9000:g=2,aecho=0.9:0.9:17|29:0.16|0.1", cible: -21 },
   autres: { canaux: [CH.claire, CH.choeur, CH.cordes, CH.orgue, CH.hit], chaine: () => "aecho=0.9:0.9:23|41:0.14|0.08", cible: -26 },
