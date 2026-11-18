@@ -309,7 +309,7 @@ export function ambiance(on) {
   }
   const demarre = () => {
     initialise(); ctx.resume();
-    if (actif) return;
+    if (actif || !document.body.classList.contains("theme-noel")) return;   // thème changé entre-temps
     actif = true; feu(); chargeSons(); morceauSuivantInterne();
   };
   if (ctx && ctx.state === "running") demarre();

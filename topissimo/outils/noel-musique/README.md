@@ -21,3 +21,17 @@ Le corpus music21 se récupère avec `pip download --no-deps music21` (fichiers 
 `music21/corpus/`). Les niveaux de lecture (GAIN_MUSIQUE, NIVEAUX) se règlent dans `noel.js` avec `__mesure`.
 - `traineau.mjs` : passage du traîneau (grelots échantillonnés, trot, célesta, cloches) → `musique/noel-traineau.m4a`.
 - `hohoho.py` : « Ho ! Ho ! Ho ! » par synthèse de voix à formants → `musique/noel-hohoho.m4a`.
+
+## « No Hell ! » (Noël version metal)
+
+- `metal.mjs` : arrangeur metal. Mélodie et accords d'un chant → guitares saturées doublées gauche/droite
+  (accords de puissance étouffés, galop, croches ou doubles croches), basse au médiator, batterie
+  « Power Drums » (double pédale, fills, crashs), guitare solo avec vibrato, guitares jumelles en
+  tierces, solo en arpèges et passage « maléfique » en mineur harmonique. Styles : `heavy`, `thrash`,
+  `ballade` (intro en guitare claire), `symphonique` (orgue, chœur, cordes, coups d'orchestre).
+- `fabrique-metal.mjs` : chaque chant (chants.mjs + populaires.json) en deux styles (trois pour Vive le
+  vent), traitement `traite-metal.mjs` (petite salle, compression de bus, −18 LUFS, AAC), copie dans
+  `scrabble/musique/nohell/` et écriture de `scrabble/nohell-morceaux.js`.
+- `fx-metal.mjs` : effets (top, ouverture du cadeau, scrabble) → `musique/nohell-*.m4a` ; le
+  « HO HO HO » grogné vient de `noel-hohoho.m4a` (ffmpeg : deux voix plus graves, compression,
+  saturation, écho).

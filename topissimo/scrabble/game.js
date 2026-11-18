@@ -40,6 +40,7 @@ import * as invasion from "./araignees.js?v=502";
 import { REGLES, afficheRegles } from "./regles.js?v=502";
 import * as sonHalloween from "./halloween-son.js?v=502";
 import * as noel from "./noel.js?v=502";
+import * as nohell from "./nohell.js?v=502";
 import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=502";
 import { TOURS, TEMPS_COUP, nouveauTournoi, nouvellePartie, jouerPoint, scoreJeu, niveauAtteint, nomNiveau } from "./topsping-regles.js?v=502";
 
@@ -380,7 +381,7 @@ const ROW_LETTERS = "ABCDEFGHIJKLMNO";
 // Halloween, un scrabble déclenche une nuée de chauves-souris.
 function notePlaced(n) {
   if (n >= 7 && n > state.moveMaxPlaced && themeCouleur() === "halloween") nueeChauvesSouris();
-  if (n >= 7 && n > state.moveMaxPlaced && themeCouleur() === "noel") noel.scrabble();   // le traîneau traverse le ciel
+  if (n >= 7 && n > state.moveMaxPlaced) ambianceNoel()?.scrabble();   // le traîneau traverse le ciel
   state.moveMaxPlaced = Math.max(state.moveMaxPlaced, n);
 }
 function nueeChauvesSouris() {
@@ -549,7 +550,7 @@ function renderBoard() {
   invasion.rattache();
   brancheCases(div);
   renderTopFrame();
-  if (themeCouleur() === "noel") div.insertAdjacentHTML("beforeend", `<i class="givre" aria-hidden="true"></i>`);
+  if (ambianceNoel()) div.insertAdjacentHTML("beforeend", `<i class="givre" aria-hidden="true"></i>`);
   if (cadeauEmballe()) emballePlateau(div);
 }
 
@@ -558,8 +559,10 @@ function renderBoard() {
 // clic sur le cadeau) fait sauter le nœud, glisser les rubans, tomber le papier… et la partie
 // commence. Sur la grille cube, le papier enveloppe les six faces.
 let cadeauOuvert = false, cadeauAnime = false;
+/** Module de l'ambiance de Noël active : noel.js, nohell.js (version metal) ou aucun. */
+const ambianceNoel = () => ({ noel, nohell })[themeCouleur()] || null;
 function cadeauEmballe() {
-  return themeCouleur() === "noel" && !cadeauOuvert && !state.started && !review.active && state.chronoFinal == null && !state.isPuzzle;
+  return !!ambianceNoel() && !cadeauOuvert && !state.started && !review.active && state.chronoFinal == null && !state.isPuzzle;
 }
 const NOEUD_SVG = `<div class="noeud"><svg viewBox="0 0 200 120" aria-hidden="true">
     <defs><linearGradient id="orNoeud" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffe9a8"/><stop offset=".5" stop-color="#e8c35a"/><stop offset="1" stop-color="#b8892a"/></linearGradient></defs>
@@ -569,32 +572,64 @@ const NOEUD_SVG = `<div class="noeud"><svg viewBox="0 0 200 120" aria-hidden="tr
     <path d="M92 60 C70 40 44 36 40 52 M108 60 C130 40 156 36 160 52" stroke="#fff3c9" stroke-width="3" fill="none" opacity=".7"/>
     <ellipse cx="100" cy="64" rx="13" ry="15" fill="url(#orNoeud)" stroke="#a87a22" stroke-width="2"/>
   </svg></div>`;
-const ETIQUETTE = `<div class="etiquette">Joyeux Noël !<small>Ouvre-moi</small></div>`;
+const etiquette = () => themeCouleur() === "nohell"
+  ? `<div class="etiquette">No Hell !<small>Ouvre si tu l'oses</small></div>`
+  : `<div class="etiquette">Joyeux Noël !<small>Ouvre-moi</small></div>`;
 function emballePlateau(div) {
   const ouvre = e => { e.stopPropagation(); $("#btnStart")?.click(); };
   if (enCube()) {
     const cube = div.querySelector("#cube3d");
     if (!cube) return;
     const V = new Set(["F", "U", "B", "D"]), H = new Set(["F", "R", "B", "L"]);
-    cube.insertAdjacentHTML("beforeend", ["F", "R", "B", "L", "U", "D"].map(f => `<div class="papier ${f}">${V.has(f) ? `<i class="ruban rv"></i>` : ""}${H.has(f) ? `<i class="ruban rh"></i>` : ""}${f === "F" ? ETIQUETTE : ""}</div>`).join("") + NOEUD_SVG);
+    cube.insertAdjacentHTML("beforeend", ["F", "R", "B", "L", "U", "D"].map(f => `<div class="papier ${f}">${V.has(f) ? `<i class="ruban rv"></i>` : ""}${H.has(f) ? `<i class="ruban rh"></i>` : ""}${f === "F" ? etiquette() : ""}</div>`).join("") + NOEUD_SVG);
     cube.classList.add("emballe");
     div.querySelector(".cube-zone")?.classList.add("emballe");
     cube.onclick = ouvre;
     if (cadeauAnime) cube.classList.add("deballe");
   } else {
-    div.insertAdjacentHTML("beforeend", `<div class="cadeau-plat${cadeauAnime ? " deballe" : ""}"><div class="papier"><i class="ruban rv"></i><i class="ruban rh"></i>${ETIQUETTE}</div>${NOEUD_SVG}</div>`);
+    div.insertAdjacentHTML("beforeend", `<div class="cadeau-plat${cadeauAnime ? " deballe" : ""}"><div class="papier"><i class="ruban rv"></i><i class="ruban rh"></i>${etiquette()}</div>${NOEUD_SVG}</div>`);
     div.querySelector(".cadeau-plat").onclick = ouvre;
   }
 }
 async function ouvreCadeau() {
   if (cadeauAnime) return;
   cadeauAnime = true;
-  noel.ouverture();
+  ambianceNoel()?.ouverture();
   renderBoard();   // relance le rendu avec la classe « deballe » (animations CSS)
   etincellesCadeau();
   await new Promise(r => setTimeout(r, 2100));
   cadeauAnime = false; cadeauOuvert = true;
   renderBoard();
+}
+/** Tournoi de Noël (grille cube) : à l'ouverture, le joueur choisit son ambiance, Noël ou
+ *  No Hell ! (la version metal). Choix mémorisé ; on en change dans ⚙️ (Couleurs). */
+const CLE_AMBIANCE = "topissimo:ambiance-noel";
+async function proposeAmbianceNoel() {
+  if (!document.querySelector('#optColorTheme option[value="nohell"]')) return;   // réservé (stof) pour l'instant
+  let deja = null; try { deja = localStorage.getItem(CLE_AMBIANCE); } catch {}
+  if (deja) return;
+  const choix = await new Promise(ok => {
+    const fond = document.createElement("div");
+    fond.className = "regles-fond choix-ambiance";
+    fond.innerHTML = `<div class="regles-boite" role="dialog" aria-modal="true" aria-labelledby="choixAmbTitre">
+        <div class="regles-sur">Tournoi de Noël</div>
+        <h2 id="choixAmbTitre">Choisis ton ambiance</h2>
+        <div class="amb-cartes">
+          <button type="button" class="amb-carte amb-noel" data-amb="noel"><span class="amb-ico">🎄</span><b>Noël</b>
+            <small>Neige, chants de Noël, feu de cheminée, et le traîneau du père Noël à chaque scrabble.</small></button>
+          <button type="button" class="amb-carte amb-nohell" data-amb="nohell"><span class="amb-ico">🤘</span><b>No Hell !</b>
+            <small>Noël version metal : guitares saturées, braises, et le père Noël en blouson clouté.</small></button>
+        </div>
+        <p class="regles-pied">Tu pourras en changer dans ⚙️ (Couleurs).</p>
+      </div>`;
+    fond.querySelectorAll(".amb-carte").forEach(b => b.onclick = () => { fond.remove(); ok(b.dataset.amb); });
+    document.body.appendChild(fond);
+    fond.querySelector(".amb-carte").focus();
+  });
+  try { localStorage.setItem(CLE_AMBIANCE, choix); } catch {}
+  state.settings.colorTheme = choix;
+  saveSettings(); saveSettingsToSupabase().catch(() => {});
+  applyColorTheme();
 }
 /** Pluie d'étoiles dorées qui jaillit autour du plateau quand le papier tombe. */
 function etincellesCadeau() {
@@ -626,7 +661,7 @@ function renderBoardCube(div, caseHtml) {
   brancheCases(div);
   const c3 = div.querySelector("#cube3d");
   if (c3) { c3.onclick = null; c3.classList.remove("emballe", "deballe"); div.querySelector(".cube-zone")?.classList.remove("emballe"); }
-  if (themeCouleur() === "noel") div.querySelector(".cube-zone")?.classList.add("givree");
+  if (ambianceNoel()) div.querySelector(".cube-zone")?.classList.add("givree");
   if (cadeauEmballe()) emballePlateau(div);
   // La vue suit la saisie : quand le curseur (ou une lettre en cours) arrive sur une face cachée,
   // on tourne. Seulement quand il BOUGE (sinon la vue reviendrait sans cesse vers lui).
@@ -1821,6 +1856,7 @@ function applyColorTheme() {
   document.body.classList.toggle("theme-halloween", theme === "halloween");
   sonHalloween.ambiance(theme === "halloween");
   noel.ambiance(theme === "noel");   // décor, neige, guirlande, musiques et cheminée (noel.js)
+  nohell.ambiance(theme === "nohell");   // la même, version metal (nohell.js)
   if (state.board && $("#board")?.childElementCount) renderBoard();     // cadeau à ouvrir / givre
 }
 
@@ -3029,7 +3065,7 @@ function bestJokerVariant(board, move, dict, opts) {
 // sinon conserve le feedback précédent tel quel.
 function flashInvalidWord(detail, invalidCells) {
   sonHalloween.rire();   // thème Halloween : « Ah ah ah ah ! »
-  noel.rate();           // thème Noël : « Ho ! Ho ! Ho ! »
+  ambianceNoel()?.rate();   // thèmes Noël / No Hell : « Ho ! Ho ! Ho ! »
   state.moveInvalidCount++;  // compteur de mots hors dico
   // Point de départ de la saisie + direction → on y replace le curseur pour que
   // le joueur puisse reprendre immédiatement (ex. AXAO raté en B2 → curseur B2).
@@ -3382,7 +3418,7 @@ function revealTop() {
 // Enregistre un coup dans l'historique (pour la feuille de route)
 function recordMove({ status, playerScore, playedWord = null, playedMove = null, dual = null }) {
   // Thème Noël : grelots quand on trouve le top (un scrabble a déjà eu son traîneau).
-  if (status === "top" && themeCouleur() === "noel" && state.moveMaxPlaced < 7) noel.grelots();
+  if (status === "top" && state.moveMaxPlaced < 7) ambianceNoel()?.grelots();
   // Garde-fou pré-tiré : une fois TOUS les coups stockés consommés, la partie est
   // finie — on n'enregistre plus rien (évite un « coup fantôme » en trop, ex. une
   // pause juste après le dernier coup qui, à la reprise, présentait un 24e coup
@@ -4830,8 +4866,9 @@ function populateAdminModes() {
     if (PUBLIC_EVENT) { state.settings.colorTheme = "halloween"; applyColorTheme(); }
     else {
       document.querySelector('#optColorTheme option[value="halloween"]')?.remove();
-      document.querySelector('#optColorTheme option[value="noel"]')?.remove();   // thème Noël : stof seulement
-      if (state.settings.colorTheme === "halloween" || state.settings.colorTheme === "noel") { state.settings.colorTheme = "classic"; applyColorTheme(); }
+      document.querySelector('#optColorTheme option[value="noel"]')?.remove();   // thèmes Noël et No Hell : stof seulement
+      document.querySelector('#optColorTheme option[value="nohell"]')?.remove();
+      if (["halloween", "noel", "nohell"].includes(state.settings.colorTheme)) { state.settings.colorTheme = "classic"; applyColorTheme(); }
     }
     if (PUBLIC_EVENT) {
       const home = $("#btnHome");
@@ -5054,6 +5091,7 @@ async function initGame() {
   }
   hideFeedback();
   if (bloqueMortMobile()) return;
+  if (currentMode().cube) await proposeAmbianceNoel();
   // Partie de tournoi à formule particulière : la fenêtre des règles s'ouvre dès
   // l'arrivée, AVANT « Démarrer ». On peut revenir au tournoi sans jouer, ou fermer
   // la fenêtre puis cliquer sur « Démarrer » (elle ne se rouvre pas au départ).
@@ -6815,7 +6853,7 @@ function startGame() {
   if (partieMortEnCours()) saveTrainingState();   // tournoi de la Mort : la partie est « commencée »
   // Invasion : les araignées arrivent dès le début ; plateau recouvert = perdu.
   sonHalloween.nouvellePartie();
-  noel.nouvellePartie();
+  ambianceNoel()?.nouvellePartie();
   // Plateau recouvert = partie perdue : comme pour les 666 s ou un abandon, les coups non joués
   // comptent dans le négatif (sinon le négatif paraissait meilleur que celui des joueurs allés au bout).
   if (currentMode().invasion) invasion.demarre($("#board"), () => {
