@@ -5,7 +5,7 @@
 //  gauche/droite quand le cube est droit, haut/bas seulement depuis la face principale.
 //  L'œil est placé un peu au-dessus (on aperçoit le dessus) ; une face pleine reste bien de face.
 // ============================================================
-import { voisin } from "./cube.js?v=501";
+import { voisin } from "./cube.js?v=502";
 
 export const ORDRE = ["F", "R", "B", "L", "U", "D"];
 export const TITRES = { F: "Principale ★", R: "Droite", B: "Arrière", L: "Gauche", U: "Dessus", D: "Dessous" };
@@ -75,7 +75,8 @@ export function dessine(div, tableFace) {
       const dx = t.clientX - d.x, dy = t.clientY - d.y, ax = Math.abs(dx), ay = Math.abs(dy);
       if (Math.max(ax, ay) < 30) return;            // simple toucher : clic sur la case
       e.preventDefault();                           // pas de clic sur la case après un swipe
-      pivote(ax > ay ? (dx < 0 ? "droite" : "gauche") : (dy < 0 ? "bas" : "haut"));
+      const sens = ax > ay ? (dx < 0 ? "droite" : "gauche") : (dy < 0 ? "bas" : "haut");
+      if (!enAnimation && raisonRefus(sens)) refus(sens); else pivote(sens);
     });
   }
   const vis = visibles();
@@ -102,6 +103,33 @@ async function anime(k, p, pas) {
   rendu?.();
   await sleep(Math.min(300 + 170 * pas, 900) + 40);
   enAnimation = false;
+}
+/** Pourquoi ce huitième de tour est interdit (null s'il est permis). */
+function raisonRefus(sens) {
+  const h = sens === "gauche" || sens === "droite";
+  if (h && V.p !== 0) return "Pour tourner à gauche ou à droite, reviens d'abord à la face principale ★";
+  if (!h && !droit()) return "Pour voir le dessus ou le dessous, reviens d'abord à la face principale ★";
+  if (!h && Math.abs(V.p + (sens === "haut" ? 1 : -1)) > 2) return sens === "haut" ? "Tu vois déjà le dessus en entier" : "Tu vois déjà le dessous en entier";
+  return null;
+}
+/** Swipe interdit : le cube rebondit dans le sens du geste, un panneau « sens interdit » apparaît
+ *  sur le cube et une bulle dit quoi faire. */
+let refusT = null;
+function refus(sens) {
+  const vueEl = document.getElementById("cubeVue");
+  if (!vueEl) return;
+  vueEl.querySelector(".cube-refus")?.remove();
+  const scene = vueEl.querySelector(".cube-scene");
+  scene.classList.remove("rebond", "r-gauche", "r-droite", "r-haut", "r-bas"); void scene.offsetWidth;
+  // le doigt allait vers la gauche quand on demande la face de droite
+  scene.classList.add("rebond", { droite: "r-gauche", gauche: "r-droite", haut: "r-bas", bas: "r-haut" }[sens]);
+  const el = document.createElement("div");
+  el.className = "cube-refus"; el.setAttribute("role", "status");
+  el.innerHTML = `<span class="cube-interdit" aria-hidden="true"></span><span class="cube-refus-txt">${raisonRefus(sens)}</span>`;
+  vueEl.appendChild(el);
+  navigator.vibrate?.(40);
+  clearTimeout(refusT);
+  refusT = setTimeout(() => { el.classList.add("part"); setTimeout(() => el.remove(), 400); scene.classList.remove("rebond"); }, 1800);
 }
 /** Flèche : un huitième de tour. */
 export async function pivote(sens) {

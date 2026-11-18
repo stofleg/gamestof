@@ -1,6 +1,7 @@
 //  Règles des formules superoriginales, affichées à l'ouverture d'une partie.
 //  Public : joueurs aguerris qui connaissent le topping par cœur — on ne décrit
 //  QUE ce qui change par rapport à une partie normale.
+const toucher = () => typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches;
 export const REGLES = {
   "6lettres": {
     titre: "6 lettres",
@@ -140,6 +141,22 @@ export const REGLES = {
       "Si elles recouvrent <b>tout le plateau</b>, la partie est perdue. La pause les fige.",
     ],
   },
+  // Grille cube : le texte sur la rotation dépend de l'appareil (doigt ou flèches).
+  cube: {
+    titre: "Grille cube 🧊",
+    get illustration() { return toucher() ? `<div class="regles-swipe" aria-hidden="true"><div class="rs-cube"><i></i><i></i><i></i></div><span class="rs-doigt">👆</span></div>` : ""; },
+    get points() {
+      return [
+        "La grille est un <b>cube</b> : six faces de 15 × 15, et <b>six jeux</b> de lettres dans le sac (12 jokers).",
+        "Les mots font le tour du cube par les <b>quatre faces du milieu</b>, et passent de la face principale ★ au <b>dessus</b> et au <b>dessous</b>. Les autres arêtes sont des <b>murs</b> (trait foncé).",
+        "Le premier mot passe par l'étoile ★ de la face principale.",
+        toucher()
+          ? "<b>Glisse le doigt sur le cube</b> pour le faire tourner : vers la gauche ou la droite pour en faire le tour, vers le haut ou le bas pour voir le dessous ou le dessus (depuis la face principale ★ seulement)."
+          : "Les <b>flèches</b> autour du cube le font tourner : à gauche ou à droite pour en faire le tour, en haut ou en bas pour voir le dessus ou le dessous (depuis la face principale ★ seulement).",
+        "Le cube tourne aussi tout seul pour suivre ton curseur et te montrer le top.",
+      ];
+    },
+  },
   puzzle: {
     titre: "Grille puzzle 🧩",
     sansPied: true,
@@ -165,6 +182,7 @@ export function afficheRegles(cle, titre = null, origine = null, retour = null, 
     fond.innerHTML = `<div class="regles-boite" role="dialog" aria-modal="true" aria-labelledby="reglesTitre">
         <div class="regles-sur">${titre ? "Le tournoi de la Mort" : "Formule superoriginale"}</div>
         <h2 id="reglesTitre">${titre || r.titre}${origine ? ` <small class="regles-origine">${origine}</small>` : ""}</h2>
+        ${r.illustration || ""}
         <ul>${r.points.map(p => `<li>${p}</li>`).join("")}</ul>
         ${r.sansPied ? "" : '<p class="regles-pied">Le reste : règles habituelles du topping.</p>'}
         ${titre ? '<p class="regles-mort">⏸ <b>Pause</b> : demande-la quand tu veux, elle commence à la fin du coup en cours (top trouvé ou temps écoulé). En pause, tu peux quitter et revenir plus tard.<br>⚠️ Changer d\'onglet n\'arrête pas le chrono, et <b>quitter la partie en cours de coup</b> la fait considérer comme <b>abandonnée</b>.</p>' : ""}

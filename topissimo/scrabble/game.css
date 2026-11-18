@@ -2087,7 +2087,7 @@ body.in-live #actionRowInGame #btnPause { display: none !important; }
 /* Halloween : deux morts-vivants à la place du squelette qui danse (le pendu reste) */
 body.theme-halloween::before {
   right: 1%; bottom: 0; width: 300px; height: 197px;
-  background: url("zombies.svg?v=501") no-repeat center bottom / contain;
+  background: url("zombies.svg?v=502") no-repeat center bottom / contain;
   filter: drop-shadow(0 0 6px rgba(120,200,90,.25));
   transform-origin: 50% 100%;
   animation: hw-zombies 5s ease-in-out infinite alternate;
@@ -2417,3 +2417,36 @@ body.theme-noel .board > .givre::before, body.theme-noel .board-cube .cube-face 
   .noel-son { top: auto; bottom: 8px; right: 6px; width: 32px; height: 32px; font-size: 14px; }
   .noel-son.noel-passer { right: 44px; }
 }
+
+/* Grille cube : swipe interdit (rebond + panneau sens interdit + bulle) */
+.board-cube .cube-scene.rebond.r-gauche { animation: rebondG .45s ease-out; }
+.board-cube .cube-scene.rebond.r-droite { animation: rebondD .45s ease-out; }
+.board-cube .cube-scene.rebond.r-haut { animation: rebondH .45s ease-out; }
+.board-cube .cube-scene.rebond.r-bas { animation: rebondB .45s ease-out; }
+@keyframes rebondG { 30% { translate: -14px 0; } 60% { translate: 5px 0; } 100% { translate: 0 0; } }
+@keyframes rebondD { 30% { translate: 14px 0; } 60% { translate: -5px 0; } 100% { translate: 0 0; } }
+@keyframes rebondH { 30% { translate: 0 -14px; } 60% { translate: 0 5px; } 100% { translate: 0 0; } }
+@keyframes rebondB { 30% { translate: 0 14px; } 60% { translate: 0 -5px; } 100% { translate: 0 0; } }
+.board-cube .cube-refus { position: absolute; left: 50%; top: var(--yc); transform: translate(-50%, -50%); z-index: 45; pointer-events: none;
+  display: grid; justify-items: center; gap: 10px; width: min(86%, 300px); animation: refusVient .2s ease-out; transition: opacity .35s; }
+.board-cube .cube-refus.part { opacity: 0; }
+@keyframes refusVient { from { opacity: 0; transform: translate(-50%, -50%) scale(.8); } }
+.board-cube .cube-interdit { position: relative; width: 58px; height: 58px; border-radius: 50%; background: #c62828;
+  box-shadow: 0 0 0 3px #fff, 0 4px 14px rgba(0,0,0,.35); }
+.board-cube .cube-interdit::after { content: ""; position: absolute; left: 12px; right: 12px; top: calc(50% - 5px); height: 10px; border-radius: 3px; background: #fff; }
+.board-cube .cube-refus-txt { background: rgba(0,46,68,.92); color: #fff; font: 600 .85rem/1.3 Inter, sans-serif; text-align: center;
+  padding: 8px 12px; border-radius: 10px; box-shadow: 0 4px 14px rgba(0,0,0,.3); }
+@media (prefers-reduced-motion: reduce) { .board-cube .cube-scene.rebond { animation: none !important; } }
+
+/* Règles de la grille cube : petit cube et doigt qui glisse */
+.regles-swipe { display: grid; place-items: center; height: 92px; position: relative; margin: 4px 0 6px; perspective: 260px; }
+.regles-swipe .rs-cube { width: 54px; height: 54px; position: relative; transform-style: preserve-3d; animation: rsTourne 2.4s ease-in-out infinite; transform: rotateX(-18deg); }
+.regles-swipe .rs-cube i { position: absolute; inset: 0; border: 2px solid var(--petrol, #002e44);
+  background: repeating-linear-gradient(0deg, transparent 0 9px, rgba(0,46,68,.25) 9px 10px), repeating-linear-gradient(90deg, #f6efdb 0 9px, rgba(0,46,68,.25) 9px 10px); }
+.regles-swipe .rs-cube i:nth-child(1) { transform: translateZ(27px); }
+.regles-swipe .rs-cube i:nth-child(2) { transform: rotateY(90deg) translateZ(27px); }
+.regles-swipe .rs-cube i:nth-child(3) { transform: rotateX(90deg) translateZ(27px); background: #e9dfc2; }
+@keyframes rsTourne { 0%, 20% { transform: rotateX(-18deg) rotateY(0); } 55%, 100% { transform: rotateX(-18deg) rotateY(-90deg); } }
+.regles-swipe .rs-doigt { position: absolute; top: 46px; left: calc(50% + 10px); font-size: 30px; animation: rsDoigt 2.4s ease-in-out infinite; }
+@keyframes rsDoigt { 0%, 15% { translate: 26px 0; opacity: 0; } 22% { opacity: 1; } 55% { translate: -40px 0; opacity: 1; } 70%, 100% { translate: -40px 0; opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .regles-swipe .rs-cube, .regles-swipe .rs-doigt { animation: none; } }
