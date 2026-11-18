@@ -2,9 +2,7 @@
 // rendu (GeneralUser GS), traitement (traite-metal.mjs) et écriture de scrabble/nohell-morceaux.js.
 import * as fs from "node:fs/promises";
 import { execFileSync } from "node:child_process";
-import { metal } from "./metal.mjs";
-import { rendu } from "./moteur.mjs";
-import { traiteMetal } from "./traite-metal.mjs";
+import { fabriqueMetal } from "./mix-metal.mjs";
 import { MORCEAUX } from "./chants.mjs";
 const DEST = "/home/user/gamestof/topissimo/scrabble";
 const pop = JSON.parse(await fs.readFile("populaires.json", "utf8"));
@@ -17,20 +15,22 @@ const liste = [
 ];
 const slug = t => t.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40);
 await fs.mkdir("sortie-metal", { recursive: true });
-const out = []; let k = 0, total = 0;
-for (const [P, styles] of liste) for (const st of styles) {
-  k++;
-  const f = `${String(k).padStart(2, "0")}-${slug(P.titre)}-${st}.m4a`;
-  const { midi } = metal(P, st, 1000 + k * 17);
-  if (!(await fs.stat(`sortie-metal/${f}`).catch(() => null))) {
-    await rendu(midi, `sortie-metal/tmp.wav`);
-    await traiteMetal(`sortie-metal/tmp.wav`, `sortie-metal/${f}`);
+// trois morceaux à la fois (rendu piste par piste et mixage : environ 1 min 40 par morceau)
+const travaux = [];
+let k = 0;
+for (const [P, styles] of liste) for (const st of styles) { k++; travaux.push({ P, st, k, f: `${String(k).padStart(2, "0")}-${slug(P.titre)}-${st}.m4a` }); }
+const out = new Array(travaux.length); let total = 0, suivant = 0;
+async function ouvrier(id) {
+  while (suivant < travaux.length) {
+    const { P, st, k, f } = travaux[suivant++];
+    if (!(await fs.stat(`sortie-metal/${f}`).catch(() => null))) await fabriqueMetal(P, st, 1000 + k * 17, `sortie-metal/${f}`, "B", `tmp-mix-${id}`);
+    const d = +execFileSync("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", `sortie-metal/${f}`]).toString();
+    total += d;
+    out[k - 1] = { f: `nohell/${f}`, titre: `${P.titre} (${NOM[st]})`, credit: `${P.credit} — domaine public · arrangement metal Topissimo`, duree: Math.round(d), cat: st };
+    console.log(k, f, Math.round(d), "s");
   }
-  const d = +execFileSync("ffprobe", ["-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", `sortie-metal/${f}`]).toString();
-  total += d;
-  out.push({ f: `nohell/${f}`, titre: `${P.titre} (${NOM[st]})`, credit: `${P.credit} — domaine public · arrangement metal Topissimo`, duree: Math.round(d), cat: st });
-  console.log(k, f, Math.round(d), "s");
 }
+await Promise.all([1, 2, 3].map(ouvrier));
 await fs.rm(`${DEST}/musique/nohell`, { recursive: true, force: true });
 await fs.mkdir(`${DEST}/musique/nohell`, { recursive: true });
 for (const m of out) await fs.copyFile(`sortie-metal/${m.f.slice(7)}`, `${DEST}/musique/${m.f}`);

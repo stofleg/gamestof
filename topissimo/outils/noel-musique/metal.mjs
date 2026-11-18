@@ -22,6 +22,67 @@ function accord(a) {
   const m = /^([A-G][#b]?)(.*)$/.exec(a);
   return { root: PC[m[1]], mineur: /^m(?!aj)|dim/.test(m[2]) };
 }
+/** Réharmonisation pour le metal : un accord par demi-mesure (par mesure en 3/4 ou 2/4), choisi
+ *  parmi les accords de la tonalité par programmation dynamique (Viterbi). Une note de mélodie sur
+ *  un temps fort doit appartenir à l'accord (fondamentale, tierce, quinte ; septième sur la
+ *  dominante) ; les frottements forts avec un accord de puissance (seconde mineure, triton, septième
+ *  majeure) sont pénalisés ; on préfère l'accord d'origine quand il convient, les enchaînements
+ *  de quarte ou de quinte, et on finit sur la tonique. */
+function reharmonise(mel, accs, { bar, compose, levee, tonique, mineur }) {
+  const total = mel.reduce((a, x) => a + x.q, 0);
+  const seg = compose ? 1.5 : 1;          // un accord possible par temps
+  const bornes = [0];
+  if (levee > 1e-6) bornes.push(levee);
+  for (let x = levee + seg; x < total - 1e-6; x += seg) bornes.push(x);
+  bornes.push(total);
+  const DEGRES = mineur
+    ? [[0, true], [3, false], [5, true], [7, false], [8, false], [10, false]]
+    : [[0, false], [2, true], [4, true], [5, false], [7, false], [9, true], [10, false]];
+  const cands = DEGRES.map(([d, m]) => ({ root: (tonique + d) % 12, mineur: m, d }));
+  // notes de la mélodie avec leur début et leur poids métrique
+  const notes = []; { let t = 0; for (const x of mel) { if (x.n !== "-") notes.push({ t, q: x.q, pc: ((PC_NOTE(x.n) % 12) + 12) % 12 }); t += x.q; } }
+  const origine = t => { let x = 0; for (const a of accs) { if (t < x + a.q - 1e-6) return a; x += a.q; } return accs[accs.length - 1]; };
+  const poids = t => { const dansMesure = ((t - levee) % bar + bar) % bar; return dansMesure < 1e-6 ? 1.6 : (compose ? Math.abs(dansMesure % 1.5) < 1e-6 : Math.abs(dansMesure % 1) < 1e-6) ? 1.15 : .55; };
+  const score = (c, a, b) => {
+    let sc = 0;
+    for (const n of notes) {
+      const deb = Math.max(n.t, a), fin = Math.min(n.t + n.q, b);
+      if (fin <= deb + 1e-6) continue;
+      const w = (fin - deb) * (n.t >= a - 1e-6 ? poids(n.t) : .5);
+      const iv = ((n.pc - c.root) % 12 + 12) % 12, tierce = c.mineur ? 3 : 4, autre = c.mineur ? 4 : 3;
+      sc += w * (iv === 0 || iv === 7 || iv === tierce ? 1 : iv === 10 && c.d === 7 ? .6 : iv === autre ? -2 : [1, 6, 11].includes(iv) ? -1.8 : -.9);
+    }
+    const o = origine(a + 1e-3);
+    if (o.root === c.root) sc += .35 * (b - a);
+    return sc;
+  };
+  const n = bornes.length - 1;
+  let prec = cands.map(c => ({ s: score(c, bornes[0], bornes[1]) + (c.d === 0 ? .3 : c.d === 7 ? .15 : 0), chemin: [c] }));
+  for (let i = 1; i < n; i++) {
+    const a = bornes[i], b = bornes[i + 1], der = i === n - 1;
+    prec = cands.map(c => {
+      let meilleur = null;
+      for (const p of prec) {
+        const r = p.chemin[p.chemin.length - 1], saut = ((c.root - r.root) % 12 + 12) % 12;
+        // changer d'accord : naturel en début de mesure, possible à la demi-mesure, rare ailleurs
+        const pos = ((a - levee) % bar + bar) % bar, debutMesure = pos < 1e-6, demi = !compose && bar === 4 && Math.abs(pos - 2) < 1e-6;
+        const demiBar2 = !compose && bar === 2 && Math.abs(pos - 1) < 1e-6;
+        const change = saut === 0 && r.mineur === c.mineur ? .3 : debutMesure ? 0 : (demi || demiBar2 || compose) ? -.25 : bar >= 4 ? -99 : -.7;
+        const t = p.s + change + (saut === 5 || saut === 7 ? .15 : 0) + (der && c.d === 0 ? 6 : 0) + (i === n - 2 && c.d === 7 ? .4 : 0);
+        if (!meilleur || t > meilleur.s) meilleur = { s: t, chemin: p.chemin };
+      }
+      return { s: meilleur.s + score(c, a, b), chemin: [...meilleur.chemin, c] };
+    });
+  }
+  const chemin = prec.reduce((x, y) => (y.s > x.s ? y : x)).chemin;
+  const out = [];
+  chemin.forEach((c, i) => {
+    const q = bornes[i + 1] - bornes[i], der = out[out.length - 1];
+    if (der && der.root === c.root && der.mineur === c.mineur && i !== 1) der.q += q; else out.push({ root: c.root, mineur: c.mineur, q });
+  });
+  return out;
+}
+const PC_NOTE = n => midiNote(n);
 const parse = (s, u) => s.trim().split(/\s+/).map(x => { const [n, d] = x.split(":"); return { n, q: +d * u }; });
 
 /** `opts.di` : guitares jouées en son clair (comme une guitare branchée en direct), la saturation
@@ -38,6 +99,7 @@ export function metal(P, style = "heavy", graine = 1, opts = {}) {
   const levee = (P.levee || 0) * u, pad = levee ? bar - levee : 0;
   const final = accs[accs.length - 1];
   const tonique = final.root, mineur = P.mineur || final.mineur;
+  if (!opts.harmonieOrigine) accs.splice(0, accs.length, ...reharmonise(mel, accs, { bar, compose, levee: (P.levee || 0) * u, tonique, mineur }));
 
   // ----- tempo : la noire (ou la noire pointée en mesure composée) selon le style
   const brefs = Math.min(...mel.map(x => x.q).filter(q => q > 0));
