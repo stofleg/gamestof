@@ -12,8 +12,10 @@ const PC = { C: 0, "C#": 1, Db: 1, D: 2, "D#": 3, Eb: 3, E: 4, F: 5, "F#": 6, Gb
 const KICK = 36, SNARE = 38, HAT = 42, HAT_O = 46, RIDE = 51, CRASH = 49, CRASH2 = 57, CHINA = 52, TOMS = [50, 48, 47, 45, 43, 41];
 const CH = { lead: 0, jumelle: 1, rythG: 2, rythD: 3, basse: 4, claire: 5, choeur: 6, cordes: 7, orgue: 8, drums: 9, hit: 10 };
 const SONS = {
-  lead: [29, 74, 64], jumelle: [29, 62, 92], rythG: [30, 84, 14], rythD: [30, 84, 114], basse: [34, 100, 64],
-  claire: [27, 90, 56], choeur: [52, 70, 64], cordes: [48, 64, 72], orgue: [19, 84, 64], drums: [16, 110, 64], hit: [55, 84, 64],
+  // Guitares rythmiques comme deux prises : à fond à gauche et à droite, deux sons (Distortion /
+  // Overdrive), légèrement désaccordées l'une de l'autre et jouées avec un léger décalage.
+  lead: [29, 74, 52], jumelle: [29, 62, 96], rythG: [30, 86, 0], rythD: [29, 92, 127], basse: [34, 100, 64],
+  claire: [27, 90, 40], choeur: [52, 70, 64], cordes: [48, 64, 88], orgue: [19, 84, 64], drums: [16, 110, 64], hit: [55, 84, 64],
 };
 
 function accord(a) {
@@ -74,6 +76,7 @@ export function metal(P, style = "heavy", graine = 1) {
     ctl(0, ch, 0, 0); ev.push({ t: 0, type: "programChange", channel: ch, programNumber: prog });
     ctl(0, ch, 7, vol); ctl(0, ch, 10, pan); ctl(0, ch, 91, nom === "lead" || nom === "jumelle" ? 14 : nom === "choeur" || nom === "orgue" || nom === "cordes" ? 24 : nom === "claire" ? 18 : 0);
     ctl(0, ch, 93, 0);   // son sec et proche : pas de chorus, presque pas de réverbération
+    if (nom === "rythG" || nom === "rythD") ev.push({ t: 0, type: "pitchBend", channel: ch, value: nom === "rythG" ? -300 : 300 });   // ± 7 cents
     // amplitude du pitch bend : 2 demi-tons
     ctl(0, ch, 101, 0); ctl(0, ch, 100, 0); ctl(0, ch, 6, 2); ctl(0, ch, 38, 0);
   }
@@ -135,7 +138,7 @@ export function metal(P, style = "heavy", graine = 1) {
       const r = grave(mal ? malefique(A.root + 60) - 60 : A.root);
       const puissance = [r, r + 7, r + 12], etouffe = [r, r + 7];
       const joue = (x, d, plein, v) => {
-        for (const [ch, h] of [[CH.rythG, 0], [CH.rythD, 9]]) for (const n of (plein ? puissance : etouffe)) note(ch, n, q + x, d, v, h);
+        for (const [ch, h] of [[CH.rythG, 6], [CH.rythD, 22]]) for (const n of (plein ? puissance : etouffe)) note(ch, n, q + x, d, v - (ch === CH.rythD ? 4 : 0), h);
         note(CH.basse, r - 12 + (r - 12 < 28 ? 12 : 0), q + x, d, v + 6, 3);
       };
       if (jeu === "tenu") { for (let x = 0; x < A.q - 1e-6; x += bar) joue(x, Math.min(bar, A.q - x), true, 96); }
@@ -252,13 +255,13 @@ export function metal(P, style = "heavy", graine = 1) {
   });
   // fin : accord de puissance qui sonne, crash, roulement, coup final
   const r = grave(style === "thrash" ? tonique : tonique);
-  for (const [ch, h] of [[CH.rythG, 0], [CH.rythD, 9]]) for (const n of [r, r + 7, r + 12]) note(ch, n, q, bar * 2, 110, h);
+  for (const [ch, h] of [[CH.rythG, 6], [CH.rythD, 22]]) for (const n of [r, r + 7, r + 12]) note(ch, n, q, bar * 2, 110, h);
   note(CH.basse, r - 12 + (r - 12 < 28 ? 12 : 0), q, bar * 2, 110);
   note(CH.lead, 64 + ((tonique - 4) % 12 + 12) % 12 + 12, q, bar * 2, 104); vibrato(CH.lead, q, bar * 2, 1600);
   crash(q, 120); note(CH.drums, CHINA, q, 2, 100);
   for (let x = 0; x < bar * 2 - .5; x += .125) note(CH.drums, x % .5 === 0 ? TOMS[0] : SNARE, q + x, .1, 60 + x * 12, 2);
   crash(q + bar * 2, 124); note(CH.drums, KICK, q + bar * 2, .5, 124); note(CH.drums, CHINA, q + bar * 2, 2, 110);
-  for (const [ch, h] of [[CH.rythG, 0], [CH.rythD, 9]]) for (const n of [r, r + 7, r + 12]) note(ch, n, q + bar * 2, 3, 112, h);
+  for (const [ch, h] of [[CH.rythG, 6], [CH.rythD, 22]]) for (const n of [r, r + 7, r + 12]) note(ch, n, q + bar * 2, 3, 112, h);
   note(CH.basse, r - 12 + (r - 12 < 28 ? 12 : 0), q + bar * 2, 3, 112);
   if (style === "symphonique") { note(CH.hit, 60 + tonique, q + bar * 2, 2, 120); for (const n of [60, 64 - (mineur ? 1 : 0), 67]) note(CH.choeur, n + tonique, q, bar * 2 + 3, 90); }
   const fini = T(q + bar * 2 + 3) + TPB * 4;

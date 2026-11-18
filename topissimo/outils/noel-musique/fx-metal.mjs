@@ -10,11 +10,12 @@ function piste(bpm, fn) {
   const n = (ch, k, q, d, v) => { ev.push({ t: T(q), type: "noteOn", channel: ch, noteNumber: k, velocity: v }); ev.push({ t: T(q + d), type: "noteOff", channel: ch, noteNumber: k, velocity: 0 }); };
   const c = (t, ch, cc, v) => ev.push({ t, type: "controller", channel: ch, controllerType: cc, value: v });
   ev.push({ t: 0, type: "setTempo", microsecondsPerBeat: Math.round(60e6 / bpm) });
-  for (const [ch, prog, pan, vol] of [[0, 30, 14, 100], [1, 30, 114, 100], [2, 34, 64, 104], [3, 29, 64, 96], [4, 52, 64, 80], [9, 16, 64, 120]]) {
+  for (const [ch, prog, pan, vol] of [[0, 30, 0, 100], [1, 29, 127, 104], [2, 34, 64, 104], [3, 29, 64, 96], [4, 52, 64, 80], [9, 16, 64, 120]]) {
     c(0, ch, 0, 0); ev.push({ t: 0, type: "programChange", channel: ch, programNumber: prog }); c(0, ch, 10, pan); c(0, ch, 7, vol); c(0, ch, 91, ch === 3 ? 14 : 0); c(0, ch, 93, 0);
     c(0, ch, 101, 0); c(0, ch, 100, 0); c(0, ch, 6, 12); c(0, ch, 38, 0);   // pitch bend : 12 demi-tons
   }
   const pb = (q, ch, v) => ev.push({ t: T(q), type: "pitchBend", channel: ch, value: v });
+  pb(0, 0, -48); pb(0, 1, 48);   // guitares gauche/droite désaccordées de ± 7 cents (deux prises)
   const fin = fn({ n, pb, T });
   ev.sort((a, b) => a.t - b.t || (a.type === "noteOff" ? -1 : 1));
   const pistes = new Map(), glob = [];
@@ -24,7 +25,7 @@ function piste(bpm, fn) {
   const tracks = [delta(glob), ...[...pistes.values()].map(a => { a.push({ t: a[a.length - 1].t, type: "endOfTrack" }); return delta(a); })];
   return writeMidi({ header: { format: 1, numTracks: tracks.length, ticksPerBeat: TPB }, tracks });
 }
-const accord = (n, q, d, v, r = 40) => { for (const ch of [0, 1]) for (const k of [r, r + 7, r + 12]) n(ch, k, q, d, v); n(2, r - 12, q, d, v); };
+const accord = (n, q, d, v, r = 40) => { for (const ch of [0, 1]) for (const k of [r, r + 7, r + 12]) n(ch, k, q + (ch ? .03 : 0), d, v); n(2, r - 12, q, d, v); };
 const FX = {
   top: piste(140, ({ n }) => {
     accord(n, 0, 2.6, 118, 45); n(9, 49, 0, 2, 120); n(9, 36, 0, .5, 120); n(9, 38, 0, .5, 100);
