@@ -168,12 +168,17 @@ export function metal(P, style = "heavy", graine = 1, opts = {}) {
       if (jeu === "calme") { for (let x = 0; x < bar - 1e-6; x += compose ? .5 : .5) note(CH.drums, RIDE, q + x, .4, 58 + (x % pulse === 0 ? 12 : 0), 4); if (m % 2 === 0) note(CH.drums, KICK, q, .5, 70); continue; }
       const finFill = dernier ? Math.min(bar, compose ? 1.5 : (bar >= 4 ? 2 : 1)) : 0, limite = bar - finFill;
       // cymbales : charleston (couplet), ride ou crash en noires (refrain), china au contretemps (thrash)
-      const pasC = jeu === "groove" ? .5 : compose ? .5 : 1;
+      const pasC = jeu === "groove" ? (compose ? .5 : .25) : compose ? .5 : 1;
       for (let x = 0; x < limite - 1e-6; x += pasC) {
         const inst = jeu === "groove" ? HAT : jeu === "double" ? (x === 0 ? CRASH : RIDE) : jeu === "thrash" ? (x % 2 ? CHINA : RIDE) : RIDE;
-        note(CH.drums, inst, q + x, .4, (x % pulse === 0 ? 92 : 70) - (inst === RIDE ? 6 : 0), 4);
+        note(CH.drums, inst, q + x, .3, (x % pulse === 0 ? 96 : x % .5 === 0 ? 78 : 58) - (inst === RIDE ? 6 : 0), 4);
       }
       if (jeu === "groove" && m % 4 === 3 && !dernier) note(CH.drums, HAT_O, q + bar - .5, .5, 84);
+      if ((jeu === "double" || jeu === "galop") && m % 2 === 0 && m > 0) crash(q, 104);
+      // coups fantômes à la caisse claire (juste avant les temps de caisse claire)
+      if ((jeu === "groove" || jeu === "galop") && !compose && bar === 4) for (const g of [1.75, 3.75]) if (g < bar - (dernier ? 2 : 0)) note(CH.drums, SNARE, q + g, .1, 38, 3);
+      // mini-roulement sur le dernier temps toutes les 4 mesures
+      if (!dernier && m % 4 === 3 && jeu !== "thrash") for (let k = 0; k < 4; k++) note(CH.drums, [SNARE, SNARE, TOMS[1], TOMS[3]][k], q + bar - 1 + k * .25, .2, 88 + k * 6, 2);
       // grosse caisse et caisse claire
       const caisses = compose ? (bar === 3 ? [1.5] : [1.5, 4.5].filter(x => x < bar)) : bar === 4 ? [1, 3] : bar === 3 ? (jeu === "double" ? [1, 2] : [2]) : bar === 2 ? [1] : [1];
       if (jeu === "thrash" && !compose) {

@@ -27,7 +27,9 @@ const PISTES = {
   solo: { canaux: [CH.lead], chaine: () => SOLO, cible: -21.5 },
   jumelle: { canaux: [CH.jumelle], chaine: () => SOLO, cible: -25 },
   basse: { canaux: [CH.basse], chaine: () => "highpass=f=35,acompressor=threshold=0.2:ratio=4:attack=10:release=150,volume=8dB,asoftclip=type=tanh,volume=-8dB,lowpass=f=3500,equalizer=f=80:t=q:w=1:g=2,equalizer=f=800:t=q:w=1:g=2", cible: -25 },
-  batterie: { canaux: [CH.drums], chaine: () => "acompressor=threshold=0.25:ratio=3:attack=6:release=120:makeup=1.2,equalizer=f=60:t=q:w=1:g=3,equalizer=f=400:t=q:w=1.2:g=-3,equalizer=f=4500:t=q:w=1:g=3,highshelf=f=9000:g=2,aecho=0.9:0.9:17|29:0.16|0.1", cible: -21 },
+  // batterie nerveuse : compression lente à l'attaque (le coup passe), relâchement rapide,
+  // grosse caisse pleine, claquant de caisse claire et clic de grosse caisse, cymbales brillantes
+  batterie: { canaux: [CH.drums], chaine: () => "acompressor=threshold=0.18:ratio=4:attack=20:release=70:makeup=1.4,equalizer=f=60:t=q:w=1:g=3,equalizer=f=400:t=q:w=1.2:g=-4,equalizer=f=3500:t=q:w=1:g=4,highshelf=f=8000:g=3,aecho=0.9:0.9:17|29:0.1|0.06", cible: -19 },
   autres: { canaux: [CH.claire, CH.choeur, CH.cordes, CH.orgue, CH.hit], chaine: () => "aecho=0.9:0.9:23|41:0.14|0.08", cible: -26 },
 };
 function sonie(f) {
