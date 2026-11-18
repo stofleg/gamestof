@@ -5,7 +5,7 @@
 //  gauche/droite quand le cube est droit, haut/bas seulement depuis la face principale.
 //  L'œil est placé un peu au-dessus (on aperçoit le dessus) ; une face pleine reste bien de face.
 // ============================================================
-import { voisin } from "./cube.js?v=500";
+import { voisin } from "./cube.js?v=501";
 
 export const ORDRE = ["F", "R", "B", "L", "U", "D"];
 export const TITRES = { F: "Principale ★", R: "Droite", B: "Arrière", L: "Gauche", U: "Dessus", D: "Dessous" };
@@ -58,6 +58,25 @@ export function dessine(div, tableFace) {
       </div></div>`;
     zone = div.querySelector(".cube-zone");
     zone.querySelectorAll(".cube-fleche").forEach(b => b.onclick = e => { e.stopPropagation(); pivote(b.dataset.sens); });
+    // Toucher : un swipe sur le cube le fait tourner dans le sens du doigt (glisser vers la
+    // gauche amène la face de droite, glisser vers le bas amène le dessus).
+    const vueEl = zone.querySelector(".cube-vue");
+    let dep = null;
+    vueEl.addEventListener("touchstart", e => {
+      if (e.touches.length !== 1) { dep = null; return; }
+      const t = e.touches[0]; dep = { x: t.clientX, y: t.clientY, t: Date.now() };
+    }, { passive: true });
+    vueEl.addEventListener("touchmove", e => { if (dep) e.preventDefault(); }, { passive: false });   // la page ne défile pas pendant le geste
+    vueEl.addEventListener("touchcancel", () => { dep = null; });
+    vueEl.addEventListener("touchend", e => {
+      const d = dep; dep = null;
+      const t = e.changedTouches?.[0];
+      if (!d || !t || Date.now() - d.t > 800) return;
+      const dx = t.clientX - d.x, dy = t.clientY - d.y, ax = Math.abs(dx), ay = Math.abs(dy);
+      if (Math.max(ax, ay) < 30) return;            // simple toucher : clic sur la case
+      e.preventDefault();                           // pas de clic sur la case après un swipe
+      pivote(ax > ay ? (dx < 0 ? "droite" : "gauche") : (dy < 0 ? "bas" : "haut"));
+    });
   }
   const vis = visibles();
   const cube = zone.querySelector("#cube3d");

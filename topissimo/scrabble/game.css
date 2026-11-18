@@ -2087,7 +2087,7 @@ body.in-live #actionRowInGame #btnPause { display: none !important; }
 /* Halloween : deux morts-vivants à la place du squelette qui danse (le pendu reste) */
 body.theme-halloween::before {
   right: 1%; bottom: 0; width: 300px; height: 197px;
-  background: url("zombies.svg?v=500") no-repeat center bottom / contain;
+  background: url("zombies.svg?v=501") no-repeat center bottom / contain;
   filter: drop-shadow(0 0 6px rgba(120,200,90,.25));
   transform-origin: 50% 100%;
   animation: hw-zombies 5s ease-in-out infinite alternate;
@@ -2274,16 +2274,12 @@ body.theme-topsping #btnNextGame { display: none !important; }
 .board-cube .givre { display: none; }
 /* Téléphone : le cube prend toute la largeur (flèches comprises). */
 @media (max-width: 700px) {
-  /* le cube prend toute la largeur ; les flèches, réunies en croix (manette), passent sous la grille */
-  .board.board-cube { --cs-cube: min(calc((100vw - 20px) / 21.6), calc((100dvh - 440px) / 23.3), 30px); display: flex; justify-content: center; width: 100%;
+  /* le cube prend toute la largeur ; pas de flèches : on le fait tourner d'un swipe */
+  .board.board-cube { --cs-cube: min(calc((100vw - 20px) / 21.6), calc((100dvh - 350px) / 23.3), 30px); display: flex; justify-content: center; width: 100%;
     max-width: 100vw; overflow: hidden; }   /* Safari iOS compte le cube 3D dans la largeur de la page : on le confine */
   .board-cube .cube-zone { gap: 2px; }
-  .board-cube .cube-vue { --yc: calc(var(--S) * .72); width: calc(var(--S) * 1.44); height: calc(var(--S) * 1.55); margin-bottom: 98px; }
-  .board-cube .cube-fleche { width: 32px; height: 32px; font-size: 13px; }
-  .board-cube .f-haut { top: calc(100% + 1px); left: calc(50% - 16px); }
-  .board-cube .f-gauche { top: calc(100% + 33px); left: calc(50% - 50px); }
-  .board-cube .f-droite { top: calc(100% + 33px); left: calc(50% + 18px); right: auto; }
-  .board-cube .f-bas { top: calc(100% + 65px); bottom: auto; left: calc(50% - 16px); }
+  .board-cube .cube-vue { --yc: calc(var(--S) * .72); width: calc(var(--S) * 1.44); height: calc(var(--S) * 1.55); touch-action: none; }
+  .board-cube .cube-fleche { display: none; }
 }
 
 /* ============================================================
