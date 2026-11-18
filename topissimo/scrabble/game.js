@@ -31,17 +31,17 @@ import {
   drawVowelRack, VOWELS_NO_Y, MARATHON_TARGET, MARATHON_GAMES, consonnesDisponibles, CONSONANTS_FR, jokersDisponibles,
   tireOeufs, POINTS_OEUF, jokerHorsReliquat, lettresAuChoix,
   geometrie, setGeometrie, casesLigne, GEO_CLASSIQUE,
-} from "./engine.js?v=499";
-import { GEO_CUBE, versFace, versPatron, coupRegleCube, NOM_FACE } from "./cube.js?v=499";
-import * as cubeVue from "./cube-vue.js?v=499";
-import { icosaedre } from "./icosaedre.js?v=499";
-import { Dictionary } from "./dictionary.js?v=499";
-import * as invasion from "./araignees.js?v=499";
-import { REGLES, afficheRegles } from "./regles.js?v=499";
-import * as sonHalloween from "./halloween-son.js?v=499";
-import * as noel from "./noel.js?v=499";
-import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=499";
-import { TOURS, TEMPS_COUP, nouveauTournoi, nouvellePartie, jouerPoint, scoreJeu, niveauAtteint, nomNiveau } from "./topsping-regles.js?v=499";
+} from "./engine.js?v=500";
+import { GEO_CUBE, versFace, versPatron, coupRegleCube, NOM_FACE } from "./cube.js?v=500";
+import * as cubeVue from "./cube-vue.js?v=500";
+import { icosaedre } from "./icosaedre.js?v=500";
+import { Dictionary } from "./dictionary.js?v=500";
+import * as invasion from "./araignees.js?v=500";
+import { REGLES, afficheRegles } from "./regles.js?v=500";
+import * as sonHalloween from "./halloween-son.js?v=500";
+import * as noel from "./noel.js?v=500";
+import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=500";
+import { TOURS, TEMPS_COUP, nouveauTournoi, nouvellePartie, jouerPoint, scoreJeu, niveauAtteint, nomNiveau } from "./topsping-regles.js?v=500";
 
 // État du mode review (parcours coup par coup)
 // ===== Géométrie de la grille : classique (15 × 15) ou cube (patron 45 × 60, voir cube.js) =====
@@ -97,7 +97,7 @@ const FFSC_LIVE = URL_PARAMS.get("ffsclive");      // jouer une partie FFSC en d
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v499";
+const BUILD_VERSION = "garenna-v500";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -6918,7 +6918,7 @@ function tsModeCourant() {
 
 async function tsChargeReserves(nom) {
   return Promise.all(TOURS.map(async (_, i) => {
-    const r = await fetch(`../topsping/${encodeURIComponent(nom)}/tour-${i + 1}.json?v=499`);
+    const r = await fetch(`../topsping/${encodeURIComponent(nom)}/tour-${i + 1}.json?v=500`);
     if (!r.ok) throw new Error(`parties du ${TOURS[i].nom} introuvables (${nom})`);
     return (await r.json()).parties;
   }));

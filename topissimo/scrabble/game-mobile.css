@@ -542,6 +542,7 @@
    prennent pas la taille 100vw de la grille classique. */
 @media (max-width: 700px) {
   body .board.board-cube, body.theme-duplijeu .board.board-cube, body.avec-clavier .board.board-cube {
-    flex: 0 0 auto !important; width: 100vw !important; height: auto !important; display: flex; justify-content: center; }
+    flex: 0 0 auto !important; width: 100vw !important; height: auto !important; display: flex; justify-content: center;
+    max-width: 100vw; overflow: hidden; contain: paint; }
   .board.board-cube .cube-face table { width: 100%; height: 100%; }
 }
