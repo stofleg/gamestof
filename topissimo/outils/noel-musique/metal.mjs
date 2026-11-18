@@ -40,7 +40,7 @@ function reharmonise(mel, accs, { bar, compose, levee, tonique, mineur }) {
     : [[0, false], [2, true], [4, true], [5, false], [7, false], [9, true], [10, false]];
   const cands = DEGRES.map(([d, m]) => ({ root: (tonique + d) % 12, mineur: m, d }));
   // notes de la mélodie avec leur début et leur poids métrique
-  const notes = []; { let t = 0; for (const x of mel) { if (x.n !== "-") notes.push({ t, q: x.q, pc: ((PC_NOTE(x.n) % 12) + 12) % 12 }); t += x.q; } }
+  const notes = []; { let t = 0; for (const x of mel) { if (x.n !== "-") notes.push({ t, q: x.q, pc: (((x.h ?? PC_NOTE(x.n)) % 12) + 12) % 12 }); t += x.q; } }
   const origine = t => { let x = 0; for (const a of accs) { if (t < x + a.q - 1e-6) return a; x += a.q; } return accs[accs.length - 1]; };
   const poids = t => { const dansMesure = ((t - levee) % bar + bar) % bar; return dansMesure < 1e-6 ? 1.6 : (compose ? Math.abs(dansMesure % 1.5) < 1e-6 : Math.abs(dansMesure % 1) < 1e-6) ? 1.15 : .55; };
   const score = (c, a, b) => {
@@ -100,6 +100,11 @@ export function metal(P, style = "heavy", graine = 1, opts = {}) {
   const final = accs[accs.length - 1];
   const tonique = final.root, mineur = P.mineur || final.mineur;
   if (!opts.harmonieOrigine) accs.splice(0, accs.length, ...reharmonise(mel, accs, { bar, compose, levee: (P.levee || 0) * u, tonique, mineur }));
+  // Passage « maléfique » : la mélodie passe en mineur harmonique (tierce et sixte abaissées) et
+  // reçoit SA propre harmonie, tirée des accords de la gamme mineure (sinon, demi-tons qui frottent).
+  const malefique0 = n => { if (mineur) return n; const d = ((n - tonique) % 12 + 12) % 12; return d === 4 || d === 9 ? n - 1 : n; };
+  const melMal = mel.map(x => x.n === "-" ? x : { ...x, h: malefique0(midiNote(x.n)) });
+  const accsMal = mineur ? accs : reharmonise(melMal, accs.map(a => ({ ...a, root: malefique0(a.root + 60) % 12 })), { bar, compose, levee: (P.levee || 0) * u, tonique, mineur: true });
 
   // ----- tempo : la noire (ou la noire pointée en mesure composée) selon le style
   const brefs = Math.min(...mel.map(x => x.q).filter(q => q > 0));
@@ -202,7 +207,7 @@ export function metal(P, style = "heavy", graine = 1, opts = {}) {
   function rythme(q0, liste, jeu, mal) {
     let q = q0;
     for (const A of liste) {
-      const r = grave(mal ? malefique(A.root + 60) - 60 : A.root);
+      const r = grave(A.root);
       const puissance = [r, r + 7, r + 12], etouffe = [r, r + 7];
       const joue = (x, d, plein, v) => {
         for (const [ch, h] of [[CH.rythG, 6], [CH.rythD, 22]]) for (const n of (plein ? puissance : etouffe)) note(ch, n, q + x, d, v - (ch === CH.rythD ? 4 : 0), h);
@@ -210,7 +215,7 @@ export function metal(P, style = "heavy", graine = 1, opts = {}) {
       };
       if (jeu === "tenu") { for (let x = 0; x < A.q - 1e-6; x += bar) joue(x, Math.min(bar, A.q - x), true, 96); }
       else if (jeu === "arpeges") {
-        const tons = [0, 7, 12, 16, 19, 24].map(i => r + 12 + i - (A.mineur || mal ? (i === 16 ? 1 : 0) : 0));
+        const tons = [0, 7, 12, 16, 19, 24].map(i => r + 12 + i - (A.mineur ? (i === 16 ? 1 : 0) : 0));
         for (let x = 0, k = 0; x < A.q - 1e-6; x += .5, k++) note(CH.claire, tons[[0, 1, 2, 3, 4, 3, 2, 1][k % 8]], q + x, 1.2, 76, 8);
         note(CH.basse, r - 12 + (r - 12 < 28 ? 12 : 0), q, A.q, 70);
       } else {
@@ -243,8 +248,8 @@ export function metal(P, style = "heavy", graine = 1, opts = {}) {
   function solo(q0, liste, mal) {
     let q = q0;
     liste.forEach((A, i) => {
-      const r0 = 64 + ((mal ? malefique(A.root + 60) : A.root) - 4 + 24) % 12;
-      const tierceA = A.mineur || mal ? 3 : 4;
+      const r0 = 64 + (A.root - 4 + 24) % 12;
+      const tierceA = A.mineur ? 3 : 4;
       const tons = []; for (const o of [0, 12, 24]) for (const iv of [0, tierceA, 7]) tons.push(r0 + o);
       for (let k = 0; k < tons.length; k++) tons[k] = r0 + [0, tierceA, 7][k % 3] + 12 * Math.floor(k / 3);
       const pas = .25;
@@ -259,7 +264,7 @@ export function metal(P, style = "heavy", graine = 1, opts = {}) {
   const nappes = (q0, liste, { choeur = false, cordes = false, orgue = false }, mal) => {
     let q = q0;
     for (const A of liste) {
-      const r = 48 + (((mal ? malefique(A.root + 60) : A.root) % 12) + 12) % 12, t3 = A.mineur || mal ? 3 : 4;
+      const r = 48 + ((A.root % 12) + 12) % 12, t3 = A.mineur ? 3 : 4;
       const tons = [r + 12, r + 12 + t3, r + 19, r + 24];
       if (choeur) for (const n of tons.slice(0, 3)) note(CH.choeur, n, q, A.q, 70, 2);
       if (cordes) for (const n of tons) note(CH.cordes, n + 12, q, A.q, 66, 2);
@@ -270,6 +275,8 @@ export function metal(P, style = "heavy", graine = 1, opts = {}) {
 
   // ----- forme
   const avecPad = accs.map((A, i) => i === 0 ? { ...A, q: A.q + pad } : A);
+  const avecPadMal = accsMal.map((A, i) => i === 0 ? { ...A, q: A.q + pad } : A);
+  const grille = mal => mal ? avecPadMal : avecPad;
   const lenSec = pad + total;
   const forme = {
     heavy: [
@@ -311,11 +318,11 @@ export function metal(P, style = "heavy", graine = 1, opts = {}) {
   sections.forEach((S, i) => {
     if (S.orgue && !S.r) { nappes(q, avecPad, { orgue: true }, false); chant(q, { ch: CH.orgue, v: 88, octave: -12 }); batterie(q, lenSec, "calme", true); }
     else {
-      if (S.solo) solo(q, avecPad, S.mal); else chant(q, { jumelle: S.jum, octave: S.oct || 0, mal: S.mal, ch: S.claire ? CH.lead : CH.lead, v: S.claire ? 86 : 100 });
-      rythme(q, avecPad, S.r, S.mal);
-      if (S.claire && S.r !== "arpeges") rythme(q, avecPad, "arpeges", S.mal);
+      if (S.solo) solo(q, grille(S.mal), S.mal); else chant(q, { jumelle: S.jum, octave: S.oct || 0, mal: S.mal, ch: S.claire ? CH.lead : CH.lead, v: S.claire ? 86 : 100 });
+      rythme(q, grille(S.mal), S.r, S.mal);
+      if (S.claire && S.r !== "arpeges") rythme(q, grille(S.mal), "arpeges", S.mal);
       batterie(q, lenSec, S.d, true);
-      if (S.choeur || S.cordes || (S.orgue && S.r)) nappes(q, avecPad, S, S.mal);
+      if (S.choeur || S.cordes || (S.orgue && S.r)) nappes(q, grille(S.mal), S, S.mal);
       if (style === "symphonique" && i > 0) note(CH.hit, 60 + tonique, q, 1, 100);
     }
     q += lenSec;
