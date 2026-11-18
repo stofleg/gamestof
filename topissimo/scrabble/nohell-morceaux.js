@@ -117,7 +117,7 @@ export const MORCEAUX_NOHELL = [
   "f": "nohell/17-du-lieber-frommer-heil-ger-christ-heavy.m4a",
   "titre": "Du lieber, frommer, heil’ger Christ (heavy metal)",
   "credit": "chant traditionnel allemand — domaine public · arrangement metal Topissimo",
-  "duree": 150,
+  "duree": 151,
   "cat": "heavy"
  },
  {
