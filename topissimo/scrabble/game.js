@@ -31,17 +31,17 @@ import {
   drawVowelRack, VOWELS_NO_Y, MARATHON_TARGET, MARATHON_GAMES, consonnesDisponibles, CONSONANTS_FR, jokersDisponibles,
   tireOeufs, POINTS_OEUF, jokerHorsReliquat, lettresAuChoix,
   geometrie, setGeometrie, casesLigne, GEO_CLASSIQUE,
-} from "./engine.js?v=498";
-import { GEO_CUBE, versFace, versPatron, coupRegleCube, NOM_FACE } from "./cube.js?v=498";
-import * as cubeVue from "./cube-vue.js?v=498";
-import { icosaedre } from "./icosaedre.js?v=498";
-import { Dictionary } from "./dictionary.js?v=498";
-import * as invasion from "./araignees.js?v=498";
-import { REGLES, afficheRegles } from "./regles.js?v=498";
-import * as sonHalloween from "./halloween-son.js?v=498";
-import * as noel from "./noel.js?v=498";
-import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=498";
-import { TOURS, TEMPS_COUP, nouveauTournoi, nouvellePartie, jouerPoint, scoreJeu, niveauAtteint, nomNiveau } from "./topsping-regles.js?v=498";
+} from "./engine.js?v=499";
+import { GEO_CUBE, versFace, versPatron, coupRegleCube, NOM_FACE } from "./cube.js?v=499";
+import * as cubeVue from "./cube-vue.js?v=499";
+import { icosaedre } from "./icosaedre.js?v=499";
+import { Dictionary } from "./dictionary.js?v=499";
+import * as invasion from "./araignees.js?v=499";
+import { REGLES, afficheRegles } from "./regles.js?v=499";
+import * as sonHalloween from "./halloween-son.js?v=499";
+import * as noel from "./noel.js?v=499";
+import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=499";
+import { TOURS, TEMPS_COUP, nouveauTournoi, nouvellePartie, jouerPoint, scoreJeu, niveauAtteint, nomNiveau } from "./topsping-regles.js?v=499";
 
 // État du mode review (parcours coup par coup)
 // ===== Géométrie de la grille : classique (15 × 15) ou cube (patron 45 × 60, voir cube.js) =====
@@ -97,7 +97,7 @@ const FFSC_LIVE = URL_PARAMS.get("ffsclive");      // jouer une partie FFSC en d
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v498";
+const BUILD_VERSION = "garenna-v499";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -487,7 +487,13 @@ function renderBoard() {
       else if (bonus === "." && currentMode().fixedBoard && GRILLE_COEUR_FOND[r][c] === "x") cls.push("case-noire");
       const isCursor = state.cursor && state.cursor.row === r && state.cursor.col === c;
       if (isCursor) cls.push("cursor", state.cursor.dir === "H" ? "dir-h" : "dir-v");
-      if (cube && topCles.has(`${r},${c}`)) cls.push("top-mot");   // cube : contour du top case par case
+      // Cube : le cadre du top (comme le cadre unique de Topissimo) est tracé case par case,
+      // un trait sur chaque côté de la case qui ne touche pas une autre case du mot.
+      let cadreTop = "";
+      if (cube && topCles.has(`${r},${c}`)) {
+        const g = geometrie(), bord = (dr, dc) => { const v = g.pas(r, c, dr, dc); return !v || !topCles.has(`${v[0]},${v[1]}`); };
+        cadreTop = `<span class="cadre-top${bord(-1, 0) ? " ct-h" : ""}${bord(1, 0) ? " ct-b" : ""}${bord(0, -1) ? " ct-g" : ""}${bord(0, 1) ? " ct-d" : ""}" aria-hidden="true"></span>`;
+      }
       // Pâques : cases déjà parcourues par les mots du joueur, et œufs trouvés.
       const visitee = !review.active && state.visitees?.has(`${r},${c}`);
       const oeuf = !visitee ? "" : state.oeufsTrouves.has(`${r},${c}`)
@@ -517,7 +523,7 @@ function renderBoard() {
         cls.push("has-badge");   // remonte la case au-dessus du curseur voisin
       }
       const annot = renderAnnotations(r, c);
-      return `<td class="${cls.join(" ")}" data-r="${r}" data-c="${c}">${tileHtmlStr}${badge}${annot}${oeuf}</td>`;
+      return `<td class="${cls.join(" ")}" data-r="${r}" data-c="${c}">${tileHtmlStr}${badge}${annot}${oeuf}${cadreTop}</td>`;
   };
   if (cube) { renderBoardCube(div, caseHtml); return; }
   let html = "<table>";
@@ -6912,7 +6918,7 @@ function tsModeCourant() {
 
 async function tsChargeReserves(nom) {
   return Promise.all(TOURS.map(async (_, i) => {
-    const r = await fetch(`../topsping/${encodeURIComponent(nom)}/tour-${i + 1}.json?v=498`);
+    const r = await fetch(`../topsping/${encodeURIComponent(nom)}/tour-${i + 1}.json?v=499`);
     if (!r.ok) throw new Error(`parties du ${TOURS[i].nom} introuvables (${nom})`);
     return (await r.json()).parties;
   }));

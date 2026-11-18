@@ -5,7 +5,7 @@
 //  gauche/droite quand le cube est droit, haut/bas seulement depuis la face principale.
 //  L'œil est placé un peu au-dessus (on aperçoit le dessus) ; une face pleine reste bien de face.
 // ============================================================
-import { voisin } from "./cube.js?v=498";
+import { voisin } from "./cube.js?v=499";
 
 export const ORDRE = ["F", "R", "B", "L", "U", "D"];
 export const TITRES = { F: "Principale ★", R: "Droite", B: "Arrière", L: "Gauche", U: "Dessus", D: "Dessous" };
