@@ -9,6 +9,13 @@ body.mode-tournament #btnRestart { display: none !important; }
 
 :root {
   --petrol: #002E44;
+  /* aussi définies dans style.css, que game.html ne charge pas (sinon le texte hérite de la
+     couleur du thème : blanc sur jaune ou sur crème dans le thème Noël) */
+  --petrol-dark: #001E2D;
+  --ink-soft: #5a6a73;
+  --line: #e6e2d3;
+  --yellow-soft: #fff7c2;
+  --soft: #e3ebf0;
   --petrol-2: #003a55;
   --yellow: #FFDD00;
   --cream: #faf7ed;
@@ -1836,6 +1843,9 @@ body.theme-halloween #settings select, body.theme-halloween #settings input[type
 }
 body.theme-halloween .game-title { color: #ff9b3d; text-shadow: 0 0 12px rgba(255,138,29,.55); }
 body.theme-halloween header .btn { background: #e0661a; color: #1a1020; }
+body.theme-halloween .bag-title, body.theme-halloween .step-label { color: #f3e9d2; }
+body.theme-halloween .btn.active, body.theme-halloween .btn.active .ico, body.theme-halloween .btn.active .lbl { color: #1a1020; }
+body.theme-halloween.in-review .review-panel { background: rgba(30,18,42,.95); }   /* le mobile la remet en blanc */
 body.theme-halloween .araignee { background: #0a0610; box-shadow: 0 0 0 3px #0a0610; }
 body.theme-halloween .info-bar.two-sections .info-right { background: rgba(20,12,30,.9); }
 body.theme-halloween .info-bar.two-sections .info-right .item .value { color: #c9b8d8; }
@@ -2087,7 +2097,7 @@ body.in-live #actionRowInGame #btnPause { display: none !important; }
 /* Halloween : deux morts-vivants à la place du squelette qui danse (le pendu reste) */
 body.theme-halloween::before {
   right: 1%; bottom: 0; width: 300px; height: 197px;
-  background: url("zombies.svg?v=504") no-repeat center bottom / contain;
+  background: url("zombies.svg?v=505") no-repeat center bottom / contain;
   filter: drop-shadow(0 0 6px rgba(120,200,90,.25));
   transform-origin: 50% 100%;
   animation: hw-zombies 5s ease-in-out infinite alternate;
@@ -2318,6 +2328,11 @@ body.theme-noel .bag-display,
 body.theme-noel .review-panel,
 body.theme-noel .annot-toolbar,
 body.theme-noel .modal .content { background: #fffdf7; color: #12313f; }
+/* bandeau du coup : les variantes gardent leurs couleurs (sinon texte blanc sur crème) */
+body.theme-noel .feedback.success { background: #e3f1e4; color: #1f6b3d; border-left-color: #1f6b3d; }
+body.theme-noel .feedback.error { background: #fde8ea; color: #9e0d24; border-left-color: #c8102e; }
+body.theme-noel .feedback.miss { background: linear-gradient(135deg, #c8102e, #8a1424); color: #fff; border-left-color: #e8c35a; }
+body.theme-noel .feedback.miss .title, body.theme-noel .feedback.miss a { color: #fff; }
 body.theme-noel .info-bar { border-top: 5px solid #c8102e; box-shadow: 0 6px 22px rgba(0,0,0,.35); }
 body.theme-noel .info-bar.two-sections .info-right { background: #f3efe2; }
 body.theme-noel .game-title { color: #ffe08a; text-shadow: 0 0 10px rgba(255,210,63,.45); }
@@ -2540,4 +2555,9 @@ body.theme-nohell .board .etiquette small { color: #f1e6dc; font-family: Inter, 
 body.theme-nohell .feedback.success { background: #1b2a1d; color: #9be3a6; border-left-color: #3fb15a; }
 body.theme-nohell .feedback.error, body.theme-nohell .feedback.miss { background: #2a1214; color: #ffb3a6; }
 body.theme-nohell .feedback a { color: inherit; }
+/* titres des panneaux sombres : clairs (ils sont pétrole foncé sur fond clair ailleurs) */
+body.theme-nohell .bag-title, body.theme-nohell .step-label, body.theme-nohell .modal .content h2 { color: #f1e6dc; }
+body.theme-nohell .dict-modal-ext { color: #ff8a00; }
+body.theme-nohell .btn.active { color: #1a1416; }
+body.theme-nohell.in-review .review-panel { background: #1b1517; }   /* le mobile la remet en blanc */
 .nh-nuage { filter: blur(8px); }

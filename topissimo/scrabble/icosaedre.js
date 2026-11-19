@@ -4,7 +4,7 @@
 //  ombrées ; chaque lettre est « collée » sur sa face (transformation affine triangle de
 //  référence → face), avec sa valeur en petit en bas à droite, comme sur un jeton.
 // ============================================================
-import { LETTER_VALUE } from "./engine.js?v=504";
+import { LETTER_VALUE } from "./engine.js?v=505";
 const PHI = (1 + Math.sqrt(5)) / 2;
 const V0 = [];
 for (const a of [-1, 1]) for (const b of [-PHI, PHI]) { V0.push([0, a, b], [a, b, 0], [b, 0, a]); }
