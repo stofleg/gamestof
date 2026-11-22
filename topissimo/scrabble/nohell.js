@@ -10,9 +10,9 @@
 //  - Décor : braises qui montent, guirlande de flammes, paysage infernal (nohell-decor.js).
 //  Le son ne démarre qu'après une première interaction et se coupe avec 🔊/🔇 (choix mémorisé).
 // ============================================================
-import { decor, traineauPasse, CSS_DECOR } from "./nohell-decor.js?v=505";
-import { CSS_DECOR as CSS_DECOR_NOEL } from "./noel-decor.js?v=505";
-import { MORCEAUX_NOHELL } from "./nohell-morceaux.js?v=505";
+import { decor, traineauPasse, CSS_DECOR } from "./nohell-decor.js?v=506";
+import { CSS_DECOR as CSS_DECOR_NOEL } from "./noel-decor.js?v=506";
+import { MORCEAUX_NOHELL } from "./nohell-morceaux.js?v=506";
 const CLE = "topissimo:nohell-son";
 let ctx = null, maitre = null, actif = false, bouton = null, passer = null, legende = null;
 let coupe = (() => { try { return localStorage.getItem(CLE) === "off"; } catch { return false; } })();

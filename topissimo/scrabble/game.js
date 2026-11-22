@@ -31,18 +31,18 @@ import {
   drawVowelRack, VOWELS_NO_Y, MARATHON_TARGET, MARATHON_GAMES, consonnesDisponibles, CONSONANTS_FR, jokersDisponibles,
   tireOeufs, POINTS_OEUF, jokerHorsReliquat, lettresAuChoix,
   geometrie, setGeometrie, casesLigne, GEO_CLASSIQUE,
-} from "./engine.js?v=505";
-import { GEO_CUBE, versFace, versPatron, coupRegleCube, NOM_FACE } from "./cube.js?v=505";
-import * as cubeVue from "./cube-vue.js?v=505";
-import { icosaedre } from "./icosaedre.js?v=505";
-import { Dictionary } from "./dictionary.js?v=505";
-import * as invasion from "./araignees.js?v=505";
-import { REGLES, afficheRegles } from "./regles.js?v=505";
-import * as sonHalloween from "./halloween-son.js?v=505";
-import * as noel from "./noel.js?v=505";
-import * as nohell from "./nohell.js?v=505";
-import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=505";
-import { TOURS, TEMPS_COUP, nouveauTournoi, nouvellePartie, jouerPoint, scoreJeu, niveauAtteint, nomNiveau } from "./topsping-regles.js?v=505";
+} from "./engine.js?v=506";
+import { GEO_CUBE, versFace, versPatron, coupRegleCube, NOM_FACE } from "./cube.js?v=506";
+import * as cubeVue from "./cube-vue.js?v=506";
+import { icosaedre } from "./icosaedre.js?v=506";
+import { Dictionary } from "./dictionary.js?v=506";
+import * as invasion from "./araignees.js?v=506";
+import { REGLES, afficheRegles } from "./regles.js?v=506";
+import * as sonHalloween from "./halloween-son.js?v=506";
+import * as noel from "./noel.js?v=506";
+import * as nohell from "./nohell.js?v=506";
+import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=506";
+import { TOURS, TEMPS_COUP, nouveauTournoi, nouvellePartie, jouerPoint, scoreJeu, niveauAtteint, nomNiveau } from "./topsping-regles.js?v=506";
 
 // État du mode review (parcours coup par coup)
 // ===== Géométrie de la grille : classique (15 × 15) ou cube (patron 45 × 60, voir cube.js) =====
@@ -98,7 +98,7 @@ const FFSC_LIVE = URL_PARAMS.get("ffsclive");      // jouer une partie FFSC en d
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v505";
+const BUILD_VERSION = "garenna-v506";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -4886,7 +4886,16 @@ function populateAdminModes() {
     o.value = key; o.textContent = m.label;
     grp.appendChild(o);
   }
+  // TopSping (tournoi contre le top) : sa propre partie, en mode test (rien n'est enregistré).
+  const ts = document.createElement("option");
+  ts.value = "topsping"; ts.textContent = "TopSping 🎾 — tournoi contre le top (test)";
+  grp.appendChild(ts);
   sel.appendChild(grp);
+  sel.addEventListener("change", () => {
+    if (sel.value !== "topsping") return;
+    sel.value = state.settings.gameMode === "topsping" ? "duplicate" : state.settings.gameMode;   // ne pas l'enregistrer comme formule
+    location.href = "game.html?topsping=ts1";
+  });
   sel.dataset.adminDone = "1";
 }
 
@@ -6957,7 +6966,7 @@ function tsModeCourant() {
 
 async function tsChargeReserves(nom) {
   return Promise.all(TOURS.map(async (_, i) => {
-    const r = await fetch(`../topsping/${encodeURIComponent(nom)}/tour-${i + 1}.json?v=505`);
+    const r = await fetch(`../topsping/${encodeURIComponent(nom)}/tour-${i + 1}.json?v=506`);
     if (!r.ok) throw new Error(`parties du ${TOURS[i].nom} introuvables (${nom})`);
     return (await r.json()).parties;
   }));
@@ -7014,6 +7023,10 @@ async function tsChargeTest(reserveNom) {
   await tsCharge("test-" + reserveNom, reserveNom, true, null);
   state.prepared._pret = true;
   renderGameTitle();
+  // Pas de tournoi : le bouton de retour ramène à l'entraînement.
+  const home = $("#btnHome"), retour = $("#btnBackToTournament");
+  if (retour) retour.hidden = true;
+  if (home) { home.hidden = false; home.href = "game.html"; home.textContent = "← Entraînement"; }
 }
 
 /** Coup à jouer : tirage et top de la réserve, plateau de la partie au coup de départ. */
@@ -7089,7 +7102,7 @@ function tsInfoEvenement(ev) {
 }
 
 const tsSets = sets => sets.map(([a, b]) => `${a}-${b}`).join(" ; ");
-const tsUrlRetour = () => { const t = state.topsping?.tournamentId || TOURNAMENT_ID; return t ? `../index.html#tid=${t}` : "../index.html"; };
+const tsUrlRetour = () => { const t = state.topsping?.tournamentId || TOURNAMENT_ID; return t ? `../index.html#tid=${t}` : state.topsping?.test ? "game.html" : "../index.html"; };   // test de stof : retour à l'entraînement
 function tsResume() {
   const e = state.topsping.e;
   return { niveau: niveauAtteint(e), rates: e.stats.rates, neg: e.stats.neg, ab: e.abandon, vainqueur: e.vainqueur, matchs: e.matchs };
