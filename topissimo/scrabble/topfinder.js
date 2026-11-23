@@ -12,8 +12,8 @@
 //     aussi les mots croisés) et on garde le maximum.
 // ============================================================
 
-import { geometrie, BOARD_SIZE, BOARD_BONUSES, CENTER, scoreMove, applyMove, LETTER_VALUE, VOWELS, VOWELS_NO_Y, CONSONANTS_FR, isSimplePath, isSnakeMove, jokerHorsReliquat } from "./engine.js?v=506";
-import { coupsCube, patronVersCube, coupVersPatron } from "./cube.js?v=506";
+import { geometrie, BOARD_SIZE, BOARD_BONUSES, CENTER, scoreMove, applyMove, LETTER_VALUE, VOWELS, VOWELS_NO_Y, CONSONANTS_FR, isSimplePath, isSnakeMove, jokerHorsReliquat } from "./engine.js?v=507";
+import { coupsCube, patronVersCube, coupVersPatron } from "./cube.js?v=507";
 
 // Un coup PROLONGE le serpent s'il s'accroche à une extrémité (isSnakeMove ; les
 // mots croisés latéraux sont permis), OU s'il garde un chemin simple (extension

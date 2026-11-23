@@ -31,18 +31,18 @@ import {
   drawVowelRack, VOWELS_NO_Y, MARATHON_TARGET, MARATHON_GAMES, consonnesDisponibles, CONSONANTS_FR, jokersDisponibles,
   tireOeufs, POINTS_OEUF, jokerHorsReliquat, lettresAuChoix,
   geometrie, setGeometrie, casesLigne, GEO_CLASSIQUE,
-} from "./engine.js?v=506";
-import { GEO_CUBE, versFace, versPatron, coupRegleCube, NOM_FACE } from "./cube.js?v=506";
-import * as cubeVue from "./cube-vue.js?v=506";
-import { icosaedre } from "./icosaedre.js?v=506";
-import { Dictionary } from "./dictionary.js?v=506";
-import * as invasion from "./araignees.js?v=506";
-import { REGLES, afficheRegles } from "./regles.js?v=506";
-import * as sonHalloween from "./halloween-son.js?v=506";
-import * as noel from "./noel.js?v=506";
-import * as nohell from "./nohell.js?v=506";
-import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=506";
-import { TOURS, TEMPS_COUP, nouveauTournoi, nouvellePartie, jouerPoint, scoreJeu, niveauAtteint, nomNiveau } from "./topsping-regles.js?v=506";
+} from "./engine.js?v=507";
+import { GEO_CUBE, versFace, versPatron, coupRegleCube, NOM_FACE } from "./cube.js?v=507";
+import * as cubeVue from "./cube-vue.js?v=507";
+import { icosaedre } from "./icosaedre.js?v=507";
+import { Dictionary } from "./dictionary.js?v=507";
+import * as invasion from "./araignees.js?v=507";
+import { REGLES, afficheRegles } from "./regles.js?v=507";
+import * as sonHalloween from "./halloween-son.js?v=507";
+import * as noel from "./noel.js?v=507";
+import * as nohell from "./nohell.js?v=507";
+import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=507";
+import { TOURS, TEMPS_COUP, nouveauTournoi, nouvellePartie, jouerPoint, scoreJeu, niveauAtteint, nomNiveau } from "./topsping-regles.js?v=507";
 
 // État du mode review (parcours coup par coup)
 // ===== Géométrie de la grille : classique (15 × 15) ou cube (patron 45 × 60, voir cube.js) =====
@@ -98,7 +98,7 @@ const FFSC_LIVE = URL_PARAMS.get("ffsclive");      // jouer une partie FFSC en d
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v506";
+const BUILD_VERSION = "garenna-v507";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -1603,17 +1603,31 @@ function startMoveTimer() {
   if (state.settings.timePerMove > 0) {
     state.moveTimeLeft = moveTimeLimit();
     renderMoveTimer();
-    moveTimer = setInterval(() => {
-      state.moveTimeLeft--;
-      renderMoveTimer();
-      if (state.moveTimeLeft <= 0) {
-        clearInterval(moveTimer);
-        timeoutAdvance();
-      }
-    }, 1000);
+    lanceTicTac();
   } else {
     renderMoveTimer();   // affiche « — » en duplicate sans temps, masque sinon
   }
+}
+// Le décompte suit l'horloge réelle, pas le nombre de battements : quand la page est gelée
+// (fenêtre « Quitter le site ? » du navigateur après un clic sur la croix, onglet ralenti…),
+// les battements s'arrêtent mais le temps, lui, continue de s'écouler. Sinon, cliquer sur
+// la croix et laisser la fenêtre ouverte servait de pause avec la grille visible.
+function lanceTicTac() {
+  if (moveTimer) clearInterval(moveTimer);
+  let dernier = performance.now(), reste = 0;
+  moveTimer = setInterval(() => {
+    const t = performance.now();
+    reste += t - dernier; dernier = t;
+    const s = Math.floor((reste + 50) / 1000);   // marge : un battement un peu en avance compte
+    if (s < 1) return;
+    reste -= s * 1000;
+    state.moveTimeLeft = Math.max(0, state.moveTimeLeft - s);
+    renderMoveTimer();
+    if (state.moveTimeLeft <= 0) {
+      clearInterval(moveTimer);
+      timeoutAdvance();
+    }
+  }, 1000);
 }
 function stopMoveTimer() {
   if (moveTimer) { clearInterval(moveTimer); moveTimer = null; }
@@ -6966,7 +6980,7 @@ function tsModeCourant() {
 
 async function tsChargeReserves(nom) {
   return Promise.all(TOURS.map(async (_, i) => {
-    const r = await fetch(`../topsping/${encodeURIComponent(nom)}/tour-${i + 1}.json?v=506`);
+    const r = await fetch(`../topsping/${encodeURIComponent(nom)}/tour-${i + 1}.json?v=507`);
     if (!r.ok) throw new Error(`parties du ${TOURS[i].nom} introuvables (${nom})`);
     return (await r.json()).parties;
   }));
@@ -7670,14 +7684,7 @@ function resumeGame() {
       : Math.max(0, (state.settings.timePerMove - state._pauseInfo.moveTimeLeft) * 1000);
     state.moveStart = performance.now() - moveElapsedMs;
     if (moveTimer) clearInterval(moveTimer);
-    moveTimer = setInterval(() => {
-      state.moveTimeLeft--;
-      renderMoveTimer();
-      if (state.moveTimeLeft <= 0) {
-        clearInterval(moveTimer);
-        timeoutAdvance();
-      }
-    }, 1000);
+    lanceTicTac();
   }
   const entreCoups = !!state._pauseInfo.entreCoups;
   state._pauseInfo = null;

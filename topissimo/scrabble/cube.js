@@ -18,7 +18,7 @@
 //  Un coup : { ligne, debut, word, blanks } — `ligne` : indice de la ligne, `debut` : rang
 //  de la 1re lettre dans la ligne, `blanks` : rangs (dans le mot) des jokers.
 // ============================================================
-import { BOARD_BONUSES, letterValue } from "./engine.js?v=506";
+import { BOARD_BONUSES, letterValue } from "./engine.js?v=507";
 
 export const FACES = ["F", "R", "B", "L", "U", "D"];
 export const NOM_FACE = { F: "principale", R: "droite", B: "arrière", L: "gauche", U: "dessus", D: "dessous" };
@@ -284,7 +284,7 @@ export function coupRegleCube(moveNo) {
   return moveNo < COUP_REGLE_CUBE ? Math.min(moveNo, 14) : Math.max(moveNo, 15);
 }
 export async function genereCube(dict, { withJoker = false, onProgress = null, jeux = JEUX_CUBE, maxCoups = 400 } = {}) {
-  const { drawForDuplicate, bagTotalVowels, bagTotalConsonants, LETTER_BAG } = await import("./engine.js?v=506");
+  const { drawForDuplicate, bagTotalVowels, bagTotalConsonants, LETTER_BAG } = await import("./engine.js?v=507");
   const VOY = new Set(["A", "E", "I", "O", "U", "Y"]);
   let bag = sacCube(jeux, LETTER_BAG), spare = 0;
   if (withJoker) { spare = bag["?"] || 0; bag["?"] = 0; }
