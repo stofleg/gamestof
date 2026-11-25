@@ -30,19 +30,18 @@ import {
   setLetterValues, letterValue, valuesFor, bagFor, isCrossingCell, wordHiddenCount,
   drawVowelRack, VOWELS_NO_Y, MARATHON_TARGET, MARATHON_GAMES, consonnesDisponibles, CONSONANTS_FR, jokersDisponibles,
   tireOeufs, POINTS_OEUF, jokerHorsReliquat, lettresAuChoix,
-  geometrie, setGeometrie, casesLigne, GEO_CLASSIQUE,
-} from "./engine.js?v=507";
-import { GEO_CUBE, versFace, versPatron, coupRegleCube, NOM_FACE } from "./cube.js?v=507";
-import * as cubeVue from "./cube-vue.js?v=507";
-import { icosaedre } from "./icosaedre.js?v=507";
-import { Dictionary } from "./dictionary.js?v=507";
-import * as invasion from "./araignees.js?v=507";
-import { REGLES, afficheRegles } from "./regles.js?v=507";
-import * as sonHalloween from "./halloween-son.js?v=507";
-import * as noel from "./noel.js?v=507";
-import * as nohell from "./nohell.js?v=507";
-import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=507";
-import { TOURS, TEMPS_COUP, nouveauTournoi, nouvellePartie, jouerPoint, scoreJeu, niveauAtteint, nomNiveau } from "./topsping-regles.js?v=507";
+  geometrie, setGeometrie, casesLigne, GEO_CLASSIQUE, MORT_CLOS, FORMULES_MORT, TITRES_MORT } from "./engine.js?v=508";
+import { GEO_CUBE, versFace, versPatron, coupRegleCube, NOM_FACE } from "./cube.js?v=508";
+import * as cubeVue from "./cube-vue.js?v=508";
+import { icosaedre } from "./icosaedre.js?v=508";
+import { Dictionary } from "./dictionary.js?v=508";
+import * as invasion from "./araignees.js?v=508";
+import { REGLES, afficheRegles } from "./regles.js?v=508";
+import * as sonHalloween from "./halloween-son.js?v=508";
+import * as noel from "./noel.js?v=508";
+import * as nohell from "./nohell.js?v=508";
+import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=508";
+import { TOURS, TEMPS_COUP, nouveauTournoi, nouvellePartie, jouerPoint, scoreJeu, niveauAtteint, nomNiveau } from "./topsping-regles.js?v=508";
 
 // État du mode review (parcours coup par coup)
 // ===== Géométrie de la grille : classique (15 × 15) ou cube (patron 45 × 60, voir cube.js) =====
@@ -98,7 +97,7 @@ const FFSC_LIVE = URL_PARAMS.get("ffsclive");      // jouer une partie FFSC en d
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v507";
+const BUILD_VERSION = "garenna-v508";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -4873,6 +4872,21 @@ function populateAdminModes() {
   const isSuperAdmin = (localStorage.getItem("currentPseudo") || "").toLowerCase() === "stof"
     && localStorage.getItem("topissimo:superadmin") === "1";
   if (!isSuperAdmin) {
+    // Formules du tournoi de la Mort (clos) : à l'entraînement pour tous les joueurs du club.
+    const selF = $("#optGameMode");
+    if (selF && !PUBLIC_EVENT && !selF.dataset.mortDone) {
+      const grp = document.createElement("optgroup");
+      grp.label = "💀 Formules du tournoi de la Mort";
+      for (const key of FORMULES_MORT) {
+        if (!GAME_MODES[key]) continue;
+        const o = document.createElement("option");
+        o.value = key; o.textContent = `${GAME_MODES[key].label} (${TITRES_MORT[key]})`;
+        grp.appendChild(o);
+      }
+      selF.appendChild(grp);
+      selF.dataset.mortDone = "1";
+      if (FORMULES_MORT.includes(state.settings.gameMode)) selF.value = state.settings.gameMode;
+    }
     // Mode « Éditeur » (construction de partie) : réservé au superadmin également.
     const edOpt = document.querySelector('#optPlayMode option[value="editor"]');
     if (edOpt) edOpt.remove();
@@ -6724,6 +6738,13 @@ async function loadPreparedGame(id) {
   state.settings.withJoker = data.with_joker;
   state.settings.timePerMove = data.time_per_move;
   await majTitresMort(data.tournament_id);
+  // Tournoi de la Mort clos : on ne joue plus (« Revoir » reste possible).
+  if (titresMort && MORT_CLOS && !isSuperAdminSession()) {
+    const dest = PUBLIC_EVENT ? "../halloween/" : `../index.html${data.tournament_id ? `#tid=${data.tournament_id}` : ""}`;
+    showFeedback("error", "🏁 Le tournoi de la Mort est terminé", "Plus aucune partie ne peut être jouée. Retour au tournoi…");
+    setTimeout(() => { location.href = dest; }, 2500);
+    return new Promise(() => {});
+  }
   // Grille random : disposition des bonus stockée sur le 1er coup.
   state.boardLayout = data.moves?.[0]?._layout || null;
   // Diagnostic : tracer la partie chargée et le nombre de coups stockés.
@@ -6980,7 +7001,7 @@ function tsModeCourant() {
 
 async function tsChargeReserves(nom) {
   return Promise.all(TOURS.map(async (_, i) => {
-    const r = await fetch(`../topsping/${encodeURIComponent(nom)}/tour-${i + 1}.json?v=507`);
+    const r = await fetch(`../topsping/${encodeURIComponent(nom)}/tour-${i + 1}.json?v=508`);
     if (!r.ok) throw new Error(`parties du ${TOURS[i].nom} introuvables (${nom})`);
     return (await r.json()).parties;
   }));

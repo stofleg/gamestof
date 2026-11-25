@@ -10,11 +10,11 @@
 //     pour tous. Un seul essai ; l'heure de départ est enregistrée en base, si bien
 //     qu'un rechargement ne remet pas le chrono à zéro. Le temps réalisé est
 //     enregistré comme résultat (0 point, 0 négatif) et s'ajoute au temps général.
-import { afficheRegles } from "./regles.js?v=507";
-import { chargeDico, grilleFinale, classeCase, jeton, appliqueTheme, fmt } from "./grille-finale.js?v=507";
-import { decoupeRegions, piecesDepuisRegions } from "./puzzle-pieces.js?v=507";
-import { emptyBoard, applyMove, modeDisplayName, modeNomOrigine, ecranMobile, MSG_MORT_MOBILE } from "./engine.js?v=507";
-import * as sonHalloween from "./halloween-son.js?v=507";
+import { afficheRegles } from "./regles.js?v=508";
+import { chargeDico, grilleFinale, classeCase, jeton, appliqueTheme, fmt } from "./grille-finale.js?v=508";
+import { decoupeRegions, piecesDepuisRegions } from "./puzzle-pieces.js?v=508";
+import { emptyBoard, applyMove, modeDisplayName, modeNomOrigine, ecranMobile, MSG_MORT_MOBILE, MORT_CLOS } from "./engine.js?v=508";
+import * as sonHalloween from "./halloween-son.js?v=508";
 
 const $ = id => document.getElementById(id);
 const N = 15;
@@ -380,6 +380,13 @@ async function lanceTournoi() {
     $("pzChrono").textContent = fmt(res.total_time_seconds || 0);
     $("pzAbandon").hidden = true;
     annonce(res.summary.ab ? `Jigsaw abandonné : temps compté ${fmt(res.total_time_seconds || 0)}.` : `Grille déjà reconstituée en ${fmt(res.total_time_seconds || 0)}.`);
+    fini = true;
+    return;
+  }
+  if (mort && MORT_CLOS && !((localStorage.getItem("currentPseudo") || "").toLowerCase() === "stof" && localStorage.getItem("topissimo:superadmin") === "1")) {
+    afficheSolution();                                      // tournoi clos : la grille, mais plus de partie
+    $("pzAbandon").hidden = true;
+    annonce("🏁 Le tournoi de la Mort est terminé : Jigsaw ne peut plus être joué.");
     fini = true;
     return;
   }

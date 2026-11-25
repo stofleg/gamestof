@@ -2,7 +2,7 @@
 //  directement les parties du tournoi et le classement. Les comptes créés ici
 //  sont des comptes « halloween » : la base ne leur ouvre que les tournois
 //  publics (cf. schema-halloween.sql), et Topissimo les renvoie ici.
-import { modeDisplayName, modeNomOrigine, ecranMobile, MSG_MORT_MOBILE, pointsJigsaw } from "../scrabble/engine.js?v=507";
+import { modeDisplayName, modeNomOrigine, ecranMobile, MSG_MORT_MOBILE, pointsJigsaw, MORT_CLOS } from "../scrabble/engine.js?v=508";
 
 const $ = id => document.getElementById(id);
 const sb = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
@@ -107,7 +107,8 @@ async function afficheTournoi() {
     .eq("est_public", true).is("archived_at", null).order("id", { ascending: false }).limit(1);
   const t = tournois?.[0];
   if (!t) { $("hwParties").innerHTML = "<p>Le tournoi n'a pas encore commencé. Reviens bientôt… si tu l'oses.</p>"; return; }
-  $("hwTitre").textContent = t.name;
+  $("hwTitre").textContent = MORT_CLOS ? `${t.name} — terminé` : t.name;
+  if (MORT_CLOS && $("hwClassement").previousElementSibling) $("hwClassement").previousElementSibling.textContent = "🏆 Classement final";
   // Mémorisé : les pages de jeu posent alors le thème Halloween dès leur premier affichage.
   try { const l = JSON.parse(localStorage.getItem("topissimo:tournoisMort") || "[]"); if (!l.includes(String(t.id))) localStorage.setItem("topissimo:tournoisMort", JSON.stringify([...l, String(t.id)].slice(-20))); } catch {}
 
@@ -127,7 +128,9 @@ async function afficheTournoi() {
   $("hwParties").innerHTML = liste.map(g => {
     const r = etat.get(g.id);
     const fini = finie(g);
-    const action = fini
+    const action = MORT_CLOS && !fini
+      ? `<span class="verrou" title="Le tournoi est terminé">🏁 terminé</span>`
+      : fini
       ? (estJigsaw(g)
           ? `<span class="fait">✔ ${duree(r.total_time_seconds || 0)}</span>`
           : `<span class="fait">✔ ${r.sum_neg ?? 0}</span> <a class="hw-btn fantome" href="../scrabble/game.html?review=${g.id}&tid=${t.id}">Revoir</a>`)
@@ -137,10 +140,11 @@ async function afficheTournoi() {
         ? `<span class="verrou" title="Termine d'abord les autres parties">🔒 encore ${resteAvantJigsaw} partie${resteAvantJigsaw > 1 ? "s" : ""}</span>`
         : `<a class="hw-btn" href="../scrabble/game.html?prepared=${g.id}&tid=${t.id}">${r?.paused ? "Reprendre" : "Jouer"}</a>`;
     // Classement de la partie (et feuilles de route) : seulement une fois sa propre partie terminée.
-    const medaille = !fini ? `<button class="hw-btn fantome hw-medaille" type="button" disabled title="Joue d'abord cette partie pour voir le classement">🏅</button>` : `<button class="hw-btn fantome hw-medaille" type="button" data-partie="${g.id}" data-nom="${echappe(g.name)}" title="Classement de la partie">🏅</button>`;
+    const medaille = !fini && !MORT_CLOS ? `<button class="hw-btn fantome hw-medaille" type="button" disabled title="Joue d'abord cette partie pour voir le classement">🏅</button>` : `<button class="hw-btn fantome hw-medaille" type="button" data-partie="${g.id}" data-nom="${echappe(g.name)}" title="Classement de la partie">🏅</button>`;
     return `<div class="hw-partie"><div class="nom">${echappe(g.name)}<div class="formule">${echappe(modeDisplayName(g.mode, false, true))} <span class="origine">· ${echappe(modeNomOrigine(g.mode))}</span></div></div>${action} ${medaille}</div>`;
   }).join("") || "<p>Aucune partie pour l'instant.</p>";
-  if (mobile) $("hwParties").insertAdjacentHTML("afterbegin", `<p class="hw-mobile">💻 ${echappe(MSG_MORT_MOBILE)}</p>`);
+  if (MORT_CLOS) $("hwParties").insertAdjacentHTML("afterbegin", `<p class="hw-mobile">🏁 Le tournoi est terminé : merci à tous d'avoir osé ! Voici le classement final. Les classements de chaque partie (🏅) restent consultables.</p>`);
+  else if (mobile) $("hwParties").insertAdjacentHTML("afterbegin", `<p class="hw-mobile">💻 ${echappe(MSG_MORT_MOBILE)}</p>`);
 
   const { data: cl, error } = await sb.rpc("classement_public", { p_tournament: t.id });
   if (error || !cl?.length) { $("hwClassement").innerHTML = "<p>Personne n'a encore osé jouer.</p>"; return; }

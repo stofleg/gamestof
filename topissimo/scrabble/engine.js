@@ -289,6 +289,15 @@ export function gigogneRackSize(moveNo) {
 // Nom affiché en combinant mode + joker
 // Titres du « tournoi de la Mort » (tournoi public d'Halloween) : ils remplacent le nom
 // habituel de la formule, uniquement pour les parties de ce tournoi.
+/** Tournoi de la Mort clos : plus aucune partie ne se lance (page publique, page du tournoi,
+ *  page de jeu, Jigsaw) ; résultats, classements et « Revoir » restent consultables. Remettre
+ *  à false pour ouvrir un nouveau tournoi de la Mort. */
+export const MORT_CLOS = true;
+
+/** Formules du tournoi de la Mort, proposées à l'entraînement à tous les joueurs du club. */
+export const FORMULES_MORT = ["6lettres", "7sur15", "jokerpayant", "horizvert", "topsoustop", "infjoker", "grillerandom",
+  "sablier", "gigogne", "anglaise", "lettrecachee", "voyelles", "invasion", "puzzle"];
+
 export const TITRES_MORT = {
   "6lettres": "666",
   "7sur15": "Se7en",
