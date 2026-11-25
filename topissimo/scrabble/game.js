@@ -30,18 +30,18 @@ import {
   setLetterValues, letterValue, valuesFor, bagFor, isCrossingCell, wordHiddenCount,
   drawVowelRack, VOWELS_NO_Y, MARATHON_TARGET, MARATHON_GAMES, consonnesDisponibles, CONSONANTS_FR, jokersDisponibles,
   tireOeufs, POINTS_OEUF, jokerHorsReliquat, lettresAuChoix,
-  geometrie, setGeometrie, casesLigne, GEO_CLASSIQUE, MORT_CLOS, FORMULES_MORT, TITRES_MORT } from "./engine.js?v=508";
-import { GEO_CUBE, versFace, versPatron, coupRegleCube, NOM_FACE } from "./cube.js?v=508";
-import * as cubeVue from "./cube-vue.js?v=508";
-import { icosaedre } from "./icosaedre.js?v=508";
-import { Dictionary } from "./dictionary.js?v=508";
-import * as invasion from "./araignees.js?v=508";
-import { REGLES, afficheRegles } from "./regles.js?v=508";
-import * as sonHalloween from "./halloween-son.js?v=508";
-import * as noel from "./noel.js?v=508";
-import * as nohell from "./nohell.js?v=508";
-import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=508";
-import { TOURS, TEMPS_COUP, nouveauTournoi, nouvellePartie, jouerPoint, scoreJeu, niveauAtteint, nomNiveau } from "./topsping-regles.js?v=508";
+  geometrie, setGeometrie, casesLigne, GEO_CLASSIQUE, MORT_CLOS, FORMULES_MORT, TITRES_MORT } from "./engine.js?v=509";
+import { GEO_CUBE, versFace, versPatron, coupRegleCube, NOM_FACE } from "./cube.js?v=509";
+import * as cubeVue from "./cube-vue.js?v=509";
+import { icosaedre } from "./icosaedre.js?v=509";
+import { Dictionary } from "./dictionary.js?v=509";
+import * as invasion from "./araignees.js?v=509";
+import { REGLES, afficheRegles } from "./regles.js?v=509";
+import * as sonHalloween from "./halloween-son.js?v=509";
+import * as noel from "./noel.js?v=509";
+import * as nohell from "./nohell.js?v=509";
+import { findTop, findTopRanked, rankIsotops, snakeBestTop, snakeMoveLegal } from "./topfinder.js?v=509";
+import { TOURS, TEMPS_COUP, nouveauTournoi, nouvellePartie, jouerPoint, scoreJeu, niveauAtteint, nomNiveau } from "./topsping-regles.js?v=509";
 
 // État du mode review (parcours coup par coup)
 // ===== Géométrie de la grille : classique (15 × 15) ou cube (patron 45 × 60, voir cube.js) =====
@@ -97,7 +97,7 @@ const FFSC_LIVE = URL_PARAMS.get("ffsclive");      // jouer une partie FFSC en d
 // Version de ce build JS. Doit correspondre au CACHE du service worker (sw.js)
 // et à EXPECTED_SW_CACHE (app.js). Sert à détecter un code périmé servi par un
 // service worker non mis à jour (cause probable des "tirages d'ailleurs").
-const BUILD_VERSION = "garenna-v508";
+const BUILD_VERSION = "garenna-v509";
 
 // ============================================================
 //  Diagnostic — journal d'événements transmis en fin de partie
@@ -7001,7 +7001,7 @@ function tsModeCourant() {
 
 async function tsChargeReserves(nom) {
   return Promise.all(TOURS.map(async (_, i) => {
-    const r = await fetch(`../topsping/${encodeURIComponent(nom)}/tour-${i + 1}.json?v=508`);
+    const r = await fetch(`../topsping/${encodeURIComponent(nom)}/tour-${i + 1}.json?v=509`);
     if (!r.ok) throw new Error(`parties du ${TOURS[i].nom} introuvables (${nom})`);
     return (await r.json()).parties;
   }));
